@@ -1,0 +1,205 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { RefreshCw, Search, TicketCheck } from 'lucide-react'
+import { TicketQuickEntryForm } from './TicketQuickEntryForm'
+import { TicketLedgerList } from './TicketLedgerList'
+import { TicketCompletionDrawer } from './TicketCompletionDrawer'
+import { loadTicketLedger, TicketLedgerApiError } from './ledgerClientApi'
+import type { TicketLedgerPayload } from './types'
+
+export function TicketingLedgerClient() {
+  const [payload, setPayload] = useState<TicketLedgerPayload | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('all')
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
+
+  const refresh = useCallback(async (initial = false) => {
+    if (initial) setIsLoading(true)
+    else setIsRefreshing(true)
+    try {
+      const nextPayload = await loadTicketLedger()
+      setPayload(nextPayload)
+      setLoadError('')
+    } catch (error) {
+      setLoadError(
+        error instanceof TicketLedgerApiError
+          ? error.message
+          : 'Unable to load your sales ledger. Try again.',
+      )
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refresh(true)
+  }, [refresh])
+
+  const filteredItems = useMemo(() => {
+    if (!payload) return []
+    const query = search.trim().toLowerCase()
+    return payload.items.filter((item) => {
+      const matchesStatus = status === 'all' || item.operationalStatus === status
+      const matchesSearch =
+        !query ||
+        item.pnr.toLowerCase().includes(query) ||
+        item.customerName.toLowerCase().includes(query) ||
+        item.airline.iataCode.toLowerCase().includes(query) ||
+        item.airline.name.toLowerCase().includes(query)
+      return matchesStatus && matchesSearch
+    })
+  }, [payload, search, status])
+
+  if (isLoading && !payload) {
+    return (
+      <div className="space-y-4" role="status" aria-live="polite">
+        <div className="h-28 animate-pulse rounded-[1.75rem] bg-slate-200" />
+        <div className="h-80 animate-pulse rounded-2xl bg-slate-200" />
+        <p className="text-center text-sm font-semibold text-slate-500">
+          Loading your sales ledger…
+        </p>
+      </div>
+    )
+  }
+
+  if (!payload) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm"
+      >
+        <h1 className="text-xl font-black text-slate-950">Sales ledger unavailable</h1>
+        <p className="mt-2 text-sm text-red-700">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void refresh(true)}
+          className="ui-tap ui-focus mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#8b1e2d] px-5 text-sm font-bold text-white"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#4b0f16] via-[#8b1e2d] to-slate-900 p-5 text-white shadow-xl shadow-red-950/15 md:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-red-100">
+              Ticketing operations
+            </p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight">My Sales Ledger</h1>
+            <p className="mt-2 text-sm text-red-50/85">
+              Fast TK entry and your own ticket records for{' '}
+              {payload.context.locationName || 'your branch'}.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/20">
+            <TicketCheck className="h-7 w-7" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-bold text-red-100">Signed in as</p>
+              <p className="text-sm font-black">{payload.context.employeeName}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <TicketQuickEntryForm
+        airlines={payload.airlines}
+        timezone={payload.context.timezone}
+        onCreated={() => refresh()}
+      />
+
+      <section aria-labelledby="my-ticket-records-title" className="space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
+              Own records
+            </p>
+            <h2 id="my-ticket-records-title" className="mt-1 text-xl font-black text-slate-950">
+              Latest ticket records
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Showing {filteredItems.length} of the latest {payload.items.length} ticket records
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-[minmax(15rem,1fr)_11rem_auto]">
+            <label className="relative text-xs font-bold text-slate-700">
+              <span className="sr-only">Search your tickets</span>
+              <Search
+                className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search PNR, customer or airline"
+                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+              />
+            </label>
+            <label className="text-xs font-bold text-slate-700">
+              <span className="sr-only">Filter by ticket state</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+              >
+                <option value="all">All states</option>
+                <option value="held">Held</option>
+                <option value="issued">Issued</option>
+                <option value="expired">Expired</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="part_refunded">Part refunded</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isRefreshing}
+              aria-label="Refresh sales ledger"
+              className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+              <span className="sm:sr-only">Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        {loadError && (
+          <div
+            role="alert"
+            className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 ring-1 ring-amber-200"
+          >
+            {loadError} Existing records remain visible.
+          </div>
+        )}
+
+        <TicketLedgerList
+          items={filteredItems}
+          timezone={payload.context.timezone}
+          onComplete={(item) => setSelectedBookingId(item.bookingId)}
+        />
+      </section>
+
+      <TicketCompletionDrawer
+        bookingId={selectedBookingId}
+        timezone={payload.context.timezone}
+        onClose={() => setSelectedBookingId(null)}
+        onSaved={() => refresh()}
+      />
+    </div>
+  )
+}

@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-Last verified against the repository: August 16, 2026.
+Last verified against the repository: August 22, 2026.
 
 ## Sources of truth
 
@@ -27,20 +27,23 @@ Do not create or mutate production schema from an HTTP request. Maintenance endp
 | Frappe/HR                     | identity maps, inbox/outbox, conflicts, sync state, handoff events, leave requests/types/balances, and retained payroll/employee-history tables                                                                                                                                                                                                                        |
 | Training and dashboard        | courses, lessons, quiz questions, enrollments, attempts, certificates, dashboard module preferences, notice-board slides/reads, issue reports/events/artifacts                                                                                                                                                                                                         |
 | Pricing and commercial data   | central service pricing, NADRA/passport/visa pricing, Umrah transport suppliers/vehicles/routes/plans/rates/settings, commissions, ticket ledger, loyalty, accounting categories, closeout and P&L data                                                                                                                                                                |
+| Ticketing                     | normalized `ticket_bookings`, TK/DC/R-ER transactions, grouped passenger fares, passenger allocations, itinerary sectors, package links, audit/notification/idempotency records, and the Commission-owned source-event boundary; the legacy `ticket_ledger` remains frozen for review                                                                                  |
 
 This is a domain map, not a column-level substitute for generated types or SQL. See [Travel Packages](../guides/TRAVEL_PACKAGES_GUIDE.md), [Bookings](../guides/BOOKINGS_GUIDE.md), and [Storage](STORAGE_SYSTEM.md) for lifecycle rules.
 
 ## Migration families
 
-| Migration range                                   | Capability                                                                                                                                                                                                          |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `20260214`–`20260328`                             | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                    |
-| `20260414`–`20260418`                             | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                         |
-| `20260602`–`20260702`                             | booking operations/capacity/waitlist/drafts/preferences, security preferences and legacy passkey-preview storage/events, Frappe identity/handoff, notice board, training, manual overrides                          |
-| `20260708`–`20260811`                             | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts |
-| `20260812_secure_atomic_lms_operations.sql`       | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                       |
-| `20260812_security_rate_limits.sql`               | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                         |
-| `20260812_update_lms_installments_atomically.sql` | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                           |
+| Migration range                                       | Capability                                                                                                                                                                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260214`–`20260328`                                 | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                    |
+| `20260414`–`20260418`                                 | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                         |
+| `20260602`–`20260702`                                 | booking operations/capacity/waitlist/drafts/preferences, security preferences and legacy passkey-preview storage/events, Frappe identity/handoff, notice board, training, manual overrides                          |
+| `20260708`–`20260811`                                 | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts |
+| `20260812_secure_atomic_lms_operations.sql`           | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                       |
+| `20260812_security_rate_limits.sql`                   | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                         |
+| `20260812_update_lms_installments_atomically.sql`     | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                           |
+| `20260822_create_ticketing_commission_foundation.sql` | Ticketing schema ratchet: normalized ledger core, PNR/package evidence, branch timezones, server-only finance access, legacy-ledger freeze, and immutable retry-safe Commission source variables                    |
+| `20260822_create_ticketing_quick_tk.sql`              | atomic, idempotent TK quick entry for an agent's own ledger, duplicate-PNR confirmation, automatic package matching, transaction-owner alignment, starter airlines, and capability `2026082201`                     |
 
 Apply files in filename order. A feature deployment may also require an earlier bootstrap noted by its active guide—for example bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against production.
 
@@ -50,6 +53,18 @@ The two August 12 capability migrations share the service-role-only `portal_sche
 
 - component `lms`, version `20260812`, plus `lms_schema_status()`, the main `lms_*` transactional functions, and `lms_update_installments(jsonb)` from the follow-up migration;
 - component `api-security`, version `20260812`, plus `check_api_rate_limit(...)` and `replace_backup_codes(...)`.
+
+The Ticketing foundation installs component `ticketing`, version `20260822`. The TK quick-entry
+migration raises that component to version `2026082201` and installs
+`ticketing_create_quick_tk(uuid, text, jsonb)`. The My Sales Ledger runtime requires
+`ticketing_schema_status()` to report that exact version ready and fails closed otherwise. The
+function is executable only through the service-role boundary; the API derives the employee actor
+from the verified staff session and never accepts that identity from the browser.
+
+This capability supports the first operational slice only: TK Held/Issued quick entry and the
+authenticated agent's own ledger. The schema includes structures for later workflows, but DC and
+R-ER entry, low fares, vouchers, targets, team flight monitoring, refunds, and the cancellation
+calculator are not part of this runtime capability.
 
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 
@@ -86,8 +101,14 @@ The type generator preserves the existing checked-in file if Supabase CLI genera
 `.github/workflows/database-integration.yml` starts PostgreSQL 16 and runs:
 
 ```bash
+npm run test:db:ticketing
 npm run test:db:lms
 npm run test:db:security
 ```
 
-The suites validate migration installation and rollback behavior, grants, readiness markers, LMS ledger/installment/idempotency semantics, all-or-nothing installment-batch updates, limiter windows, atomic backup-code replacement, and concurrent requests. Locally, set `DATABASE_TEST_URL` to a disposable database. Never point these fixtures at production or any database containing data that must be preserved.
+The suites validate migration installation and rollback behavior, grants, readiness markers,
+Ticketing quick-entry idempotency/duplicate/package/ownership rules, LMS
+ledger/installment/idempotency semantics, all-or-nothing installment-batch updates, limiter
+windows, atomic backup-code replacement, and concurrent requests. Locally, set `DATABASE_TEST_URL`
+to a disposable database. Never point these fixtures at production or any database containing data
+that must be preserved.

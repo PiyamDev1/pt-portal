@@ -234,6 +234,18 @@ Internal quote/folder/group operations require an authenticated staff context an
 
 The staff QR-scan route validates the authenticated user and signed device QR payload. Physical-device endpoints use the signed `ptc1` device contract, nonce/timestamp replay controls, and active-device checks. Never expose device secrets or log signed payload material.
 
+## Ticketing
+
+| Methods       | Route                   |
+| ------------- | ----------------------- |
+| `GET`, `POST` | `/api/ticketing/ledger` |
+
+The My Sales Ledger endpoint verifies an active Ticketing department member or Ticketing oversight
+role, but always returns and creates records for the authenticated employee in this first slice.
+Quick TK creation is one retry-safe database operation and performs duplicate confirmation and
+package-PNR matching atomically. The ledger response contains operational fare inputs but never
+calculated commission, earnings, margin, or profit. See the [Ticketing API](../api/TICKETING.md).
+
 ## Frappe, HR, training, and dashboard services
 
 | Methods       | Route                                              |

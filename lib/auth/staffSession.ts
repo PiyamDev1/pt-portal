@@ -33,6 +33,7 @@ export type StaffSession = {
 export type StaffSessionOptions = {
   roles?: string[]
   departments?: string[]
+  includeDepartments?: boolean
   activeOnly?: boolean
 }
 
@@ -105,7 +106,8 @@ export async function requireStaffSession(
     }
 
     let departments: string[] = []
-    if ((options.departments || []).length > 0) {
+    const allowedDepartments = (options.departments || []).map(normalizeAccessName)
+    if (options.includeDepartments || allowedDepartments.length > 0) {
       const { data: memberships, error: membershipError } = await serviceClient
         .from('employee_departments')
         .select('departments(name)')
@@ -125,8 +127,10 @@ export async function requireStaffSession(
         .map((membership) => relatedName(membership.departments))
         .filter((name): name is string => Boolean(name))
 
-      const allowedDepartments = (options.departments || []).map(normalizeAccessName)
-      if (!departments.some((name) => allowedDepartments.includes(normalizeAccessName(name)))) {
+      if (
+        allowedDepartments.length > 0 &&
+        !departments.some((name) => allowedDepartments.includes(normalizeAccessName(name)))
+      ) {
         return {
           authorized: false,
           response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),

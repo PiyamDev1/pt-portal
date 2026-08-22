@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import { TicketingPlaceholder } from '../TicketingPlaceholder'
+import { TicketingLedgerClient } from './TicketingLedgerClient'
 
 export const metadata: Metadata = {
-  title: 'Ticketing Ledger - PT Portal',
-  description: 'Placeholder for the future ticketing ledger',
+  title: 'My Sales Ledger - PT Portal',
+  description: 'Fast TK entry and personal ticket records',
 }
 
 export default function TicketingLedgerPage() {
-  return <TicketingPlaceholder kind="ledger" />
+  return <TicketingLedgerClient />
 }

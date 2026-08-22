@@ -28,19 +28,52 @@ export type Database = {
       }
       airlines: {
         Row: {
+          created_at: string
           iata_code: string
           id: string
+          is_active: boolean
           name: string
+          updated_at: string
         }
         Insert: {
+          created_at?: string
           iata_code: string
           id?: string
+          is_active?: boolean
           name: string
+          updated_at?: string
         }
         Update: {
+          created_at?: string
           iata_code?: string
           id?: string
+          is_active?: boolean
           name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      api_rate_limit_buckets: {
+        Row: {
+          identity_hash: string
+          request_count: number
+          scope: string
+          updated_at: string
+          window_started_at: string
+        }
+        Insert: {
+          identity_hash: string
+          request_count?: number
+          scope: string
+          updated_at?: string
+          window_started_at?: string
+        }
+        Update: {
+          identity_hash?: string
+          request_count?: number
+          scope?: string
+          updated_at?: string
+          window_started_at?: string
         }
         Relationships: []
       }
@@ -1368,6 +1401,133 @@ export type Database = {
           rule_name?: string
         }
         Relationships: []
+      }
+      commission_source_event_states: {
+        Row: {
+          attempt_count: number
+          event_id: string
+          last_error: string | null
+          next_attempt_at: string | null
+          processing_status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          event_id: string
+          last_error?: string | null
+          next_attempt_at?: string | null
+          processing_status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          event_id?: string
+          last_error?: string | null
+          next_attempt_at?: string | null
+          processing_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_source_event_states_event_id_fkey'
+            columns: ['event_id']
+            isOneToOne: true
+            referencedRelation: 'commission_source_events'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_source_events: {
+        Row: {
+          contract_version: number
+          created_at: string
+          effective_on: string
+          employee_id: string
+          event_type: string
+          event_version: number
+          id: string
+          idempotency_key: string
+          location_id: string | null
+          occurred_at: string
+          owner_employee_id: string | null
+          source_event_id: string
+          source_fact_key: string
+          source_module: string
+          source_path: string
+          source_record_id: string
+          supersedes_event_id: string | null
+          variables: Json
+        }
+        Insert: {
+          contract_version?: number
+          created_at?: string
+          effective_on: string
+          employee_id: string
+          event_type: string
+          event_version?: number
+          id?: string
+          idempotency_key: string
+          location_id?: string | null
+          occurred_at: string
+          owner_employee_id?: string | null
+          source_event_id: string
+          source_fact_key: string
+          source_module: string
+          source_path: string
+          source_record_id: string
+          supersedes_event_id?: string | null
+          variables: Json
+        }
+        Update: {
+          contract_version?: number
+          created_at?: string
+          effective_on?: string
+          employee_id?: string
+          event_type?: string
+          event_version?: number
+          id?: string
+          idempotency_key?: string
+          location_id?: string | null
+          occurred_at?: string
+          owner_employee_id?: string | null
+          source_event_id?: string
+          source_fact_key?: string
+          source_module?: string
+          source_path?: string
+          source_record_id?: string
+          supersedes_event_id?: string | null
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_source_events_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_source_events_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_source_events_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_source_events_supersedes_event_id_fkey'
+            columns: ['supersedes_event_id']
+            isOneToOne: false
+            referencedRelation: 'commission_source_events'
+            referencedColumns: ['id']
+          },
+        ]
       }
       commission_tiers: {
         Row: {
@@ -2787,6 +2947,36 @@ export type Database = {
         }
         Relationships: []
       }
+      lms_idempotency_keys: {
+        Row: {
+          action_name: string
+          actor_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          request_payload: Json
+          response_payload: Json
+        }
+        Insert: {
+          action_name: string
+          actor_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          request_payload?: Json
+          response_payload: Json
+        }
+        Update: {
+          action_name?: string
+          actor_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          request_payload?: Json
+          response_payload?: Json
+        }
+        Relationships: []
+      }
       loan_account_notes: {
         Row: {
           created_at: string | null
@@ -2985,36 +3175,6 @@ export type Database = {
           },
         ]
       }
-      lms_idempotency_keys: {
-        Row: {
-          action_name: string
-          actor_id: string
-          created_at: string
-          id: string
-          idempotency_key: string
-          request_payload: Json
-          response_payload: Json
-        }
-        Insert: {
-          action_name: string
-          actor_id: string
-          created_at?: string
-          id?: string
-          idempotency_key: string
-          request_payload?: Json
-          response_payload: Json
-        }
-        Update: {
-          action_name?: string
-          actor_id?: string
-          created_at?: string
-          id?: string
-          idempotency_key?: string
-          request_payload?: Json
-          response_payload?: Json
-        }
-        Relationships: []
-      }
       loan_package_links: {
         Row: {
           created_at: string
@@ -3128,13 +3288,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'loan_transactions_installment_id_fkey'
-            columns: ['installment_id']
-            isOneToOne: false
-            referencedRelation: 'loan_installments'
-            referencedColumns: ['id']
-          },
-          {
             foreignKeyName: 'loan_transactions_employee_id_fkey'
             columns: ['employee_id']
             isOneToOne: false
@@ -3142,10 +3295,10 @@ export type Database = {
             referencedColumns: ['id']
           },
           {
-            foreignKeyName: 'loan_transactions_service_transaction_id_fkey'
-            columns: ['service_transaction_id']
+            foreignKeyName: 'loan_transactions_installment_id_fkey'
+            columns: ['installment_id']
             isOneToOne: false
-            referencedRelation: 'loan_transactions'
+            referencedRelation: 'loan_installments'
             referencedColumns: ['id']
           },
           {
@@ -3167,6 +3320,13 @@ export type Database = {
             columns: ['service_category_id']
             isOneToOne: false
             referencedRelation: 'loan_service_categories'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'loan_transactions_service_transaction_id_fkey'
+            columns: ['service_transaction_id']
+            isOneToOne: false
+            referencedRelation: 'loan_transactions'
             referencedColumns: ['id']
           },
         ]
@@ -3238,6 +3398,7 @@ export type Database = {
           parent_location_id: string | null
           phone: string | null
           postcode: string | null
+          timezone: string
           type: string | null
         }
         Insert: {
@@ -3255,6 +3416,7 @@ export type Database = {
           parent_location_id?: string | null
           phone?: string | null
           postcode?: string | null
+          timezone?: string
           type?: string | null
         }
         Update: {
@@ -3272,6 +3434,7 @@ export type Database = {
           parent_location_id?: string | null
           phone?: string | null
           postcode?: string | null
+          timezone?: string
           type?: string | null
         }
         Relationships: [
@@ -4657,6 +4820,27 @@ export type Database = {
           },
         ]
       }
+      portal_schema_versions: {
+        Row: {
+          applied_at: string
+          component: string
+          details: Json
+          version: number
+        }
+        Insert: {
+          applied_at?: string
+          component: string
+          details?: Json
+          version: number
+        }
+        Update: {
+          applied_at?: string
+          component?: string
+          details?: Json
+          version?: number
+        }
+        Relationships: []
+      }
       roles: {
         Row: {
           id: string
@@ -4740,6 +4924,320 @@ export type Database = {
           vendor_type?: Database['public']['Enums']['vendor_category']
         }
         Relationships: []
+      }
+      ticket_audit_events: {
+        Row: {
+          action: string
+          actor_employee_id: string
+          after_state: Json | null
+          before_state: Json | null
+          booking_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          reason: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_employee_id: string
+          after_state?: Json | null
+          before_state?: Json | null
+          booking_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          reason?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_employee_id?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          booking_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          reason?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_audit_events_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_audit_events_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_audit_events_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_bookings: {
+        Row: {
+          airline_id: string
+          archived_at: string | null
+          booking_date: string
+          commission_scope: string
+          contact_phone: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          departure_date: string | null
+          id: string
+          location_id: string
+          normalized_pnr: string | null
+          operational_status: string
+          owner_employee_id: string
+          package_match_status: string
+          payment_status: string
+          pnr: string
+          return_date: string | null
+          time_limit_at: string | null
+          time_limit_timezone: string | null
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          airline_id: string
+          archived_at?: string | null
+          booking_date: string
+          commission_scope?: string
+          contact_phone?: string | null
+          created_at?: string
+          created_by: string
+          customer_name: string
+          departure_date?: string | null
+          id?: string
+          location_id: string
+          normalized_pnr?: string | null
+          operational_status?: string
+          owner_employee_id: string
+          package_match_status?: string
+          payment_status?: string
+          pnr: string
+          return_date?: string | null
+          time_limit_at?: string | null
+          time_limit_timezone?: string | null
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          airline_id?: string
+          archived_at?: string | null
+          booking_date?: string
+          commission_scope?: string
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string
+          customer_name?: string
+          departure_date?: string | null
+          id?: string
+          location_id?: string
+          normalized_pnr?: string | null
+          operational_status?: string
+          owner_employee_id?: string
+          package_match_status?: string
+          payment_status?: string
+          pnr?: string
+          return_date?: string | null
+          time_limit_at?: string | null
+          time_limit_timezone?: string | null
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_bookings_airline_id_fkey'
+            columns: ['airline_id']
+            isOneToOne: false
+            referencedRelation: 'airlines'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_bookings_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_bookings_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_bookings_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_bookings_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_idempotency_keys: {
+        Row: {
+          action_name: string
+          actor_employee_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          request_payload: Json
+          response_payload: Json | null
+        }
+        Insert: {
+          action_name: string
+          actor_employee_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          request_payload: Json
+          response_payload?: Json | null
+        }
+        Update: {
+          action_name?: string
+          actor_employee_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          request_payload?: Json
+          response_payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_idempotency_keys_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_itinerary_sectors: {
+        Row: {
+          airline_id: string | null
+          arrival_at_utc: string | null
+          arrival_local: string | null
+          arrival_timezone: string | null
+          booking_id: string
+          created_at: string
+          created_by: string
+          departure_at_utc: string
+          departure_local: string
+          departure_timezone: string
+          destination_airport_code: string
+          flight_number: string | null
+          id: string
+          is_active: boolean
+          origin_airport_code: string
+          schedule_status: string
+          sequence_number: number
+          source_transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          airline_id?: string | null
+          arrival_at_utc?: string | null
+          arrival_local?: string | null
+          arrival_timezone?: string | null
+          booking_id: string
+          created_at?: string
+          created_by: string
+          departure_at_utc: string
+          departure_local: string
+          departure_timezone: string
+          destination_airport_code: string
+          flight_number?: string | null
+          id?: string
+          is_active?: boolean
+          origin_airport_code: string
+          schedule_status?: string
+          sequence_number: number
+          source_transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          airline_id?: string | null
+          arrival_at_utc?: string | null
+          arrival_local?: string | null
+          arrival_timezone?: string | null
+          booking_id?: string
+          created_at?: string
+          created_by?: string
+          departure_at_utc?: string
+          departure_local?: string
+          departure_timezone?: string
+          destination_airport_code?: string
+          flight_number?: string | null
+          id?: string
+          is_active?: boolean
+          origin_airport_code?: string
+          schedule_status?: string
+          sequence_number?: number
+          source_transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_itinerary_sectors_airline_id_fkey'
+            columns: ['airline_id']
+            isOneToOne: false
+            referencedRelation: 'airlines'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_itinerary_sectors_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_itinerary_sectors_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_itinerary_sectors_transaction_booking_fkey'
+            columns: ['source_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+        ]
       }
       ticket_ledger: {
         Row: {
@@ -4839,6 +5337,573 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'packages'
             referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_legacy_migration_map: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          legacy_payload: Json
+          legacy_ticket_ledger_id: string
+          migration_status: string
+          review_reason: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          legacy_payload: Json
+          legacy_ticket_ledger_id: string
+          migration_status?: string
+          review_reason: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          legacy_payload?: Json
+          legacy_ticket_ledger_id?: string
+          migration_status?: string
+          review_reason?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_legacy_migration_map_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_legacy_migration_map_legacy_ticket_ledger_id_fkey'
+            columns: ['legacy_ticket_ledger_id']
+            isOneToOne: true
+            referencedRelation: 'ticket_ledger'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_legacy_migration_map_reviewed_by_fkey'
+            columns: ['reviewed_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_legacy_migration_map_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_notification_events: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_status: string
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          id: string
+          notification_type: string
+          recipient_employee_id: string
+          scheduled_for: string
+          threshold_key: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_status?: string
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          notification_type: string
+          recipient_employee_id: string
+          scheduled_for: string
+          threshold_key: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_status?: string
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          notification_type?: string
+          recipient_employee_id?: string
+          scheduled_for?: string
+          threshold_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_notification_events_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_notification_events_recipient_employee_id_fkey'
+            columns: ['recipient_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_package_links: {
+        Row: {
+          booking_id: string
+          detected_at: string
+          group_id: string | null
+          id: string
+          match_status: string
+          matched_pnr: string
+          package_id: string | null
+          package_reference_snapshot: string | null
+          package_type_snapshot: string | null
+          reservation_id: string | null
+          resolution_method: string
+          resolution_reason: string | null
+          resolved_by: string | null
+          retired_at: string | null
+        }
+        Insert: {
+          booking_id: string
+          detected_at?: string
+          group_id?: string | null
+          id?: string
+          match_status: string
+          matched_pnr: string
+          package_id?: string | null
+          package_reference_snapshot?: string | null
+          package_type_snapshot?: string | null
+          reservation_id?: string | null
+          resolution_method?: string
+          resolution_reason?: string | null
+          resolved_by?: string | null
+          retired_at?: string | null
+        }
+        Update: {
+          booking_id?: string
+          detected_at?: string
+          group_id?: string | null
+          id?: string
+          match_status?: string
+          matched_pnr?: string
+          package_id?: string | null
+          package_reference_snapshot?: string | null
+          package_type_snapshot?: string | null
+          reservation_id?: string | null
+          resolution_method?: string
+          resolution_reason?: string | null
+          resolved_by?: string | null
+          retired_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_package_links_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_package_links_group_id_fkey'
+            columns: ['group_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_groups'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_package_links_package_id_fkey'
+            columns: ['package_id']
+            isOneToOne: false
+            referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_package_links_reservation_package_fkey'
+            columns: ['reservation_id', 'package_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_reservations'
+            referencedColumns: ['id', 'package_id']
+          },
+          {
+            foreignKeyName: 'ticket_package_links_resolved_by_fkey'
+            columns: ['resolved_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_passenger_fare_lines: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          passenger_type: string
+          quantity: number
+          sale_total_gbp: number | null
+          sale_total_source: number | null
+          supplier_total_gbp: number | null
+          supplier_total_source: number | null
+          transaction_id: string
+          unit_sale_price_gbp: number | null
+          unit_sale_price_source: number | null
+          unit_supplier_cost_gbp: number | null
+          unit_supplier_cost_source: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          passenger_type: string
+          quantity: number
+          sale_total_gbp?: number | null
+          sale_total_source?: number | null
+          supplier_total_gbp?: number | null
+          supplier_total_source?: number | null
+          transaction_id: string
+          unit_sale_price_gbp?: number | null
+          unit_sale_price_source?: number | null
+          unit_supplier_cost_gbp?: number | null
+          unit_supplier_cost_source?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          passenger_type?: string
+          quantity?: number
+          sale_total_gbp?: number | null
+          sale_total_source?: number | null
+          supplier_total_gbp?: number | null
+          supplier_total_source?: number | null
+          transaction_id?: string
+          unit_sale_price_gbp?: number | null
+          unit_sale_price_source?: number | null
+          unit_supplier_cost_gbp?: number | null
+          unit_supplier_cost_source?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_passenger_fare_lines_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_passengers: {
+        Row: {
+          booking_id: string
+          contact_phone: string | null
+          created_at: string
+          created_by: string
+          date_of_birth: string | null
+          full_name: string | null
+          id: string
+          passenger_type: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          contact_phone?: string | null
+          created_at?: string
+          created_by: string
+          date_of_birth?: string | null
+          full_name?: string | null
+          id?: string
+          passenger_type: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string
+          date_of_birth?: string | null
+          full_name?: string | null
+          id?: string
+          passenger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_passengers_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_passengers_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_schedule_events: {
+        Row: {
+          actor_employee_id: string
+          created_at: string
+          event_type: string
+          id: string
+          previous_schedule: Json
+          proposed_schedule: Json
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sector_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          previous_schedule?: Json
+          proposed_schedule?: Json
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sector_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          previous_schedule?: Json
+          proposed_schedule?: Json
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sector_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_schedule_events_reviewed_by_fkey'
+            columns: ['reviewed_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_schedule_events_sector_id_fkey'
+            columns: ['sector_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_itinerary_sectors'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_transaction_passengers: {
+        Row: {
+          booking_id: string
+          created_at: string
+          fare_line_id: string | null
+          id: string
+          passenger_id: string
+          ticket_number: string | null
+          transaction_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          fare_line_id?: string | null
+          id?: string
+          passenger_id: string
+          ticket_number?: string | null
+          transaction_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          fare_line_id?: string | null
+          id?: string
+          passenger_id?: string
+          ticket_number?: string | null
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_transaction_passengers_fare_line_transaction_fkey'
+            columns: ['fare_line_id', 'transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_passenger_fare_lines'
+            referencedColumns: ['id', 'transaction_id']
+          },
+          {
+            foreignKeyName: 'ticket_transaction_passengers_passenger_booking_fkey'
+            columns: ['passenger_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_passengers'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_transaction_passengers_transaction_booking_fkey'
+            columns: ['transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+        ]
+      }
+      ticket_transactions: {
+        Row: {
+          acting_employee_id: string
+          booking_date: string
+          booking_id: string
+          cancelled_at: string | null
+          correction_reason: string | null
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string | null
+          notes: string | null
+          operational_status: string
+          owner_employee_id: string
+          paid_at: string | null
+          parent_transaction_id: string | null
+          passenger_ticket_count: number
+          payment_status: string
+          refunded_at: string | null
+          sale_price_gbp: number | null
+          sale_price_source: number | null
+          service_type: string
+          supersedes_transaction_id: string | null
+          supplier_cost_gbp: number | null
+          supplier_cost_source: number | null
+          time_limit_at: string | null
+          time_limit_timezone: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          acting_employee_id: string
+          booking_date: string
+          booking_id: string
+          cancelled_at?: string | null
+          correction_reason?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string | null
+          notes?: string | null
+          operational_status?: string
+          owner_employee_id: string
+          paid_at?: string | null
+          parent_transaction_id?: string | null
+          passenger_ticket_count?: number
+          payment_status?: string
+          refunded_at?: string | null
+          sale_price_gbp?: number | null
+          sale_price_source?: number | null
+          service_type: string
+          supersedes_transaction_id?: string | null
+          supplier_cost_gbp?: number | null
+          supplier_cost_source?: number | null
+          time_limit_at?: string | null
+          time_limit_timezone?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          acting_employee_id?: string
+          booking_date?: string
+          booking_id?: string
+          cancelled_at?: string | null
+          correction_reason?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string | null
+          notes?: string | null
+          operational_status?: string
+          owner_employee_id?: string
+          paid_at?: string | null
+          parent_transaction_id?: string | null
+          passenger_ticket_count?: number
+          payment_status?: string
+          refunded_at?: string | null
+          sale_price_gbp?: number | null
+          sale_price_source?: number | null
+          service_type?: string
+          supersedes_transaction_id?: string | null
+          supplier_cost_gbp?: number | null
+          supplier_cost_source?: number | null
+          time_limit_at?: string | null
+          time_limit_timezone?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_transactions_acting_employee_id_fkey'
+            columns: ['acting_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_transactions_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_transactions_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_transactions_parent_same_booking_fkey'
+            columns: ['parent_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_transactions_supersedes_same_booking_fkey'
+            columns: ['supersedes_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
           },
         ]
       }
@@ -6963,6 +8028,7 @@ export type Database = {
           last_refund_reason: string | null
           last_refunded_at: string | null
           metadata: Json
+          normalized_booking_reference: string | null
           package_id: string
           payment_due_at: string | null
           public_notes: string | null
@@ -6999,6 +8065,7 @@ export type Database = {
           last_refund_reason?: string | null
           last_refunded_at?: string | null
           metadata?: Json
+          normalized_booking_reference?: string | null
           package_id: string
           payment_due_at?: string | null
           public_notes?: string | null
@@ -7035,6 +8102,7 @@ export type Database = {
           last_refund_reason?: string | null
           last_refunded_at?: string | null
           metadata?: Json
+          normalized_booking_reference?: string | null
           package_id?: string
           payment_due_at?: string | null
           public_notes?: string | null
@@ -8441,78 +9509,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      append_commission_source_event: { Args: { p_event: Json }; Returns: Json }
+      check_api_rate_limit: {
+        Args: {
+          p_identity_hash: string
+          p_limit: number
+          p_scope: string
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after_seconds: number
+        }[]
+      }
       exec_sql: { Args: { sql: string }; Returns: Json[] }
-      lms_clear_all_data: { Args: never; Returns: Json }
-      lms_delete_customer: {
-        Args: { p_actor_id: string; p_customer_id: string }
-        Returns: Json
-      }
-      lms_delete_installment_plan: {
-        Args: { p_transaction_id: string }
-        Returns: Json
-      }
-      lms_delete_payment: {
-        Args: { p_transaction_id: string }
-        Returns: Json
-      }
-      lms_list_accounts: {
-        Args: {
-          p_account_id?: string | null
-          p_filter?: string
-          p_limit?: number
-          p_page?: number
-        }
-        Returns: Json
-      }
-      lms_recalculate_loan: {
-        Args: { p_loan_id: string }
-        Returns: Json
-      }
-      lms_record_installment_payment: {
-        Args: {
-          p_amount: number
-          p_employee_id: string
-          p_expected_installment_number?: number | null
-          p_idempotency_key?: string | null
-          p_installment_id: string | null
-          p_loan_id: string
-          p_payment_method_id?: string | null
-          p_service_transaction_id: string
-          p_transaction_timestamp?: string
-        }
-        Returns: Json
-      }
-      lms_record_payment: {
-        Args: {
-          p_amount: number
-          p_employee_id: string
-          p_idempotency_key?: string | null
-          p_loan_id: string
-          p_payment_method_id?: string | null
-          p_remark?: string | null
-          p_transaction_timestamp?: string
-        }
-        Returns: Json
-      }
-      lms_skip_installment: {
-        Args: { p_installment_id: string }
-        Returns: Json
-      }
-      lms_sync_installment_plan: {
-        Args: { p_service_transaction_id: string }
-        Returns: undefined
-      }
-      lms_update_payment: {
-        Args: {
-          p_amount?: number | null
-          p_payment_method_id?: string | null
-          p_set_payment_method?: boolean
-          p_transaction_id: string
-          p_transaction_timestamp?: string | null
-        }
-        Returns: Json
-      }
-      lms_wipe_installments: { Args: never; Returns: Json }
       get_my_sessions: {
         Args: never
         Returns: {
@@ -8527,9 +9538,129 @@ export type Database = {
       is_in_department: { Args: { dept_name: string }; Returns: boolean }
       is_manager_of: { Args: { target_employee_id: string }; Returns: boolean }
       is_master_admin: { Args: never; Returns: boolean }
+      is_valid_iana_timezone: { Args: { p_value: string }; Returns: boolean }
+      lms_add_fee: {
+        Args: {
+          p_actor_id: string
+          p_amount: number
+          p_customer_id: string
+          p_idempotency_key?: string
+          p_loan_id: string
+          p_remark?: string
+          p_transaction_timestamp?: string
+        }
+        Returns: Json
+      }
+      lms_add_service: {
+        Args: {
+          p_actor_id: string
+          p_customer_id: string
+          p_idempotency_key?: string
+          p_initial_deposit?: number
+          p_installment_plan?: Json
+          p_next_due_date?: string
+          p_remark?: string
+          p_service_amount: number
+          p_term_months?: number
+          p_transaction_timestamp?: string
+        }
+        Returns: Json
+      }
+      lms_clear_all_data: { Args: never; Returns: Json }
+      lms_create_customer: {
+        Args: {
+          p_actor_id: string
+          p_address?: string
+          p_email?: string
+          p_first_name: string
+          p_idempotency_key?: string
+          p_initial_transaction?: Json
+          p_last_name: string
+          p_phone?: string
+        }
+        Returns: Json
+      }
+      lms_delete_customer: {
+        Args: { p_actor_id: string; p_customer_id: string }
+        Returns: Json
+      }
+      lms_delete_installment_plan: {
+        Args: { p_transaction_id: string }
+        Returns: Json
+      }
+      lms_delete_payment: { Args: { p_transaction_id: string }; Returns: Json }
+      lms_list_accounts: {
+        Args: {
+          p_account_id?: string
+          p_filter?: string
+          p_limit?: number
+          p_page?: number
+        }
+        Returns: Json
+      }
+      lms_recalculate_loan: { Args: { p_loan_id: string }; Returns: Json }
+      lms_record_installment_payment: {
+        Args: {
+          p_amount: number
+          p_employee_id: string
+          p_expected_installment_number?: number
+          p_idempotency_key?: string
+          p_installment_id: string
+          p_loan_id: string
+          p_payment_method_id?: string
+          p_service_transaction_id: string
+          p_transaction_timestamp?: string
+        }
+        Returns: Json
+      }
+      lms_record_payment: {
+        Args: {
+          p_amount: number
+          p_employee_id: string
+          p_idempotency_key?: string
+          p_loan_id: string
+          p_payment_method_id?: string
+          p_remark?: string
+          p_transaction_timestamp?: string
+        }
+        Returns: Json
+      }
+      lms_skip_installment: {
+        Args: { p_installment_id: string }
+        Returns: Json
+      }
+      lms_sync_installment_plan: {
+        Args: { p_service_transaction_id: string }
+        Returns: undefined
+      }
+      lms_update_customer: {
+        Args: {
+          p_actor_id: string
+          p_customer_id: string
+          p_note?: string
+          p_updates?: Json
+        }
+        Returns: Json
+      }
+      lms_update_payment: {
+        Args: {
+          p_amount?: number
+          p_payment_method_id?: string
+          p_set_payment_method?: boolean
+          p_transaction_id: string
+          p_transaction_timestamp?: string
+        }
+        Returns: Json
+      }
+      lms_wipe_installments: { Args: never; Returns: Json }
+      normalize_ticket_pnr_v1: { Args: { p_value: string }; Returns: string }
       release_booking_capacity_reservation: {
         Args: { p_booking_id: string }
         Returns: undefined
+      }
+      replace_backup_codes: {
+        Args: { p_code_hashes: Json; p_user_id: string }
+        Returns: number
       }
       reserve_booking_capacity: {
         Args: {
@@ -8546,6 +9677,15 @@ export type Database = {
         }[]
       }
       revoke_my_session: { Args: { session_id: string }; Returns: undefined }
+      ticketing_create_quick_tk: {
+        Args: {
+          p_actor_employee_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_schema_status: { Args: never; Returns: Json }
     }
     Enums: {
       applicant_account_type: 'Primary' | 'Dependent'

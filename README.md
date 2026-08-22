@@ -47,6 +47,7 @@ Additional suites:
 ```bash
 npm run test:smoke:install
 npm run test:smoke
+npm run test:db:ticketing
 npm run test:db:lms
 npm run test:db:security
 ```

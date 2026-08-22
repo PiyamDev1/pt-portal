@@ -1,6 +1,6 @@
 # Detailed API Documentation
 
-Last verified against `app/api/**/route.{ts,js}`: August 16, 2026.
+Last verified against `app/api/**/route.{ts,js}`: August 22, 2026.
 
 This directory is the field-level HTTP contract for PT-Portal. The compact
 [API Reference](../technical/API_REFERENCE.md) remains the route inventory;
@@ -11,6 +11,7 @@ errors, side effects, and examples for every exported handler.
 
 - [Authentication, administration, scheduled work, and telemetry](AUTH_ADMIN_SCHEDULED.md)
 - [Bookings, LMS, accounting, and receipts](BOOKINGS_LMS_ACCOUNTING.md)
+- [Ticketing operations](TICKETING.md)
 - [Packages, customer portals, groups, and pricing](PACKAGES.md)
 - [Applications, passports, visas, documents, and issue reports](APPLICATIONS_DOCUMENTS.md)
 - [Timeclock, Frappe, HR, training, and dashboard services](TIMECLOCK_INTEGRATIONS.md)

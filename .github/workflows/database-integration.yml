@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/migrations/**'
+      - 'scripts/ci/test-ticketing-migration.sh'
       - 'scripts/ci/test-lms-migration.sh'
       - 'scripts/ci/test-security-migration.sh'
       - 'tests/integration/**'
@@ -14,6 +15,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/migrations/**'
+      - 'scripts/ci/test-ticketing-migration.sh'
       - 'scripts/ci/test-lms-migration.sh'
       - 'scripts/ci/test-security-migration.sh'
       - 'tests/integration/**'
@@ -48,3 +50,5 @@ jobs:
         run: bash scripts/ci/test-lms-migration.sh
       - name: Run shared security migration tests
         run: bash scripts/ci/test-security-migration.sh
+      - name: Run Ticketing foundation migration tests
+        run: bash scripts/ci/test-ticketing-migration.sh

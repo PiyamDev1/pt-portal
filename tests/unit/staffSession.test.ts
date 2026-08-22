@@ -114,4 +114,33 @@ describe('requireStaffSession', () => {
     })
     expect(mocks.departmentEq).toHaveBeenCalledWith('employee_id', 'staff-1')
   })
+
+  it('loads department memberships without restricting access when requested', async () => {
+    const result = await requireStaffSession({ includeDepartments: true })
+
+    expect(result).toEqual({
+      authorized: true,
+      user: { id: 'staff-1', email: 'staff@example.com' },
+      employee: {
+        id: 'staff-1',
+        email: 'staff@example.com',
+        fullName: 'Staff Member',
+        role: 'Master Admin',
+        departments: ['Applications'],
+      },
+    })
+    expect(mocks.departmentEq).toHaveBeenCalledWith('employee_id', 'staff-1')
+  })
+
+  it('fails closed when requested department memberships cannot be verified', async () => {
+    mocks.departmentEq.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'database unavailable' },
+    })
+
+    const result = await requireStaffSession({ includeDepartments: true })
+
+    expect(result.authorized).toBe(false)
+    if (!result.authorized) expect(result.response.status).toBe(503)
+  })
 })

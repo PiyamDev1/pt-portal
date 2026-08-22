@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
-const PLACEHOLDER_MODULES = [
+const TICKETING_MODULES = [
   {
     title: 'Refund Calculator',
     description:
@@ -21,15 +21,16 @@ const PLACEHOLDER_MODULES = [
     tone: 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50',
     iconTone: 'bg-amber-100 text-amber-800',
     href: '/dashboard/ticketing/refund-calculator',
+    available: false,
   },
   {
-    title: 'Ticketing Ledger',
-    description:
-      'Record issued tickets, passenger sectors, fare details, supplier references and ticketing activity.',
+    title: 'My Sales Ledger',
+    description: 'Enter held or issued TK tickets quickly and review your own ticket records.',
     icon: BookOpenText,
     tone: 'border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50',
     iconTone: 'bg-sky-100 text-sky-800',
     href: '/dashboard/ticketing/ledger',
+    available: true,
   },
 ] as const
 
@@ -65,8 +66,8 @@ export function TicketingDashboard() {
             </p>
             <h1 className="mt-2 text-3xl font-black tracking-tight">Ticketing workspace</h1>
             <p className="mt-2 text-sm leading-6 text-red-50/85 md:text-base">
-              The workspace foundation for ticket records, refund calculations and upcoming-flight
-              schedule monitoring.
+              Record ticket activity quickly, then use the wider workspace for refunds and
+              upcoming-flight operations as those tools become available.
             </p>
           </div>
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
@@ -85,13 +86,13 @@ export function TicketingDashboard() {
               Ticketing tools
             </h2>
           </div>
-          <span className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-600">
-            Placeholders
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+            Ledger available
           </span>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {PLACEHOLDER_MODULES.map((moduleItem) => {
+          {TICKETING_MODULES.map((moduleItem) => {
             const Icon = moduleItem.icon
             return (
               <Link
@@ -108,16 +109,26 @@ export function TicketingDashboard() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-black text-slate-950">{moduleItem.title}</h3>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500 ring-1 ring-slate-200">
-                        <Construction className="h-3 w-3" aria-hidden="true" />
-                        Coming soon
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-[10px] font-black uppercase tracking-wide ring-1 ${
+                          moduleItem.available
+                            ? 'text-emerald-700 ring-emerald-200'
+                            : 'text-slate-500 ring-slate-200'
+                        }`}
+                      >
+                        {moduleItem.available ? (
+                          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                        ) : (
+                          <Construction className="h-3 w-3" aria-hidden="true" />
+                        )}
+                        {moduleItem.available ? 'Available' : 'Coming soon'}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-600">
                       {moduleItem.description}
                     </p>
                     <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-black text-slate-700">
-                      Open placeholder
+                      {moduleItem.available ? 'Open ledger' : 'Open placeholder'}
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
                   </div>
@@ -147,7 +158,7 @@ export function TicketingDashboard() {
             </div>
             <span className="inline-flex w-fit items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-800 ring-1 ring-amber-200">
               <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-              Ledger connection pending
+              Flight connection pending
             </span>
           </div>
 
@@ -182,8 +193,8 @@ export function TicketingDashboard() {
           </span>
           <h3 className="mt-4 text-base font-black text-slate-950">No upcoming flights yet</h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Flights will appear here after tickets are added through the Ticketing Ledger. No
-            ticketing records are currently read from or written to the database.
+            Flights will appear here after itinerary sectors are completed and Flight Monitoring is
+            connected. TK records can now be added through My Sales Ledger.
           </p>
         </div>
       </section>

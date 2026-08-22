@@ -8,3 +8,6 @@ export type { ConfirmationDialogProps, ConfirmationType } from './ConfirmationDi
 
 export { useAppDialog } from './AppDialog'
 export type { ConfirmDialogOptions, PromptDialogOptions } from './AppDialog'
+
+export { DrawerBase } from './DrawerBase'
+export type { DrawerBaseProps } from './DrawerBase'
