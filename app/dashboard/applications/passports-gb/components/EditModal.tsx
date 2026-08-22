@@ -16,7 +16,7 @@ interface EditModalProps {
   onSave: () => void
   onClose: () => void
   isSaving: boolean
-  onDelete?: (authCode: string) => void
+  onDelete?: (verificationCode: string) => Promise<boolean>
 }
 
 export default function EditModal({
@@ -29,6 +29,7 @@ export default function EditModal({
   onDelete,
 }: EditModalProps) {
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
 
@@ -205,34 +206,40 @@ export default function EditModal({
               <h4 className="text-xs font-bold uppercase">Danger Zone</h4>
             </div>
             <p className="text-xs text-red-600 leading-relaxed">
-              Deleting this record is permanent. Enter a fresh authenticator or backup code to
-              confirm.
+              Deleting this record is permanent. Enter the current 6-digit code from your
+              authenticator app, or one unused backup code.
             </p>
             <div className="flex gap-2">
               <label htmlFor="gb-delete-auth" className="sr-only">
-                Auth code
+                Authenticator or backup code
               </label>
               <input
                 id="gb-delete-auth"
                 type="password"
-                autoComplete="off"
+                autoComplete="one-time-code"
+                autoCapitalize="characters"
+                spellCheck={false}
                 placeholder="Authenticator or backup code"
                 className="flex-1 border border-red-200 rounded p-2 text-sm focus:ring-red-500 bg-white"
                 value={deleteAuthCode}
                 onChange={(e) => setDeleteAuthCode(e.target.value)}
               />
               <button
-                onClick={() => {
-                  if (deleteAuthCode.trim()) {
-                    onDelete?.(deleteAuthCode)
-                    setDeleteAuthCode('')
-                  }
+                onClick={async () => {
+                  const verificationCode = deleteAuthCode.trim()
+                  if (!verificationCode || !onDelete) return
+
+                  setIsDeleting(true)
+                  const deleted = await onDelete(verificationCode)
+                  setIsDeleting(false)
+                  if (deleted) setDeleteAuthCode('')
                 }}
+                disabled={isDeleting || !deleteAuthCode.trim()}
                 className="bg-white border border-red-200 text-red-600 font-bold px-4 py-2 rounded hover:bg-red-600 hover:text-white transition whitespace-nowrap"
                 type="button"
                 aria-label="Delete record"
               >
-                Delete
+                {isDeleting ? 'Verifying…' : 'Delete'}
               </button>
             </div>
           </div>

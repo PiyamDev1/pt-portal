@@ -107,6 +107,9 @@ TOTP or backup code.
 verificationMethod?, authCode? }`. `action` is `update` or `delete`; `type` is
 `family_head` or `application`; `id` is required. `verificationMethod` is
 `totp`, `backup`, or `auto`; `authCode` is a compatibility alias.
+In `auto` mode, formatted six-digit authenticator codes are normalized before
+TOTP verification; other values are normalized as case-insensitive backup
+codes without first creating an unnecessary TOTP challenge.
 
 For `family_head` updates, `data` may contain `firstName`, `lastName`, `cnic`,
 and `phone`. Application updates may contain `applicantId`, `firstName`,
@@ -204,6 +207,9 @@ body, or database failure.
 **Input:** JSON `{ id, verificationCode?, verificationMethod?, authCode? }`.
 `id` is required; method is `totp`, `backup`, or `auto`; `authCode` remains a
 compatibility alias.
+The application UI sends the canonical `verificationCode` and `auto` method.
+Copied six-digit codes may contain spaces or a separator; backup codes may be
+entered with or without their display hyphen and are normalized before use.
 
 **Success:** `200 { deletedPassportId }`. The route audit-logs the record,
 removes it and its parent application, and removes the applicant only when no
@@ -330,6 +336,9 @@ verificationMethod?, authCode? }`. `action` is `update`, `delete`, or
 `applicantEmail`, `applicantPhone`, `applicationType`, `category`, `pageCount`,
 `speed`, `oldPassportNumber`, `fingerprintsCompleted`, `familyHeadEmail`,
 `requestedPageNumber`, and `requestedPageProvided`.
+Deletion UI sends `verificationCode` with method `auto`; `authCode` is retained
+only for older callers. Copied authenticator and backup-code formatting is
+normalized by the shared fresh-factor verifier.
 
 **Success:** Update returns `{ updatedPassportApplicationId,
 updatedApplicationId }`; delete returns `{ deletedPassportApplicationId }`;

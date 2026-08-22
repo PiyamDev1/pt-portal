@@ -243,14 +243,15 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
     }
   }
 
-  const handleDeleteRecord = async (authCode: string) => {
+  const handleDeleteRecord = async (verificationCode: string) => {
     try {
       const res = await fetch('/api/passports/gb/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editFormData.id,
-          authCode,
+          verificationCode,
+          verificationMethod: 'auto',
           userId: currentUserId,
         }),
       })
@@ -272,8 +273,10 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         status: 'Pending Submission',
       })
       router.refresh()
+      return true
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete')
+      return false
     }
   }
 

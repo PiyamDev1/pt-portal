@@ -14,6 +14,25 @@ type VerificationResult =
   | { verified: true; method: SecondFactorMethod }
   | { verified: false; error: string }
 
+function normalizeTotpCode(rawCode: unknown) {
+  return String(rawCode || '')
+    .trim()
+    .replace(/[\s-]+/g, '')
+}
+
+function normalizeBackupCode(rawCode: unknown) {
+  const compact = String(rawCode || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .toUpperCase()
+
+  if (/^[A-Z2-9]{8}$/.test(compact)) {
+    return `${compact.slice(0, 4)}-${compact.slice(4)}`
+  }
+
+  return compact
+}
+
 export type BackupCodeConsumptionResult =
   | { consumed: true; codeId: string }
   | { consumed: false; error: string; unavailable?: boolean }
@@ -80,7 +99,7 @@ export async function consumeBackupCodeAtomically(
 }
 
 async function verifyBackupCode(userId: string, code: string): Promise<VerificationResult> {
-  const result = await consumeBackupCodeAtomically(userId, code)
+  const result = await consumeBackupCodeAtomically(userId, normalizeBackupCode(code))
   return result.consumed
     ? { verified: true, method: 'backup' }
     : { verified: false, error: result.error }
@@ -92,16 +111,19 @@ export async function verifyFreshSecondFactor(input: {
   code: unknown
   method?: unknown
 }): Promise<VerificationResult> {
-  const code = String(input.code || '').trim()
-  if (!code) return { verified: false, error: 'Verification code required' }
+  const rawCode = String(input.code || '').trim()
+  if (!rawCode) return { verified: false, error: 'Verification code required' }
 
-  if (input.method === 'totp') return verifyTotp(code)
-  if (input.method === 'backup') return verifyBackupCode(input.userId, code)
+  if (input.method === 'totp') return verifyTotp(normalizeTotpCode(rawCode))
+  if (input.method === 'backup') return verifyBackupCode(input.userId, rawCode)
   if (input.method !== undefined && input.method !== '' && input.method !== 'auto') {
     return { verified: false, error: 'Invalid verification method' }
   }
 
-  const totp = await verifyTotp(code)
-  if (totp.verified) return totp
-  return verifyBackupCode(input.userId, code)
+  const totpCode = normalizeTotpCode(rawCode)
+  if (/^\d{6}$/.test(totpCode)) {
+    return verifyTotp(totpCode)
+  }
+
+  return verifyBackupCode(input.userId, rawCode)
 }

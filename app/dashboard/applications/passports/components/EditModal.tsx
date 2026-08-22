@@ -244,17 +244,20 @@ export default function EditModal({
             <div className="bg-red-50 p-4 rounded-xl border border-red-100">
               <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Danger Zone</h4>
               <p className="text-xs text-red-600 mb-3">
-                Enter auth code to permanently delete this record.
+                Enter the current 6-digit code from your authenticator app, or one unused backup
+                code, to permanently delete this record.
               </p>
               <div className="flex gap-2">
                 <label htmlFor="delete-auth-code" className="sr-only">
-                  Authorization code
+                  Authenticator or backup code
                 </label>
                 <input
                   id="delete-auth-code"
                   type="password"
                   placeholder="Authenticator or backup code"
                   autoComplete="one-time-code"
+                  autoCapitalize="characters"
+                  spellCheck={false}
                   className="flex-1 p-2 border border-red-200 rounded text-sm bg-white"
                   value={deleteAuthCode}
                   onChange={(e) => setDeleteAuthCode(e.target.value)}

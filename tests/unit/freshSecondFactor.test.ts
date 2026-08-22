@@ -83,6 +83,21 @@ describe('verifyFreshSecondFactor', () => {
     })
   })
 
+  it('normalizes a copied authenticator code and routes auto verification to TOTP', async () => {
+    const result = await verifyFreshSecondFactor({
+      userId: 'staff-1',
+      code: ' 123 456 ',
+      method: 'auto',
+    })
+
+    expect(result).toEqual({ verified: true, method: 'totp' })
+    expect(mocks.challengeAndVerify).toHaveBeenCalledWith({
+      factorId: 'factor-1',
+      code: '123456',
+    })
+    expect(mocks.backupEq).not.toHaveBeenCalled()
+  })
+
   it('consumes a matching backup code with a used=false compare-and-set', async () => {
     const result = await verifyFreshSecondFactor({
       userId: 'staff-1',
@@ -94,6 +109,18 @@ describe('verifyFreshSecondFactor', () => {
     expect(mocks.backupEq).toHaveBeenCalledWith('employee_id', 'staff-1')
     expect(mocks.consumedIdEq).toHaveBeenCalledWith('id', 'backup-1')
     expect(mocks.consumedUsedEq).toHaveBeenCalledWith('used', false)
+  })
+
+  it('normalizes a copied backup code and does not submit it as TOTP', async () => {
+    const result = await verifyFreshSecondFactor({
+      userId: 'staff-1',
+      code: ' abcd efgh ',
+      method: 'auto',
+    })
+
+    expect(result).toEqual({ verified: true, method: 'backup' })
+    expect(mocks.compare).toHaveBeenCalledWith('ABCD-EFGH', 'hash-1')
+    expect(mocks.getRouteSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('fails closed when another request consumed the backup code first', async () => {

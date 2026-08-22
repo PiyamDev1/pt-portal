@@ -65,10 +65,16 @@ export const pakPassportApi = {
       }),
     }),
 
-  deleteRecord: (id: string, authCode: string, userId: string | number) =>
+  deleteRecord: (id: string, verificationCode: string, userId: string | number) =>
     apiRequest('/api/passports/pak/manage-record', {
       method: 'POST',
-      body: JSON.stringify({ action: 'delete', id, authCode, userId }),
+      body: JSON.stringify({
+        action: 'delete',
+        id,
+        verificationCode,
+        verificationMethod: 'auto',
+        userId,
+      }),
     }),
 
   updateStatus: (

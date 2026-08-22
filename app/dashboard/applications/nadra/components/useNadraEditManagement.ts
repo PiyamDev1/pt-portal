@@ -244,8 +244,9 @@ export default function useNadraEditManagement({
   }, [agentOptions, currentUserId, editFormData, editType, onRefresh, updateApplicationRecord])
 
   const handleDelete = useCallback(async () => {
-    if (!deleteAuthCode) {
-      toast.error('Auth code required for deletion')
+    const verificationCode = deleteAuthCode.trim()
+    if (!verificationCode) {
+      toast.error('Authenticator or backup code required for deletion')
       return
     }
 
@@ -257,7 +258,8 @@ export default function useNadraEditManagement({
           action: 'delete',
           type: editType,
           id: editFormData.id,
-          authCode: deleteAuthCode,
+          verificationCode,
+          verificationMethod: 'auto',
           userId: currentUserId,
         }),
       })

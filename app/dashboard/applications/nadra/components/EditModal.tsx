@@ -306,17 +306,20 @@ function EditModalContent({
                 <h4 className="text-xs font-bold uppercase">Danger Zone</h4>
               </div>
               <p className="text-xs text-red-600 leading-relaxed">
-                Deleting this record is permanent. Please enter your Auth Code to confirm.
+                Deleting this record is permanent. Enter the current 6-digit code from your
+                authenticator app, or one unused backup code.
               </p>
               <div className="flex gap-2">
                 <label htmlFor="nadra-delete-auth" className="sr-only">
-                  Auth code
+                  Authenticator or backup code
                 </label>
                 <input
                   id="nadra-delete-auth"
                   type="password"
                   placeholder="Authenticator or backup code"
                   autoComplete="one-time-code"
+                  autoCapitalize="characters"
+                  spellCheck={false}
                   className="flex-1 border border-red-200 rounded p-2 text-sm focus:ring-red-500 bg-white"
                   value={deleteAuthCode}
                   onChange={(e) => onAuthCodeChange(e.target.value)}
