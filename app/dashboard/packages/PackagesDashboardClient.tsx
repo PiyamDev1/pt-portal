@@ -16,6 +16,7 @@ import {
   FolderKanban,
   Link2,
   Loader2,
+  MapPinned,
   PackageCheck,
   Plane,
   Plus,
@@ -491,6 +492,17 @@ export default function PackagesDashboardClient({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <a
+              href="https://haramain-maps-live.web.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Check Makkah and Madinah hotel walking distances to the Haram"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100"
+            >
+              <MapPinned className="h-4 w-4" />
+              Haramain Map
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
             {currentUserRole?.trim().toLowerCase() === 'super admin' && (
               <Link
                 href="/dashboard/packages/migration"
