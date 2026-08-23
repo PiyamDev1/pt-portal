@@ -129,8 +129,8 @@ function ledgerItem(row: TransactionRow): TicketingLedgerItem | null {
       position: Number(allocation.position),
       passenger: firstRelated(allocation.ticket_passengers),
     }))
-    .filter(
-      (entry): entry is { position: number; passenger: PassengerRow } => Boolean(entry.passenger),
+    .filter((entry): entry is { position: number; passenger: PassengerRow } =>
+      Boolean(entry.passenger),
     )
     .map(({ passenger, position }) => ({
       passengerType: passenger.passenger_type,
@@ -155,12 +155,15 @@ function ledgerItem(row: TransactionRow): TicketingLedgerItem | null {
     passengerCount: row.passenger_ticket_count,
     packageMatchStatus: booking.package_match_status,
     commissionScope: booking.commission_scope,
-    detailsStatus: ticketingDetailsStatus({
-      contactPhone: booking.contact_phone,
-      departureDate: booking.departure_date,
-      fares,
-      passengers,
-    }),
+    detailsStatus:
+      row.service_type === 'TK'
+        ? ticketingDetailsStatus({
+            contactPhone: booking.contact_phone,
+            departureDate: booking.departure_date,
+            fares,
+            passengers,
+          })
+        : 'recorded',
     fares,
     createdAt: row.created_at,
   }

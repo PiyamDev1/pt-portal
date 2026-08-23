@@ -228,6 +228,8 @@ describe('TicketLedgerList', () => {
     const item: TicketLedgerItem = {
       bookingId: 'booking-1',
       transactionId: 'transaction-1',
+      bookingVersion: 4,
+      transactionVersion: 7,
       pnr: 'ABC123',
       customerName: 'Aisha Khan',
       airline: AIRLINES[0],
@@ -248,7 +250,14 @@ describe('TicketLedgerList', () => {
     }
 
     const onComplete = vi.fn()
-    render(<TicketLedgerList items={[item]} timezone="Europe/London" onComplete={onComplete} />)
+    render(
+      <TicketLedgerList
+        items={[item]}
+        timezone="Europe/London"
+        onComplete={onComplete}
+        onMarkPaid={vi.fn()}
+      />,
+    )
 
     expect(screen.getByText('Package linked')).toBeTruthy()
     expect(screen.getByText('1 ADT · 1 CHD')).toBeTruthy()
@@ -256,5 +265,45 @@ describe('TicketLedgerList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Complete details for ABC123' }))
     expect(onComplete).toHaveBeenCalledWith(item)
     expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
+  })
+
+  it('keeps DC and R-ER financial rows out of the root TK completion action', () => {
+    const child: TicketLedgerItem = {
+      bookingId: 'booking-1',
+      transactionId: 'transaction-dc-1',
+      bookingVersion: 5,
+      transactionVersion: 2,
+      pnr: 'ABC123',
+      customerName: 'Aisha Khan',
+      airline: AIRLINES[0],
+      serviceType: 'DC',
+      operationalStatus: 'issued',
+      paymentStatus: 'unpaid',
+      bookingDate: '2026-08-23',
+      timeLimitAt: null,
+      issuedAt: '2026-08-23',
+      passengerCount: 2,
+      packageMatchStatus: 'unmatched',
+      commissionScope: 'ticket',
+      detailsStatus: 'recorded',
+      fares: [{ passengerType: 'ADT', quantity: 2, unitSupplierCost: 10, unitSalePrice: 30 }],
+    }
+    const onComplete = vi.fn()
+    const onMarkPaid = vi.fn()
+
+    render(
+      <TicketLedgerList
+        items={[child]}
+        timezone="Europe/London"
+        onComplete={onComplete}
+        onMarkPaid={onMarkPaid}
+      />,
+    )
+
+    expect(screen.getByText('Service recorded')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Mark DC for ABC123 as paid' }))
+    expect(onMarkPaid).toHaveBeenCalledWith(child)
+    expect(screen.queryByRole('button', { name: /details for ABC123/i })).toBeNull()
+    expect(onComplete).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,11 @@
+import type {
+  TicketingAppendServiceTransactionInput,
+  TicketingMarkServiceTransactionPaidInput,
+} from '@/lib/ticketing/serviceTransactionContracts'
+
 export type TicketPassengerType = 'ADT' | 'CHD' | 'INF'
 
-export type TicketDetailsStatus = 'needs_details' | 'complete'
+export type TicketDetailsStatus = 'needs_details' | 'complete' | 'recorded'
 
 export type TicketAirlineOption = {
   id: string
@@ -18,6 +23,8 @@ export type TicketLedgerFare = {
 export type TicketLedgerItem = {
   bookingId: string
   transactionId: string
+  bookingVersion: number
+  transactionVersion: number
   pnr: string
   customerName: string
   airline: TicketAirlineOption
@@ -65,6 +72,35 @@ export type CreateTkTicketInput = {
   fares: TicketFareInput[]
   confirmDuplicate?: boolean
 }
+
+export type TicketServiceBookingOption = {
+  bookingId: string
+  bookingVersion: number
+  rootTransactionId: string
+  rootTransactionVersion: number
+  rootBookingDate: string
+  pnr: string
+  customerName: string
+  contactPhone: string | null
+  departureDate: string | null
+  returnDate: string | null
+  operationalStatus: 'issued'
+  airline: TicketAirlineOption
+  packageMatchStatus: string
+  fares: Array<{
+    passengerType: TicketPassengerType
+    quantity: number
+  }>
+}
+
+export type TicketServiceBookingLookupResult = {
+  items: TicketServiceBookingOption[]
+  hasMore: boolean
+  nextCursor: string | null
+}
+
+export type CreateTicketServiceInput = TicketingAppendServiceTransactionInput
+export type MarkTicketServicePaidInput = TicketingMarkServiceTransactionPaidInput
 
 export type DuplicateTkRecord = {
   bookingId: string

@@ -53,6 +53,14 @@ export const ticketingCompleteTkDetailsSchema = z
   })
   .strict()
   .superRefine((details, context) => {
+    if (details.returnDate && !details.departureDate) {
+      context.addIssue({
+        code: 'custom',
+        path: ['returnDate'],
+        message: 'A return date requires a departure date',
+      })
+    }
+
     if (details.returnDate && details.departureDate && details.returnDate < details.departureDate) {
       context.addIssue({
         code: 'custom',

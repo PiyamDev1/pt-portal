@@ -83,6 +83,12 @@ describe('Ticketing completion contracts', () => {
     expect(
       ticketingCompleteTkDetailsSchema.safeParse({
         ...validDetails(),
+        departureDate: null,
+      }).success,
+    ).toBe(false)
+    expect(
+      ticketingCompleteTkDetailsSchema.safeParse({
+        ...validDetails(),
         paidAt: '2026-02-30',
       }).success,
     ).toBe(false)

@@ -1,9 +1,13 @@
 import type {
+  CreateTicketServiceInput,
   CreateTkTicketInput,
   DuplicateTkRecord,
+  MarkTicketServicePaidInput,
   TicketCompletionDetail,
   TicketCompletionUpdate,
   TicketLedgerPayload,
+  TicketServiceBookingLookupResult,
+  TicketServiceBookingOption,
 } from './types'
 
 type ApiErrorPayload = {
@@ -71,6 +75,102 @@ export async function createTkTicket(
   }
 
   return { kind: 'created' }
+}
+
+export async function lookupIssuedTicketBookings(
+  pnr: string,
+  signal?: AbortSignal,
+  cursor?: string,
+): Promise<TicketServiceBookingLookupResult> {
+  const search = new URLSearchParams({ pnr })
+  if (cursor) search.set('cursor', cursor)
+  const response = await fetch(`/api/ticketing/bookings?${search.toString()}`, {
+    cache: 'no-store',
+    signal,
+  })
+  const payload = (await response.json().catch(() => ({}))) as {
+    items?: TicketServiceBookingOption[]
+    hasMore?: boolean
+    nextCursor?: string | null
+  } & ApiErrorPayload
+
+  if (!response.ok) {
+    throw new TicketLedgerApiError(
+      payload.error || 'Unable to find that ticket in your ledger',
+      payload.fieldErrors,
+      payload.code,
+    )
+  }
+
+  if (
+    !Array.isArray(payload.items) ||
+    typeof payload.hasMore !== 'boolean' ||
+    (payload.hasMore && (typeof payload.nextCursor !== 'string' || !payload.nextCursor)) ||
+    (!payload.hasMore && payload.nextCursor !== null)
+  ) {
+    throw new TicketLedgerApiError('Ticket lookup returned an invalid result. Try again.')
+  }
+
+  return {
+    items: payload.items,
+    hasMore: payload.hasMore,
+    nextCursor: payload.hasMore ? (payload.nextCursor as string) : null,
+  }
+}
+
+export async function createTicketServiceTransaction(
+  bookingId: string,
+  input: CreateTicketServiceInput,
+  idempotencyKey: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/ticketing/bookings/${encodeURIComponent(bookingId)}/transactions`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(input),
+    },
+  )
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+
+  if (!response.ok) {
+    throw new TicketLedgerApiError(
+      payload.error || 'Unable to save the ticket service',
+      payload.fieldErrors,
+      payload.code,
+    )
+  }
+}
+
+export async function markTicketServicePaid(
+  bookingId: string,
+  transactionId: string,
+  input: MarkTicketServicePaidInput,
+  idempotencyKey: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/ticketing/bookings/${encodeURIComponent(bookingId)}/transactions/${encodeURIComponent(transactionId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(input),
+    },
+  )
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+
+  if (!response.ok) {
+    throw new TicketLedgerApiError(
+      payload.error || 'Unable to mark the service as paid',
+      payload.fieldErrors,
+      payload.code,
+    )
+  }
 }
 
 export async function loadTicketCompletionDetail(

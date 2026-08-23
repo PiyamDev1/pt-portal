@@ -6,6 +6,27 @@
 
 begin;
 
+do $ticketing_forward_guard$
+declare
+  installed_version bigint;
+begin
+  if pg_catalog.to_regclass('public.portal_schema_versions') is not null then
+    execute
+      'select version from public.portal_schema_versions where component = $1'
+      into installed_version
+      using 'ticketing';
+  end if;
+
+  if installed_version > 20260822 then
+    raise exception 'Ticketing migration capability % cannot run after installed capability %',
+      20260822, installed_version
+      using
+        errcode = '55000',
+        hint = 'TICKETING_FORWARD_MIGRATION_REPLAY_BLOCKED';
+  end if;
+end
+$ticketing_forward_guard$;
+
 create extension if not exists pgcrypto;
 
 create table if not exists public.portal_schema_versions (

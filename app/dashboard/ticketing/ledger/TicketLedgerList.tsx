@@ -1,4 +1,5 @@
 import {
+  Banknote,
   CalendarClock,
   CheckCircle2,
   CircleAlert,
@@ -86,10 +87,12 @@ export function TicketLedgerList({
   items,
   timezone,
   onComplete,
+  onMarkPaid,
 }: {
   items: TicketLedgerItem[]
   timezone: string
   onComplete: (item: TicketLedgerItem) => void
+  onMarkPaid: (item: TicketLedgerItem) => void
 }) {
   if (items.length === 0) {
     return (
@@ -131,16 +134,18 @@ export function TicketLedgerList({
             >
               <div className="flex items-start justify-between gap-3 lg:block">
                 <div>
-                  <p className="font-mono text-base font-black tracking-wide text-slate-950">
-                    {item.pnr}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-base font-black tracking-wide text-slate-950">
+                      {item.pnr}
+                    </p>
+                    <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[9px] font-black text-white">
+                      {item.serviceType}
+                    </span>
+                  </div>
                   <p className="mt-0.5 text-xs font-bold text-slate-500">
                     {item.airline.iataCode} · {item.airline.name}
                   </p>
                 </div>
-                <span className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-black text-white lg:hidden">
-                  {item.serviceType}
-                </span>
               </div>
 
               <div className="min-w-0">
@@ -187,27 +192,53 @@ export function TicketLedgerList({
               <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-stretch">
                 <span
                   className={`inline-flex items-center justify-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${
-                    item.detailsStatus === 'complete'
-                      ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-                      : 'bg-amber-50 text-amber-800 ring-amber-200'
+                    item.detailsStatus === 'recorded'
+                      ? 'bg-violet-50 text-violet-800 ring-violet-200'
+                      : item.detailsStatus === 'complete'
+                        ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+                        : 'bg-amber-50 text-amber-800 ring-amber-200'
                   }`}
                 >
-                  {item.detailsStatus === 'complete' ? (
+                  {item.detailsStatus === 'recorded' || item.detailsStatus === 'complete' ? (
                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : (
                     <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
-                  {item.detailsStatus === 'complete' ? 'Complete' : 'Needs details'}
+                  {item.detailsStatus === 'recorded'
+                    ? 'Service recorded'
+                    : item.detailsStatus === 'complete'
+                      ? 'Complete'
+                      : 'Needs details'}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onComplete(item)}
-                  aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr}`}
-                  className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
-                >
-                  <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-                  {item.detailsStatus === 'complete' ? 'View details' : 'Complete details'}
-                </button>
+                {item.serviceType === 'TK' ? (
+                  <button
+                    type="button"
+                    onClick={() => onComplete(item)}
+                    aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr}`}
+                    className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
+                  >
+                    <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
+                    {item.detailsStatus === 'complete' ? 'View details' : 'Complete details'}
+                  </button>
+                ) : (
+                  <>
+                    {item.paymentStatus === 'unpaid' ? (
+                      <button
+                        type="button"
+                        onClick={() => onMarkPaid(item)}
+                        aria-label={`Mark ${item.serviceType} for ${item.pnr} as paid`}
+                        className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100"
+                      >
+                        <Banknote className="h-3.5 w-3.5" aria-hidden="true" />
+                        Mark paid
+                      </button>
+                    ) : (
+                      <p className="text-center text-[11px] font-semibold text-slate-500">
+                        Financial service entry
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
             </article>
           )

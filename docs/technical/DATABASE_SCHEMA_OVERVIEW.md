@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-Last verified against the repository: August 22, 2026.
+Last verified against the repository: August 23, 2026.
 
 ## Sources of truth
 
@@ -33,19 +33,32 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 
 ## Migration families
 
-| Migration range                                       | Capability                                                                                                                                                                                                          |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `20260214`–`20260328`                                 | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                    |
-| `20260414`–`20260418`                                 | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                         |
-| `20260602`–`20260702`                                 | booking operations/capacity/waitlist/drafts/preferences, security preferences and legacy passkey-preview storage/events, Frappe identity/handoff, notice board, training, manual overrides                          |
-| `20260708`–`20260811`                                 | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts |
-| `20260812_secure_atomic_lms_operations.sql`           | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                       |
-| `20260812_security_rate_limits.sql`                   | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                         |
-| `20260812_update_lms_installments_atomically.sql`     | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                           |
-| `20260822_create_ticketing_commission_foundation.sql` | Ticketing schema ratchet: normalized ledger core, PNR/package evidence, branch timezones, server-only finance access, legacy-ledger freeze, and immutable retry-safe Commission source variables                    |
-| `20260822_create_ticketing_quick_tk.sql`              | atomic, idempotent TK quick entry for an agent's own ledger, duplicate-PNR confirmation, automatic package matching, transaction-owner alignment, starter airlines, and capability `2026082201`                     |
+| Migration range                                         | Capability                                                                                                                                                                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260214`–`20260328`                                   | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                    |
+| `20260414`–`20260418`                                   | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                         |
+| `20260602`–`20260702`                                   | booking operations/capacity/waitlist/drafts/preferences, security preferences and legacy passkey-preview storage/events, Frappe identity/handoff, notice board, training, manual overrides                          |
+| `20260708`–`20260811`                                   | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts |
+| `20260812_secure_atomic_lms_operations.sql`             | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                       |
+| `20260812_security_rate_limits.sql`                     | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                         |
+| `20260812_update_lms_installments_atomically.sql`       | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                           |
+| `20260822_create_ticketing_commission_foundation.sql`   | Ticketing schema ratchet: normalized ledger core, PNR/package evidence, branch timezones, server-only finance access, legacy-ledger freeze, and immutable retry-safe Commission source variables                    |
+| `20260822_create_ticketing_quick_tk.sql`                | atomic, idempotent TK quick entry for an agent's own ledger, duplicate-PNR confirmation, automatic package matching, transaction-owner alignment, starter airlines, and capability `2026082201`                     |
+| `20260822_ticketing_tk_completion.sql`                  | atomic own-TK detail completion, stable passenger positions, optimistic versions, posted-sale/payment guards, redacted audit, variable-only source facts, and capability `2026082202`                               |
+| `20260823_ticketing_dc_rer_entry.sql`                   | atomic own-ledger issued DC/R-ER service entries, affected-passenger ceilings, root/reissue lineage, independent Paid transition, target-safe source facts, and capability `2026082301`                             |
+| `20260823_ticketing_rer_chronology_guard.sql`           | R-ER monotonic chronology, one issued successor per predecessor, booking-serialized lineage validation, Issued-root enforcement, and capability `2026082302`                                                        |
+| `20260823_ticketing_service_response_dates.sql`         | live-safe service RPC wrappers with exact branch-local booking/issue/payment dates, inaccessible internal cores, strict grants, and capability `2026082303`                                                         |
+| `20260823_ticketing_service_response_lineage_guard.sql` | immutable service replay dates, historical R-ER lineage after cancellation/refund, one historical successor, completed-response immutability, migration-ratchet tombstones, and capability `2026082304`             |
 
-Apply files in filename order. A feature deployment may also require an earlier bootstrap noted by its active guide—for example bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against production.
+Apply unapplied files in filename order and track which migrations have already run. Every
+Ticketing migration begins with a read-only forward-version guard: a fresh install and an exact
+same-version rerun are allowed, while a script older than the installed capability fails before its
+first schema, grant, policy, or readiness mutation with
+`TICKETING_FORWARD_MIGRATION_REPLAY_BLOCKED`. Capability `2026082304` also retires two shared
+routine signatures with revoked procedure tombstones as a second defense against isolated 2301–2303
+replay. A feature deployment may require an earlier bootstrap noted by its active guide—for example
+bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against
+production.
 
 ## Required runtime capabilities
 
@@ -55,16 +68,32 @@ The two August 12 capability migrations share the service-role-only `portal_sche
 - component `api-security`, version `20260812`, plus `check_api_rate_limit(...)` and `replace_backup_codes(...)`.
 
 The Ticketing foundation installs component `ticketing`, version `20260822`. The TK quick-entry
-migration raises that component to version `2026082201` and installs
-`ticketing_create_quick_tk(uuid, text, jsonb)`. The My Sales Ledger runtime requires
-`ticketing_schema_status()` to report that exact version ready and fails closed otherwise. The
-function is executable only through the service-role boundary; the API derives the employee actor
-from the verified staff session and never accepts that identity from the browser.
+migration raises that component to `2026082201` and installs
+`ticketing_create_quick_tk(uuid, text, jsonb)`. The TK completion migration raises it to
+`2026082202` and installs `ticketing_complete_tk_details(uuid, uuid, text, jsonb)`. The DC/R-ER
+migration raises it to `2026082301` and installs
+`ticketing_append_service_transaction(uuid, uuid, text, jsonb)` plus
+`ticketing_mark_service_transaction_paid(uuid, uuid, uuid, text, jsonb)`. The chronology follow-up
+raises it to `2026082302` and prevents a backdated or concurrent reissue from branching the
+replacement chain. The response-contract follow-up raises it to `2026082303` and keeps the two
+public RPC signatures as service-role-only wrappers that reconcile exact branch-local booking,
+issue, and payment dates from stored rows. Its renamed core functions and response helper are not
+executable by any API role. The replay/lineage follow-up raises it to `2026082304`, preserves the
+original response dates after later payment or terminal lifecycle changes, retains every issued
+R-ER in its historical chain, and blocks a second historical successor. Active helpers and the
+lineage trigger use versioned 2304 routine names; retired shared names are inaccessible ratchet
+tombstones. Each route checks the minimum capability it needs and fails closed otherwise. All
+mutation functions are executable only through the service-role boundary; the API derives the
+employee actor from the verified staff session and never accepts that identity from the browser.
 
-This capability supports the first operational slice only: TK Held/Issued quick entry and the
-authenticated agent's own ledger. The schema includes structures for later workflows, but DC and
-R-ER entry, low fares, vouchers, targets, team flight monitoring, refunds, and the cancellation
-calculator are not part of this runtime capability.
+This capability supports TK Held/Issued quick entry, the authenticated agent's own ledger, partial
+TK detail completion, and aggregate issued DC/R-ER financial service movements against an existing
+root TK. Service children carry affected ADT/CHD/INF quantities and full supplier/customer unit
+values, preserve immutable root facts, form an explicit R-ER supersession chain, and publish
+variables-only service/payment facts that do not count as issued-TK target events. It does not yet
+capture the new itinerary, exact affected passenger identities, or an airline-fee/fare-difference
+component split. Low fares, vouchers, targets, team flight monitoring, refunds, and the
+cancellation calculator remain outside this runtime capability.
 
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 
@@ -107,8 +136,11 @@ npm run test:db:security
 ```
 
 The suites validate migration installation and rollback behavior, grants, readiness markers,
-Ticketing quick-entry idempotency/duplicate/package/ownership rules, LMS
-ledger/installment/idempotency semantics, all-or-nothing installment-batch updates, limiter
-windows, atomic backup-code replacement, and concurrent requests. Locally, set `DATABASE_TEST_URL`
-to a disposable database. Never point these fixtures at production or any database containing data
-that must be preserved.
+Ticketing quick-entry idempotency/duplicate/package/ownership rules, TK completion
+version/idempotency/immutability/passenger/payment/source-fact rules, DC/R-ER root and supersession
+lineage, affected-quantity ceilings, response-date reconciliation, payment/event rollback, replay,
+terminal-lifecycle history, every isolated historical migration rejection, simulated future-routine
+preservation, and concurrency rules, LMS ledger/installment/idempotency semantics, all-or-nothing
+installment-batch updates, limiter windows, atomic backup-code replacement, and concurrent requests.
+Locally, set `DATABASE_TEST_URL` to a disposable database. Never point these fixtures at production
+or any database containing data that must be preserved.

@@ -1,14 +1,15 @@
 # Ticketing Module Plan
 
 > **Partial implementation record and remaining roadmap.** This document replaces the March 2026
-> brainstorm. The database foundation and TK-only My Sales Ledger are implemented; later Ticketing
-> workflows described here remain proposals until their code, migrations, and tests are shipped.
+> brainstorm. The database foundation, own-agent TK ledger/detail completion, and issued DC/R-ER
+> financial service entry are implemented; later Ticketing workflows described here remain
+> proposals until their code, migrations, and tests are shipped.
 
-- **Status:** Foundation and first operational slice implemented — TK-only My Sales Ledger
-- **Last updated:** August 22, 2026
+- **Status:** Foundation and own-agent sales-ledger slice implemented — TK, DC, and R-ER
+- **Last updated:** August 23, 2026
 - **Owner:** PT-Portal Team
 
-### Implementation checkpoint — August 22, 2026
+### Implementation checkpoint — August 23, 2026
 
 - Connected to and inspected the linked Supabase schema without reading customer rows before any
   database change.
@@ -32,8 +33,49 @@
 - Added focused route, authorization, component, and disposable PostgreSQL 16 integration coverage
   for the first slice, including retry, rollback, duplicate privacy, package matching, grants, and
   capability checks.
-- **Still future:** DC/R-ER entry and completion details, Low Fare, Ticket Vouchers, Sales Targets,
-  team Flight Monitoring, Refunds & Claims, and the native cancellation calculator.
+- Added the own-only TK completion drawer and deployed
+  `scripts/migrations/20260822_ticketing_tk_completion.sql`, including the atomic
+  `ticketing_complete_tk_details(uuid, uuid, text, jsonb)` operation. Live capability
+  `2026082202` and service-role-only execution were verified, and the linked Supabase types were
+  refreshed. It supports partial customer, journey, grouped sale/payment, and stable passenger-slot
+  completion; optimistic conflicts, idempotent replay, posted-sale locks, and Part Paid records fail
+  closed. The ledger derives `needs_details`/`complete` without storing another status column.
+- Completing Issued sale values and moving Unpaid to Paid emit separate immutable variable-only
+  Commission facts. PII-only edits emit no Commission fact, no-op saves emit no audit/fact, and the
+  ledger still exposes no calculated commission or profit.
+- Added a PNR-first own-ledger flow for issued DC and R-ER service movements. Exact PNR lookup
+  prefills the root TK/customer/airline and passenger mix; agents enter only affected quantities,
+  full GBP unit supplier cost/customer charge, service/issue dates, and Paid/Unpaid state. A later
+  transaction-level Unpaid-to-Paid action is independent from the root TK payment state.
+- Added and integration-tested `scripts/migrations/20260823_ticketing_dc_rer_entry.sql`, the
+  auditable `20260823_ticketing_rer_chronology_guard.sql` follow-up, and the live-safe
+  `20260823_ticketing_service_response_dates.sql` adapter, followed by the forward-only
+  `20260823_ticketing_service_response_lineage_guard.sql` ratchet. Capabilities `2026082301` through
+  `2026082304` provide optimistic/idempotent atomic writes, immutable root facts,
+  affected-quantity ceilings, an Issued-root requirement, a serialized one-successor R-ER chain
+  that rejects backdating before its predecessor, exact branch-local response dates, replay
+  stability after later payment/lifecycle changes, and historical lineage after cancellation or
+  refund.
+- Deployed and verified live Ticketing capability `2026082304`, refreshed the linked Supabase
+  types, confirmed the public service RPC grants, inaccessible versioned helpers, migration-ratchet
+  tombstones, historical-lineage trigger/index, and confirmed that all live Ticketing booking,
+  transaction, fare, passenger, audit, and Commission source-event tables remain empty.
+- Added an immediate forward-version guard to every Ticketing migration. Fresh installs and exact
+  same-version reruns remain supported; any older script presented to a later installed capability
+  fails before changing routines, grants, triggers, policies, tables, or readiness metadata. The
+  disposable suite also preserves simulated `2026082305` routine definitions against a 2304 replay.
+- Made exact-PNR selection overflow-safe with ten-record keyset pages and a visible continuation,
+  while every page remains exact-PNR and own-agent scoped. Journey, root booking date, passenger
+  mix, and a stable record suffix distinguish otherwise identical matches.
+- DC/R-ER issuance publishes `ticket_date_changed` or `ticket_reissued`; Paid-at-create and later
+  payment publish a separate `ticket_paid` fact. These variable-only events inherit server-derived
+  package scope, leave policy/calculation to Commission, and never emit the generic target-counting
+  `ticket_issued` event.
+- The implemented DC/R-ER entry is intentionally an aggregate issued financial service movement.
+  Exact passenger allocation, the changed itinerary, Held child services, and a component split
+  between fare difference and airline/change fee remain future workflows.
+- **Still future:** itinerary sectors, Low Fare, Ticket Vouchers, Sales Targets, team Flight
+  Monitoring, Refunds & Claims, and the native cancellation calculator.
 
 ## 1. Summary
 
@@ -245,6 +287,13 @@ transactions:
 - DC and R-ER never overwrite the original TK financial event. They may update the booking's
   current itinerary after the new transaction is issued.
 
+The implemented first DC/R-ER slice records only an Issued aggregate financial service movement.
+Every child points to the immutable root TK; each R-ER additionally supersedes the current issued
+replacement-chain tail. Booking and issue dates cannot predate that predecessor, including when
+multiple reissues happen on the same business date. Affected ADT/CHD/INF quantities cannot exceed
+the root mix. The child does not yet assert exact affected passenger identities or a changed
+itinerary, and it never mutates the root booking/transaction lifecycle or payment facts.
+
 Operational states are Draft, Held, Issued, Expired, Cancelled, and Refunded/Part Refunded. Payment
 states are Unpaid, Part Paid, and Paid and remain independent of operational status.
 
@@ -261,11 +310,13 @@ Quick entry stores one grouped line for each non-zero passenger type:
 - Unit fare cost and unit sale price when known.
 - Computed source-currency and GBP totals.
 
-The completion drawer allows individual passengers to be added later with name, passenger type,
-ticket number, contact details where different, and optional per-passenger cost override. Grouped
-totals must reconcile with individual passenger assignments before a refund or voucher is attached
-to an individual ticket. The main passenger name remains available even while the passenger list is
-incomplete.
+The implemented completion drawer adds customer contact, departure/return dates, grouped sale
+values, Paid/Unpaid state, and stable individual passenger slots with name, ticket number, optional
+date of birth, and a different contact number when needed. Existing Part Paid records stay read-only
+until an amount-paid/payment-correction workflow exists. Per-passenger fare overrides are deferred;
+the grouped fare lines remain authoritative. Grouped quantities and passenger assignments must
+reconcile before a refund or voucher is attached to an individual ticket. The main passenger name
+remains available even while the persisted passenger list is incomplete.
 
 ### 3.6 Low Fare Queue
 
@@ -533,8 +584,14 @@ All routes must:
 - **Implemented:** replace the ledger placeholder with keyboard-first Held/Issued TK quick entry,
   grouped ADT/CHD/INF supplier fares, own-record search/status filters, duplicate confirmation, and
   package-match status. The API and database operation use verified actor identity and idempotency.
-- **Future:** add DC/R-ER entry against an existing PNR, the completion drawer, customer contact,
-  sale/payment details, passenger details, ticket numbers, and itinerary sectors.
+- **Implemented:** lazy own-record completion for customer/journey details, grouped sale values,
+  Paid/Unpaid transition, and individual passenger names, contacts, dates of birth, and ticket
+  numbers. Saves are atomic, versioned, retry-safe, and do not calculate/display commission.
+- **Implemented:** exact-PNR issued DC/R-ER entry with affected passenger-group quantities, full
+  GBP supplier/customer unit values, immutable root/reissue lineage, Paid-at-create or later Paid
+  state, package-scope variables, and target-safe service-specific source facts.
+- **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
+  DC/R-ER, and completed itinerary sectors.
 - Connect the dashboard's all-agent Flight Monitoring, manual schedule-change workflow, and
   24/6/2-hour time-limit reminders.
 - Add Manager/Admin all-agent ledger and correction tools.

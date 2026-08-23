@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const TICKET_PASSENGER_TYPES = ['ADT', 'CHD', 'INF'] as const
 export const TICKET_QUICK_ENTRY_STATUSES = ['held', 'issued'] as const
-export const TICKET_DETAILS_STATUSES = ['needs_details', 'complete'] as const
+export const TICKET_DETAILS_STATUSES = ['needs_details', 'complete', 'recorded'] as const
 
 function isIsoCalendarDate(value: string) {
   const [year, month, day] = value.split('-').map(Number)

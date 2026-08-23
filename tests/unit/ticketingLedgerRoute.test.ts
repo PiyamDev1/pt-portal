@@ -124,7 +124,7 @@ describe('/api/ticketing/ledger', () => {
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026082201, requiredVersion: 2026082201 },
+          data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
           error: null,
         }
       }
@@ -164,6 +164,7 @@ describe('/api/ticketing/ledger', () => {
       data: [
         {
           id: 'transaction-1',
+          version: 6,
           booking_id: 'booking-1',
           service_type: 'TK',
           operational_status: 'held',
@@ -175,8 +176,11 @@ describe('/api/ticketing/ledger', () => {
           created_at: '2026-08-22T12:00:00Z',
           ticket_bookings: {
             id: 'booking-1',
+            version: 3,
             pnr: 'ABC123',
             customer_name: 'Test Passenger',
+            contact_phone: null,
+            departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
             archived_at: null,
@@ -190,6 +194,7 @@ describe('/api/ticketing/ledger', () => {
               unit_sale_price_source: null,
             },
           ],
+          ticket_transaction_passengers: [],
         },
       ],
       error: null,
@@ -205,13 +210,129 @@ describe('/api/ticketing/ledger', () => {
       expect.objectContaining({
         bookingId: 'booking-1',
         transactionId: 'transaction-1',
+        bookingVersion: 3,
+        transactionVersion: 6,
         customerName: 'Test Passenger',
         pnr: 'ABC123',
         passengerCount: 0,
+        detailsStatus: 'needs_details',
       }),
     ])
     expect(body).not.toHaveProperty('commission')
     expect(body).not.toHaveProperty('profit')
+  })
+
+  it('marks a list row complete from exact stable passenger slots and grouped sale details', async () => {
+    mocks.transactionLimit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'transaction-1',
+          version: 7,
+          booking_id: 'booking-1',
+          service_type: 'TK',
+          operational_status: 'issued',
+          payment_status: 'unpaid',
+          booking_date: '2026-08-22',
+          time_limit_at: null,
+          issued_at: '2026-08-22T00:00:00Z',
+          passenger_ticket_count: 1,
+          created_at: '2026-08-22T12:00:00Z',
+          ticket_bookings: {
+            id: 'booking-1',
+            version: 4,
+            pnr: 'ABC123',
+            customer_name: 'Test Passenger',
+            contact_phone: '+44 7700 900123',
+            departure_date: '2026-09-01',
+            package_match_status: 'unmatched',
+            commission_scope: 'ticket',
+            archived_at: null,
+            airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
+          },
+          ticket_passenger_fare_lines: [
+            {
+              passenger_type: 'ADT',
+              quantity: 1,
+              unit_supplier_cost_source: 400,
+              unit_sale_price_source: 500,
+            },
+          ],
+          ticket_transaction_passengers: [
+            {
+              position: 1,
+              ticket_passengers: {
+                passenger_type: 'ADT',
+                full_name: 'Test Passenger',
+              },
+            },
+          ],
+        },
+      ],
+      error: null,
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/ticketing/ledger'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.items[0]).toMatchObject({
+      bookingVersion: 4,
+      transactionVersion: 7,
+      detailsStatus: 'complete',
+    })
+  })
+
+  it('marks a DC/R-ER row as a recorded service instead of reusing root TK completion', async () => {
+    mocks.transactionLimit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'transaction-dc-1',
+          version: 2,
+          booking_id: 'booking-1',
+          service_type: 'DC',
+          operational_status: 'issued',
+          payment_status: 'unpaid',
+          booking_date: '2026-08-23',
+          time_limit_at: null,
+          issued_at: '2026-08-23T00:00:00Z',
+          passenger_ticket_count: 1,
+          created_at: '2026-08-23T12:00:00Z',
+          ticket_bookings: {
+            id: 'booking-1',
+            version: 5,
+            pnr: 'ABC123',
+            customer_name: 'Test Passenger',
+            contact_phone: null,
+            departure_date: null,
+            package_match_status: 'unmatched',
+            commission_scope: 'ticket',
+            archived_at: null,
+            airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
+          },
+          ticket_passenger_fare_lines: [
+            {
+              passenger_type: 'ADT',
+              quantity: 1,
+              unit_supplier_cost_source: 10,
+              unit_sale_price_source: 30,
+            },
+          ],
+          ticket_transaction_passengers: [],
+        },
+      ],
+      error: null,
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/ticketing/ledger'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.items[0]).toMatchObject({
+      serviceType: 'DC',
+      bookingVersion: 5,
+      transactionVersion: 2,
+      detailsStatus: 'recorded',
+    })
   })
 
   it('fails closed when the quick-entry database capability is missing', async () => {
@@ -296,7 +417,7 @@ describe('/api/ticketing/ledger', () => {
   it('turns the atomic duplicate check into a blocking confirmation response', async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082201, requiredVersion: 2026082201 },
+        data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -333,7 +454,7 @@ describe('/api/ticketing/ledger', () => {
   it('does not disclose another agent customer through a duplicate response', async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082201, requiredVersion: 2026082201 },
+        data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -366,7 +487,7 @@ describe('/api/ticketing/ledger', () => {
   it('returns a client error when an airline became inactive after the ledger loaded', async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082201, requiredVersion: 2026082201 },
+        data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
         error: null,
       })
       .mockResolvedValueOnce({

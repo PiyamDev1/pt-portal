@@ -233,4 +233,26 @@ describe('TicketCompletionDrawer', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
     expect(fetchMock.mock.calls[2][1]?.headers['Idempotency-Key']).toBe(firstKey)
   })
+
+  it('fails closed for an existing Part Paid record', async () => {
+    const partPaidDetail: TicketCompletionDetail = {
+      ...DETAIL,
+      paymentStatus: 'part_paid',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ detail: partPaidDetail })),
+    )
+    renderDrawer()
+    await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
+
+    expect(screen.getByRole('alert').textContent).toMatch(/read-only here/i)
+    expect((screen.getByLabelText('Contact number') as HTMLInputElement).matches(':disabled')).toBe(
+      true,
+    )
+    expect((screen.getByLabelText('Payment status') as HTMLSelectElement).value).toBe('part_paid')
+    expect(
+      (screen.getByRole('button', { name: 'Save details' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
 })

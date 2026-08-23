@@ -523,7 +523,10 @@ export function TicketCompletionDrawer({
               </div>
             )}
 
-            <fieldset disabled={isSaving} className="space-y-3">
+            <fieldset
+              disabled={isSaving || draft.paymentStatus === 'part_paid'}
+              className="space-y-3"
+            >
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
                 <CalendarDays className="h-4 w-4 text-[#8b1e2d]" aria-hidden="true" />
                 Customer and journey
@@ -587,7 +590,10 @@ export function TicketCompletionDrawer({
               </p>
             </fieldset>
 
-            <fieldset disabled={isSaving} className="space-y-3">
+            <fieldset
+              disabled={isSaving || draft.paymentStatus === 'part_paid'}
+              className="space-y-3"
+            >
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
                 <WalletCards className="h-4 w-4 text-[#8b1e2d]" aria-hidden="true" />
                 Sale and payment
@@ -599,6 +605,12 @@ export function TicketCompletionDrawer({
                   )
                   const error = errors[`fare.${fare.passengerType}`]
                   const errorId = `ticket-detail-${fare.passengerType.toLowerCase()}-sale-error`
+                  const describedBy = [
+                    error ? errorId : '',
+                    errors.fareSales ? 'ticket-detail-fares-error' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
                   return (
                     <div
                       key={fare.id}
@@ -633,11 +645,7 @@ export function TicketCompletionDrawer({
                           disabled={fare.salePriceLocked || isSaving}
                           aria-label={`${fare.passengerType} unit sale price`}
                           aria-invalid={Boolean(error || errors.fareSales)}
-                          aria-describedby={
-                            error || errors.fareSales
-                              ? `${errorId} ticket-detail-fares-error`
-                              : undefined
-                          }
+                          aria-describedby={describedBy || undefined}
                           className={fieldClass(Boolean(error || errors.fareSales))}
                           placeholder="0.00"
                         />
@@ -695,7 +703,10 @@ export function TicketCompletionDrawer({
               </label>
             </fieldset>
 
-            <fieldset disabled={isSaving} className="space-y-3">
+            <fieldset
+              disabled={isSaving || draft.paymentStatus === 'part_paid'}
+              className="space-y-3"
+            >
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
                 <Users className="h-4 w-4 text-[#8b1e2d]" aria-hidden="true" />
                 Passenger details

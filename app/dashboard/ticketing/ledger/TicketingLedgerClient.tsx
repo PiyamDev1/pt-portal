@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RefreshCw, Search, TicketCheck } from 'lucide-react'
 import { TicketQuickEntryForm } from './TicketQuickEntryForm'
+import { TicketFollowOnEntryForm } from './TicketFollowOnEntryForm'
 import { TicketLedgerList } from './TicketLedgerList'
 import { TicketCompletionDrawer } from './TicketCompletionDrawer'
+import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
 import { loadTicketLedger, TicketLedgerApiError } from './ledgerClientApi'
-import type { TicketLedgerPayload } from './types'
+import type { TicketLedgerItem, TicketLedgerPayload } from './types'
 
 export function TicketingLedgerClient() {
   const [payload, setPayload] = useState<TicketLedgerPayload | null>(null)
@@ -16,6 +18,8 @@ export function TicketingLedgerClient() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
+  const [selectedPaymentItem, setSelectedPaymentItem] = useState<TicketLedgerItem | null>(null)
+  const [entryType, setEntryType] = useState<'TK' | 'DC' | 'R-ER'>('TK')
 
   const refresh = useCallback(async (initial = false) => {
     if (initial) setIsLoading(true)
@@ -97,7 +101,7 @@ export function TicketingLedgerClient() {
             </p>
             <h1 className="mt-2 text-3xl font-black tracking-tight">My Sales Ledger</h1>
             <p className="mt-2 text-sm text-red-50/85">
-              Fast TK entry and your own ticket records for{' '}
+              Fast TK, date-change and reissue entry with your own ticket records for{' '}
               {payload.context.locationName || 'your branch'}.
             </p>
           </div>
@@ -111,11 +115,56 @@ export function TicketingLedgerClient() {
         </div>
       </section>
 
-      <TicketQuickEntryForm
-        airlines={payload.airlines}
-        timezone={payload.context.timezone}
-        onCreated={() => refresh()}
-      />
+      <section aria-labelledby="ticket-entry-type-title" className="space-y-3">
+        <div>
+          <p
+            id="ticket-entry-type-title"
+            className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]"
+          >
+            What are you recording?
+          </p>
+          <div
+            role="group"
+            aria-labelledby="ticket-entry-type-title"
+            className="mt-2 inline-flex w-full rounded-xl border border-slate-200 bg-slate-100 p-1 sm:w-auto"
+          >
+            {(['TK', 'DC', 'R-ER'] as const).map((serviceType) => (
+              <button
+                key={serviceType}
+                type="button"
+                onClick={() => setEntryType(serviceType)}
+                aria-pressed={entryType === serviceType}
+                className={`ui-tap ui-focus min-h-11 flex-1 rounded-lg px-5 text-sm font-black transition sm:flex-none ${
+                  entryType === serviceType
+                    ? 'bg-white text-[#8b1e2d] shadow-sm ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+                }`}
+              >
+                {serviceType === 'TK'
+                  ? 'New ticket'
+                  : serviceType === 'DC'
+                    ? 'Date change'
+                    : 'Reissue'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {entryType === 'TK' ? (
+          <TicketQuickEntryForm
+            airlines={payload.airlines}
+            timezone={payload.context.timezone}
+            onCreated={() => refresh()}
+          />
+        ) : (
+          <TicketFollowOnEntryForm
+            key={entryType}
+            serviceType={entryType}
+            timezone={payload.context.timezone}
+            onCreated={() => refresh()}
+          />
+        )}
+      </section>
 
       <section aria-labelledby="my-ticket-records-title" className="space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -191,6 +240,7 @@ export function TicketingLedgerClient() {
           items={filteredItems}
           timezone={payload.context.timezone}
           onComplete={(item) => setSelectedBookingId(item.bookingId)}
+          onMarkPaid={setSelectedPaymentItem}
         />
       </section>
 
@@ -200,6 +250,16 @@ export function TicketingLedgerClient() {
         onClose={() => setSelectedBookingId(null)}
         onSaved={() => refresh()}
       />
+
+      {selectedPaymentItem && (
+        <TicketServicePaymentDialog
+          key={selectedPaymentItem.transactionId}
+          item={selectedPaymentItem}
+          timezone={payload.context.timezone}
+          onClose={() => setSelectedPaymentItem(null)}
+          onSaved={() => refresh()}
+        />
+      )}
     </div>
   )
 }

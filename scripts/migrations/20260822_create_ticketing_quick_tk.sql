@@ -6,6 +6,27 @@
 
 begin;
 
+do $ticketing_forward_guard$
+declare
+  installed_version bigint;
+begin
+  if pg_catalog.to_regclass('public.portal_schema_versions') is not null then
+    execute
+      'select version from public.portal_schema_versions where component = $1'
+      into installed_version
+      using 'ticketing';
+  end if;
+
+  if installed_version > 2026082201 then
+    raise exception 'Ticketing migration capability % cannot run after installed capability %',
+      2026082201, installed_version
+      using
+        errcode = '55000',
+        hint = 'TICKETING_FORWARD_MIGRATION_REPLAY_BLOCKED';
+  end if;
+end
+$ticketing_forward_guard$;
+
 -- Settings can assign agents later; creating the department grants no access by
 -- itself because the RPC still requires an explicit employee membership.
 insert into public.departments (name)

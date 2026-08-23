@@ -5733,6 +5733,7 @@ export type Database = {
           fare_line_id: string | null
           id: string
           passenger_id: string
+          position: number
           ticket_number: string | null
           transaction_id: string
         }
@@ -5742,6 +5743,7 @@ export type Database = {
           fare_line_id?: string | null
           id?: string
           passenger_id: string
+          position: number
           ticket_number?: string | null
           transaction_id: string
         }
@@ -5751,6 +5753,7 @@ export type Database = {
           fare_line_id?: string | null
           id?: string
           passenger_id?: string
+          position?: number
           ticket_number?: string | null
           transaction_id?: string
         }
@@ -9677,6 +9680,33 @@ export type Database = {
         }[]
       }
       revoke_my_session: { Args: { session_id: string }; Returns: undefined }
+      ticketing_append_service_transaction: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_append_service_transaction_core_2026082303: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_complete_tk_details: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_details: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
       ticketing_create_quick_tk: {
         Args: {
           p_actor_employee_id: string
@@ -9685,7 +9715,35 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_enrich_service_business_dates_2026082304: {
+        Args: { p_booking_id: string; p_response: Json }
+        Returns: Json
+      }
+      ticketing_mark_service_transaction_paid: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_idempotency_key: string
+          p_payment: Json
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
+      ticketing_mark_service_transaction_paid_core_2026082303: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_idempotency_key: string
+          p_payment: Json
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       ticketing_schema_status: { Args: never; Returns: Json }
+      ticketing_transaction_has_been_issued_2026082304: {
+        Args: { p_issued_at: string; p_operational_status: string }
+        Returns: boolean
+      }
     }
     Enums: {
       applicant_account_type: 'Primary' | 'Dependent'

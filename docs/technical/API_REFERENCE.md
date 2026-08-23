@@ -1,6 +1,6 @@
 # API Route Inventory
 
-Last verified against `app/api/**/route.{ts,js}`: August 16, 2026.
+Last verified against `app/api/**/route.{ts,js}`: August 23, 2026.
 
 This compact reference inventories every current API route and records cross-cutting contracts. The [detailed API documentation](../api/README.md) provides field-level access, input, success, error, side-effect, and example contracts for every exported handler. The route implementation, its schemas, and focused tests remain authoritative when a deployment has moved ahead of these documents.
 
@@ -236,15 +236,25 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 
 ## Ticketing
 
-| Methods       | Route                   |
-| ------------- | ----------------------- |
-| `GET`, `POST` | `/api/ticketing/ledger` |
+| Methods        | Route                                                              |
+| -------------- | ------------------------------------------------------------------ |
+| `GET`, `POST`  | `/api/ticketing/ledger`                                            |
+| `GET`, `PATCH` | `/api/ticketing/ledger/[bookingId]`                                |
+| `GET`          | `/api/ticketing/bookings`                                          |
+| `POST`         | `/api/ticketing/bookings/[bookingId]/transactions`                 |
+| `PATCH`        | `/api/ticketing/bookings/[bookingId]/transactions/[transactionId]` |
 
 The My Sales Ledger endpoint verifies an active Ticketing department member or Ticketing oversight
 role, but always returns and creates records for the authenticated employee in this first slice.
 Quick TK creation is one retry-safe database operation and performs duplicate confirmation and
-package-PNR matching atomically. The ledger response contains operational fare inputs but never
-calculated commission, earnings, margin, or profit. See the [Ticketing API](../api/TICKETING.md).
+package-PNR matching atomically. The detail route lazily loads and atomically completes customer,
+journey, grouped sale/payment, and passenger-slot details with optimistic versions and retry-safe
+conflict handling. The exact-PNR booking route uses bounded keyset pages so every own-agent match
+remains reachable, and the child-transaction routes add issued DC/R-ER financial service movements
+plus a separate Unpaid-to-Paid transition. All Ticketing routes remain own-only in this slice and
+contain only the operational inputs each screen needs; API mutation responses and the ledger never
+expose calculated commission, earnings, margin, or profit. See the
+[Ticketing API](../api/TICKETING.md).
 
 ## Frappe, HR, training, and dashboard services
 

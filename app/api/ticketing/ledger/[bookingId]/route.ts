@@ -15,12 +15,7 @@ import {
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_COMPLETION_VERSION = 2026082202
-const POSTED_OPERATIONAL_STATUSES = new Set([
-  'issued',
-  'cancelled',
-  'part_refunded',
-  'refunded',
-])
+const POSTED_OPERATIONAL_STATUSES = new Set(['issued', 'cancelled', 'part_refunded', 'refunded'])
 
 type Related<T> = T | T[] | null
 
@@ -61,7 +56,6 @@ type PassengerRow = {
   full_name: string | null
   contact_phone: string | null
   date_of_birth: string | null
-  created_at: string
 }
 
 type PassengerAllocationRow = {
@@ -140,7 +134,8 @@ function mappedPassengers(
   const persistedByType = new Map<FareRow['passenger_type'], TicketingCompletionPassenger[]>()
 
   for (const allocation of [...allocations].sort(
-    (left, right) => Number(left.position) - Number(right.position) || left.id.localeCompare(right.id),
+    (left, right) =>
+      Number(left.position) - Number(right.position) || left.id.localeCompare(right.id),
   )) {
     const passenger = firstRelated(allocation.ticket_passengers)
     if (!passenger) continue
@@ -198,7 +193,8 @@ function detailFromRow(row: TransactionRow): TicketingCompletionDetail | null {
         unitSalePrice,
         salePriceLocked:
           unitSalePrice !== null &&
-          (POSTED_OPERATIONAL_STATUSES.has(row.operational_status) || row.payment_status === 'paid'),
+          (POSTED_OPERATIONAL_STATUSES.has(row.operational_status) ||
+            row.payment_status === 'paid'),
       }
     })
     .sort((left, right) => fareOrder(left.passengerType) - fareOrder(right.passengerType))
@@ -325,10 +321,14 @@ function completionError(error: TicketingRpcError) {
   }
   if (error.code === '40001' || hint === 'TICKETING_VERSION_CONFLICT') {
     const currentVersions = parsedCurrentVersions(error.details)
-    return privateError('This ticket changed after you opened it. Refresh and review your changes.', 409, {
-      code: 'VERSION_CONFLICT',
-      ...(currentVersions ? { currentVersions } : {}),
-    })
+    return privateError(
+      'This ticket changed after you opened it. Refresh and review your changes.',
+      409,
+      {
+        code: 'VERSION_CONFLICT',
+        ...(currentVersions ? { currentVersions } : {}),
+      },
+    )
   }
   if (
     hint === 'TICKETING_IDEMPOTENCY_CONFLICT' ||
@@ -364,11 +364,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     return privateError('Ticketing record completion is not installed on this database.', 503)
   }
 
-  const { detail, error } = await loadOwnDetail(
-    supabase,
-    parsedBookingId.data,
-    access.employee.id,
-  )
+  const { detail, error } = await loadOwnDetail(supabase, parsedBookingId.data, access.employee.id)
   if (error) return privateError('Unable to load the ticket details right now.', 500)
   if (!detail) return privateError('Ticket record not found.', 404)
 
@@ -427,6 +423,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const loaded = await loadOwnDetail(supabase, parsedBookingId.data, access.employee.id)
   if (loaded.error) return privateError('Unable to reload the saved ticket details.', 500)
   if (!loaded.detail) return privateError('Ticket record not found.', 404)
+  if (loaded.detail.transactionId !== result.transaction.id) {
+    return privateError('Ticketing returned an invalid completion result.', 500)
+  }
 
   return apiOk(
     {
