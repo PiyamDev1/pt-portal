@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   BookOpenText,
+  BadgePoundSterling,
   Calculator,
   CalendarClock,
   CheckCircle2,
@@ -22,6 +23,7 @@ const TICKETING_MODULES = [
     iconTone: 'bg-amber-100 text-amber-800',
     href: '/dashboard/ticketing/refund-calculator',
     available: false,
+    actionLabel: 'Open placeholder',
   },
   {
     title: 'My Sales Ledger',
@@ -31,6 +33,18 @@ const TICKETING_MODULES = [
     iconTone: 'bg-sky-100 text-sky-800',
     href: '/dashboard/ticketing/ledger',
     available: true,
+    actionLabel: 'Open ledger',
+  },
+  {
+    title: 'Low Fare',
+    description:
+      'Review issued tickets from all agents and record changed whole-PNR supplier fares.',
+    icon: BadgePoundSterling,
+    tone: 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50',
+    iconTone: 'bg-emerald-100 text-emerald-800',
+    href: '/dashboard/ticketing/low-fare',
+    available: true,
+    actionLabel: 'Open Low Fare',
   },
 ] as const
 
@@ -87,11 +101,11 @@ export function TicketingDashboard() {
             </h2>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-            Ledger available
+            2 tools available
           </span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {TICKETING_MODULES.map((moduleItem) => {
             const Icon = moduleItem.icon
             return (
@@ -128,7 +142,7 @@ export function TicketingDashboard() {
                       {moduleItem.description}
                     </p>
                     <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-black text-slate-700">
-                      {moduleItem.available ? 'Open ledger' : 'Open placeholder'}
+                      {moduleItem.actionLabel}
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
                   </div>

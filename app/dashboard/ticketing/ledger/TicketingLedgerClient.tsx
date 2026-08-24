@@ -7,6 +7,7 @@ import { TicketFollowOnEntryForm } from './TicketFollowOnEntryForm'
 import { TicketLedgerList } from './TicketLedgerList'
 import { TicketCompletionDrawer } from './TicketCompletionDrawer'
 import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
+import { TicketAttributionDialog } from './TicketAttributionDialog'
 import { loadTicketLedger, TicketLedgerApiError } from './ledgerClientApi'
 import type { TicketLedgerItem, TicketLedgerPayload } from './types'
 
@@ -19,6 +20,9 @@ export function TicketingLedgerClient() {
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
   const [selectedPaymentItem, setSelectedPaymentItem] = useState<TicketLedgerItem | null>(null)
+  const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
+    null,
+  )
   const [entryType, setEntryType] = useState<'TK' | 'DC' | 'R-ER'>('TK')
 
   const refresh = useCallback(async (initial = false) => {
@@ -54,7 +58,9 @@ export function TicketingLedgerClient() {
         item.pnr.toLowerCase().includes(query) ||
         item.customerName.toLowerCase().includes(query) ||
         item.airline.iataCode.toLowerCase().includes(query) ||
-        item.airline.name.toLowerCase().includes(query)
+        item.airline.name.toLowerCase().includes(query) ||
+        item.responsibleEmployee.fullName.toLowerCase().includes(query) ||
+        item.assistantEmployees.some((employee) => employee.fullName.toLowerCase().includes(query))
       return matchesStatus && matchesSearch
     })
   }, [payload, search, status])
@@ -99,9 +105,13 @@ export function TicketingLedgerClient() {
             <p className="text-xs font-black uppercase tracking-[0.2em] text-red-100">
               Ticketing operations
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight">My Sales Ledger</h1>
+            <h1 className="mt-2 text-3xl font-black tracking-tight">
+              {payload.context.canManageAttribution ? 'Team Sales Ledger' : 'My Sales Ledger'}
+            </h1>
             <p className="mt-2 text-sm text-red-50/85">
-              Fast TK, date-change and reissue entry with your own ticket records for{' '}
+              {payload.context.canManageAttribution
+                ? 'Fast TK, date-change and reissue entry with audited staff attribution and the latest team records for '
+                : 'Fast TK, date-change and reissue entry with your own ticket records for '}
               {payload.context.locationName || 'your branch'}.
             </p>
           </div>
@@ -154,6 +164,10 @@ export function TicketingLedgerClient() {
           <TicketQuickEntryForm
             airlines={payload.airlines}
             timezone={payload.context.timezone}
+            employeeId={payload.context.employeeId}
+            employeeName={payload.context.employeeName}
+            canManageAttribution={payload.context.canManageAttribution}
+            attributionEmployees={payload.context.attributionEmployees}
             onCreated={() => refresh()}
           />
         ) : (
@@ -170,7 +184,7 @@ export function TicketingLedgerClient() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
-              Own records
+              {payload.context.canManageAttribution ? 'Team records' : 'Own records'}
             </p>
             <h2 id="my-ticket-records-title" className="mt-1 text-xl font-black text-slate-950">
               Latest ticket records
@@ -191,7 +205,7 @@ export function TicketingLedgerClient() {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search PNR, customer or airline"
+                placeholder="Search PNR, customer, airline or staff"
                 className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
               />
             </label>
@@ -239,8 +253,11 @@ export function TicketingLedgerClient() {
         <TicketLedgerList
           items={filteredItems}
           timezone={payload.context.timezone}
+          employeeId={payload.context.employeeId}
           onComplete={(item) => setSelectedBookingId(item.bookingId)}
           onMarkPaid={setSelectedPaymentItem}
+          canManageAttribution={payload.context.canManageAttribution}
+          onCorrectAttribution={setSelectedAttributionItem}
         />
       </section>
 
@@ -257,6 +274,16 @@ export function TicketingLedgerClient() {
           item={selectedPaymentItem}
           timezone={payload.context.timezone}
           onClose={() => setSelectedPaymentItem(null)}
+          onSaved={() => refresh()}
+        />
+      )}
+
+      {payload.context.canManageAttribution && selectedAttributionItem && (
+        <TicketAttributionDialog
+          key={`${selectedAttributionItem.transactionId}:${selectedAttributionItem.attributionVersion}`}
+          item={selectedAttributionItem}
+          employees={payload.context.attributionEmployees}
+          onClose={() => setSelectedAttributionItem(null)}
           onSaved={() => refresh()}
         />
       )}

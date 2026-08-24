@@ -4,6 +4,10 @@ import {
   TICKET_PASSENGER_TYPES,
   type TicketingAirlineOption,
 } from '@/lib/ticketing/contracts'
+import type { TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
+
+export const TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION = 2026082403
+export const TICKET_COMPLETION_MAX_ON_BEHALF_REASON_LENGTH = 500
 
 function isIsoCalendarDate(value: string) {
   const [year, month, day] = value.split('-').map(Number)
@@ -50,6 +54,14 @@ export const ticketingCompleteTkDetailsSchema = z
     paidAt: isoDateSchema.nullable(),
     fareSales: z.array(ticketingCompletionFareSaleSchema).min(1).max(3),
     passengers: z.array(ticketingCompletionPassengerSchema).max(99),
+    onBehalfReason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TICKET_COMPLETION_MAX_ON_BEHALF_REASON_LENGTH)
+      .nullable()
+      .optional()
+      .default(null),
   })
   .strict()
   .superRefine((details, context) => {
@@ -134,12 +146,20 @@ export type TicketingCompletionDetail = {
   paidAt: string | null
   airline: TicketingAirlineOption
   detailsStatus: (typeof TICKET_DETAILS_STATUSES)[number]
+  responsibleEmployee: TicketingAttributionEmployee
   fares: TicketingCompletionFare[]
   passengers: TicketingCompletionPassenger[]
 }
 
+export type TicketingCompletionContext = {
+  ownerEmployee: TicketingAttributionEmployee
+  isOnBehalf: boolean
+  onBehalfReasonRequired: boolean
+}
+
 export type TicketingCompletionResponse = {
   detail: TicketingCompletionDetail
+  completionContext: TicketingCompletionContext
   changed?: boolean
   idempotentReplay?: boolean
 }

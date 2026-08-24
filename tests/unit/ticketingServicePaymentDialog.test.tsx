@@ -30,6 +30,9 @@ const ITEM: TicketLedgerItem = {
   packageMatchStatus: 'unmatched',
   commissionScope: 'ticket',
   detailsStatus: 'recorded',
+  responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
+  assistantEmployees: [],
+  attributionVersion: 1,
   fares: [{ passengerType: 'ADT', quantity: 2, unitSupplierCost: 10, unitSalePrice: 30 }],
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { CheckCircle2, Eraser, Save } from 'lucide-react'
+import { CheckCircle2, Eraser, Save, UserRoundCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmationDialog } from '@/components'
 import { createTkTicket, TicketLedgerApiError } from './ledgerClientApi'
@@ -9,6 +9,7 @@ import type {
   CreateTkTicketInput,
   DuplicateTkRecord,
   TicketAirlineOption,
+  TicketAttributionEmployee,
   TicketPassengerType,
 } from './types'
 
@@ -26,6 +27,9 @@ type QuickEntryDraft = {
   timeLimitAt: string
   issuedAt: string
   fares: FareDraft
+  responsibleEmployeeId: string
+  assistantEmployeeIds: string[]
+  attributionReason: string
 }
 
 type QuickEntryErrors = Record<string, string>
@@ -45,7 +49,11 @@ function todayInTimezone(timezone: string) {
   }
 }
 
-function initialDraft(timezone: string, airlineCode = ''): QuickEntryDraft {
+function initialDraft(
+  timezone: string,
+  responsibleEmployeeId: string,
+  airlineCode = '',
+): QuickEntryDraft {
   const today = todayInTimezone(timezone)
   return {
     customerName: '',
@@ -60,6 +68,9 @@ function initialDraft(timezone: string, airlineCode = ''): QuickEntryDraft {
       CHD: { quantity: '0', unitSupplierCost: '' },
       INF: { quantity: '0', unitSupplierCost: '' },
     },
+    responsibleEmployeeId,
+    assistantEmployeeIds: [],
+    attributionReason: '',
   }
 }
 
@@ -90,13 +101,21 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function TicketQuickEntryForm({
   airlines,
   timezone,
+  employeeId,
+  employeeName,
+  canManageAttribution,
+  attributionEmployees,
   onCreated,
 }: {
   airlines: TicketAirlineOption[]
   timezone: string
+  employeeId: string
+  employeeName: string
+  canManageAttribution: boolean
+  attributionEmployees: TicketAttributionEmployee[]
   onCreated: () => Promise<void>
 }) {
-  const [draft, setDraft] = useState<QuickEntryDraft>(() => initialDraft(timezone))
+  const [draft, setDraft] = useState<QuickEntryDraft>(() => initialDraft(timezone, employeeId))
   const [errors, setErrors] = useState<QuickEntryErrors>({})
   const [isSaving, setIsSaving] = useState(false)
   const [duplicate, setDuplicate] = useState<DuplicateTkRecord | null>(null)
@@ -105,6 +124,13 @@ export function TicketQuickEntryForm({
   )
   const idempotencyKey = useRef(newIdempotencyKey())
   const customerInput = useRef<HTMLInputElement>(null)
+  const attributionOverride =
+    canManageAttribution &&
+    (draft.responsibleEmployeeId !== employeeId || draft.assistantEmployeeIds.length > 0)
+  const selectedAssistantEmployees = draft.assistantEmployeeIds.flatMap((id) => {
+    const employee = attributionEmployees.find((option) => option.id === id)
+    return employee ? [employee] : []
+  })
 
   const updateDraft = (update: (current: QuickEntryDraft) => QuickEntryDraft) => {
     if (isSaving) return
@@ -114,7 +140,7 @@ export function TicketQuickEntryForm({
   }
 
   const reset = (retainAirline = false) => {
-    setDraft(initialDraft(timezone, retainAirline ? draft.airlineCode : ''))
+    setDraft(initialDraft(timezone, employeeId, retainAirline ? draft.airlineCode : ''))
     setErrors({})
     setDuplicate(null)
     setPendingDuplicateInput(null)
@@ -133,6 +159,9 @@ export function TicketQuickEntryForm({
     const airline = airlines.find(
       (option) => option.iataCode.toUpperCase() === draft.airlineCode.trim().toUpperCase(),
     )
+    const attributionOverride =
+      canManageAttribution &&
+      (draft.responsibleEmployeeId !== employeeId || draft.assistantEmployeeIds.length > 0)
 
     if (!customerName) nextErrors.customerName = 'Enter the customer or lead passenger name.'
     if (!pnr) nextErrors.pnr = 'Enter the PNR.'
@@ -151,6 +180,26 @@ export function TicketQuickEntryForm({
       nextErrors.issuedAt = 'An issued ticket needs an issued date.'
     } else if (draft.issuedAt && draft.bookingDate && draft.issuedAt < draft.bookingDate) {
       nextErrors.issuedAt = 'Issued date cannot be before the booking date.'
+    }
+    if (canManageAttribution) {
+      const availableEmployeeIds = new Set(attributionEmployees.map((employee) => employee.id))
+      if (!availableEmployeeIds.has(draft.responsibleEmployeeId)) {
+        nextErrors.responsibleEmployeeId = 'Choose an active responsible agent.'
+      }
+      if (draft.assistantEmployeeIds.length > 10) {
+        nextErrors.assistantEmployeeIds = 'A ticket can have at most 10 assistants.'
+      } else if (
+        draft.assistantEmployeeIds.includes(draft.responsibleEmployeeId) ||
+        draft.assistantEmployeeIds.some((id) => !availableEmployeeIds.has(id))
+      ) {
+        nextErrors.assistantEmployeeIds =
+          'Choose valid assistants who are not the responsible agent.'
+      }
+      if (attributionOverride && !draft.attributionReason.trim()) {
+        nextErrors.attributionReason = 'Explain why this ticket is being entered for other staff.'
+      } else if (draft.attributionReason.trim().length > 500) {
+        nextErrors.attributionReason = 'Keep the attribution reason to 500 characters or fewer.'
+      }
     }
 
     const fares = PASSENGER_TYPES.flatMap((passengerType) => {
@@ -196,6 +245,13 @@ export function TicketQuickEntryForm({
         issuedAt: draft.operationalStatus === 'issued' ? draft.issuedAt : null,
         currency: 'GBP',
         fares,
+        ...(canManageAttribution
+          ? {
+              responsibleEmployeeId: draft.responsibleEmployeeId,
+              assistantEmployeeIds: draft.assistantEmployeeIds,
+              attributionReason: attributionOverride ? draft.attributionReason.trim() : null,
+            }
+          : {}),
       },
     }
   }
@@ -210,7 +266,7 @@ export function TicketQuickEntryForm({
         return
       }
 
-      toast.success('TK ticket saved to your ledger')
+      toast.success('TK ticket saved to the sales ledger')
       reset(true)
       void onCreated()
     } catch (error) {
@@ -425,6 +481,160 @@ export function TicketQuickEntryForm({
             )}
           </div>
 
+          {canManageAttribution && (
+            <fieldset className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+              <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-sky-900">
+                Staff attribution
+              </legend>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <label className="text-xs font-bold text-slate-700">
+                  Responsible agent
+                  <select
+                    value={draft.responsibleEmployeeId}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        responsibleEmployeeId: event.target.value,
+                        assistantEmployeeIds: current.assistantEmployeeIds.filter(
+                          (id) => id !== event.target.value,
+                        ),
+                      }))
+                    }
+                    disabled={isSaving}
+                    aria-label="Responsible agent"
+                    aria-invalid={Boolean(errors.responsibleEmployeeId)}
+                    aria-describedby={
+                      errors.responsibleEmployeeId ? 'ticket-responsible-agent-error' : undefined
+                    }
+                    className={fieldClass(Boolean(errors.responsibleEmployeeId))}
+                  >
+                    {attributionEmployees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.id === employeeId
+                          ? `Me — ${employeeName || employee.fullName}`
+                          : employee.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError
+                    id="ticket-responsible-agent-error"
+                    message={errors.responsibleEmployeeId}
+                  />
+                  <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                    Issued passenger tickets count toward this agent&apos;s targets.
+                  </span>
+                </label>
+
+                <div className="text-xs font-bold text-slate-700">
+                  <label htmlFor="ticket-add-assistant">Assisted by (optional)</label>
+                  <select
+                    id="ticket-add-assistant"
+                    value=""
+                    onChange={(event) => {
+                      const employeeIdToAdd = event.target.value
+                      if (!employeeIdToAdd) return
+                      updateDraft((current) => ({
+                        ...current,
+                        assistantEmployeeIds: current.assistantEmployeeIds.includes(employeeIdToAdd)
+                          ? current.assistantEmployeeIds
+                          : [...current.assistantEmployeeIds, employeeIdToAdd].slice(0, 10),
+                      }))
+                    }}
+                    disabled={isSaving || draft.assistantEmployeeIds.length >= 10}
+                    aria-label="Add assistant"
+                    aria-invalid={Boolean(errors.assistantEmployeeIds)}
+                    aria-describedby={
+                      errors.assistantEmployeeIds ? 'ticket-assistant-agent-error' : undefined
+                    }
+                    className={fieldClass(Boolean(errors.assistantEmployeeIds))}
+                  >
+                    <option value="">
+                      {draft.assistantEmployeeIds.length >= 10
+                        ? 'Maximum 10 assistants reached'
+                        : 'Add an assistant…'}
+                    </option>
+                    {attributionEmployees
+                      .filter(
+                        (employee) =>
+                          employee.id !== draft.responsibleEmployeeId &&
+                          !draft.assistantEmployeeIds.includes(employee.id),
+                      )
+                      .map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.fullName}
+                        </option>
+                      ))}
+                  </select>
+                  <FieldError
+                    id="ticket-assistant-agent-error"
+                    message={errors.assistantEmployeeIds}
+                  />
+                  <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                    Assistance is recorded independently and never counts toward ticket targets.
+                  </span>
+                  {selectedAssistantEmployees.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2" aria-label="Selected assistants">
+                      {selectedAssistantEmployees.map((employee) => (
+                        <span
+                          key={employee.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-sky-900 ring-1 ring-sky-200"
+                        >
+                          <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                          {employee.fullName}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateDraft((current) => ({
+                                ...current,
+                                assistantEmployeeIds: current.assistantEmployeeIds.filter(
+                                  (id) => id !== employee.id,
+                                ),
+                              }))
+                            }
+                            disabled={isSaving}
+                            aria-label={`Remove ${employee.fullName} as assistant`}
+                            className="ui-focus ml-0.5 rounded-full text-sky-700 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {attributionOverride && (
+                <label className="mt-3 block text-xs font-bold text-slate-700">
+                  Attribution reason
+                  <textarea
+                    value={draft.attributionReason}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        attributionReason: event.target.value,
+                      }))
+                    }
+                    maxLength={500}
+                    rows={2}
+                    disabled={isSaving}
+                    aria-label="Attribution reason"
+                    aria-invalid={Boolean(errors.attributionReason)}
+                    aria-describedby={
+                      errors.attributionReason ? 'ticket-attribution-reason-error' : undefined
+                    }
+                    className={fieldClass(Boolean(errors.attributionReason))}
+                    placeholder="For example: entered while the responsible agent was off sick"
+                  />
+                  <FieldError
+                    id="ticket-attribution-reason-error"
+                    message={errors.attributionReason}
+                  />
+                </label>
+              )}
+            </fieldset>
+          )}
+
           <fieldset aria-describedby={errors.fares ? 'ticket-fares-error' : undefined}>
             <legend className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
               Passenger mix and unit fare cost
@@ -516,7 +726,9 @@ export function TicketQuickEntryForm({
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-              Agent, branch, GBP and Unpaid are applied automatically.
+              {canManageAttribution
+                ? 'Signed-in staff, branch, GBP and Unpaid are recorded automatically.'
+                : 'Agent, branch, GBP and Unpaid are applied automatically.'}
             </p>
             <div className="flex gap-2">
               <button

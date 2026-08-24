@@ -1,9 +1,12 @@
 import type {
+  CorrectTicketAttributionInput,
   CreateTicketServiceInput,
   CreateTkTicketInput,
   DuplicateTkRecord,
   MarkTicketServicePaidInput,
   TicketCompletionDetail,
+  TicketCompletionContext,
+  TicketCompletionLoadResult,
   TicketCompletionUpdate,
   TicketLedgerPayload,
   TicketServiceBookingLookupResult,
@@ -75,6 +78,33 @@ export async function createTkTicket(
   }
 
   return { kind: 'created' }
+}
+
+export async function correctTicketAttribution(
+  bookingId: string,
+  input: CorrectTicketAttributionInput,
+  idempotencyKey: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/ticketing/ledger/${encodeURIComponent(bookingId)}/attribution`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(input),
+    },
+  )
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+
+  if (!response.ok) {
+    throw new TicketLedgerApiError(
+      payload.error || 'Unable to correct the ticket attribution',
+      payload.fieldErrors,
+      payload.code,
+    )
+  }
 }
 
 export async function lookupIssuedTicketBookings(
@@ -176,16 +206,17 @@ export async function markTicketServicePaid(
 export async function loadTicketCompletionDetail(
   bookingId: string,
   signal?: AbortSignal,
-): Promise<TicketCompletionDetail> {
+): Promise<TicketCompletionLoadResult> {
   const response = await fetch(`/api/ticketing/ledger/${encodeURIComponent(bookingId)}`, {
     cache: 'no-store',
     signal,
   })
   const payload = (await response.json().catch(() => ({}))) as {
     detail?: TicketCompletionDetail
+    completionContext?: TicketCompletionContext
   } & ApiErrorPayload
 
-  if (!response.ok || !payload.detail) {
+  if (!response.ok) {
     throw new TicketLedgerApiError(
       payload.error || 'Unable to load the ticket details',
       payload.fieldErrors,
@@ -193,7 +224,21 @@ export async function loadTicketCompletionDetail(
     )
   }
 
-  return payload.detail
+  if (
+    !payload.detail ||
+    !payload.completionContext ||
+    typeof payload.completionContext.isOnBehalf !== 'boolean' ||
+    typeof payload.completionContext.onBehalfReasonRequired !== 'boolean' ||
+    typeof payload.completionContext.ownerEmployee?.id !== 'string' ||
+    typeof payload.completionContext.ownerEmployee?.fullName !== 'string'
+  ) {
+    throw new TicketLedgerApiError('Ticket details returned an invalid completion context.')
+  }
+
+  return {
+    detail: payload.detail,
+    completionContext: payload.completionContext,
+  }
 }
 
 export async function updateTicketCompletionDetail(

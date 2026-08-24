@@ -6,6 +6,11 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 ### Added
 
+- Audited Ticketing staff attribution with a session-derived entry actor, selectable responsible
+  agent, independent assistants, primary-only issued-ticket target units, immutable correction
+  history, and versioned Commission source-fact supersession.
+- Shared Ticketing Low Fare queue with immutable whole-PNR GBP supplier-fare adjustments,
+  cross-agent attribution, package-scope snapshots, and target-safe Commission source variables.
 - Native Supabase Auth passkeys with discoverable conditional sign-in, multiple named
   credentials, and in-app rename/removal management.
 - In-account Microsoft 365 identity linking with linked-status visibility and exact IMS-email

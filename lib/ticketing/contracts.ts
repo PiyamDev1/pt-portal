@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  TICKET_ATTRIBUTION_MAX_ASSISTANTS,
+  TICKET_ATTRIBUTION_MAX_REASON_LENGTH,
+  type TicketingAttributionEmployee,
+} from '@/lib/ticketing/attributionContracts'
 
 export const TICKET_PASSENGER_TYPES = ['ADT', 'CHD', 'INF'] as const
 export const TICKET_QUICK_ENTRY_STATUSES = ['held', 'issued'] as const
@@ -56,6 +61,20 @@ export const ticketingQuickTkSchema = z
     currency: z.literal('GBP'),
     fares: z.array(ticketingQuickFareSchema).min(1).max(3),
     confirmDuplicate: z.boolean().optional().default(false),
+    responsibleEmployeeId: z.string().uuid().optional(),
+    assistantEmployeeIds: z
+      .array(z.string().uuid())
+      .max(TICKET_ATTRIBUTION_MAX_ASSISTANTS)
+      .optional()
+      .default([]),
+    attributionReason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TICKET_ATTRIBUTION_MAX_REASON_LENGTH)
+      .nullable()
+      .optional()
+      .default(null),
   })
   .strict()
   .superRefine((entry, context) => {
@@ -107,6 +126,25 @@ export const ticketingQuickTkSchema = z
         message: 'A quick entry can contain at most 99 passengers',
       })
     }
+
+    if (new Set(entry.assistantEmployeeIds).size !== entry.assistantEmployeeIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistantEmployeeIds'],
+        message: 'Each assisting employee can only be selected once',
+      })
+    }
+
+    if (
+      entry.responsibleEmployeeId &&
+      entry.assistantEmployeeIds.includes(entry.responsibleEmployeeId)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistantEmployeeIds'],
+        message: 'The responsible employee cannot also be an assistant',
+      })
+    }
   })
 
 export type TicketingQuickTkInput = z.output<typeof ticketingQuickTkSchema>
@@ -144,15 +182,21 @@ export type TicketingLedgerItem = {
   detailsStatus: (typeof TICKET_DETAILS_STATUSES)[number]
   fares: TicketingLedgerFare[]
   createdAt: string
+  responsibleEmployee: TicketingAttributionEmployee
+  assistantEmployees: TicketingAttributionEmployee[]
+  attributionVersion: number
 }
 
 export type TicketingLedgerResponse = {
   items: TicketingLedgerItem[]
   airlines: TicketingAirlineOption[]
   context: {
+    employeeId: string
     employeeName: string
     locationName: string | null
     timezone: string
+    canManageAttribution: boolean
+    attributionEmployees: TicketingAttributionEmployee[]
   }
 }
 

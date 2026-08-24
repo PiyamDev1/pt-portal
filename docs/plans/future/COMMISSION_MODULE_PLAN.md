@@ -5,7 +5,7 @@
 > provide facts and variables; they do not contain commission formulas.
 
 - **Status:** Decision-complete integration note
-- **Last updated:** August 22, 2026
+- **Last updated:** August 24, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
 
@@ -38,6 +38,9 @@ here.
   locked historical statement or completed target period.
 - Posted entries are append-only. Corrections use void/offset/replacement entries linked to the
   original source event and policy snapshot.
+- The primary responsible employee and each assistant are different recipient roles. Assistance may
+  earn an independently configured amount, but it never contributes issued-ticket target units or
+  advances a primary-sale tier counter.
 - Calculations and statement totals use PostgreSQL `numeric` values and actual settled GBP source
   variables, not JavaScript floating point or inferred exchange rates.
 
@@ -85,8 +88,8 @@ Every contributing module emits an idempotent, versioned event containing:
 | `event_type`          | Stable business event code                                   |
 | `event_version`       | Increasing version for corrections to the same source fact   |
 | `supersedes_event_id` | Prior source event when this is a correction/reversal        |
-| `employee_id`         | Employee to whom the event is attributed                     |
-| `owner_employee_id`   | Original owner when different from the acting employee       |
+| `employee_id`         | Primary responsible employee for the source fact             |
+| `owner_employee_id`   | Operational ticket owner; equal to primary after attribution |
 | `location_id`         | Branch/location context                                      |
 | `occurred_at`         | UTC source-event timestamp                                   |
 | `effective_on`        | Business date used for policy and statement selection        |
@@ -116,13 +119,33 @@ Relevant variables include:
 - Source currency and actual GBP customer receipt/sale value.
 - Source currency and actual GBP supplier ticket cost.
 - Original/new fares and signed GBP fare difference.
-- Acting and original ticket agents.
+- Immutable acting/entered-by employee, primary responsible employee, and assistant employee IDs.
+- `issued_ticket_target_units` for the primary and explicit zero target units for assistants.
 - PNR, airline ID, transaction lineage, and refund/source references.
 - Package/reservation/group IDs, package type, and resolved commission scope.
 - Refund/cancellation values needed to preserve or adjust the original earning.
 
 Ticketing emits a state change even when it does not know whether it is commissionable. The
 Commission module evaluates the employee policy and package scope.
+
+Ticketing capability `2026082402` supplies `primary_responsible_employee_id`,
+`assistant_employee_ids`, `acting_employee_id`, `issued_ticket_target_units`, and
+`assistant_target_units` for the root TK issuance. The event envelope belongs to the primary employee. The Commission
+processor must fan out any configured assistant entries from the assistant IDs without adding those
+events to the assistant's target or primary-tier basis. A source-event correction replaces the
+recipient set and target ownership through normal event-version lineage. DC/R-ER events must not
+inherit this root-TK assistant list; a later transaction-scoped Ticketing attribution contract will
+be required before those services can record independent assistants.
+
+Ticketing capability `2026082401` implements the first Low Fare producer contract. A positive
+whole-PNR GBP difference (`original_fare_gbp - new_fare_gbp`) emits
+`ticket_low_fare_adjusted`; a negative difference emits `ticket_higher_fare_adjusted`. The common
+envelope attributes the event to the authenticated acting employee and their branch while retaining
+the original ticket owner and booking branch in the source variables. Equal source/GBP
+original/new/difference pairs, passenger-ticket count, adjustment lineage, airline/PNR, root
+service/operational/payment lifecycle, and server-snapshotted package scope are included;
+`issued_ticket_target_units` is zero. A same-fare observation emits no adjustment event in this
+slice. Ticketing still emits no calculated commission amount.
 
 ### 4.3 Package variables
 
@@ -155,6 +178,8 @@ The first release supports composable components:
 - Fixed amount per issued passenger-ticket.
 - Fixed amount per affected DC/R-ER passenger-ticket.
 - Fixed amount per transaction/booking.
+- Independent fixed or percentage assistance component whose count basis is the assisted fact and
+  whose primary-sale tier/target basis is always zero.
 - Percentage of positive low-fare saving.
 - Configurable treatment of a negative fare difference, including full signed debit and negative
   carry-forward.
@@ -166,6 +191,10 @@ The first release supports composable components:
 
 Each component declares its input variable, sign/rounding rule, combination order, minimum/maximum
 if used, and recipient. A missing input creates an exception rather than being treated as zero.
+
+Tier counters must declare their eligible recipient role. The first Ticketing policies count only
+primary issued sales: an assistant entry can pay its own fixed/percentage component but cannot move
+the assistant from one primary-sales tier to another.
 
 ### 5.3 Eligibility and event timing
 
@@ -196,6 +225,21 @@ This is an example assignment, not a global default or seed:
 Acceptance example: three passengers issued as TK produce £15. A later DC affecting all three
 produces another £15. R-ER produces £0 under this version.
 
+### 5.5 Illustrative tier and profit configurations
+
+These are separate employee policy examples, not shared defaults:
+
+| Example | Primary ticket components                                                                  |
+| ------- | ------------------------------------------------------------------------------------------ |
+| Agent A | £5 for each of primary tickets 1–30 in the policy period; £10 from ticket 31 onward        |
+| Agent B | £5 for primary tickets 1–30; £10 for 31–60; £15 from ticket 61 onward                      |
+| Agent C | £5 per primary ticket plus 10% for each completed £1,000 profit band under a defined basis |
+
+The Agent C profit basis must be defined precisely before implementation—period, eligible source
+modules, gross versus net profit, treatment of refunds/packages, band rounding, and statement lock.
+Ticketing provides facts only and must not calculate that profit component. For all examples, an
+assistant payment is evaluated independently and adds zero to the tier count.
+
 ## 6. Ticket targets
 
 ### 6.1 Configuration
@@ -211,12 +255,16 @@ produces another £15. R-ER produces £0 under this version.
 
 - Count each TK passenger-ticket exactly once when Ticketing first emits a valid Issued state.
 - One PNR with three issued passengers adds three.
+- Only the primary responsible employee receives those units. The authenticated entry actor gets
+  none unless they are also primary; every assistant gets zero from the assisted booking.
 - Payment does not change target count.
 - DC, R-ER, low-fare, refund, cancellation, and voucher events do not count toward the default ticket
   target.
 - Package-linked TK passenger-tickets count unless a target assignment explicitly excludes them.
 - A later cancellation/refund does not remove genuine issuance credit.
 - An audited erroneous-issuance correction reverses the count.
+- An audited attribution correction transfers the versioned source fact from the former primary to
+  the corrected primary; it never credits the assistant list or leaves a duplicate count.
 - Duplicate/retried source events never increment progress twice.
 
 ### 6.3 Progress contract
@@ -263,6 +311,12 @@ The generated snapshot already describes `commission_rules`, `commission_rate_co
 `commission_tiers`, and `employee_commission_assignments`. The current `/dashboard/commissions`
 route is a placeholder. These facts must be verified against the live linked Supabase project before
 choosing ALTER/backfill/replacement migrations.
+
+The August 24 Ticketing verification found those rule/component/tier/assignment tables and the
+Ticketing-owned `commission_source_events` boundary empty. Ticketing capability `2026082402` can
+now publish signed Low Fare/higher-fare variables and root-TK primary/assistant attribution facts
+atomically. This producer boundary still implies no Commission processor, policy assignment,
+calculated entry, statement, payout, or target-progress UI.
 
 Expected resulting capabilities:
 
@@ -348,6 +402,8 @@ Never put Supabase secrets or customer/employee financial data in source, logs, 
   correction lineage.
 - Configure Agent 1 through normal Manager/Admin UI/API and prove the £5 TK/DC, £0 R-ER, 10%
   low-fare, refund preservation, and package-scope cases.
+- Configure the distinct Agent A/B/C tier examples and an independent assistance component; prove
+  assisted events do not advance either targets or primary-sale tier counters.
 - Add dry-run policy preview that never posts or changes history.
 
 ### Phase 3: Targets and agent experience
@@ -373,6 +429,9 @@ Never put Supabase secrets or customer/employee financial data in source, logs, 
 - Missing policy/input creates an exception; explicit zero creates a valid £0 result.
 - Source-event retries are idempotent, conflicting duplicate keys fail, and corrections preserve
   lineage.
+- Primary/assistant attribution fans out the configured recipient entries once; changing primary or
+  assistants supersedes the prior result, transfers target ownership, and never advances an
+  assistant's primary tier.
 - Agent 1's three TK passengers calculate £15; three-person DC calculates another £15; R-ER is £0;
   positive low fare is 10%; higher fare uses the configured debit; refund preserves the original.
 - Package ticket events use package rules, with fixed passenger/package and percentage-profit cases.
@@ -426,6 +485,8 @@ boundary and a Playwright smoke flow from issued ticket to target progress and C
 - Agent 1 and materially different policies can coexist through effective-dated assignments.
 - Weekly/monthly targets count issued passenger-tickets exactly once and motivate agents without
   exposing money in Ticketing.
+- Agent-specific tiers and independent assistant components coexist without placing a commission
+  formula in Ticketing or allowing assistance to inflate targets/tier counts.
 - Every statement amount and target count traces to source events, policy/target versions, and audit
   history.
 - Implementation begins from verified live Supabase truth with all required tooling installed and

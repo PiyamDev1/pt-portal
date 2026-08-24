@@ -19,6 +19,7 @@ import {
 } from './ledgerClientApi'
 import type {
   TicketCompletionDetail,
+  TicketCompletionContext,
   TicketCompletionPassenger,
   TicketCompletionUpdate,
   TicketPassengerType,
@@ -42,6 +43,7 @@ type PassengerDraft = {
 }
 
 type CompletionDraft = {
+  onBehalfReason: string
   contactPhone: string
   departureDate: string
   returnDate: string
@@ -119,6 +121,7 @@ function makeDraft(detail: TicketCompletionDetail): CompletionDraft {
   const fallbackLeadIndex = leadIndex >= 0 ? leadIndex : passengers.length > 0 ? 0 : -1
 
   return {
+    onBehalfReason: '',
     contactPhone: detail.contactPhone || '',
     departureDate: detail.departureDate || '',
     returnDate: detail.returnDate || '',
@@ -178,6 +181,7 @@ export function TicketCompletionDrawer({
   onSaved: () => Promise<void> | void
 }) {
   const [detail, setDetail] = useState<TicketCompletionDetail | null>(null)
+  const [completionContext, setCompletionContext] = useState<TicketCompletionContext | null>(null)
   const [draft, setDraft] = useState<CompletionDraft | null>(null)
   const [initialDraft, setInitialDraft] = useState<CompletionDraft | null>(null)
   const [errors, setErrors] = useState<CompletionErrors>({})
@@ -193,6 +197,7 @@ export function TicketCompletionDrawer({
   useEffect(() => {
     if (!bookingId) {
       setDetail(null)
+      setCompletionContext(null)
       setDraft(null)
       setInitialDraft(null)
       setLoadError('')
@@ -207,14 +212,16 @@ export function TicketCompletionDrawer({
     setSaveError('')
     setErrors({})
     setDetail(null)
+    setCompletionContext(null)
     setDraft(null)
     setInitialDraft(null)
     idempotencyKey.current = newIdempotencyKey()
 
     void loadTicketCompletionDetail(bookingId, controller.signal)
-      .then((nextDetail) => {
+      .then(({ detail: nextDetail, completionContext: nextCompletionContext }) => {
         const nextDraft = makeDraft(nextDetail)
         setDetail(nextDetail)
+        setCompletionContext(nextCompletionContext)
         setDraft(nextDraft)
         setInitialDraft(nextDraft)
       })
@@ -236,6 +243,14 @@ export function TicketCompletionDrawer({
   const dirty = Boolean(
     draft && initialDraft && JSON.stringify(draft) !== JSON.stringify(initialDraft),
   )
+  const operationalDirty = Boolean(
+    draft &&
+    initialDraft &&
+    JSON.stringify({ ...draft, onBehalfReason: '' }) !==
+      JSON.stringify({ ...initialDraft, onBehalfReason: '' }),
+  )
+  const isOnBehalf = completionContext?.isOnBehalf === true
+  const onBehalfReasonRequired = isOnBehalf && completionContext?.onBehalfReasonRequired === true
 
   const draftStatus = useMemo(() => {
     if (!draft) return 'needs_details'
@@ -274,6 +289,12 @@ export function TicketCompletionDrawer({
   const validate = (): CompletionErrors => {
     if (!detail || !draft) return { form: 'Ticket details are not ready.' }
     const nextErrors: CompletionErrors = {}
+
+    if (onBehalfReasonRequired && !draft.onBehalfReason.trim()) {
+      nextErrors.onBehalfReason = 'Enter a reason for completing this ticket on behalf of staff.'
+    } else if (draft.onBehalfReason.trim().length > 500) {
+      nextErrors.onBehalfReason = 'Keep the on-behalf reason to 500 characters or fewer.'
+    }
 
     if (draft.contactPhone.trim().length > 50) {
       nextErrors.contactPhone = 'Contact number must be 50 characters or fewer.'
@@ -362,6 +383,7 @@ export function TicketCompletionDrawer({
       returnDate: draft.returnDate || null,
       paymentStatus: draft.paymentStatus,
       paidAt: draft.paymentStatus === 'paid' ? draft.paidAt || todayInTimezone(timezone) : null,
+      onBehalfReason: isOnBehalf ? draft.onBehalfReason.trim() || null : null,
       fareSales: draft.fareSales.map((fare) => ({
         passengerType: fare.passengerType,
         unitSalePrice: fare.unitSalePrice.trim() ? Number(fare.unitSalePrice) : null,
@@ -380,7 +402,11 @@ export function TicketCompletionDrawer({
     setSaveError('')
     try {
       await updateTicketCompletionDetail(bookingId, input, idempotencyKey.current)
-      toast.success('Ticket details saved')
+      toast.success(
+        isOnBehalf && completionContext
+          ? `Ticket details saved on behalf of ${completionContext.ownerEmployee.fullName}`
+          : 'Ticket details saved',
+      )
       setInitialDraft(draft)
       onClose()
       void onSaved()
@@ -406,7 +432,7 @@ export function TicketCompletionDrawer({
     : 'Add the remaining operational details without slowing down quick entry.'
 
   const footer =
-    detail && draft ? (
+    detail && draft && completionContext ? (
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs font-semibold text-slate-500">
           Blank optional fields can be completed later.
@@ -423,7 +449,7 @@ export function TicketCompletionDrawer({
           <button
             type="submit"
             form="ticket-completion-form"
-            disabled={isSaving || !dirty || draft.paymentStatus === 'part_paid'}
+            disabled={isSaving || !operationalDirty || draft.paymentStatus === 'part_paid'}
             className="ui-tap ui-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
             {isSaving ? (
@@ -431,7 +457,7 @@ export function TicketCompletionDrawer({
             ) : (
               <Save className="h-4 w-4" aria-hidden="true" />
             )}
-            {isSaving ? 'Saving…' : 'Save details'}
+            {isSaving ? 'Saving…' : isOnBehalf ? 'Save on behalf' : 'Save details'}
           </button>
         </div>
       </div>
@@ -473,7 +499,7 @@ export function TicketCompletionDrawer({
               Try again
             </button>
           </div>
-        ) : detail && draft ? (
+        ) : detail && draft && completionContext ? (
           <form
             ref={formRef}
             id="ticket-completion-form"
@@ -503,6 +529,49 @@ export function TicketCompletionDrawer({
                 {draftStatus === 'complete' ? 'Details complete' : 'Needs details'}
               </span>
             </div>
+
+            {isOnBehalf && (
+              <section
+                aria-label="On-behalf completion"
+                className="rounded-2xl border border-sky-200 bg-sky-50 p-4"
+              >
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-sky-900">
+                  Completing on behalf of staff
+                </p>
+                <p className="mt-1 text-sm font-bold text-sky-950">
+                  Responsible agent: {completionContext.ownerEmployee.fullName}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-sky-800">
+                  Your signed-in account is recorded as the acting employee. Ticket responsibility
+                  and staff attribution stay with the responsible agent.
+                </p>
+                <label className="mt-3 block text-xs font-bold text-slate-700">
+                  On-behalf reason
+                  <textarea
+                    autoFocus
+                    value={draft.onBehalfReason}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        onBehalfReason: event.target.value,
+                      }))
+                    }
+                    maxLength={500}
+                    rows={2}
+                    required={onBehalfReasonRequired}
+                    disabled={isSaving || draft.paymentStatus === 'part_paid'}
+                    aria-label="On-behalf completion reason"
+                    aria-invalid={Boolean(errors.onBehalfReason)}
+                    aria-describedby={
+                      errors.onBehalfReason ? 'ticket-on-behalf-reason-error' : undefined
+                    }
+                    className={fieldClass(Boolean(errors.onBehalfReason))}
+                    placeholder="For example: completing the record while the agent is off sick"
+                  />
+                  <FieldError id="ticket-on-behalf-reason-error" message={errors.onBehalfReason} />
+                </label>
+              </section>
+            )}
 
             {saveError && (
               <div

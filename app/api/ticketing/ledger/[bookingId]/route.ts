@@ -2,19 +2,22 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
+  TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION,
   ticketingBookingIdSchema,
   ticketingCompleteTkDetailsSchema,
   ticketingDetailsStatus,
+  type TicketingCompletionContext,
   type TicketingCompletionDetail,
   type TicketingCompletionFare,
   type TicketingCompletionPassenger,
 } from '@/lib/ticketing/completionContracts'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_COMPLETION_VERSION = 2026082202
+const TICKETING_COMPLETION_VERSION = TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION
 const POSTED_OPERATIONAL_STATUSES = new Set(['issued', 'cancelled', 'part_refunded', 'refunded'])
 
 type Related<T> = T | T[] | null
@@ -27,6 +30,11 @@ type AirlineRow = {
 
 type LocationRow = {
   timezone: string
+}
+
+type EmployeeNameRow = {
+  id: string
+  full_name: string | null
 }
 
 type BookingRow = {
@@ -68,9 +76,11 @@ type PassengerAllocationRow = {
 type TransactionRow = {
   id: string
   version: number | string
+  owner_employee_id: string
   operational_status: string
   payment_status: 'unpaid' | 'part_paid' | 'paid'
   paid_at: string | null
+  responsible_employee: Related<EmployeeNameRow>
   ticket_bookings: Related<BookingRow>
   ticket_passenger_fare_lines: FareRow[] | null
   ticket_transaction_passengers: PassengerAllocationRow[] | null
@@ -96,6 +106,27 @@ function firstRelated<T>(value: Related<T>): T | null {
 
 function privateError(message: string, status: number, extra: Record<string, unknown> = {}) {
   return apiError(message, status, extra, PRIVATE_RESPONSE)
+}
+
+function normalizeRole(value: string) {
+  return value.trim().toLowerCase().replace(/[_-]+/g, ' ')
+}
+
+function canCompleteTicketOnBehalf(role: string) {
+  const normalizedRole = normalizeRole(role)
+  return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
+}
+
+function completionContext(
+  detail: TicketingCompletionDetail,
+  actorEmployeeId: string,
+): TicketingCompletionContext {
+  const isOnBehalf = detail.responsibleEmployee.id !== actorEmployeeId
+  return {
+    ownerEmployee: detail.responsibleEmployee,
+    isOnBehalf,
+    onBehalfReasonRequired: isOnBehalf,
+  }
 }
 
 function money(value: number | string | null) {
@@ -180,7 +211,8 @@ function detailFromRow(row: TransactionRow): TicketingCompletionDetail | null {
   const booking = firstRelated(row.ticket_bookings)
   const airline = booking ? firstRelated(booking.airlines) : null
   const location = booking ? firstRelated(booking.locations) : null
-  if (!booking || booking.archived_at || !airline || !location) return null
+  const responsibleEmployee = firstRelated(row.responsible_employee)
+  if (!booking || booking.archived_at || !airline || !location || !responsibleEmployee) return null
 
   const fares: TicketingCompletionFare[] = (row.ticket_passenger_fare_lines || [])
     .map((fare) => {
@@ -225,6 +257,10 @@ function detailFromRow(row: TransactionRow): TicketingCompletionDetail | null {
       fares,
       passengers: persisted,
     }),
+    responsibleEmployee: {
+      id: row.owner_employee_id,
+      fullName: responsibleEmployee.full_name?.trim() || 'Staff member',
+    },
     fares,
     passengers,
   }
@@ -237,20 +273,26 @@ async function hasCompletionCapability(supabase: ReturnType<typeof getServiceSup
   return status.ready === true && Number(status.version || 0) >= TICKETING_COMPLETION_VERSION
 }
 
-async function loadOwnDetail(
+async function loadAccessibleDetail(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
   bookingId: string,
-  ownerEmployeeId: string,
+  actorEmployeeId: string,
+  allowAdminOnBehalf: boolean,
 ) {
-  const { data, error } = await supabase
+  let query = supabase
     .from('ticket_transactions')
     .select(
       `
         id,
         version,
+        owner_employee_id,
         operational_status,
         payment_status,
         paid_at,
+        responsible_employee:employees!ticket_transactions_owner_employee_id_fkey(
+          id,
+          full_name
+        ),
         ticket_bookings!inner(
           id,
           version,
@@ -285,7 +327,10 @@ async function loadOwnDetail(
       `,
     )
     .eq('booking_id', bookingId)
-    .eq('owner_employee_id', ownerEmployeeId)
+
+  if (!allowAdminOnBehalf) query = query.eq('owner_employee_id', actorEmployeeId)
+
+  const { data, error } = await query
     .eq('service_type', 'TK')
     .is('parent_transaction_id', null)
     .is('ticket_bookings.archived_at', null)
@@ -338,6 +383,16 @@ function completionError(error: TicketingRpcError) {
       code: 'IDEMPOTENCY_CONFLICT',
     })
   }
+  if (hint === 'TICKETING_ON_BEHALF_REASON_REQUIRED') {
+    return privateError('Explain why you are completing this ticket for another employee.', 400, {
+      code: 'ON_BEHALF_REASON_REQUIRED',
+    })
+  }
+  if (hint === 'TICKETING_ON_BEHALF_REASON_NOT_ALLOWED') {
+    return privateError("An on-behalf reason is only valid for another employee's ticket.", 400, {
+      code: 'ON_BEHALF_REASON_NOT_ALLOWED',
+    })
+  }
   if (error.code === '55000' || hint === 'TICKETING_CORRECTION_REQUIRED') {
     return privateError('These posted ticket details require an audited correction.', 409, {
       code: 'CORRECTION_REQUIRED',
@@ -345,7 +400,7 @@ function completionError(error: TicketingRpcError) {
   }
   if (error.code === '42501') return privateError('Forbidden', 403)
   if (['22007', '22023', '23503', '23514'].includes(String(error.code || ''))) {
-    return privateError(message || 'Invalid ticket details', 400)
+    return privateError('Invalid ticket details.', 400)
   }
   return privateError('Unable to save the ticket details right now.', 500)
 }
@@ -364,11 +419,19 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     return privateError('Ticketing record completion is not installed on this database.', 503)
   }
 
-  const { detail, error } = await loadOwnDetail(supabase, parsedBookingId.data, access.employee.id)
+  const { detail, error } = await loadAccessibleDetail(
+    supabase,
+    parsedBookingId.data,
+    access.employee.id,
+    canCompleteTicketOnBehalf(access.employee.role),
+  )
   if (error) return privateError('Unable to load the ticket details right now.', 500)
   if (!detail) return privateError('Ticket record not found.', 404)
 
-  return apiOk({ detail }, PRIVATE_RESPONSE)
+  return apiOk(
+    { detail, completionContext: completionContext(detail, access.employee.id) },
+    PRIVATE_RESPONSE,
+  )
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
@@ -403,7 +466,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return privateError('Ticketing record completion is not installed on this database.', 503)
   }
 
-  const { data, error } = await supabase.rpc('ticketing_complete_tk_details', {
+  const allowAdminOnBehalf = canCompleteTicketOnBehalf(access.employee.role)
+  const initial = await loadAccessibleDetail(
+    supabase,
+    parsedBookingId.data,
+    access.employee.id,
+    allowAdminOnBehalf,
+  )
+  if (initial.error) return privateError('Unable to load the ticket details right now.', 500)
+  if (!initial.detail) return privateError('Ticket record not found.', 404)
+
+  const { data, error } = await supabase.rpc('ticketing_complete_tk_details_authorized', {
     p_actor_employee_id: access.employee.id,
     p_booking_id: parsedBookingId.data,
     p_idempotency_key: idempotencyKey,
@@ -420,7 +493,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return privateError('Ticketing returned an invalid completion result.', 500)
   }
 
-  const loaded = await loadOwnDetail(supabase, parsedBookingId.data, access.employee.id)
+  const loaded = await loadAccessibleDetail(
+    supabase,
+    parsedBookingId.data,
+    access.employee.id,
+    allowAdminOnBehalf,
+  )
   if (loaded.error) return privateError('Unable to reload the saved ticket details.', 500)
   if (!loaded.detail) return privateError('Ticket record not found.', 404)
   if (loaded.detail.transactionId !== result.transaction.id) {
@@ -430,6 +508,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   return apiOk(
     {
       detail: loaded.detail,
+      completionContext: completionContext(loaded.detail, access.employee.id),
       changed: result.changed === true,
       idempotentReplay: result.idempotentReplay === true,
     },

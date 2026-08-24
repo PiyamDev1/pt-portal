@@ -23,6 +23,7 @@ const DETAIL: TicketCompletionDetail = {
   paymentStatus: 'unpaid',
   paidAt: null,
   airline: { id: 'airline-tk', iataCode: 'TK', name: 'Turkish Airlines' },
+  responsibleEmployee: { id: 'employee-owner', fullName: 'Agent One' },
   detailsStatus: 'needs_details',
   fares: [
     {
@@ -45,11 +46,30 @@ const DETAIL: TicketCompletionDetail = {
   passengers: [],
 }
 
+const OWNER_COMPLETION_CONTEXT = {
+  ownerEmployee: DETAIL.responsibleEmployee,
+  isOnBehalf: false,
+  onBehalfReasonRequired: false,
+}
+
+const ON_BEHALF_COMPLETION_CONTEXT = {
+  ownerEmployee: DETAIL.responsibleEmployee,
+  isOnBehalf: true,
+  onBehalfReasonRequired: true,
+}
+
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function completionResponse(
+  detail: TicketCompletionDetail = DETAIL,
+  completionContext = OWNER_COMPLETION_CONTEXT,
+) {
+  return jsonResponse({ detail, completionContext })
 }
 
 function renderDrawer(
@@ -74,7 +94,7 @@ describe('TicketCompletionDrawer', () => {
   })
 
   it('lazy-loads the private detail and creates passenger slots from fare quantities', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ detail: DETAIL }))
+    const fetchMock = vi.fn(async () => completionResponse())
     vi.stubGlobal('fetch', fetchMock)
     renderDrawer()
 
@@ -90,13 +110,14 @@ describe('TicketCompletionDrawer', () => {
     )
     expect((screen.getByLabelText('CHD 1 passenger name') as HTMLInputElement).value).toBe('')
     expect(screen.getByText('Needs details')).toBeTruthy()
+    expect(screen.queryByLabelText('On-behalf completion reason')).toBeNull()
     expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
   })
 
   it('saves contact, journey, grouped sale, payment, and passenger details atomically', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ detail: DETAIL }))
+      .mockResolvedValueOnce(completionResponse())
       .mockResolvedValueOnce(jsonResponse({ saved: true }))
     vi.stubGlobal('fetch', fetchMock)
     const { onClose, onSaved } = renderDrawer()
@@ -145,6 +166,7 @@ describe('TicketCompletionDrawer', () => {
       returnDate: '2026-09-20',
       paymentStatus: 'paid',
       paidAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      onBehalfReason: null,
       fareSales: [
         { passengerType: 'ADT', unitSalePrice: 525.5 },
         { passengerType: 'CHD', unitSalePrice: 410 },
@@ -164,8 +186,54 @@ describe('TicketCompletionDrawer', () => {
     expect(onSaved).toHaveBeenCalledOnce()
   })
 
+  it('requires and records an audited reason when an admin completes details on behalf of the responsible agent', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(completionResponse(DETAIL, ON_BEHALF_COMPLETION_CONTEXT))
+      .mockResolvedValueOnce(jsonResponse({ saved: true }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { onClose, onSaved } = renderDrawer()
+    await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
+
+    expect(screen.getByLabelText('On-behalf completion').textContent).toContain(
+      'Responsible agent: Agent One',
+    )
+    expect(screen.getByLabelText('On-behalf completion').textContent).toContain(
+      'Ticket responsibility and staff attribution stay with the responsible agent.',
+    )
+    expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('Contact number'), { target: { value: '07123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save on behalf' }))
+
+    expect(
+      screen.getByText('Enter a reason for completing this ticket on behalf of staff.'),
+    ).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.change(screen.getByLabelText('On-behalf completion reason'), {
+      target: { value: 'Completing the record while Agent One is off sick' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save on behalf' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, request] = fetchMock.mock.calls[1]
+    expect(request?.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      'Idempotency-Key': expect.any(String),
+    })
+    const body = JSON.parse(String(request?.body))
+    expect(body.onBehalfReason).toBe('Completing the record while Agent One is off sick')
+    expect(body).not.toHaveProperty('ownerEmployeeId')
+    expect(body).not.toHaveProperty('actingEmployeeId')
+    expect(body).not.toHaveProperty('responsibleEmployeeId')
+    expect(toastMocks.success).toHaveBeenCalledWith('Ticket details saved on behalf of Agent One')
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onSaved).toHaveBeenCalledOnce()
+  })
+
   it('requires all missing issued sale prices together and all sales before Paid', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ detail: DETAIL }))
+    const fetchMock = vi.fn(async () => completionResponse())
     vi.stubGlobal('fetch', fetchMock)
     renderDrawer()
     await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
@@ -193,7 +261,7 @@ describe('TicketCompletionDrawer', () => {
   it('confirms before discarding a dirty draft', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse({ detail: DETAIL })),
+      vi.fn(async () => completionResponse()),
     )
     const { onClose } = renderDrawer()
     await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
@@ -212,7 +280,7 @@ describe('TicketCompletionDrawer', () => {
   it('keeps the draft and idempotency key available for retry after a version conflict', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ detail: DETAIL }))
+      .mockResolvedValueOnce(completionResponse())
       .mockResolvedValueOnce(
         jsonResponse({ error: 'Ticket version changed', code: 'VERSION_CONFLICT' }, 409),
       )
@@ -241,7 +309,7 @@ describe('TicketCompletionDrawer', () => {
     }
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse({ detail: partPaidDetail })),
+      vi.fn(async () => completionResponse(partPaidDetail)),
     )
     renderDrawer()
     await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })

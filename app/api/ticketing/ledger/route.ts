@@ -2,7 +2,12 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import {
+  TICKET_ATTRIBUTION_CAPABILITY_VERSION,
+  type TicketingAttributionEmployee,
+} from '@/lib/ticketing/attributionContracts'
 import {
   ticketingQuickTkSchema,
   type TicketingAirlineOption,
@@ -14,7 +19,7 @@ import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import { ticketingDetailsStatus } from '@/lib/ticketing/completionContracts'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_RUNTIME_VERSION = 2026082202
+const TICKETING_RUNTIME_VERSION = TICKET_ATTRIBUTION_CAPABILITY_VERSION
 
 type Related<T> = T | T[] | null
 
@@ -34,6 +39,23 @@ type EmployeeLocationRow = {
   locations: Related<LocationRow>
 }
 
+type EmployeeNameRow = {
+  id: string
+  full_name: string | null
+}
+
+type AttributionAssistantRow = {
+  employee_id: string
+  assistant_employee: Related<EmployeeNameRow>
+}
+
+type AttributionVersionRow = {
+  attribution_version: number
+  primary_employee_id: string
+  responsible_employee: Related<EmployeeNameRow>
+  ticket_booking_attribution_assistants: AttributionAssistantRow[] | null
+}
+
 type BookingRow = {
   id: string
   version: number
@@ -45,6 +67,7 @@ type BookingRow = {
   commission_scope: string
   archived_at: string | null
   airlines: Related<AirlineRow>
+  ticket_booking_attribution_versions: AttributionVersionRow[] | null
 }
 
 type FareRow = {
@@ -113,10 +136,57 @@ function airlineOption(row: AirlineRow): TicketingAirlineOption {
   return { id: row.id, iataCode: row.iata_code, name: row.name }
 }
 
-function ledgerItem(row: TransactionRow): TicketingLedgerItem | null {
+function attributionEmployee(row: EmployeeNameRow, fallbackName?: string) {
+  const fullName = row.full_name?.trim() || fallbackName?.trim()
+  return fullName ? ({ id: row.id, fullName } satisfies TicketingAttributionEmployee) : null
+}
+
+function canManageTicketingAttribution(role: string) {
+  const normalizeRole = (value: string) => value.trim().toLowerCase().replace(/[_-]+/g, ' ')
+  const normalizedRole = normalizeRole(role)
+  return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
+}
+
+function currentAttribution(booking: BookingRow, actorEmployeeId: string, actorName: string) {
+  const current = [...(booking.ticket_booking_attribution_versions || [])].sort(
+    (left, right) => Number(right.attribution_version) - Number(left.attribution_version),
+  )[0]
+  const responsibleRow = current ? firstRelated(current.responsible_employee) : null
+  if (!current || !responsibleRow) return null
+  const responsibleEmployee = attributionEmployee(
+    responsibleRow,
+    responsibleRow.id === actorEmployeeId ? actorName : 'Staff member',
+  )
+  if (!responsibleEmployee) return null
+
+  const assistantEmployees = (current.ticket_booking_attribution_assistants || [])
+    .map((assistant) => firstRelated(assistant.assistant_employee))
+    .filter((employee): employee is EmployeeNameRow => Boolean(employee))
+    .map((employee) =>
+      attributionEmployee(employee, employee.id === actorEmployeeId ? actorName : 'Staff member'),
+    )
+    .filter((employee): employee is TicketingAttributionEmployee => Boolean(employee))
+    .sort(
+      (left, right) =>
+        left.fullName.localeCompare(right.fullName) || left.id.localeCompare(right.id),
+    )
+
+  return {
+    responsibleEmployee,
+    assistantEmployees,
+    attributionVersion: Number(current.attribution_version),
+  }
+}
+
+function ledgerItem(
+  row: TransactionRow,
+  actorEmployeeId: string,
+  actorName: string,
+): TicketingLedgerItem | null {
   const booking = firstRelated(row.ticket_bookings)
   const airline = booking ? firstRelated(booking.airlines) : null
-  if (!booking || booking.archived_at || !airline) return null
+  const attribution = booking ? currentAttribution(booking, actorEmployeeId, actorName) : null
+  if (!booking || booking.archived_at || !airline || !attribution) return null
 
   const fares: TicketingLedgerFare[] = (row.ticket_passenger_fare_lines || []).map((fare) => ({
     passengerType: fare.passenger_type,
@@ -166,6 +236,10 @@ function ledgerItem(row: TransactionRow): TicketingLedgerItem | null {
         : 'recorded',
     fares,
     createdAt: row.created_at,
+    ...attribution,
+    // Booking attribution identifies the root TK sale. A later DC/R-ER is a
+    // separate commissionable fact and must never inherit the TK assistants.
+    assistantEmployees: row.service_type === 'TK' ? attribution.assistantEmployees : [],
   }
 }
 
@@ -201,14 +275,29 @@ function mutationError(error: TicketingRpcError) {
   }
 
   const message = String(error.message || '')
-  if (error.code === '22023' && /idempotency/i.test(message)) {
+  const hint = String(error.hint || '')
+  if (
+    hint === 'TICKETING_IDEMPOTENCY_CONFLICT' ||
+    (error.code === '22023' && /idempotency/i.test(message))
+  ) {
     return apiError('This save key was already used for different ticket details.', 409, {
       code: 'IDEMPOTENCY_CONFLICT',
     })
   }
+  if (hint === 'TICKETING_ATTRIBUTION_REASON_REQUIRED') {
+    return apiError('A reason is required when changing ticket attribution.', 400, {
+      code: 'ATTRIBUTION_REASON_REQUIRED',
+    })
+  }
+  if (error.code === '22023' && /employees? (?:is|are) invalid or inactive/i.test(message)) {
+    return apiError('Select active employees for the responsible and assistant roles.', 400, {
+      code: 'INVALID_ATTRIBUTION_EMPLOYEE',
+    })
+  }
   if (error.code === '42501') return apiError('Forbidden', 403)
-  if (['22007', '22023', '23503', '23514', 'P0002'].includes(String(error.code || ''))) {
-    return apiError(message || 'Invalid ticket details', 400)
+  if (error.code === 'P0002') return apiError(message || 'Invalid ticket details', 400)
+  if (['22007', '22023', '23503', '23514'].includes(String(error.code || ''))) {
+    return apiError('Invalid ticket details', 400)
   }
   return apiError('Unable to save the ticket right now.', 500)
 }
@@ -233,11 +322,9 @@ export async function GET(request: NextRequest) {
     return apiError('Ticketing quick entry is not installed on this database.', 503)
   }
 
-  const [transactionsResult, airlinesResult, employeeResult] = await Promise.all([
-    supabase
-      .from('ticket_transactions')
-      .select(
-        `
+  const canManageAttribution = canManageTicketingAttribution(access.employee.role)
+  let transactionsQuery = supabase.from('ticket_transactions').select(
+    `
           id,
           version,
           booking_id,
@@ -259,7 +346,22 @@ export async function GET(request: NextRequest) {
             package_match_status,
             commission_scope,
             archived_at,
-            airlines!inner(id, iata_code, name)
+            airlines!inner(id, iata_code, name),
+            ticket_booking_attribution_versions(
+              attribution_version,
+              primary_employee_id,
+              responsible_employee:employees!ticket_booking_attribution_versions_primary_employee_id_fkey(
+                id,
+                full_name
+              ),
+              ticket_booking_attribution_assistants(
+                employee_id,
+                assistant_employee:employees!ticket_booking_attribution_assistants_employee_id_fkey(
+                  id,
+                  full_name
+                )
+              )
+            )
           ),
           ticket_passenger_fare_lines(
             passenger_type,
@@ -275,42 +377,73 @@ export async function GET(request: NextRequest) {
             )
           )
         `,
-      )
-      .eq('owner_employee_id', access.employee.id)
-      .is('ticket_bookings.archived_at', null)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('airlines')
-      .select('id, iata_code, name')
-      .eq('is_active', true)
-      .order('iata_code', { ascending: true }),
-    supabase
-      .from('employees')
-      .select('locations(name, branch_code, timezone)')
-      .eq('id', access.employee.id)
-      .maybeSingle(),
-  ])
+  )
+  if (!canManageAttribution) {
+    transactionsQuery = transactionsQuery.eq('owner_employee_id', access.employee.id)
+  }
 
-  if (transactionsResult.error || airlinesResult.error || employeeResult.error) {
+  const attributionEmployeesPromise = canManageAttribution
+    ? supabase
+        .from('employees')
+        .select('id, full_name')
+        .eq('is_active', true)
+        .order('full_name', { ascending: true })
+    : Promise.resolve({ data: [], error: null })
+
+  const [transactionsResult, airlinesResult, employeeResult, attributionEmployeesResult] =
+    await Promise.all([
+      transactionsQuery
+        .is('ticket_bookings.archived_at', null)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+      supabase
+        .from('airlines')
+        .select('id, iata_code, name')
+        .eq('is_active', true)
+        .order('iata_code', { ascending: true }),
+      supabase
+        .from('employees')
+        .select('locations(name, branch_code, timezone)')
+        .eq('id', access.employee.id)
+        .maybeSingle(),
+      attributionEmployeesPromise,
+    ])
+
+  if (
+    transactionsResult.error ||
+    airlinesResult.error ||
+    employeeResult.error ||
+    attributionEmployeesResult.error
+  ) {
     return apiError('Unable to load the ticket ledger right now.', 500)
   }
 
   const items = ((transactionsResult.data || []) as unknown as TransactionRow[])
-    .map(ledgerItem)
+    .map((row) => ledgerItem(row, access.employee.id, access.employee.fullName))
     .filter((item): item is TicketingLedgerItem => Boolean(item))
   const airlines = ((airlinesResult.data || []) as AirlineRow[]).map(airlineOption)
   const employee = employeeResult.data as unknown as EmployeeLocationRow | null
   const location = firstRelated(employee?.locations || null)
+  const attributionEmployees = ((attributionEmployeesResult.data || []) as EmployeeNameRow[])
+    .map((row) =>
+      attributionEmployee(
+        row,
+        row.id === access.employee.id ? access.employee.fullName : undefined,
+      ),
+    )
+    .filter((employee): employee is TicketingAttributionEmployee => Boolean(employee))
 
   return apiOk(
     {
       items,
       airlines,
       context: {
+        employeeId: access.employee.id,
         employeeName: access.employee.fullName,
         locationName: location?.name || null,
         timezone: location?.timezone || 'Europe/London',
+        canManageAttribution,
+        attributionEmployees,
       },
     },
     PRIVATE_RESPONSE,
@@ -336,6 +469,22 @@ export async function POST(request: NextRequest) {
   )
   if (bodyError || !entry) return apiError(bodyError || 'Invalid ticket details', 400)
 
+  const canManageAttribution = canManageTicketingAttribution(access.employee.role)
+  const responsibleEmployeeId = entry.responsibleEmployeeId || access.employee.id
+  const assistantEmployeeIds = entry.assistantEmployeeIds
+  const attributionChanged =
+    responsibleEmployeeId !== access.employee.id || assistantEmployeeIds.length > 0
+
+  if (!canManageAttribution && attributionChanged) {
+    return apiError('Only an administrator can assign a ticket to another employee.', 403)
+  }
+  if (assistantEmployeeIds.includes(responsibleEmployeeId)) {
+    return apiError('The responsible employee cannot also be an assistant.', 400)
+  }
+  if (attributionChanged && !entry.attributionReason) {
+    return apiError('A reason is required when changing ticket attribution.', 400)
+  }
+
   const idempotencyKey = request.headers.get('idempotency-key')?.trim()
   if (!idempotencyKey || idempotencyKey.length > 200) {
     return apiError('A valid Idempotency-Key header is required.', 400)
@@ -345,10 +494,15 @@ export async function POST(request: NextRequest) {
   if (!(await hasTicketingRuntimeCapability(supabase))) {
     return apiError('Ticketing quick entry is not installed on this database.', 503)
   }
-  const { data, error } = await supabase.rpc('ticketing_create_quick_tk', {
+  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_attributed', {
     p_actor_employee_id: access.employee.id,
     p_idempotency_key: idempotencyKey,
-    p_entry: entry,
+    p_entry: {
+      ...entry,
+      responsibleEmployeeId,
+      assistantEmployeeIds,
+      attributionReason: attributionChanged ? entry.attributionReason : null,
+    },
   })
 
   if (error) return mutationError(error)

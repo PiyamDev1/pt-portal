@@ -11,6 +11,12 @@ const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toastMocks }))
 
 const AIRLINES = [{ id: 'airline-tk', iataCode: 'TK', name: 'Turkish Airlines' }]
+const NON_ADMIN_ATTRIBUTION_PROPS = {
+  employeeId: 'employee-agent',
+  employeeName: 'Agent One',
+  canManageAttribution: false,
+  attributionEmployees: [],
+}
 
 function fillRequiredIssuedFields() {
   fireEvent.change(screen.getByLabelText('Customer / lead passenger'), {
@@ -39,7 +45,12 @@ describe('TicketQuickEntryForm', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={onCreated} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={onCreated}
+      />,
     )
 
     fillRequiredIssuedFields()
@@ -63,10 +74,13 @@ describe('TicketQuickEntryForm', () => {
       fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 450.25 }],
     })
     expect(body).not.toHaveProperty('employeeId')
+    expect(body).not.toHaveProperty('responsibleEmployeeId')
+    expect(body).not.toHaveProperty('assistantEmployeeIds')
+    expect(body).not.toHaveProperty('attributionReason')
     expect(body).not.toHaveProperty('paymentStatus')
     expect(body).not.toHaveProperty('commission')
     await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
-    expect(toastMocks.success).toHaveBeenCalledWith('TK ticket saved to your ledger')
+    expect(toastMocks.success).toHaveBeenCalledWith('TK ticket saved to the sales ledger')
     await waitFor(() =>
       expect((screen.getByLabelText('Customer / lead passenger') as HTMLInputElement).value).toBe(
         '',
@@ -79,7 +93,12 @@ describe('TicketQuickEntryForm', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={vi.fn()} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
     )
 
     fillRequiredIssuedFields()
@@ -107,7 +126,12 @@ describe('TicketQuickEntryForm', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={vi.fn()} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
     )
 
     fillRequiredIssuedFields()
@@ -126,7 +150,12 @@ describe('TicketQuickEntryForm', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={vi.fn()} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
     )
 
     fillRequiredIssuedFields()
@@ -149,7 +178,12 @@ describe('TicketQuickEntryForm', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={vi.fn()} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
     )
 
     fillRequiredIssuedFields()
@@ -171,7 +205,12 @@ describe('TicketQuickEntryForm', () => {
   it('clears an unsaved row with Escape', () => {
     vi.stubGlobal('fetch', vi.fn())
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={vi.fn()} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
     )
     fireEvent.change(screen.getByLabelText('Customer / lead passenger'), {
       target: { value: 'Unsaved Customer' },
@@ -206,7 +245,12 @@ describe('TicketQuickEntryForm', () => {
       )
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <TicketQuickEntryForm airlines={AIRLINES} timezone="Europe/London" onCreated={onCreated} />,
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={onCreated}
+      />,
     )
     fillRequiredIssuedFields()
 
@@ -243,6 +287,9 @@ describe('TicketLedgerList', () => {
       packageMatchStatus: 'matched',
       commissionScope: 'package',
       detailsStatus: 'needs_details',
+      responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
+      assistantEmployees: [{ id: 'employee-assistant', fullName: 'Assistant One' }],
+      attributionVersion: 1,
       fares: [
         { passengerType: 'ADT', quantity: 1, unitSupplierCost: 450, unitSalePrice: 500 },
         { passengerType: 'CHD', quantity: 1, unitSupplierCost: 350, unitSalePrice: 400 },
@@ -254,14 +301,19 @@ describe('TicketLedgerList', () => {
       <TicketLedgerList
         items={[item]}
         timezone="Europe/London"
+        employeeId="employee-agent"
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
+        canManageAttribution={false}
+        onCorrectAttribution={vi.fn()}
       />,
     )
 
     expect(screen.getByText('Package linked')).toBeTruthy()
     expect(screen.getByText('1 ADT · 1 CHD')).toBeTruthy()
     expect(screen.getByText('Needs details')).toBeTruthy()
+    expect(screen.getByText('Responsible: Agent One')).toBeTruthy()
+    expect(screen.getByText('Assisted by: Assistant One')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Complete details for ABC123' }))
     expect(onComplete).toHaveBeenCalledWith(item)
     expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
@@ -286,6 +338,9 @@ describe('TicketLedgerList', () => {
       packageMatchStatus: 'unmatched',
       commissionScope: 'ticket',
       detailsStatus: 'recorded',
+      responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
+      assistantEmployees: [],
+      attributionVersion: 1,
       fares: [{ passengerType: 'ADT', quantity: 2, unitSupplierCost: 10, unitSalePrice: 30 }],
     }
     const onComplete = vi.fn()
@@ -295,8 +350,11 @@ describe('TicketLedgerList', () => {
       <TicketLedgerList
         items={[child]}
         timezone="Europe/London"
+        employeeId="employee-agent"
         onComplete={onComplete}
         onMarkPaid={onMarkPaid}
+        canManageAttribution
+        onCorrectAttribution={vi.fn()}
       />,
     )
 

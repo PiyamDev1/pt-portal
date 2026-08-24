@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ACTOR_ID = '40000000-0000-4000-8000-000000000001'
+const OWNER_ID = '40000000-0000-4000-8000-000000000002'
 const BOOKING_ID = '80000000-0000-4000-8000-000000000001'
 const TRANSACTION_ID = '81000000-0000-4000-8000-000000000001'
 const AIRLINE_ID = '50000000-0000-4000-8000-000000000001'
@@ -10,12 +11,11 @@ const mocks = vi.hoisted(() => {
   const requireTicketingAccess = vi.fn()
   const enforceRateLimit = vi.fn()
   const detailMaybeSingle = vi.fn()
-  const detailArchivedIs = vi.fn(() => ({ maybeSingle: detailMaybeSingle }))
-  const detailParentIs = vi.fn(() => ({ is: detailArchivedIs }))
-  const detailServiceEq = vi.fn(() => ({ is: detailParentIs }))
-  const detailOwnerEq = vi.fn(() => ({ eq: detailServiceEq }))
-  const detailBookingEq = vi.fn(() => ({ eq: detailOwnerEq }))
-  const detailSelect = vi.fn(() => ({ eq: detailBookingEq }))
+  const detailQuery: Record<string, unknown> = {}
+  const detailEq = vi.fn(() => detailQuery)
+  const detailIs = vi.fn(() => detailQuery)
+  Object.assign(detailQuery, { eq: detailEq, is: detailIs, maybeSingle: detailMaybeSingle })
+  const detailSelect = vi.fn(() => detailQuery)
   const state: {
     capability: { data: unknown; error: unknown }
     completion: { data: unknown; error: unknown }
@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => {
   }
   const rpc = vi.fn(async (functionName: string) => {
     if (functionName === 'ticketing_schema_status') return state.capability
-    if (functionName === 'ticketing_complete_tk_details') return state.completion
+    if (functionName === 'ticketing_complete_tk_details_authorized') return state.completion
     throw new Error(`Unexpected RPC: ${functionName}`)
   })
   const from = vi.fn((table: string) => {
@@ -38,11 +38,8 @@ const mocks = vi.hoisted(() => {
     requireTicketingAccess,
     enforceRateLimit,
     detailMaybeSingle,
-    detailArchivedIs,
-    detailParentIs,
-    detailServiceEq,
-    detailOwnerEq,
-    detailBookingEq,
+    detailEq,
+    detailIs,
     detailSelect,
     state,
     rpc,
@@ -64,15 +61,28 @@ vi.mock('@/lib/security/rateLimit', () => ({
 
 import { GET, PATCH } from '@/app/api/ticketing/ledger/[bookingId]/route'
 
-function detailRow(options: { complete?: boolean; paid?: boolean } = {}) {
+function detailRow(
+  options: {
+    complete?: boolean
+    paid?: boolean
+    ownerEmployeeId?: string
+    ownerName?: string | null
+  } = {},
+) {
   const complete = options.complete === true
   const paid = options.paid === true
+  const ownerEmployeeId = options.ownerEmployeeId || ACTOR_ID
   return {
     id: TRANSACTION_ID,
     version: 7,
+    owner_employee_id: ownerEmployeeId,
     operational_status: 'issued',
     payment_status: paid ? 'paid' : 'unpaid',
     paid_at: paid ? '2026-08-21T23:00:00.000Z' : null,
+    responsible_employee: {
+      id: ownerEmployeeId,
+      full_name: options.ownerName === undefined ? 'Ticketing Manager' : options.ownerName,
+    },
     ticket_bookings: {
       id: BOOKING_ID,
       version: 4,
@@ -183,7 +193,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
+      data: { ready: true, version: 2026082403, requiredVersion: 2026082403 },
       error: null,
     }
     mocks.state.completion = {
@@ -213,7 +223,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
-  it('keeps the detail endpoint own-only even when the guard grants team scope', async () => {
+  it("keeps a Manager's root-TK detail owner-only despite oversight team scope", async () => {
     const response = await GET(
       new NextRequest(`http://localhost/api/ticketing/ledger/${BOOKING_ID}`),
       context(),
@@ -222,15 +232,21 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(mocks.detailBookingEq).toHaveBeenCalledWith('booking_id', BOOKING_ID)
-    expect(mocks.detailOwnerEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
-    expect(mocks.detailServiceEq).toHaveBeenCalledWith('service_type', 'TK')
+    expect(mocks.detailEq).toHaveBeenCalledWith('booking_id', BOOKING_ID)
+    expect(mocks.detailEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(mocks.detailEq).toHaveBeenCalledWith('service_type', 'TK')
     expect(body.detail).toMatchObject({
       bookingId: BOOKING_ID,
       transactionId: TRANSACTION_ID,
       bookingVersion: 4,
       transactionVersion: 7,
       detailsStatus: 'needs_details',
+      responsibleEmployee: { id: ACTOR_ID, fullName: 'Ticketing Manager' },
+    })
+    expect(body.completionContext).toEqual({
+      ownerEmployee: { id: ACTOR_ID, fullName: 'Ticketing Manager' },
+      isOnBehalf: false,
+      onBehalfReasonRequired: false,
     })
     expect(body.detail.passengers).toEqual([
       {
@@ -251,6 +267,83 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       },
     ])
     expect(JSON.stringify(body)).not.toMatch(/commission|profit/i)
+  })
+
+  it('lets a canonical administrator load one non-owned root TK with DB-derived context', async () => {
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Master Admin',
+        departments: [],
+      },
+    })
+    mocks.detailMaybeSingle.mockResolvedValueOnce({
+      data: detailRow({ ownerEmployeeId: OWNER_ID, ownerName: null }),
+      error: null,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost/api/ticketing/ledger/${BOOKING_ID}`),
+      context(),
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mocks.detailEq).not.toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(body.detail.responsibleEmployee).toEqual({ id: OWNER_ID, fullName: 'Staff member' })
+    expect(body.completionContext).toEqual({
+      ownerEmployee: { id: OWNER_ID, fullName: 'Staff member' },
+      isOnBehalf: true,
+      onBehalfReasonRequired: true,
+    })
+  })
+
+  it('keeps a Manager and regular staff owner-only for a non-owned root TK', async () => {
+    mocks.detailMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const response = await GET(
+      new NextRequest(`http://localhost/api/ticketing/ledger/${BOOKING_ID}`),
+      context(),
+    )
+
+    expect(response.status).toBe(404)
+    expect(mocks.detailEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+  })
+
+  it('does not grant Maintenance Admin non-owner completion access', async () => {
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'own',
+      user: { id: ACTOR_ID, email: 'maintenance@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'maintenance@example.test',
+        fullName: 'Maintenance Admin',
+        role: 'Maintenance Admin',
+        departments: ['Ticketing'],
+      },
+    })
+    mocks.detailMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const response = await PATCH(
+      patchRequest({
+        ...validPatch(),
+        onBehalfReason: 'Maintenance coverage is not authorised',
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(404)
+    expect(mocks.detailEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'ticketing_complete_tk_details_authorized',
+      expect.anything(),
+    )
   })
 
   it('uses stable persisted allocation positions and branch-local paid dates', async () => {
@@ -292,7 +385,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
 
   it('fails closed when completion capability is unavailable', async () => {
     mocks.state.capability = {
-      data: { ready: true, version: 2026082201, requiredVersion: 2026082201 },
+      data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
       error: null,
     }
 
@@ -340,7 +433,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
   })
 
   it('passes only the verified actor, path booking, retry key, and strict details to one RPC', async () => {
-    mocks.detailMaybeSingle.mockResolvedValueOnce({
+    mocks.detailMaybeSingle.mockResolvedValue({
       data: detailRow({ complete: true }),
       error: null,
     })
@@ -349,18 +442,241 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_complete_tk_details', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_complete_tk_details_authorized', {
       p_actor_employee_id: ACTOR_ID,
       p_booking_id: BOOKING_ID,
       p_idempotency_key: 'save-details-1',
-      p_details: validPatch(),
+      p_details: { ...validPatch(), onBehalfReason: null },
     })
     expect(body).toMatchObject({
       changed: true,
       idempotentReplay: false,
       detail: { bookingId: BOOKING_ID, detailsStatus: 'complete' },
+      completionContext: {
+        ownerEmployee: { id: ACTOR_ID, fullName: 'Ticketing Manager' },
+        isOnBehalf: false,
+        onBehalfReasonRequired: false,
+      },
     })
     expect(JSON.stringify(body)).not.toMatch(/commission|profit/i)
+  })
+
+  it('requires a reason and preserves the real actor when an administrator completes for the owner', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Super Admin',
+        departments: [],
+      },
+    })
+    mocks.detailMaybeSingle.mockResolvedValue({
+      data: detailRow({ complete: true, ownerEmployeeId: OWNER_ID, ownerName: 'Agent One' }),
+      error: null,
+    })
+    mocks.state.completion = {
+      data: null,
+      error: { code: '22023', hint: 'TICKETING_ON_BEHALF_REASON_REQUIRED' },
+    }
+
+    const missingReason = await PATCH(patchRequest(validPatch(), 'on-behalf-1'), context())
+    const missingBody = await missingReason.json()
+
+    expect(missingReason.status).toBe(400)
+    expect(missingBody.code).toBe('ON_BEHALF_REASON_REQUIRED')
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_complete_tk_details_authorized', {
+      p_actor_employee_id: ACTOR_ID,
+      p_booking_id: BOOKING_ID,
+      p_idempotency_key: 'on-behalf-1',
+      p_details: { ...validPatch(), onBehalfReason: null },
+    })
+
+    vi.clearAllMocks()
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
+    mocks.state.capability = {
+      data: { ready: true, version: 2026082403, requiredVersion: 2026082403 },
+      error: null,
+    }
+    mocks.state.completion = {
+      data: {
+        booking: { id: BOOKING_ID },
+        transaction: { id: TRANSACTION_ID },
+        changed: true,
+        idempotentReplay: false,
+      },
+      error: null,
+    }
+    mocks.detailMaybeSingle.mockResolvedValue({
+      data: detailRow({ complete: true, ownerEmployeeId: OWNER_ID, ownerName: 'Agent One' }),
+      error: null,
+    })
+    const onBehalfReason = 'Completed while Agent One was off sick'
+
+    const response = await PATCH(
+      patchRequest({ ...validPatch(), onBehalfReason }, 'on-behalf-2'),
+      context(),
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_complete_tk_details_authorized', {
+      p_actor_employee_id: ACTOR_ID,
+      p_booking_id: BOOKING_ID,
+      p_idempotency_key: 'on-behalf-2',
+      p_details: { ...validPatch(), onBehalfReason },
+    })
+    expect(body.detail.responsibleEmployee).toEqual({ id: OWNER_ID, fullName: 'Agent One' })
+    expect(body.completionContext).toEqual({
+      ownerEmployee: { id: OWNER_ID, fullName: 'Agent One' },
+      isOnBehalf: true,
+      onBehalfReasonRequired: true,
+    })
+    expect(JSON.stringify(body)).not.toMatch(/commission|profit|audit|sourceEvents/i)
+  })
+
+  it('retries the exact committed payload after hydration failure and an ownership change', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    const reason = 'Completed while Agent One was unavailable'
+    const requestBody = { ...validPatch(), onBehalfReason: reason }
+    mocks.detailMaybeSingle
+      .mockResolvedValueOnce({
+        data: detailRow({ complete: true, ownerEmployeeId: OWNER_ID, ownerName: 'Agent One' }),
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'post-commit hydration failed' },
+      })
+      .mockResolvedValueOnce({
+        data: detailRow({ complete: true, ownerEmployeeId: ACTOR_ID, ownerName: 'Portal Admin' }),
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: detailRow({ complete: true, ownerEmployeeId: ACTOR_ID, ownerName: 'Portal Admin' }),
+        error: null,
+      })
+
+    const firstResponse = await PATCH(patchRequest(requestBody, 'commit-then-hydrate-1'), context())
+
+    expect(firstResponse.status).toBe(500)
+    expect(await firstResponse.json()).toEqual({
+      error: 'Unable to reload the saved ticket details.',
+    })
+
+    mocks.state.completion = {
+      data: {
+        booking: { id: BOOKING_ID },
+        transaction: { id: TRANSACTION_ID },
+        changed: true,
+        idempotentReplay: true,
+      },
+      error: null,
+    }
+
+    const retryResponse = await PATCH(patchRequest(requestBody, 'commit-then-hydrate-1'), context())
+    const retryBody = await retryResponse.json()
+
+    expect(retryResponse.status).toBe(200)
+    expect(retryBody).toMatchObject({
+      idempotentReplay: true,
+      completionContext: {
+        ownerEmployee: { id: ACTOR_ID, fullName: 'Portal Admin' },
+        isOnBehalf: false,
+        onBehalfReasonRequired: false,
+      },
+    })
+    const completionCalls = mocks.rpc.mock.calls.filter(
+      ([functionName]) => functionName === 'ticketing_complete_tk_details_authorized',
+    )
+    expect(completionCalls).toHaveLength(2)
+    for (const [, parameters] of completionCalls) {
+      expect(parameters).toMatchObject({
+        p_actor_employee_id: ACTOR_ID,
+        p_booking_id: BOOKING_ID,
+        p_idempotency_key: 'commit-then-hydrate-1',
+        p_details: requestBody,
+      })
+    }
+  })
+
+  it('keeps Manager completion owner-only and lets the DB reject a fresh owner reason', async () => {
+    mocks.detailMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const hidden = await PATCH(
+      patchRequest({ ...validPatch(), onBehalfReason: 'Not authorised' }),
+      context(),
+    )
+    expect(hidden.status).toBe(404)
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'ticketing_complete_tk_details_authorized',
+      expect.anything(),
+    )
+
+    vi.clearAllMocks()
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'manager@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'manager@example.test',
+        fullName: 'Ticketing Manager',
+        role: 'Manager',
+        departments: [],
+      },
+    })
+    mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
+    mocks.state.capability = {
+      data: { ready: true, version: 2026082403, requiredVersion: 2026082403 },
+      error: null,
+    }
+    mocks.state.completion = {
+      data: null,
+      error: { code: '22023', hint: 'TICKETING_ON_BEHALF_REASON_NOT_ALLOWED' },
+    }
+    mocks.detailMaybeSingle.mockResolvedValue({ data: detailRow(), error: null })
+
+    const ownerSave = await PATCH(
+      patchRequest({ ...validPatch(), onBehalfReason: 'Fresh owner reason' }, 'owner-1'),
+      context(),
+    )
+
+    expect(ownerSave.status).toBe(400)
+    expect(await ownerSave.json()).toMatchObject({ code: 'ON_BEHALF_REASON_NOT_ALLOWED' })
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_complete_tk_details_authorized',
+      expect.objectContaining({
+        p_actor_employee_id: ACTOR_ID,
+        p_details: { ...validPatch(), onBehalfReason: 'Fresh owner reason' },
+      }),
+    )
   })
 
   it.each([
@@ -387,6 +703,34 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       code: 'CORRECTION_REQUIRED',
     },
     {
+      name: 'attribution invariant correction',
+      error: { code: '55000', hint: 'TICKETING_ATTRIBUTION_CORRECTION_REQUIRED' },
+      status: 409,
+      code: 'CORRECTION_REQUIRED',
+    },
+    {
+      name: 'database on-behalf reason requirement',
+      error: { code: '22023', hint: 'TICKETING_ON_BEHALF_REASON_REQUIRED' },
+      status: 400,
+      code: 'ON_BEHALF_REASON_REQUIRED',
+    },
+    {
+      name: 'database owner reason rejection',
+      error: { code: '22023', hint: 'TICKETING_ON_BEHALF_REASON_NOT_ALLOWED' },
+      status: 400,
+      code: 'ON_BEHALF_REASON_NOT_ALLOWED',
+    },
+    {
+      name: 'non-admin on-behalf attempt',
+      error: {
+        code: '42501',
+        hint: 'TICKETING_ON_BEHALF_FORBIDDEN',
+        message: 'sensitive internal authorization detail',
+      },
+      status: 403,
+      code: undefined,
+    },
+    {
       name: 'hidden owner mismatch',
       error: { code: 'P0002', hint: 'TICKETING_RECORD_NOT_FOUND' },
       status: 404,
@@ -401,6 +745,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     expect(response.status).toBe(status)
     expect(body.code).toBe(code)
     expect(JSON.stringify(body)).not.toContain('TICKETING_')
-    expect(mocks.detailMaybeSingle).not.toHaveBeenCalled()
+    expect(JSON.stringify(body)).not.toContain('sensitive internal authorization detail')
+    expect(mocks.detailMaybeSingle).toHaveBeenCalledTimes(1)
   })
 })

@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ACTOR_ID = '40000000-0000-4000-8000-000000000001'
+const RESPONSIBLE_ID = '40000000-0000-4000-8000-000000000002'
+const ASSISTANT_ID = '40000000-0000-4000-8000-000000000003'
 const AIRLINE_ID = '50000000-0000-4000-8000-000000000001'
 
 const mocks = vi.hoisted(() => {
@@ -12,14 +14,24 @@ const mocks = vi.hoisted(() => {
   const transactionOrder = vi.fn(() => ({ limit: transactionLimit }))
   const transactionIs = vi.fn(() => ({ order: transactionOrder }))
   const transactionEq = vi.fn(() => ({ is: transactionIs }))
-  const transactionSelect = vi.fn(() => ({ eq: transactionEq }))
+  const transactionOr = vi.fn(() => ({ is: transactionIs }))
+  const transactionSelect = vi.fn(() => ({
+    eq: transactionEq,
+    or: transactionOr,
+    is: transactionIs,
+  }))
 
   const airlineOrder = vi.fn()
   const airlineEq = vi.fn(() => ({ order: airlineOrder }))
   const airlineSelect = vi.fn(() => ({ eq: airlineEq }))
 
   const employeeMaybeSingle = vi.fn()
-  const employeeEq = vi.fn(() => ({ maybeSingle: employeeMaybeSingle }))
+  const attributionEmployeeOrder = vi.fn()
+  const employeeEq = vi.fn((column: string) =>
+    column === 'is_active'
+      ? { order: attributionEmployeeOrder }
+      : { maybeSingle: employeeMaybeSingle },
+  )
   const employeeSelect = vi.fn(() => ({ eq: employeeEq }))
 
   const rpc = vi.fn()
@@ -38,11 +50,13 @@ const mocks = vi.hoisted(() => {
     transactionOrder,
     transactionIs,
     transactionEq,
+    transactionOr,
     transactionSelect,
     airlineOrder,
     airlineEq,
     airlineSelect,
     employeeMaybeSingle,
+    attributionEmployeeOrder,
     employeeEq,
     employeeSelect,
     rpc,
@@ -121,10 +135,11 @@ describe('/api/ticketing/ledger', () => {
       },
       error: null,
     })
+    mocks.attributionEmployeeOrder.mockResolvedValue({ data: [], error: null })
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
+          data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
           error: null,
         }
       }
@@ -185,6 +200,14 @@ describe('/api/ticketing/ledger', () => {
             commission_scope: 'ticket',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
+            ticket_booking_attribution_versions: [
+              {
+                attribution_version: 1,
+                primary_employee_id: ACTOR_ID,
+                responsible_employee: { id: ACTOR_ID, full_name: 'Ticket Agent' },
+                ticket_booking_attribution_assistants: [],
+              },
+            ],
           },
           ticket_passenger_fare_lines: [
             {
@@ -216,10 +239,173 @@ describe('/api/ticketing/ledger', () => {
         pnr: 'ABC123',
         passengerCount: 0,
         detailsStatus: 'needs_details',
+        responsibleEmployee: { id: ACTOR_ID, fullName: 'Ticket Agent' },
+        assistantEmployees: [],
+        attributionVersion: 1,
       }),
     ])
+    expect(body.context).toMatchObject({
+      employeeId: ACTOR_ID,
+      canManageAttribution: false,
+      attributionEmployees: [],
+    })
     expect(body).not.toHaveProperty('commission')
     expect(body).not.toHaveProperty('profit')
+  })
+
+  it('lets an administrator review the bounded team ledger and maps current attribution', async () => {
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    mocks.attributionEmployeeOrder.mockResolvedValueOnce({
+      data: [
+        { id: ACTOR_ID, full_name: null },
+        { id: ASSISTANT_ID, full_name: 'Assisting Manager' },
+        { id: '40000000-0000-4000-8000-000000000004', full_name: '   ' },
+        { id: RESPONSIBLE_ID, full_name: 'Responsible Agent' },
+      ],
+      error: null,
+    })
+    mocks.transactionLimit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'transaction-1',
+          version: 2,
+          booking_id: 'booking-1',
+          service_type: 'TK',
+          operational_status: 'issued',
+          payment_status: 'unpaid',
+          booking_date: '2026-08-22',
+          time_limit_at: null,
+          issued_at: '2026-08-22T00:00:00Z',
+          passenger_ticket_count: 1,
+          created_at: '2026-08-22T12:00:00Z',
+          ticket_bookings: {
+            id: 'booking-1',
+            version: 4,
+            pnr: 'ADMIN1',
+            customer_name: 'Covered Customer',
+            contact_phone: null,
+            departure_date: null,
+            package_match_status: 'unmatched',
+            commission_scope: 'ticket',
+            archived_at: null,
+            airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
+            ticket_booking_attribution_versions: [
+              {
+                attribution_version: 1,
+                primary_employee_id: ACTOR_ID,
+                responsible_employee: { id: ACTOR_ID, full_name: 'Portal Admin' },
+                ticket_booking_attribution_assistants: [],
+              },
+              {
+                attribution_version: 2,
+                primary_employee_id: RESPONSIBLE_ID,
+                responsible_employee: {
+                  id: RESPONSIBLE_ID,
+                  full_name: 'Responsible Agent',
+                },
+                ticket_booking_attribution_assistants: [
+                  {
+                    employee_id: ASSISTANT_ID,
+                    assistant_employee: {
+                      id: ASSISTANT_ID,
+                      full_name: 'Assisting Manager',
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          ticket_passenger_fare_lines: [],
+          ticket_transaction_passengers: [],
+        },
+      ],
+      error: null,
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/ticketing/ledger'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mocks.transactionOr).not.toHaveBeenCalled()
+    expect(mocks.transactionEq).not.toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(body.context).toMatchObject({
+      employeeId: ACTOR_ID,
+      canManageAttribution: true,
+      attributionEmployees: [
+        { id: ACTOR_ID, fullName: 'Portal Admin' },
+        { id: ASSISTANT_ID, fullName: 'Assisting Manager' },
+        { id: RESPONSIBLE_ID, fullName: 'Responsible Agent' },
+      ],
+    })
+    expect(body.items[0]).toMatchObject({
+      responsibleEmployee: { id: RESPONSIBLE_ID, fullName: 'Responsible Agent' },
+      assistantEmployees: [{ id: ASSISTANT_ID, fullName: 'Assisting Manager' }],
+      attributionVersion: 2,
+    })
+  })
+
+  it('keeps Managers on their own ledger and prevents attribution overrides', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'manager@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'manager@example.test',
+        fullName: 'Ticketing Manager',
+        role: 'Manager',
+        departments: [],
+      },
+    })
+
+    const getResponse = await GET(new NextRequest('http://localhost/api/ticketing/ledger'))
+    const getBody = await getResponse.json()
+
+    expect(getResponse.status).toBe(200)
+    expect(mocks.transactionEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(mocks.transactionOr).not.toHaveBeenCalled()
+    expect(getBody.context).toMatchObject({
+      canManageAttribution: false,
+      attributionEmployees: [],
+    })
+
+    vi.clearAllMocks()
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'manager@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'manager@example.test',
+        fullName: 'Ticketing Manager',
+        role: 'Manager',
+        departments: [],
+      },
+    })
+    mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
+
+    const postResponse = await POST(
+      postRequest({
+        ...validEntry(),
+        responsibleEmployeeId: RESPONSIBLE_ID,
+        assistantEmployeeIds: [],
+        attributionReason: 'Entered while the agent was away',
+      }),
+    )
+
+    expect(postResponse.status).toBe(403)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('marks a list row complete from exact stable passenger slots and grouped sale details', async () => {
@@ -248,6 +434,14 @@ describe('/api/ticketing/ledger', () => {
             commission_scope: 'ticket',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
+            ticket_booking_attribution_versions: [
+              {
+                attribution_version: 1,
+                primary_employee_id: ACTOR_ID,
+                responsible_employee: { id: ACTOR_ID, full_name: 'Ticket Agent' },
+                ticket_booking_attribution_assistants: [],
+              },
+            ],
           },
           ticket_passenger_fare_lines: [
             {
@@ -308,6 +502,22 @@ describe('/api/ticketing/ledger', () => {
             commission_scope: 'ticket',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
+            ticket_booking_attribution_versions: [
+              {
+                attribution_version: 1,
+                primary_employee_id: ACTOR_ID,
+                responsible_employee: { id: ACTOR_ID, full_name: 'Ticket Agent' },
+                ticket_booking_attribution_assistants: [
+                  {
+                    employee_id: ASSISTANT_ID,
+                    assistant_employee: {
+                      id: ASSISTANT_ID,
+                      full_name: 'Root TK Assistant',
+                    },
+                  },
+                ],
+              },
+            ],
           },
           ticket_passenger_fare_lines: [
             {
@@ -332,6 +542,7 @@ describe('/api/ticketing/ledger', () => {
       bookingVersion: 5,
       transactionVersion: 2,
       detailsStatus: 'recorded',
+      assistantEmployees: [],
     })
   })
 
@@ -403,21 +614,80 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(body.bookingId).toBe('booking-1')
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_attributed', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'save-click-1',
       p_entry: expect.objectContaining({
         customerName: 'Test Passenger',
         serviceType: 'TK',
         confirmDuplicate: false,
+        responsibleEmployeeId: ACTOR_ID,
+        assistantEmployeeIds: [],
+        attributionReason: null,
       }),
     })
+  })
+
+  it('lets an administrator assign primary and assistant roles only with a reason', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Master Admin',
+        departments: [],
+      },
+    })
+    const override = {
+      ...validEntry(),
+      responsibleEmployeeId: RESPONSIBLE_ID,
+      assistantEmployeeIds: [ASSISTANT_ID],
+      attributionReason: 'Covered this booking while the agent was unavailable',
+    }
+
+    const response = await POST(postRequest(override, 'admin-cover-1'))
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_attributed', {
+      p_actor_employee_id: ACTOR_ID,
+      p_idempotency_key: 'admin-cover-1',
+      p_entry: expect.objectContaining({
+        responsibleEmployeeId: RESPONSIBLE_ID,
+        assistantEmployeeIds: [ASSISTANT_ID],
+        attributionReason: 'Covered this booking while the agent was unavailable',
+      }),
+    })
+
+    vi.clearAllMocks()
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Super Admin',
+        departments: [],
+      },
+    })
+    mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
+
+    const missingReason = await POST(
+      postRequest({ ...override, attributionReason: null }, 'admin-cover-2'),
+    )
+
+    expect(missingReason.status).toBe(400)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('turns the atomic duplicate check into a blocking confirmation response', async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
+        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -454,7 +724,7 @@ describe('/api/ticketing/ledger', () => {
   it('does not disclose another agent customer through a duplicate response', async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
+        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -487,7 +757,7 @@ describe('/api/ticketing/ledger', () => {
   it('returns a client error when an airline became inactive after the ledger loaded', async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082202, requiredVersion: 2026082202 },
+        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -500,5 +770,45 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(400)
     expect(body.error).toBe('Active airline not found')
+  })
+
+  it('maps an inactive attribution recipient to a stable client error', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '22023', message: 'Responsible employee is invalid or inactive' },
+      })
+
+    const response = await POST(
+      postRequest({
+        ...validEntry(),
+        responsibleEmployeeId: RESPONSIBLE_ID,
+        assistantEmployeeIds: [],
+        attributionReason: 'Correcting cover attribution',
+      }),
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body).toEqual({
+      error: 'Select active employees for the responsible and assistant roles.',
+      code: 'INVALID_ATTRIBUTION_EMPLOYEE',
+    })
   })
 })

@@ -4,7 +4,7 @@ import { TicketingDashboard } from '@/app/dashboard/ticketing/TicketingDashboard
 import { TicketingPlaceholder } from '@/app/dashboard/ticketing/TicketingPlaceholder'
 
 describe('TicketingDashboard', () => {
-  it('opens the operational sales ledger while keeping the refund tool pending', () => {
+  it('opens the operational sales ledger and Low Fare queue while keeping refunds pending', () => {
     render(<TicketingDashboard />)
 
     expect(screen.getByRole('link', { name: /Refund Calculator/ }).getAttribute('href')).toBe(
@@ -13,7 +13,10 @@ describe('TicketingDashboard', () => {
     expect(screen.getByRole('link', { name: /My Sales Ledger/ }).getAttribute('href')).toBe(
       '/dashboard/ticketing/ledger',
     )
-    expect(screen.getByText('Available')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Low Fare/ }).getAttribute('href')).toBe(
+      '/dashboard/ticketing/low-fare',
+    )
+    expect(screen.getAllByText('Available')).toHaveLength(2)
     expect(screen.getAllByText('Coming soon')).toHaveLength(1)
   })
 

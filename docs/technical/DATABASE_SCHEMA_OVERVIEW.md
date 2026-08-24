@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-Last verified against the repository: August 23, 2026.
+Last verified against the repository and linked Ticketing capability: August 24, 2026.
 
 ## Sources of truth
 
@@ -15,48 +15,56 @@ Do not create or mutate production schema from an HTTP request. Maintenance endp
 
 ## Domain map
 
-| Domain                        | Principal tables and relationships                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity and access           | Supabase Auth users/sessions/TOTP factors/native passkeys; `employees`, `roles`, `locations`, `departments`, `employee_departments`, `password_history`, `backup_codes`, `user_security_preferences`, `auth_security_events`; legacy preview-only `user_passkeys` and `user_passkey_challenges` remain temporarily for rollback/data review but have no runtime caller |
-| Applications                  | `applicants`, `applications`, NADRA detail/pricing/history tables, `pakistani_passport_applications`, `pakistani_passport_drafts`, Pakistani-passport metadata/history, GB-passport applications/pricing/history, visa applications/metadata/history, `application_note_reads`                                                                                         |
-| Accounting and LMS            | application accounting views derive from application sources; LMS persists `loan_customers`, `loans`, `loan_transactions`, `loan_installments`, methods/categories, notes, collection/audit records, and idempotency keys                                                                                                                                              |
-| Bookings                      | `bookings`, branch/service schedule configuration, capacity reservations, waitlist, drafts/preferences, reminder/email/idempotency events, contact flags, and audit logs                                                                                                                                                                                               |
-| Quotes and package operations | `travel_package_quotes`, converted `travel_packages`, versions, passengers, reservations/items/refunds, invoices/lines, payments/plans/installments, documents, tasks/deadlines/risk flags/communications/audit, transport vouchers, group/member/shared-service allocation, third-party shares/access, and legacy migration maps/runs                                 |
-| Documents and receipts        | `documents`, `document_migration_runs`, `generated_receipts`; object bytes live in private object stores while PostgreSQL owns metadata and access scope                                                                                                                                                                                                               |
-| Timeclock                     | `timeclock_devices`, signed events, QR/request nonces, physical-device manual codes and limit records, attendance records, and adjustment audit fields                                                                                                                                                                                                                 |
-| Frappe/HR                     | identity maps, inbox/outbox, conflicts, sync state, handoff events, leave requests/types/balances, and retained payroll/employee-history tables                                                                                                                                                                                                                        |
-| Training and dashboard        | courses, lessons, quiz questions, enrollments, attempts, certificates, dashboard module preferences, notice-board slides/reads, issue reports/events/artifacts                                                                                                                                                                                                         |
-| Pricing and commercial data   | central service pricing, NADRA/passport/visa pricing, Umrah transport suppliers/vehicles/routes/plans/rates/settings, commissions, ticket ledger, loyalty, accounting categories, closeout and P&L data                                                                                                                                                                |
-| Ticketing                     | normalized `ticket_bookings`, TK/DC/R-ER transactions, grouped passenger fares, passenger allocations, itinerary sectors, package links, audit/notification/idempotency records, and the Commission-owned source-event boundary; the legacy `ticket_ledger` remains frozen for review                                                                                  |
+| Domain                        | Principal tables and relationships                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and access           | Supabase Auth users/sessions/TOTP factors/native passkeys; `employees`, `roles`, `locations`, `departments`, `employee_departments`, `password_history`, `backup_codes`, `user_security_preferences`, `auth_security_events`; legacy preview-only `user_passkeys` and `user_passkey_challenges` remain temporarily for rollback/data review but have no runtime caller                 |
+| Applications                  | `applicants`, `applications`, NADRA detail/pricing/history tables, `pakistani_passport_applications`, `pakistani_passport_drafts`, Pakistani-passport metadata/history, GB-passport applications/pricing/history, visa applications/metadata/history, `application_note_reads`                                                                                                         |
+| Accounting and LMS            | application accounting views derive from application sources; LMS persists `loan_customers`, `loans`, `loan_transactions`, `loan_installments`, methods/categories, notes, collection/audit records, and idempotency keys                                                                                                                                                              |
+| Bookings                      | `bookings`, branch/service schedule configuration, capacity reservations, waitlist, drafts/preferences, reminder/email/idempotency events, contact flags, and audit logs                                                                                                                                                                                                               |
+| Quotes and package operations | `travel_package_quotes`, converted `travel_packages`, versions, passengers, reservations/items/refunds, invoices/lines, payments/plans/installments, documents, tasks/deadlines/risk flags/communications/audit, transport vouchers, group/member/shared-service allocation, third-party shares/access, and legacy migration maps/runs                                                 |
+| Documents and receipts        | `documents`, `document_migration_runs`, `generated_receipts`; object bytes live in private object stores while PostgreSQL owns metadata and access scope                                                                                                                                                                                                                               |
+| Timeclock                     | `timeclock_devices`, signed events, QR/request nonces, physical-device manual codes and limit records, attendance records, and adjustment audit fields                                                                                                                                                                                                                                 |
+| Frappe/HR                     | identity maps, inbox/outbox, conflicts, sync state, handoff events, leave requests/types/balances, and retained payroll/employee-history tables                                                                                                                                                                                                                                        |
+| Training and dashboard        | courses, lessons, quiz questions, enrollments, attempts, certificates, dashboard module preferences, notice-board slides/reads, issue reports/events/artifacts                                                                                                                                                                                                                         |
+| Pricing and commercial data   | central service pricing, NADRA/passport/visa pricing, Umrah transport suppliers/vehicles/routes/plans/rates/settings, commissions, ticket ledger, loyalty, accounting categories, closeout and P&L data                                                                                                                                                                                |
+| Ticketing                     | normalized `ticket_bookings`, TK/DC/R-ER transactions, immutable primary/assistant attribution versions, grouped passenger fares, passenger allocations, itinerary sectors, package links, immutable whole-PNR supplier-fare adjustments, audit/notification/idempotency records, and the Commission-owned source-event boundary; the legacy `ticket_ledger` remains frozen for review |
 
 This is a domain map, not a column-level substitute for generated types or SQL. See [Travel Packages](../guides/TRAVEL_PACKAGES_GUIDE.md), [Bookings](../guides/BOOKINGS_GUIDE.md), and [Storage](STORAGE_SYSTEM.md) for lifecycle rules.
 
 ## Migration families
 
-| Migration range                                         | Capability                                                                                                                                                                                                          |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `20260214`–`20260328`                                   | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                    |
-| `20260414`–`20260418`                                   | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                         |
-| `20260602`–`20260702`                                   | booking operations/capacity/waitlist/drafts/preferences, security preferences and legacy passkey-preview storage/events, Frappe identity/handoff, notice board, training, manual overrides                          |
-| `20260708`–`20260811`                                   | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts |
-| `20260812_secure_atomic_lms_operations.sql`             | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                       |
-| `20260812_security_rate_limits.sql`                     | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                         |
-| `20260812_update_lms_installments_atomically.sql`       | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                           |
-| `20260822_create_ticketing_commission_foundation.sql`   | Ticketing schema ratchet: normalized ledger core, PNR/package evidence, branch timezones, server-only finance access, legacy-ledger freeze, and immutable retry-safe Commission source variables                    |
-| `20260822_create_ticketing_quick_tk.sql`                | atomic, idempotent TK quick entry for an agent's own ledger, duplicate-PNR confirmation, automatic package matching, transaction-owner alignment, starter airlines, and capability `2026082201`                     |
-| `20260822_ticketing_tk_completion.sql`                  | atomic own-TK detail completion, stable passenger positions, optimistic versions, posted-sale/payment guards, redacted audit, variable-only source facts, and capability `2026082202`                               |
-| `20260823_ticketing_dc_rer_entry.sql`                   | atomic own-ledger issued DC/R-ER service entries, affected-passenger ceilings, root/reissue lineage, independent Paid transition, target-safe source facts, and capability `2026082301`                             |
-| `20260823_ticketing_rer_chronology_guard.sql`           | R-ER monotonic chronology, one issued successor per predecessor, booking-serialized lineage validation, Issued-root enforcement, and capability `2026082302`                                                        |
-| `20260823_ticketing_service_response_dates.sql`         | live-safe service RPC wrappers with exact branch-local booking/issue/payment dates, inaccessible internal cores, strict grants, and capability `2026082303`                                                         |
-| `20260823_ticketing_service_response_lineage_guard.sql` | immutable service replay dates, historical R-ER lineage after cancellation/refund, one historical successor, completed-response immutability, migration-ratchet tombstones, and capability `2026082304`             |
+| Migration range                                         | Capability                                                                                                                                                                                                              |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260214`–`20260328`                                   | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                        |
+| `20260414`–`20260418`                                   | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                             |
+| `20260602`–`20260702`                                   | booking operations/capacity/waitlist/drafts/preferences, security preferences and legacy passkey-preview storage/events, Frappe identity/handoff, notice board, training, manual overrides                              |
+| `20260708`–`20260811`                                   | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts     |
+| `20260812_secure_atomic_lms_operations.sql`             | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                           |
+| `20260812_security_rate_limits.sql`                     | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                             |
+| `20260812_update_lms_installments_atomically.sql`       | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                               |
+| `20260822_create_ticketing_commission_foundation.sql`   | Ticketing schema ratchet: normalized ledger core, PNR/package evidence, branch timezones, server-only finance access, legacy-ledger freeze, and immutable retry-safe Commission source variables                        |
+| `20260822_create_ticketing_quick_tk.sql`                | atomic, idempotent TK quick entry for an agent's own ledger, duplicate-PNR confirmation, automatic package matching, transaction-owner alignment, starter airlines, and capability `2026082201`                         |
+| `20260822_ticketing_tk_completion.sql`                  | atomic own-TK detail completion, stable passenger positions, optimistic versions, posted-sale/payment guards, redacted audit, variable-only source facts, and capability `2026082202`                                   |
+| `20260823_ticketing_dc_rer_entry.sql`                   | atomic own-ledger issued DC/R-ER service entries, affected-passenger ceilings, root/reissue lineage, independent Paid transition, target-safe source facts, and capability `2026082301`                                 |
+| `20260823_ticketing_rer_chronology_guard.sql`           | R-ER monotonic chronology, one issued successor per predecessor, booking-serialized lineage validation, Issued-root enforcement, and capability `2026082302`                                                            |
+| `20260823_ticketing_service_response_dates.sql`         | live-safe service RPC wrappers with exact branch-local booking/issue/payment dates, inaccessible internal cores, strict grants, and capability `2026082303`                                                             |
+| `20260823_ticketing_service_response_lineage_guard.sql` | immutable service replay dates, historical R-ER lineage after cancellation/refund, one historical successor, completed-response immutability, migration-ratchet tombstones, and capability `2026082304`                 |
+| `20260824_ticketing_low_fare_adjustments.sql`           | shared whole-PNR GBP supplier-fare queue/lineage, server-derived original fare and package scope, acting-agent source attribution, immutable target-safe adjustment events, and capability `2026082401`                 |
+| `20260824_ticketing_attribution_overrides.sql`          | immutable entered-by/primary/assistant attribution, admin-only optimistic correction, aligned operational ownership, primary-only issued-ticket targets, versioned source-event correction, and capability `2026082402` |
 
 Apply unapplied files in filename order and track which migrations have already run. Every
-Ticketing migration begins with a read-only forward-version guard: a fresh install and an exact
-same-version rerun are allowed, while a script older than the installed capability fails before its
-first schema, grant, policy, or readiness mutation with
+Ticketing migration begins with a read-only forward-version guard: the foundation supports a fresh
+install, follow-ups require their documented predecessor, and an exact same-version rerun is
+allowed. A script older than the installed capability fails before its first schema, grant, policy,
+or readiness mutation with
 `TICKETING_FORWARD_MIGRATION_REPLAY_BLOCKED`. Capability `2026082304` also retires two shared
 routine signatures with revoked procedure tombstones as a second defense against isolated 2301–2303
-replay. A feature deployment may require an earlier bootstrap noted by its active guide—for example
+replay. Capability `2026082401` preserves those ratchets and adds booking-first serialization for
+package-link mutations so an adjustment cannot snapshot package scope during a concurrent change.
+Capability `2026082402` adds immutable attribution versions and a tightly scoped owner-correction
+path; assistants remain source facts with zero target units, while the primary responsible employee
+receives all issued passenger-ticket target units.
+A feature deployment may require an earlier bootstrap noted by its active guide—for example
 bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against
 production.
 
@@ -82,18 +90,30 @@ executable by any API role. The replay/lineage follow-up raises it to `202608230
 original response dates after later payment or terminal lifecycle changes, retains every issued
 R-ER in its historical chain, and blocks a second historical successor. Active helpers and the
 lineage trigger use versioned 2304 routine names; retired shared names are inaccessible ratchet
-tombstones. Each route checks the minimum capability it needs and fails closed otherwise. All
-mutation functions are executable only through the service-role boundary; the API derives the
-employee actor from the verified staff session and never accepts that identity from the browser.
+tombstones. The Low Fare migration raises the component to `2026082401`, adds immutable
+`ticket_fare_adjustments`, the latest-tail `ticket_fare_adjustment_current` view, and the
+service-role-only `ticketing_append_fare_adjustment(uuid, uuid, text, jsonb)` function. Each route
+checks the minimum capability it needs and fails closed otherwise. The attribution migration raises
+the component to `2026082402` and installs
+`ticketing_create_quick_tk_attributed(uuid, text, jsonb)` plus
+`ticketing_correct_booking_attribution(uuid, uuid, bigint, text, jsonb)`. All mutation functions are
+executable only through the service-role boundary; the API derives the employee actor from the
+verified staff session and never accepts that identity from the browser. The linked project was
+verified ready at `2026082402` after deployment. The attribution tables have RLS, the two mutation
+RPCs are service-role-only, the transient write-context table is inaccessible to API roles, all six
+attribution invariant triggers are installed, and all Ticketing, fare-adjustment, attribution, and
+Commission source-event tables in this slice remain empty.
 
 This capability supports TK Held/Issued quick entry, the authenticated agent's own ledger, partial
-TK detail completion, and aggregate issued DC/R-ER financial service movements against an existing
-root TK. Service children carry affected ADT/CHD/INF quantities and full supplier/customer unit
-values, preserve immutable root facts, form an explicit R-ER supersession chain, and publish
-variables-only service/payment facts that do not count as issued-TK target events. It does not yet
-capture the new itinerary, exact affected passenger identities, or an airline-fee/fare-difference
-component split. Low fares, vouchers, targets, team flight monitoring, refunds, and the
-cancellation calculator remain outside this runtime capability.
+TK detail completion, aggregate issued DC/R-ER financial service movements against an existing
+root TK, and shared whole-PNR GBP supplier-fare adjustments against eligible issued tickets. The
+service children carry affected ADT/CHD/INF quantities and full supplier/customer unit values,
+preserve immutable root facts, form an explicit R-ER supersession chain, and publish variables-only
+service/payment facts that do not count as issued-TK target events. Low Fare appends a separate
+linear supplier-fare history and target-safe positive/negative difference event without rewriting
+the root. The runtime does not yet capture the new itinerary, exact affected passenger identities,
+an airline-fee/fare-difference component split, same-fare check observations, non-GBP fare
+adjustments, vouchers, targets, team flight monitoring, refunds, or the cancellation calculator.
 
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 

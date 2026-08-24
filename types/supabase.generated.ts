@@ -4925,6 +4925,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_attribution_write_contexts: {
+        Row: {
+          actor_employee_id: string
+          assistant_employee_ids: string[]
+          booking_id: string | null
+          context_mode: string
+          created_at: string
+          id: string
+          primary_employee_id: string
+          reason: string | null
+        }
+        Insert: {
+          actor_employee_id: string
+          assistant_employee_ids?: string[]
+          booking_id?: string | null
+          context_mode: string
+          created_at?: string
+          id?: string
+          primary_employee_id: string
+          reason?: string | null
+        }
+        Update: {
+          actor_employee_id?: string
+          assistant_employee_ids?: string[]
+          booking_id?: string | null
+          context_mode?: string
+          created_at?: string
+          id?: string
+          primary_employee_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_attribution_write_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_attribution_write_contexts_primary_employee_id_fkey'
+            columns: ['primary_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       ticket_audit_events: {
         Row: {
           action: string
@@ -4986,6 +5034,144 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'ticket_transactions'
             referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_booking_attribution_assistants: {
+        Row: {
+          attribution_id: string
+          booking_id: string
+          created_at: string
+          employee_id: string
+          sort_order: number
+        }
+        Insert: {
+          attribution_id: string
+          booking_id: string
+          created_at?: string
+          employee_id: string
+          sort_order: number
+        }
+        Update: {
+          attribution_id?: string
+          booking_id?: string
+          created_at?: string
+          employee_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_booking_attribution_assistants_attribution_booking_fkey'
+            columns: ['attribution_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_booking_attribution_versions'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_assistants_attribution_booking_fkey'
+            columns: ['attribution_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_booking_current_attribution'
+            referencedColumns: ['attribution_id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_assistants_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_booking_attribution_versions: {
+        Row: {
+          attribution_version: number
+          booking_id: string
+          change_kind: string
+          changed_by_employee_id: string
+          created_at: string
+          entered_by_employee_id: string
+          id: string
+          primary_employee_id: string
+          reason: string | null
+          root_transaction_id: string
+          supersedes_attribution_id: string | null
+        }
+        Insert: {
+          attribution_version: number
+          booking_id: string
+          change_kind: string
+          changed_by_employee_id: string
+          created_at?: string
+          entered_by_employee_id: string
+          id?: string
+          primary_employee_id: string
+          reason?: string | null
+          root_transaction_id: string
+          supersedes_attribution_id?: string | null
+        }
+        Update: {
+          attribution_version?: number
+          booking_id?: string
+          change_kind?: string
+          changed_by_employee_id?: string
+          created_at?: string
+          entered_by_employee_id?: string
+          id?: string
+          primary_employee_id?: string
+          reason?: string | null
+          root_transaction_id?: string
+          supersedes_attribution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_changed_by_employee_id_fkey'
+            columns: ['changed_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_entered_by_employee_id_fkey'
+            columns: ['entered_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_primary_employee_id_fkey'
+            columns: ['primary_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_root_booking_fkey'
+            columns: ['root_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_supersedes_booking_fkey'
+            columns: ['supersedes_attribution_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_booking_attribution_versions'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_supersedes_booking_fkey'
+            columns: ['supersedes_attribution_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_booking_current_attribution'
+            referencedColumns: ['attribution_id', 'booking_id']
           },
         ]
       }
@@ -5100,6 +5286,153 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'employees'
             referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_fare_adjustments: {
+        Row: {
+          acting_employee_id: string
+          actor_location_id: string
+          booking_id: string
+          booking_location_id: string
+          commission_scope: string
+          created_at: string
+          currency: string
+          difference_gbp: number | null
+          difference_source: number | null
+          effective_on: string
+          group_id: string | null
+          id: string
+          new_fare_gbp: number
+          new_fare_source: number
+          notes: string | null
+          original_fare_gbp: number
+          original_fare_source: number
+          owner_employee_id: string
+          package_id: string | null
+          package_link_ids: string[]
+          package_match_status: string
+          package_type: string | null
+          passenger_ticket_count: number
+          previous_adjustment_id: string | null
+          reservation_id: string | null
+          root_transaction_id: string
+          sequence_number: number
+        }
+        Insert: {
+          acting_employee_id: string
+          actor_location_id: string
+          booking_id: string
+          booking_location_id: string
+          commission_scope: string
+          created_at?: string
+          currency?: string
+          difference_gbp?: number | null
+          difference_source?: number | null
+          effective_on: string
+          group_id?: string | null
+          id?: string
+          new_fare_gbp: number
+          new_fare_source: number
+          notes?: string | null
+          original_fare_gbp: number
+          original_fare_source: number
+          owner_employee_id: string
+          package_id?: string | null
+          package_link_ids?: string[]
+          package_match_status: string
+          package_type?: string | null
+          passenger_ticket_count: number
+          previous_adjustment_id?: string | null
+          reservation_id?: string | null
+          root_transaction_id: string
+          sequence_number: number
+        }
+        Update: {
+          acting_employee_id?: string
+          actor_location_id?: string
+          booking_id?: string
+          booking_location_id?: string
+          commission_scope?: string
+          created_at?: string
+          currency?: string
+          difference_gbp?: number | null
+          difference_source?: number | null
+          effective_on?: string
+          group_id?: string | null
+          id?: string
+          new_fare_gbp?: number
+          new_fare_source?: number
+          notes?: string | null
+          original_fare_gbp?: number
+          original_fare_source?: number
+          owner_employee_id?: string
+          package_id?: string | null
+          package_link_ids?: string[]
+          package_match_status?: string
+          package_type?: string | null
+          passenger_ticket_count?: number
+          previous_adjustment_id?: string | null
+          reservation_id?: string | null
+          root_transaction_id?: string
+          sequence_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_fare_adjustments_acting_employee_id_fkey'
+            columns: ['acting_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_actor_location_id_fkey'
+            columns: ['actor_location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_booking_location_id_fkey'
+            columns: ['booking_location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_previous_same_booking_fkey'
+            columns: ['previous_adjustment_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustment_current'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_previous_same_booking_fkey'
+            columns: ['previous_adjustment_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustments'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_root_same_booking_fkey'
+            columns: ['root_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
           },
         ]
       }
@@ -9509,7 +9842,146 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ticket_booking_current_attribution: {
+        Row: {
+          assistant_employee_ids: string[] | null
+          attribution_id: string | null
+          attribution_version: number | null
+          booking_id: string | null
+          changed_by_employee_id: string | null
+          created_at: string | null
+          entered_by_employee_id: string | null
+          primary_employee_id: string | null
+          reason: string | null
+          root_transaction_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_changed_by_employee_id_fkey'
+            columns: ['changed_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_entered_by_employee_id_fkey'
+            columns: ['entered_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_primary_employee_id_fkey'
+            columns: ['primary_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_booking_attribution_versions_root_booking_fkey'
+            columns: ['root_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+        ]
+      }
+      ticket_fare_adjustment_current: {
+        Row: {
+          acting_employee_id: string | null
+          actor_location_id: string | null
+          booking_id: string | null
+          booking_location_id: string | null
+          commission_scope: string | null
+          created_at: string | null
+          currency: string | null
+          difference_gbp: number | null
+          difference_source: number | null
+          effective_on: string | null
+          group_id: string | null
+          id: string | null
+          new_fare_gbp: number | null
+          new_fare_source: number | null
+          notes: string | null
+          original_fare_gbp: number | null
+          original_fare_source: number | null
+          owner_employee_id: string | null
+          package_id: string | null
+          package_link_ids: string[] | null
+          package_match_status: string | null
+          package_type: string | null
+          passenger_ticket_count: number | null
+          previous_adjustment_id: string | null
+          reservation_id: string | null
+          root_transaction_id: string | null
+          sequence_number: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_fare_adjustments_acting_employee_id_fkey'
+            columns: ['acting_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_actor_location_id_fkey'
+            columns: ['actor_location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_booking_location_id_fkey'
+            columns: ['booking_location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_previous_same_booking_fkey'
+            columns: ['previous_adjustment_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustment_current'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_previous_same_booking_fkey'
+            columns: ['previous_adjustment_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustments'
+            referencedColumns: ['id', 'booking_id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_adjustments_root_same_booking_fkey'
+            columns: ['root_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+        ]
+      }
     }
     Functions: {
       append_commission_source_event: { Args: { p_event: Json }; Returns: Json }
@@ -9680,6 +10152,15 @@ export type Database = {
         }[]
       }
       revoke_my_session: { Args: { session_id: string }; Returns: undefined }
+      ticketing_append_fare_adjustment: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
       ticketing_append_service_transaction: {
         Args: {
           p_actor_employee_id: string
@@ -9707,7 +10188,26 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_context_id_2026082402: { Args: never; Returns: string }
+      ticketing_correct_booking_attribution: {
+        Args: {
+          p_actor_employee_id: string
+          p_attribution: Json
+          p_booking_id: string
+          p_expected_booking_version: number
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
       ticketing_create_quick_tk: {
+        Args: {
+          p_actor_employee_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_create_quick_tk_attributed: {
         Args: {
           p_actor_employee_id: string
           p_entry: Json
@@ -9739,9 +10239,21 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_owner_correction_context_matches_2026082402: {
+        Args: {
+          p_booking_id: string
+          p_new_primary_employee_id: string
+          p_old_primary_employee_id: string
+        }
+        Returns: boolean
+      }
       ticketing_schema_status: { Args: never; Returns: Json }
       ticketing_transaction_has_been_issued_2026082304: {
         Args: { p_issued_at: string; p_operational_status: string }
+        Returns: boolean
+      }
+      ticketing_uuid_array_is_unique_2026082402: {
+        Args: { p_values: string[] }
         Returns: boolean
       }
     }

@@ -14,6 +14,13 @@ service_transaction_assertions="tests/integration/ticketing_service_transactions
 rer_chronology_migration="scripts/migrations/20260823_ticketing_rer_chronology_guard.sql"
 service_response_dates_migration="scripts/migrations/20260823_ticketing_service_response_dates.sql"
 immutable_replay_lineage_migration="scripts/migrations/20260823_ticketing_service_response_lineage_guard.sql"
+low_fare_migration="scripts/migrations/20260824_ticketing_low_fare_adjustments.sql"
+low_fare_assertions="tests/integration/ticketing_low_fare_adjustments.sql"
+attribution_migration="scripts/migrations/20260824_ticketing_attribution_overrides.sql"
+attribution_assertions="tests/integration/ticketing_attribution_overrides.sql"
+admin_completion_pre_upgrade="tests/integration/ticketing_admin_completion_pre_upgrade.sql"
+admin_completion_migration="scripts/migrations/20260824_ticketing_admin_completion.sql"
+admin_completion_assertions="tests/integration/ticketing_admin_completion.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -57,10 +64,30 @@ ticketing_schema_fingerprint() {
 
       select concat(
         'relation|', class_row.relkind, '|', class_row.relname,
-        '|', coalesce(class_row.relacl::text, ''), '|', class_row.relrowsecurity
+        '|', coalesce(class_row.relacl::text, ''), '|', class_row.relrowsecurity,
+        '|', coalesce(class_row.reloptions::text, ''), '|',
+        case
+          when class_row.relkind in ('v', 'm')
+            then pg_get_viewdef(class_row.oid, true)
+          when class_row.relkind in ('i', 'I')
+            then pg_get_indexdef(class_row.oid)
+          else ''
+        end
       )
       from pg_class class_row
       join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace
+      where namespace_row.nspname = 'public'
+
+      union all
+
+      select concat(
+        'constraint|', constraint_row.conname, '|',
+        constraint_row.conrelid::regclass::text, '|',
+        pg_get_constraintdef(constraint_row.oid, true)
+      )
+      from pg_constraint constraint_row
+      join pg_namespace namespace_row
+        on namespace_row.oid = constraint_row.connamespace
       where namespace_row.nspname = 'public'
 
       union all
@@ -770,6 +797,1223 @@ psql "$database_url" -v ON_ERROR_STOP=1 -c "
   drop function public.ticketing_test_pause_direct_lineage_race()
 " >/dev/null
 
+# Attribution depends on the Low Fare capability immediately before it. A
+# skipped-predecessor attempt must fail before changing any schema object or
+# capability metadata.
+pre_2401_attribution_fingerprint="$(ticketing_schema_fingerprint)"
+skipped_predecessor_output=""
+if skipped_predecessor_output="$(
+  psql "$database_url" -v ON_ERROR_STOP=1 -f "$attribution_migration" 2>&1
+)"; then
+  echo "Ticket attribution migration skipped its required Low Fare predecessor"
+  exit 1
+fi
+if [[ "$skipped_predecessor_output" != *"TICKETING_SCHEMA_NOT_READY"* ]]; then
+  echo "Skipped Ticket attribution predecessor returned the wrong error"
+  echo "$skipped_predecessor_output"
+  exit 1
+fi
+if [[ "$(ticketing_schema_fingerprint)" != "$pre_2401_attribution_fingerprint" ]]; then
+  echo "Rejected pre-2401 Ticket attribution migration changed schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$low_fare_migration"
+low_fare_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+low_fare_first_fingerprint="$(ticketing_schema_fingerprint)"
+
+# Same-version reruns are semantic no-ops and preserve capability chronology.
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$low_fare_migration"
+low_fare_second_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+low_fare_second_fingerprint="$(ticketing_schema_fingerprint)"
+if [[ "$low_fare_first_applied_at" != "$low_fare_second_applied_at" ]]; then
+  echo "Idempotent Low Fare rerun changed the Ticketing capability application timestamp"
+  exit 1
+fi
+if [[ "$low_fare_first_fingerprint" != "$low_fare_second_fingerprint" ]]; then
+  echo "Idempotent Low Fare rerun changed semantic Ticketing schema state"
+  exit 1
+fi
+
+post_2401_fingerprint="$low_fare_second_fingerprint"
+
+# Authorised completion depends on Ticket attribution capability 2402. Applying
+# 2403 directly on top of 2401 must reject before changing schema or capability
+# metadata, otherwise the omitted attribution migration could be skipped and
+# permanently blocked by the forward ratchet.
+pre_2402_admin_completion_fingerprint="$(ticketing_schema_fingerprint)"
+skipped_admin_completion_predecessor_output=""
+if skipped_admin_completion_predecessor_output="$(
+  psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_completion_migration" 2>&1
+)"; then
+  echo "Authorised completion migration skipped its required Ticket attribution predecessor"
+  exit 1
+fi
+if [[ "$skipped_admin_completion_predecessor_output" != *"Ticketing capability 2026082402 is required before authorised completion capability 2026082403"* ]] \
+  || [[ "$skipped_admin_completion_predecessor_output" != *"TICKETING_SCHEMA_NOT_READY"* ]]; then
+  echo "Skipped authorised completion predecessor returned the wrong error"
+  echo "$skipped_admin_completion_predecessor_output"
+  exit 1
+fi
+if [[ "$(ticketing_schema_fingerprint)" != "$pre_2402_admin_completion_fingerprint" ]]; then
+  echo "Rejected pre-2402 authorised completion migration changed schema state"
+  exit 1
+fi
+
+# Once 2401 is installed, every older Ticketing migration must stop at its
+# immediate forward guard without changing relations, routines, policies,
+# grants, triggers, views, or capability metadata.
+post_2401_historical_migrations=(
+  "$migration"
+  "$quick_entry_migration"
+  "$completion_migration"
+  "$service_transaction_migration"
+  "$rer_chronology_migration"
+  "$service_response_dates_migration"
+  "$immutable_replay_lineage_migration"
+)
+for historical_migration in "${post_2401_historical_migrations[@]}"; do
+  assert_forward_migration_replay_blocked "$historical_migration"
+  post_historical_fingerprint="$(ticketing_schema_fingerprint)"
+  if [[ "$post_historical_fingerprint" != "$post_2401_fingerprint" ]]; then
+    echo "Blocked historical Ticketing replay changed capability 2401 schema state: $historical_migration"
+    exit 1
+  fi
+done
+
+# Simulate a later capability replacing every callable identity owned by 2401.
+# Replaying 2401 must reject before the first CREATE/ALTER and preserve the
+# future definitions, active trigger attachment, grants, and version fact.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  begin;
+
+  update public.portal_schema_versions
+  set version = 2026082402
+  where component = 'ticketing';
+
+  create or replace function public.ticketing_schema_status()
+  returns jsonb
+  language sql
+  stable
+  security definer
+  set search_path = pg_catalog, public, pg_temp
+  as \$\$
+    select jsonb_build_object('futureSentinel', 'ticketing-status-2026082402')
+  \$\$;
+
+  create or replace function public.ticketing_append_fare_adjustment(
+    p_actor_employee_id uuid,
+    p_booking_id uuid,
+    p_idempotency_key text,
+    p_entry jsonb
+  )
+  returns jsonb
+  language sql
+  security definer
+  set search_path = pg_catalog, public, pg_temp
+  set row_security = off
+  as \$\$
+    select jsonb_build_object('futureSentinel', 'ticketing-low-fare-2026082402')
+  \$\$;
+
+  create or replace function public.validate_ticket_fare_adjustment_lineage_2026082401()
+  returns trigger
+  language plpgsql
+  security definer
+  set search_path = pg_catalog, public, pg_temp
+  set row_security = off
+  as \$\$
+  begin
+    perform 'ticketing-low-fare-lineage-2026082402';
+    return new;
+  end
+  \$\$;
+
+  create or replace function public.serialize_ticket_package_scope_2026082401()
+  returns trigger
+  language plpgsql
+  security definer
+  set search_path = pg_catalog, public, pg_temp
+  set row_security = off
+  as \$\$
+  begin
+    perform 'ticketing-package-scope-2026082402';
+    return case when tg_op = 'DELETE' then old else new end;
+  end
+  \$\$;
+
+  alter view public.ticket_fare_adjustment_current
+    set (security_invoker = false);
+  grant select on public.ticket_fare_adjustment_current to authenticated;
+
+  commit;
+" >/dev/null
+
+future_2402_fingerprint="$(ticketing_schema_fingerprint)"
+future_2402_sentinel_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select count(*)
+  from unnest(array[
+    'public.ticketing_schema_status()'::regprocedure,
+    'public.ticketing_append_fare_adjustment(uuid,uuid,text,jsonb)'::regprocedure,
+    'public.validate_ticket_fare_adjustment_lineage_2026082401()'::regprocedure,
+    'public.serialize_ticket_package_scope_2026082401()'::regprocedure
+  ]) as routines(routine_oid)
+  where position('2026082402' in pg_get_functiondef(routine_oid)) > 0
+")"
+if [[ "$future_2402_sentinel_count" != "4" ]]; then
+  echo "Future Low Fare sentinel routine definitions were not installed"
+  exit 1
+fi
+future_2402_view_state="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    coalesce(class_row.reloptions::text, ''),
+    has_table_privilege(
+      'authenticated', 'public.ticket_fare_adjustment_current', 'SELECT'
+    )
+  from pg_class class_row
+  where class_row.oid = 'public.ticket_fare_adjustment_current'::regclass
+")"
+if [[ "$future_2402_view_state" != "{security_invoker=false}|t" ]]; then
+  echo "Future Low Fare view sentinel state was not installed"
+  exit 1
+fi
+
+assert_forward_migration_replay_blocked "$low_fare_migration"
+post_future_2401_fingerprint="$(ticketing_schema_fingerprint)"
+if [[ "$post_future_2401_fingerprint" != "$future_2402_fingerprint" ]]; then
+  echo "Blocked Low Fare replay changed future Ticketing schema state"
+  exit 1
+fi
+
+# Restore the disposable database to the actual 2401 definitions before its
+# behavior, rollback, lower-write, and concurrency assertions run.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.portal_schema_versions
+  set version = 2026082401
+  where component = 'ticketing'
+" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$low_fare_migration"
+restored_2401_fingerprint="$(ticketing_schema_fingerprint)"
+if [[ "$restored_2401_fingerprint" != "$post_2401_fingerprint" ]]; then
+  echo "Restoring Low Fare 2401 after the future guard test changed semantic schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$low_fare_assertions"
+
+low_fare_race_facts="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select booking.id, root.id, booking.version, root.version
+  from public.ticket_bookings booking
+  join public.ticket_transactions root
+    on root.booking_id = booking.id
+    and root.service_type = 'TK'
+    and root.parent_transaction_id is null
+  where booking.normalized_pnr = 'LOW-C1'
+")"
+IFS='|' read -r low_fare_race_booking_id low_fare_race_root_id \
+  low_fare_race_booking_version low_fare_race_root_version \
+  <<< "$low_fare_race_facts"
+
+if [[ -z "$low_fare_race_booking_id" || -z "$low_fare_race_root_id" ]]; then
+  echo "Low Fare optimistic-race fixture was not found"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_append_fare_adjustment(
+    '40000000-0000-0000-0000-000000000003',
+    '$low_fare_race_booking_id',
+    'low-fare-race-winner',
+    jsonb_build_object(
+      'expectedBookingVersion', $low_fare_race_booking_version,
+      'expectedRootTransactionVersion', $low_fare_race_root_version,
+      'expectedPreviousAdjustmentId', null,
+      'newFareGbp', 90,
+      'effectiveOn', '2026-08-25',
+      'currency', 'GBP',
+      'notes', null
+    )
+  )
+" >/dev/null &
+low_fare_race_winner_pid=$!
+
+low_fare_race_pause_seen=false
+for _attempt in {1..100}; do
+  low_fare_race_pause_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%low-fare-race-winner%'
+  ")"
+  if [[ "$low_fare_race_pause_count" -gt 0 ]]; then
+    low_fare_race_pause_seen=true
+    break
+  fi
+  sleep 0.05
+done
+
+if [[ "$low_fare_race_pause_seen" != true ]]; then
+  wait "$low_fare_race_winner_pid" || true
+  echo "Low Fare optimistic-race pause was not observable"
+  exit 1
+fi
+
+package_phantom_output=""
+if package_phantom_output="$(psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  set lock_timeout = '300ms';
+  insert into public.ticket_package_links (
+    booking_id,
+    package_id,
+    reservation_id,
+    match_status,
+    resolution_method,
+    matched_pnr
+  ) values (
+    '$low_fare_race_booking_id',
+    '60000000-0000-0000-0000-000000000031',
+    '70000000-0000-0000-0000-000000000031',
+    'matched',
+    'automatic',
+    'LOW-C1'
+  )
+" 2>&1)"; then
+  wait "$low_fare_race_winner_pid" || true
+  echo "Concurrent package-link insert bypassed the Low Fare booking-scope lock"
+  exit 1
+fi
+
+if [[ "$package_phantom_output" != *"lock timeout"* ]]; then
+  wait "$low_fare_race_winner_pid" || true
+  echo "Concurrent package-link insert failed for a reason other than booking-scope serialization"
+  echo "$package_phantom_output"
+  exit 1
+fi
+
+low_fare_race_loser_output=""
+if low_fare_race_loser_output="$(psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_append_fare_adjustment(
+    '40000000-0000-0000-0000-000000000001',
+    '$low_fare_race_booking_id',
+    'low-fare-race-loser',
+    jsonb_build_object(
+      'expectedBookingVersion', $low_fare_race_booking_version,
+      'expectedRootTransactionVersion', $low_fare_race_root_version,
+      'expectedPreviousAdjustmentId', null,
+      'newFareGbp', 80,
+      'effectiveOn', '2026-08-25',
+      'currency', 'GBP',
+      'notes', null
+    )
+  )
+" 2>&1)"; then
+  wait "$low_fare_race_winner_pid" || true
+  echo "Both same-version Low Fare race contenders committed"
+  exit 1
+fi
+
+if [[ "$low_fare_race_loser_output" != *"TICKETING_VERSION_CONFLICT"* ]]; then
+  wait "$low_fare_race_winner_pid" || true
+  echo "Low Fare race loser did not return the version-conflict hint"
+  exit 1
+fi
+
+wait "$low_fare_race_winner_pid"
+
+low_fare_race_result="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    booking.version,
+    root.version,
+    (select count(*)
+      from public.ticket_fare_adjustments adjustment
+      where adjustment.booking_id = booking.id),
+    (select count(*)
+      from public.ticket_audit_events audit
+      where audit.booking_id = booking.id
+        and audit.action = 'append_fare_adjustment'),
+    (select count(*)
+      from public.ticket_idempotency_keys key_row
+      where key_row.action_name = 'ticketing.append_fare_adjustment.v1'
+        and key_row.idempotency_key = 'low-fare-race-winner'),
+    (select count(*)
+      from public.ticket_idempotency_keys key_row
+      where key_row.action_name = 'ticketing.append_fare_adjustment.v1'
+        and key_row.idempotency_key = 'low-fare-race-loser'),
+    (select count(*)
+      from public.commission_source_events source_event
+      join public.ticket_fare_adjustments adjustment
+        on adjustment.id = source_event.source_record_id
+      where adjustment.booking_id = booking.id
+        and source_event.event_type = 'ticket_low_fare_adjusted'),
+    (select count(*)
+      from public.ticket_package_links link
+      where link.booking_id = booking.id)
+  from public.ticket_bookings booking
+  join public.ticket_transactions root on root.id = '$low_fare_race_root_id'
+  where booking.id = '$low_fare_race_booking_id'
+")"
+low_fare_race_expected="$((low_fare_race_booking_version + 1))|$low_fare_race_root_version|1|1|1|0|1|0"
+if [[ "$low_fare_race_result" != "$low_fare_race_expected" ]]; then
+  echo "Low Fare race left incorrect lineage/event/retry/package state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  drop trigger ticketing_test_pause_low_fare_race on public.ticket_audit_events;
+  drop function public.ticketing_test_pause_low_fare_race()
+" >/dev/null
+
+# Historical ownership remains valid even when the employee was deactivated
+# after doing the work. The migration must preserve that attribution while all
+# new-write RPCs continue to require active recipients.
+inactive_backfill_booking_id="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select booking.id
+  from public.ticket_bookings booking
+  where booking.owner_employee_id = '40000000-0000-0000-0000-000000000001'
+  order by booking.created_at, booking.id
+  limit 1
+")"
+if [[ -z "$inactive_backfill_booking_id" ]]; then
+  echo "Ticket attribution inactive-owner backfill fixture was not found"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.employees
+  set is_active = false
+  where id = '40000000-0000-0000-0000-000000000001'
+" >/dev/null
+
+# Hold a supported legacy Quick TK write open after it has inserted its booking,
+# transaction, and issued source event. The migration must wait at its early
+# write lock, then include the committed row in both history and source backfill.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  begin;
+  select public.ticketing_create_quick_tk(
+    '40000000-0000-0000-0000-000000000002',
+    'attribution-migration-race-create',
+    jsonb_build_object(
+      'customerName', 'Attribution Migration Race',
+      'pnr', 'ATTR-RACE1',
+      'airlineId', '50000000-0000-0000-0000-000000000001',
+      'serviceType', 'TK',
+      'operationalStatus', 'issued',
+      'bookingDate', '2026-08-24',
+      'timeLimitAt', null,
+      'issuedAt', '2026-08-24',
+      'currency', 'GBP',
+      'fares', jsonb_build_array(
+        jsonb_build_object(
+          'passengerType', 'ADT',
+          'quantity', 1,
+          'unitSupplierCost', 100
+        )
+      )
+    )
+  );
+  select pg_sleep(2);
+  commit;
+" >/dev/null &
+attribution_race_writer_pid=$!
+
+attribution_race_sleep_seen=false
+for _attempt in {1..100}; do
+  attribution_race_sleep_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%attribution-migration-race-create%'
+  ")"
+  if [[ "$attribution_race_sleep_count" -gt 0 ]]; then
+    attribution_race_sleep_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$attribution_race_sleep_seen" != true ]]; then
+  wait "$attribution_race_writer_pid" || true
+  echo "Ticket attribution migration race writer pause was not observable"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$attribution_migration" >/dev/null &
+attribution_race_migration_pid=$!
+
+attribution_write_lock_seen=false
+for _attempt in {1..100}; do
+  attribution_write_lock_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and wait_event_type = 'Lock'
+      and query like '%public.ticket_bookings%'
+      and query like '%share row exclusive mode%'
+  ")"
+  if [[ "$attribution_write_lock_count" -gt 0 ]]; then
+    attribution_write_lock_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$attribution_write_lock_seen" != true ]]; then
+  wait "$attribution_race_writer_pid" || true
+  wait "$attribution_race_migration_pid" || true
+  echo "Ticket attribution migration did not wait for the in-flight writer"
+  exit 1
+fi
+
+wait "$attribution_race_writer_pid"
+wait "$attribution_race_migration_pid"
+
+attribution_race_result="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    attribution.attribution_version,
+    attribution.primary_employee_id,
+    source_event.employee_id,
+    source_event.variables ->> 'primary_responsible_employee_id',
+    source_event.variables ->> 'issued_ticket_target_units',
+    source_event.variables ->> 'assistant_target_units'
+  from public.ticket_bookings booking
+  join public.ticket_booking_current_attribution attribution
+    on attribution.booking_id = booking.id
+  join public.ticket_transactions root
+    on root.id = attribution.root_transaction_id
+  join lateral (
+    select source_event.*
+    from public.commission_source_events source_event
+    where source_event.source_record_id = root.id
+      and source_event.source_fact_key =
+        'transaction:' || root.id::text || ':issued'
+    order by source_event.event_version desc
+    limit 1
+  ) source_event on true
+  where booking.normalized_pnr = 'ATTR-RACE1'
+")"
+if [[ "$attribution_race_result" != "1|40000000-0000-0000-0000-000000000002|40000000-0000-0000-0000-000000000002|40000000-0000-0000-0000-000000000002|1|0" ]]; then
+  echo "In-flight Quick TK escaped attribution migration backfill"
+  exit 1
+fi
+
+attribution_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+attribution_first_fingerprint="$(ticketing_schema_fingerprint)"
+
+inactive_backfill_result="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    attribution.attribution_version,
+    attribution.primary_employee_id,
+    attribution.entered_by_employee_id,
+    attribution.change_kind
+  from public.ticket_booking_attribution_versions attribution
+  where attribution.booking_id = '$inactive_backfill_booking_id'
+")"
+if [[ "$inactive_backfill_result" != "1|40000000-0000-0000-0000-000000000001|40000000-0000-0000-0000-000000000001|migration" ]]; then
+  echo "Ticket attribution did not preserve the inactive historical owner"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.employees
+  set is_active = true
+  where id = '40000000-0000-0000-0000-000000000001'
+" >/dev/null
+
+# Same-version reruns append no duplicate history/source facts and preserve the
+# capability application timestamp and semantic schema fingerprint.
+attribution_history_count_before="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.ticket_booking_attribution_versions")"
+attribution_source_count_before="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.commission_source_events")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$attribution_migration"
+attribution_second_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+attribution_second_fingerprint="$(ticketing_schema_fingerprint)"
+if [[ "$attribution_first_applied_at" != "$attribution_second_applied_at" ]]; then
+  echo "Idempotent Ticket attribution rerun changed the capability timestamp"
+  exit 1
+fi
+if [[ "$attribution_first_fingerprint" != "$attribution_second_fingerprint" ]]; then
+  echo "Idempotent Ticket attribution rerun changed semantic schema state"
+  exit 1
+fi
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.ticket_booking_attribution_versions")" != "$attribution_history_count_before" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.commission_source_events")" != "$attribution_source_count_before" ]]; then
+  echo "Idempotent Ticket attribution rerun duplicated history or source events"
+  exit 1
+fi
+
+post_2402_fingerprint="$attribution_second_fingerprint"
+post_2402_historical_migrations=(
+  "$migration"
+  "$quick_entry_migration"
+  "$completion_migration"
+  "$service_transaction_migration"
+  "$rer_chronology_migration"
+  "$service_response_dates_migration"
+  "$immutable_replay_lineage_migration"
+  "$low_fare_migration"
+)
+for historical_migration in "${post_2402_historical_migrations[@]}"; do
+  assert_forward_migration_replay_blocked "$historical_migration"
+  if [[ "$(ticketing_schema_fingerprint)" != "$post_2402_fingerprint" ]]; then
+    echo "Blocked historical replay changed capability 2402 schema state: $historical_migration"
+    exit 1
+  fi
+done
+
+# A future version must block 2402 before any CREATE/ALTER statement.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.portal_schema_versions
+  set version = 2026082403
+  where component = 'ticketing'
+" >/dev/null
+future_2403_fingerprint="$(ticketing_schema_fingerprint)"
+assert_forward_migration_replay_blocked "$attribution_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$future_2403_fingerprint" ]]; then
+  echo "Blocked Ticket attribution replay changed future schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.portal_schema_versions
+  set version = 2026082402
+  where component = 'ticketing'
+" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$attribution_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$post_2402_fingerprint" ]]; then
+  echo "Restoring Ticket attribution 2402 changed semantic schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$attribution_assertions"
+
+# Both attribution RPCs must retain SHARE locks on the actor and selected
+# recipients until commit. Pause after those locks are acquired, then prove a
+# recipient deactivation and an administrator demotion wait rather than racing
+# a validated write.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  create or replace function public.ticketing_test_pause_attribution_employee_lock_race()
+  returns trigger
+  language plpgsql
+  as \$\$
+  begin
+    if new.reason in (
+      'Quick employee lock race',
+      'Correction employee role lock race'
+    ) then
+      perform pg_sleep(2);
+    end if;
+    return new;
+  end
+  \$\$;
+
+  create trigger ticketing_test_pause_attribution_employee_lock_race
+  before insert on public.ticket_booking_attribution_versions
+  for each row execute function public.ticketing_test_pause_attribution_employee_lock_race()
+" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_create_quick_tk_attributed(
+    '4a000000-0000-0000-0000-000000000001',
+    'attribution-employee-lock-quick',
+    jsonb_build_object(
+      'customerName', 'Attribution Employee Lock Race',
+      'pnr', 'ATTR-LKQ',
+      'airlineId', '50000000-0000-0000-0000-000000000001',
+      'serviceType', 'TK',
+      'operationalStatus', 'issued',
+      'bookingDate', '2026-08-24',
+      'timeLimitAt', null,
+      'issuedAt', '2026-08-24',
+      'currency', 'GBP',
+      'fares', jsonb_build_array(
+        jsonb_build_object(
+          'passengerType', 'ADT',
+          'quantity', 1,
+          'unitSupplierCost', 100
+        )
+      ),
+      'responsibleEmployeeId', '4a000000-0000-0000-0000-000000000002',
+      'assistantEmployeeIds', jsonb_build_array(
+        '4a000000-0000-0000-0000-000000000003'
+      ),
+      'attributionReason', 'Quick employee lock race'
+    )
+  )
+" >/dev/null &
+attribution_quick_employee_lock_pid=$!
+
+attribution_quick_pause_seen=false
+for _attempt in {1..100}; do
+  attribution_quick_pause_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%attribution-employee-lock-quick%'
+  ")"
+  if [[ "$attribution_quick_pause_count" -gt 0 ]]; then
+    attribution_quick_pause_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$attribution_quick_pause_seen" != true ]]; then
+  wait "$attribution_quick_employee_lock_pid" || true
+  echo "Attributed Quick employee-lock race pause was not observable"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  /* attribution-quick-recipient-deactivation */
+  update public.employees
+  set is_active = false
+  where id = '4a000000-0000-0000-0000-000000000003'
+" >/dev/null &
+attribution_quick_deactivation_pid=$!
+
+attribution_quick_deactivation_wait_seen=false
+for _attempt in {1..100}; do
+  attribution_quick_deactivation_wait_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and wait_event_type = 'Lock'
+      and query like '%attribution-quick-recipient-deactivation%'
+  ")"
+  if [[ "$attribution_quick_deactivation_wait_count" -gt 0 ]]; then
+    attribution_quick_deactivation_wait_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$attribution_quick_deactivation_wait_seen" != true ]]; then
+  wait "$attribution_quick_employee_lock_pid" || true
+  wait "$attribution_quick_deactivation_pid" || true
+  echo "Attributed Quick did not retain the selected-recipient SHARE lock"
+  exit 1
+fi
+
+wait "$attribution_quick_employee_lock_pid"
+wait "$attribution_quick_deactivation_pid"
+
+attribution_quick_employee_lock_result="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select count(*)
+  from public.ticket_bookings booking
+  join public.ticket_booking_current_attribution attribution
+    on attribution.booking_id = booking.id
+  where booking.normalized_pnr = 'ATTR-LKQ'
+    and attribution.attribution_version = 1
+    and attribution.primary_employee_id =
+      '4a000000-0000-0000-0000-000000000002'
+    and attribution.entered_by_employee_id =
+      '4a000000-0000-0000-0000-000000000001'
+    and attribution.assistant_employee_ids = array[
+      '4a000000-0000-0000-0000-000000000003'::uuid
+    ]
+    and not (
+      select employee.is_active
+      from public.employees employee
+      where employee.id = '4a000000-0000-0000-0000-000000000003'
+    )
+")"
+if [[ "$attribution_quick_employee_lock_result" != "1" ]]; then
+  echo "Attributed Quick employee-lock race committed incorrect state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.employees
+  set is_active = true
+  where id = '4a000000-0000-0000-0000-000000000003'
+" >/dev/null
+
+IFS='|' read -r attribution_lock_booking_id attribution_lock_booking_version \
+  <<< "$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+    select booking.id, booking.version
+    from public.ticket_bookings booking
+    where booking.normalized_pnr = 'ATTR-LKQ'
+  ")"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_correct_booking_attribution(
+    '4a000000-0000-0000-0000-000000000001',
+    '$attribution_lock_booking_id',
+    $attribution_lock_booking_version,
+    'attribution-employee-role-lock-correction',
+    jsonb_build_object(
+      'responsibleEmployeeId', '4a000000-0000-0000-0000-000000000004',
+      'assistantEmployeeIds', jsonb_build_array(
+        '4a000000-0000-0000-0000-000000000005'
+      ),
+      'reason', 'Correction employee role lock race'
+    )
+  )
+" >/dev/null &
+attribution_correction_employee_lock_pid=$!
+
+attribution_correction_pause_seen=false
+for _attempt in {1..100}; do
+  attribution_correction_pause_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%attribution-employee-role-lock-correction%'
+  ")"
+  if [[ "$attribution_correction_pause_count" -gt 0 ]]; then
+    attribution_correction_pause_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$attribution_correction_pause_seen" != true ]]; then
+  wait "$attribution_correction_employee_lock_pid" || true
+  echo "Attribution correction employee-lock race pause was not observable"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  /* attribution-correction-actor-demotion */
+  update public.employees
+  set role_id = (
+    select role.id
+    from public.roles role
+    where lower(btrim(role.name)) = 'manager'
+    limit 1
+  )
+  where id = '4a000000-0000-0000-0000-000000000001'
+" >/dev/null &
+attribution_correction_demotion_pid=$!
+
+attribution_correction_demotion_wait_seen=false
+for _attempt in {1..100}; do
+  attribution_correction_demotion_wait_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and wait_event_type = 'Lock'
+      and query like '%attribution-correction-actor-demotion%'
+  ")"
+  if [[ "$attribution_correction_demotion_wait_count" -gt 0 ]]; then
+    attribution_correction_demotion_wait_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$attribution_correction_demotion_wait_seen" != true ]]; then
+  wait "$attribution_correction_employee_lock_pid" || true
+  wait "$attribution_correction_demotion_pid" || true
+  echo "Attribution correction did not retain the administrator-role SHARE lock"
+  exit 1
+fi
+
+wait "$attribution_correction_employee_lock_pid"
+wait "$attribution_correction_demotion_pid"
+
+attribution_correction_employee_lock_result="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select count(*)
+  from public.ticket_bookings booking
+  join public.ticket_booking_current_attribution attribution
+    on attribution.booking_id = booking.id
+  join public.employees actor
+    on actor.id = '4a000000-0000-0000-0000-000000000001'
+  join public.roles role on role.id = actor.role_id
+  where booking.id = '$attribution_lock_booking_id'
+    and booking.version = $((attribution_lock_booking_version + 1))
+    and attribution.attribution_version = 2
+    and attribution.primary_employee_id =
+      '4a000000-0000-0000-0000-000000000004'
+    and attribution.changed_by_employee_id = actor.id
+    and attribution.assistant_employee_ids = array[
+      '4a000000-0000-0000-0000-000000000005'::uuid
+    ]
+    and lower(btrim(role.name)) = 'manager'
+")"
+if [[ "$attribution_correction_employee_lock_result" != "1" ]]; then
+  echo "Attribution correction employee-lock race committed incorrect state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.employees
+  set role_id = (
+    select role.id
+    from public.roles role
+    where lower(btrim(role.name)) = 'admin'
+    limit 1
+  )
+  where id = '4a000000-0000-0000-0000-000000000001';
+
+  drop trigger ticketing_test_pause_attribution_employee_lock_race
+    on public.ticket_booking_attribution_versions;
+  drop function public.ticketing_test_pause_attribution_employee_lock_race();
+" >/dev/null
+
+# Prove a future marker committed while 2403 waits for its table lock is caught
+# by the post-lock guard before any routine or trigger can be replaced.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  begin;
+  lock table public.ticket_bookings in access exclusive mode;
+  /* admin-completion-post-lock-guard-blocker */
+  select pg_sleep(2);
+  update public.portal_schema_versions
+  set version = 2026082404
+  where component = 'ticketing';
+  commit;
+" >/dev/null &
+admin_completion_guard_blocker_pid=$!
+
+admin_completion_guard_sleep_seen=false
+for _attempt in {1..100}; do
+  admin_completion_guard_sleep_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*)
+    from pg_stat_activity
+    where datname = current_database()
+      and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%admin-completion-post-lock-guard-blocker%'
+  ")"
+  if [[ "$admin_completion_guard_sleep_count" -gt 0 ]]; then
+    admin_completion_guard_sleep_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$admin_completion_guard_sleep_seen" != true ]]; then
+  wait "$admin_completion_guard_blocker_pid" || true
+  echo "Authorised completion post-lock guard blocker was not observable"
+  exit 1
+fi
+
+admin_completion_guard_output=""
+if admin_completion_guard_output="$(psql "$database_url" -v ON_ERROR_STOP=1 \
+  -f "$admin_completion_migration" 2>&1)"; then
+  wait "$admin_completion_guard_blocker_pid" || true
+  echo "Authorised completion migration crossed a concurrently committed future marker"
+  exit 1
+fi
+wait "$admin_completion_guard_blocker_pid"
+if [[ "$admin_completion_guard_output" != *"TICKETING_FORWARD_MIGRATION_REPLAY_BLOCKED"* ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select version from public.portal_schema_versions where component = 'ticketing'")" != "2026082404" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select pg_catalog.to_regprocedure('public.ticketing_complete_tk_details_authorized(uuid,uuid,text,jsonb)') is null")" != "t" ]]; then
+  echo "Authorised completion post-lock guard race left incorrect schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  update public.portal_schema_versions
+  set version = 2026082402
+  where component = 'ticketing'
+" >/dev/null
+
+pre_2403_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select details -> 'capabilities'
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+
+# AC-UPG1 is deliberately completed and paid through the legacy owner RPC
+# before 2403 so migration-time v2 sale/payment enrichment is exercised.
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_completion_pre_upgrade"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_completion_migration"
+admin_completion_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+admin_completion_first_fingerprint="$(ticketing_schema_fingerprint)"
+admin_completion_source_count_before_rerun="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.commission_source_events")"
+
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 \
+  -v pre_capabilities="$pre_2403_capabilities" -c "
+    select
+      (details -> 'capabilities') @> :'pre_capabilities'::jsonb
+      and jsonb_array_length(details -> 'capabilities') =
+        jsonb_array_length(:'pre_capabilities'::jsonb) + 3
+      and (details -> 'capabilities') ?& array[
+        'admin-on-behalf-tk-completion',
+        'reasoned-on-behalf-audit',
+        'root-completion-source-attribution'
+      ]
+    from public.portal_schema_versions
+    where component = 'ticketing'
+  ")" != "t" ]]; then
+  echo "Authorised completion capability marker dropped or invented predecessor capabilities"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_completion_migration"
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$admin_completion_first_applied_at" ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$admin_completion_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.commission_source_events")" != "$admin_completion_source_count_before_rerun" ]]; then
+  echo "Idempotent authorised completion rerun changed schema or source history"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_completion_assertions"
+
+# Two admin-on-behalf calls with the same optimistic versions serialize on the
+# booking; only the winner commits an audit/idempotency fact.
+IFS='|' read -r admin_completion_race_booking_id admin_completion_race_booking_version \
+  admin_completion_race_transaction_version \
+  <<< "$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+    select booking.id, booking.version, root.version
+    from public.ticket_bookings booking
+    join public.ticket_transactions root
+      on root.booking_id = booking.id
+      and root.service_type = 'TK'
+      and root.parent_transaction_id is null
+    where booking.normalized_pnr = 'AC-RACE1'
+  ")"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  create or replace function public.ticketing_test_pause_admin_completion_race()
+  returns trigger language plpgsql as \$\$
+  begin
+    if new.action = 'complete_tk_details_on_behalf'
+      and new.reason = 'Admin completion optimistic race'
+    then perform pg_sleep(2); end if;
+    return new;
+  end \$\$;
+  create trigger ticketing_test_pause_admin_completion_race
+  before insert on public.ticket_audit_events
+  for each row execute function public.ticketing_test_pause_admin_completion_race();
+" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_complete_tk_details_authorized(
+    '4a000000-0000-0000-0000-000000000001',
+    '$admin_completion_race_booking_id',
+    'admin-completion-race-winner',
+    jsonb_build_object(
+      'expectedBookingVersion', $admin_completion_race_booking_version,
+      'expectedTransactionVersion', $admin_completion_race_transaction_version,
+      'contactPhone', '+44 7000 240307', 'departureDate', '2026-12-02',
+      'returnDate', null, 'paymentStatus', 'unpaid', 'paidAt', null,
+      'fareSales', jsonb_build_array(
+        jsonb_build_object('passengerType', 'ADT', 'unitSalePrice', null)
+      ),
+      'passengers', '[]'::jsonb,
+      'onBehalfReason', 'Admin completion optimistic race'
+    )
+  )
+" >/dev/null &
+admin_completion_race_winner_pid=$!
+
+admin_completion_race_pause_seen=false
+for _attempt in {1..100}; do
+  if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*) from pg_stat_activity
+    where datname = current_database() and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%admin-completion-race-winner%'
+  ")" -gt 0 ]]; then
+    admin_completion_race_pause_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$admin_completion_race_pause_seen" != true ]]; then
+  wait "$admin_completion_race_winner_pid" || true
+  echo "Authorised completion optimistic race pause was not observable"
+  exit 1
+fi
+
+admin_completion_race_loser_output=""
+if admin_completion_race_loser_output="$(psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_complete_tk_details_authorized(
+    '4a000000-0000-0000-0000-000000000001',
+    '$admin_completion_race_booking_id',
+    'admin-completion-race-loser',
+    jsonb_build_object(
+      'expectedBookingVersion', $admin_completion_race_booking_version,
+      'expectedTransactionVersion', $admin_completion_race_transaction_version,
+      'contactPhone', '+44 7000 240308', 'departureDate', '2026-12-02',
+      'returnDate', null, 'paymentStatus', 'unpaid', 'paidAt', null,
+      'fareSales', jsonb_build_array(
+        jsonb_build_object('passengerType', 'ADT', 'unitSalePrice', null)
+      ),
+      'passengers', '[]'::jsonb,
+      'onBehalfReason', 'Admin completion optimistic race'
+    )
+  )
+" 2>&1)"; then
+  wait "$admin_completion_race_winner_pid" || true
+  echo "Both authorised completion optimistic race contenders committed"
+  exit 1
+fi
+if [[ "$admin_completion_race_loser_output" != *"TICKETING_VERSION_CONFLICT"* ]]; then
+  wait "$admin_completion_race_winner_pid" || true
+  echo "Authorised completion race loser omitted the version-conflict hint"
+  exit 1
+fi
+wait "$admin_completion_race_winner_pid"
+
+if [[ "$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    booking.contact_phone,
+    booking.version,
+    root.version,
+    (select count(*) from public.ticket_audit_events audit
+      where audit.booking_id = booking.id
+        and audit.action = 'complete_tk_details_on_behalf'),
+    (select count(*) from public.ticket_idempotency_keys key_row
+      where key_row.action_name = 'ticketing.complete_tk_details_authorized.v1'
+        and key_row.idempotency_key = 'admin-completion-race-winner'),
+    (select count(*) from public.ticket_idempotency_keys key_row
+      where key_row.action_name = 'ticketing.complete_tk_details_authorized.v1'
+        and key_row.idempotency_key = 'admin-completion-race-loser')
+  from public.ticket_bookings booking
+  join public.ticket_transactions root
+    on root.booking_id = booking.id and root.parent_transaction_id is null
+  where booking.id = '$admin_completion_race_booking_id'
+")" != "+44 7000 240307|$((admin_completion_race_booking_version + 1))|$((admin_completion_race_transaction_version + 1))|1|1|0" ]]; then
+  echo "Authorised completion race left incorrect operational/audit/retry state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  drop trigger ticketing_test_pause_admin_completion_race on public.ticket_audit_events;
+  drop function public.ticketing_test_pause_admin_completion_race();
+" >/dev/null
+
+# Self-completion authority is derived from locked Ticketing membership. Pause
+# after the operational write and prove a concurrent membership removal waits
+# until the authorised transaction commits.
+IFS='|' read -r admin_membership_booking_id admin_membership_booking_version \
+  admin_membership_transaction_version \
+  <<< "$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+    select booking.id, booking.version, root.version
+    from public.ticket_bookings booking
+    join public.ticket_transactions root
+      on root.booking_id = booking.id
+      and root.service_type = 'TK'
+      and root.parent_transaction_id is null
+    where booking.normalized_pnr = 'AC-MEM1'
+  ")"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  create or replace function public.ticketing_test_pause_admin_membership_race()
+  returns trigger
+  language plpgsql
+  as \$\$
+  begin
+    if new.action = 'complete_tk_details' and exists (
+      select 1 from public.ticket_bookings booking
+      where booking.id = new.booking_id and booking.normalized_pnr = 'AC-MEM1'
+    ) then
+      perform pg_sleep(2);
+    end if;
+    return new;
+  end
+  \$\$;
+  create trigger ticketing_test_pause_admin_membership_race
+  before insert on public.ticket_audit_events
+  for each row execute function public.ticketing_test_pause_admin_membership_race();
+" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_complete_tk_details_authorized(
+    '4a000000-0000-0000-0000-000000000002',
+    '$admin_membership_booking_id',
+    'admin-completion-membership-race',
+    jsonb_build_object(
+      'expectedBookingVersion', $admin_membership_booking_version,
+      'expectedTransactionVersion', $admin_membership_transaction_version,
+      'contactPhone', '+44 7000 240306',
+      'departureDate', '2026-12-01',
+      'returnDate', null,
+      'paymentStatus', 'unpaid',
+      'paidAt', null,
+      'fareSales', jsonb_build_array(
+        jsonb_build_object('passengerType', 'ADT', 'unitSalePrice', null)
+      ),
+      'passengers', '[]'::jsonb,
+      'onBehalfReason', null
+    )
+  )
+" >/dev/null &
+admin_membership_completion_pid=$!
+
+admin_membership_pause_seen=false
+for _attempt in {1..100}; do
+  if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*) from pg_stat_activity
+    where datname = current_database()
+      and state = 'active'
+      and wait_event = 'PgSleep'
+      and query like '%admin-completion-membership-race%'
+  ")" -gt 0 ]]; then
+    admin_membership_pause_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$admin_membership_pause_seen" != true ]]; then
+  wait "$admin_membership_completion_pid" || true
+  echo "Authorised self-completion membership race pause was not observable"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  /* admin-completion-membership-removal */
+  delete from public.employee_departments membership
+  where membership.employee_id = '4a000000-0000-0000-0000-000000000002'
+    and membership.department_id = '20000000-0000-0000-0000-000000000001'
+" >/dev/null &
+admin_membership_removal_pid=$!
+
+admin_membership_removal_wait_seen=false
+for _attempt in {1..100}; do
+  if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*) from pg_stat_activity
+    where datname = current_database()
+      and wait_event_type = 'Lock'
+      and query like '%admin-completion-membership-removal%'
+  ")" -gt 0 ]]; then
+    admin_membership_removal_wait_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$admin_membership_removal_wait_seen" != true ]]; then
+  wait "$admin_membership_completion_pid" || true
+  wait "$admin_membership_removal_pid" || true
+  echo "Authorised self-completion did not retain the Ticketing membership lock"
+  exit 1
+fi
+
+wait "$admin_membership_completion_pid"
+wait "$admin_membership_removal_pid"
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select count(*)
+  from public.ticket_bookings booking
+  where booking.id = '$admin_membership_booking_id'
+    and booking.contact_phone = '+44 7000 240306'
+    and not exists (
+      select 1 from public.employee_departments membership
+      where membership.employee_id = '4a000000-0000-0000-0000-000000000002'
+        and membership.department_id = '20000000-0000-0000-0000-000000000001'
+    )
+")" != "1" ]]; then
+  echo "Authorised membership race left incorrect completion or authority state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  insert into public.employee_departments (employee_id, department_id)
+  values (
+    '4a000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001'
+  ) on conflict do nothing;
+  drop trigger ticketing_test_pause_admin_membership_race
+    on public.ticket_audit_events;
+  drop function public.ticketing_test_pause_admin_membership_race();
+" >/dev/null
+
+post_2403_fingerprint="$(ticketing_schema_fingerprint)"
+assert_forward_migration_replay_blocked "$attribution_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$post_2403_fingerprint" ]]; then
+  echo "Blocked attribution replay changed capability 2403 schema state"
+  exit 1
+fi
+
 psql "$database_url" -v ON_ERROR_STOP=1 -c \
   "set role authenticated; select count(*) from public.airlines; reset role" >/dev/null
 
@@ -785,4 +2029,4 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "Ticketing foundation, quick-entry, completion, and DC/R-ER migration integration checks passed."
+echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, and authorised admin completion migration integration checks passed."

@@ -2,6 +2,10 @@ import type {
   TicketingAppendServiceTransactionInput,
   TicketingMarkServiceTransactionPaidInput,
 } from '@/lib/ticketing/serviceTransactionContracts'
+import type {
+  TicketingAttributionEmployee,
+  TicketingCorrectAttributionInput,
+} from '@/lib/ticketing/attributionContracts'
 
 export type TicketPassengerType = 'ADT' | 'CHD' | 'INF'
 
@@ -12,6 +16,8 @@ export type TicketAirlineOption = {
   iataCode: string
   name: string
 }
+
+export type TicketAttributionEmployee = TicketingAttributionEmployee
 
 export type TicketLedgerFare = {
   passengerType: TicketPassengerType
@@ -39,12 +45,18 @@ export type TicketLedgerItem = {
   commissionScope?: string
   detailsStatus?: TicketDetailsStatus
   fares: TicketLedgerFare[]
+  responsibleEmployee: TicketAttributionEmployee
+  assistantEmployees: TicketAttributionEmployee[]
+  attributionVersion: number
 }
 
 export type TicketLedgerContext = {
+  employeeId: string
   employeeName: string
   locationName: string | null
   timezone: string
+  canManageAttribution: boolean
+  attributionEmployees: TicketAttributionEmployee[]
 }
 
 export type TicketLedgerPayload = {
@@ -70,8 +82,13 @@ export type CreateTkTicketInput = {
   issuedAt: string | null
   currency: 'GBP'
   fares: TicketFareInput[]
+  responsibleEmployeeId?: string
+  assistantEmployeeIds?: string[]
+  attributionReason?: string | null
   confirmDuplicate?: boolean
 }
+
+export type CorrectTicketAttributionInput = TicketingCorrectAttributionInput
 
 export type TicketServiceBookingOption = {
   bookingId: string
@@ -140,9 +157,21 @@ export type TicketCompletionDetail = {
   paymentStatus: 'unpaid' | 'part_paid' | 'paid'
   paidAt: string | null
   airline: TicketAirlineOption
+  responsibleEmployee: TicketAttributionEmployee
   detailsStatus: TicketDetailsStatus
   fares: TicketCompletionFare[]
   passengers: TicketCompletionPassenger[]
+}
+
+export type TicketCompletionContext = {
+  ownerEmployee: TicketAttributionEmployee
+  isOnBehalf: boolean
+  onBehalfReasonRequired: boolean
+}
+
+export type TicketCompletionLoadResult = {
+  detail: TicketCompletionDetail
+  completionContext: TicketCompletionContext
 }
 
 export type TicketCompletionUpdate = {
@@ -153,6 +182,7 @@ export type TicketCompletionUpdate = {
   returnDate: string | null
   paymentStatus: 'unpaid' | 'paid'
   paidAt: string | null
+  onBehalfReason: string | null
   fareSales: Array<{
     passengerType: TicketPassengerType
     unitSalePrice: number | null

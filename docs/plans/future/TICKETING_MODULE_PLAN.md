@@ -1,12 +1,15 @@
 # Ticketing Module Plan
 
 > **Partial implementation record and remaining roadmap.** This document replaces the March 2026
-> brainstorm. The database foundation, own-agent TK ledger/detail completion, and issued DC/R-ER
-> financial service entry are implemented; later Ticketing workflows described here remain
-> proposals until their code, migrations, and tests are shipped.
+> brainstorm. The database foundation, TK ledger/detail completion, issued DC/R-ER financial
+> service entry, shared whole-PNR GBP Low Fare queue, and audited root-TK staff attribution are
+> implemented. Privileged admin-on-behalf TK completion is implemented locally but remains
+> unreleased until its disposable PostgreSQL suite, live migration, and generated-type refresh
+> complete; later Ticketing workflows described here remain proposals until their code,
+> migrations, and tests are shipped.
 
-- **Status:** Foundation and own-agent sales-ledger slice implemented — TK, DC, and R-ER
-- **Last updated:** August 23, 2026
+- **Status:** Foundation, sales ledger, shared Low Fare, and root-TK attribution slices implemented
+- **Last updated:** August 24, 2026
 - **Owner:** PT-Portal Team
 
 ### Implementation checkpoint — August 23, 2026
@@ -74,8 +77,54 @@
 - The implemented DC/R-ER entry is intentionally an aggregate issued financial service movement.
   Exact passenger allocation, the changed itinerary, Held child services, and a component split
   between fare difference and airline/change fee remain future workflows.
-- **Still future:** itinerary sectors, Low Fare, Ticket Vouchers, Sales Targets, team Flight
-  Monitoring, Refunds & Claims, and the native cancellation calculator.
+- **Still future:** itinerary sectors, no-change fare-check observations, non-GBP/partial-passenger
+  fare adjustments, Ticket Vouchers, Sales Targets, team Flight Monitoring, Refunds & Claims, and
+  the native cancellation calculator.
+
+### Implementation checkpoint — August 24, 2026
+
+- Reverified linked Ticketing capability `2026082304` and confirmed the operational/Commission
+  tables in scope were empty without reading customer rows. After the disposable-database suite
+  passed, applied `scripts/migrations/20260824_ticketing_low_fare_adjustments.sql` to the linked
+  project and verified `ticketing_schema_status()` ready at `2026082401`, service-only grants, RLS,
+  lineage/immutability/package-serialization triggers, and unchanged zero row counts. The required
+  Supabase CLI, PostgreSQL client, Docker, Node, and test tooling were already available; no
+  dependency or global add-on was needed for this slice.
+- Capability `2026082401` adds immutable linear whole-PNR GBP fare history, paired source/GBP
+  facts, server-snapshotted original fare, monotonic issue dates, optimistic/idempotent cross-agent
+  writes, booking-first package-scope serialization, redacted audit evidence, and target-safe
+  positive/higher-fare Commission source variables.
+- Added the shared `/dashboard/ticketing/low-fare` queue and strict
+  `GET/POST /api/ticketing/fare-adjustments` contract. It supports exact PNR, airline, owner, and
+  departure filters, query-bound keyset pagination, fast inline entry, and lower/higher signed-fare
+  presentation. It exposes supplier-fare operations only—never customer/contact data, sale values,
+  commission scope or amount, markup, margin, earnings, or profit.
+- Kept Commission policy ownership intact: the authenticated acting agent is the event recipient,
+  the original ticket owner and both branch contexts remain auditable source variables, package
+  scope is server-derived, and Ticketing never calculates a credit/debit or emits an issued-target
+  event for a fare movement.
+- The first slice intentionally rejects a same-fare observation rather than mixing operational
+  checks into financial adjustment lineage. A later append-only fare-check fact can provide true
+  `last checked` tracking without inventing a Commission event or bloating the active-fare chain.
+- Added, integration-tested, and deployed capability `2026082402`, then refreshed the linked
+  Supabase types. It separates the immutable authenticated entry actor from the responsible ticket
+  agent and up to ten assistants. Admin, Master Admin, and Super Admin can assign these roles during
+  TK entry or make an optimistic, reason-required correction later. Attribution corrections append
+  history, align booking/transaction ownership, and supersede the issued source fact rather than
+  rewriting it. Live verification confirmed the capability marker, six invariant triggers, RLS,
+  service-only mutation grants, an inaccessible transient write-context table, and unchanged zero
+  rows across the Ticketing and Commission source tables in scope.
+- Issued passenger-ticket target units belong only to the responsible agent. Assistants are emitted
+  as independent downstream Commission inputs with zero target units, so assistance never advances
+  an assistant's ticket target or primary-sale tier. Ticketing still stores no rate, calculated
+  commission, statement, payout, margin, or profit.
+- Implemented capability `2026082403` locally for Admin, Master Admin, and Super Admin to finish a
+  responsible employee's root-TK customer, journey, sale, and payment details without impersonating
+  them. The database derives the current owner, preserves the authenticated admin as the acting
+  employee, requires a bounded reason when actor and owner differ, and carries the corrected
+  primary/assistant attribution through issued, sale-completed, and paid source facts. This
+  capability is intentionally not marked deployed until the full disposable PostgreSQL runner is
+  green, the linked migration is applied and verified, and Supabase types are regenerated.
 
 ## 1. Summary
 
@@ -112,13 +161,28 @@ commission tables are migration inputs, not sufficient contracts for the new mod
   in the queue; Ticketing records that agent as the actor and the Commission module decides the
   resulting treatment.
 - Flight Monitoring shows operational flight data for all agents and provides an agent filter.
-- Manager, Admin, Master Admin, and Super Admin roles can see all ticketing records, resolve
-  package matches, make financial corrections, and review team target progress. Commission-policy
-  and statement permissions belong to the Commission module.
+- Planned team oversight remains available to Manager, Admin, Master Admin, and Super Admin where a
+  workflow explicitly permits it. Staff-attribution overrides and corrections are narrower: only
+  Admin, Master Admin, and Super Admin may perform them. A Manager may still be selected as the
+  responsible employee or an assistant.
+- The implemented attribution ledger gives Admin, Master Admin, and Super Admin the bounded latest
+  team rows needed to discover corrections. Manager and regular staff remain owner-only. Complete
+  team pagination/search remains a later ledger-hardening task.
 - Maintenance Admin receives no ticketing-finance privilege by default.
 - Agents may edit their own draft or held records. Once a ticket is issued and paid, financial
   corrections are append-only Manager/Admin adjustments; historical values are not silently
   rewritten.
+- Every ticket distinguishes the authenticated `entered by` employee from its responsible agent.
+  The acting/entry employee is never accepted from the browser and does not change when an admin
+  later corrects responsibility.
+- The responsible agent owns the booking and its transactions, receives the issued TK
+  passenger-ticket target units, and is the primary recipient supplied to Commission. Assistants are
+  separately recorded facts for that root TK sale; they receive no target units and do not advance
+  primary-sale tiers. A later DC or R-ER does not inherit the TK assistant list—those services need
+  their own transaction-scoped attribution workflow before assisted service entry is supported.
+- An admin entering while another employee is unavailable selects the responsible agent and any
+  assistants, with a reason. A later correction requires a fresh reason, optimistic booking version,
+  idempotency key, immutable audit row, and superseding source-event version.
 
 ### 2.2 Commission-variable contract
 
@@ -126,10 +190,11 @@ commission tables are migration inputs, not sufficient contracts for the new mod
   create statements, or calculate/display an agent's commission or company profit in the ledger.
 - On every relevant state change, Ticketing emits a versioned, idempotent source event for the
   Commission module containing variables rather than a calculated amount.
-- Core variables include source event/transaction IDs, acting and owning employee IDs, location,
-  service type, issued/paid/cancelled/refunded timestamps and states, passenger-ticket count,
-  source/GBP sale and supplier costs, original/new fare and GBP difference, package link/type, and
-  package-exemption state.
+- Core variables include source event/transaction IDs, immutable acting employee, primary
+  responsible employee, assistant employee IDs, primary/assistant target units, location, service
+  type, issued/paid/cancelled/refunded timestamps and states, passenger-ticket count, source/GBP sale
+  and supplier costs, original/new fare and GBP difference, package link/type, and package-exemption
+  state.
 - "Passenger-ticket count" means issued passenger tickets, not PNRs. Three passengers issued under
   one PNR emit a count of three.
 - TK, DC, and R-ER remain separate service variables. The Commission module may configure any of
@@ -215,6 +280,10 @@ commission figures.
 - The default metric counts TK passenger-tickets exactly once when their operational state first
   becomes Issued. One PNR with three issued passengers adds three; creating the PNR or marking it
   Paid adds nothing.
+- All issued TK units count for the current responsible agent. Every assistant receives zero target
+  units from that assistance and must make primary sales separately to hit their own weekly/monthly
+  target. Correcting the responsible agent transfers the source fact through versioned correction
+  lineage; it does not leave target credit with the entry actor.
 - DC, R-ER, low-fare, refund, and voucher events do not inflate the default issued-ticket sales
   target. The Commission module may define a separate target metric later without changing the
   Ticketing ledger.
@@ -245,8 +314,12 @@ Minimum quick-save fields:
 
 Fast-entry defaults:
 
-- Agent comes from the authenticated staff session and is never accepted from the browser as the
-  acting user.
+- The acting/entered-by employee comes from the authenticated staff session and is never accepted
+  from the browser.
+- For ordinary staff, the responsible agent defaults permanently to the acting employee and there
+  are no assistant controls. Admin, Master Admin, and Super Admin see a fast responsible-agent
+  selector defaulted to **Me**, may add up to ten unique assistants, and must enter a reason when
+  responsibility differs or assistance is recorded.
 - Booking date defaults to today in the operational timezone.
 - Payment defaults to Unpaid; passenger mix defaults to one ADT.
 - Currency defaults to GBP.
@@ -320,13 +393,19 @@ remains available even while the persisted passenger list is incomplete.
 
 ### 3.6 Low Fare Queue
 
-The queue contains eligible issued tickets from all agents and supports PNR, airline, departure,
-owner, and last-checked filters. It exposes only the operational and fare information needed to
-perform a fare check; it exposes no commission, earnings, margin, or company-profit information.
+The implemented queue contains eligible issued tickets from all agents and supports exact PNR,
+airline, owner, and departure-date filters with bounded keyset pagination. It exposes only the
+operational and supplier-fare information needed to record a changed fare; it exposes no customer
+contact, sale value, commission scope/amount, earnings, markup, margin, or company-profit
+information. Its owner dropdown learns agents from pages already loaded in this first slice; a
+future bounded Ticketing-agent options endpoint can provide complete up-front owner discovery.
 
-An adjustment records original fare, new fare, issue/reissue date, acting agent, source currency,
-actual GBP values, and notes. The original fare is a server snapshot of the current active fare, not
-a caller-trusted value.
+The first slice is GBP-only and records a whole-PNR supplier total, not a partial-passenger change.
+For the first adjustment, the original fare is a server snapshot of the immutable issued root TK's
+complete GBP supplier total. Thereafter it is the current tail's new fare. The caller submits only
+the replacement fare, effective issue date, notes, optimistic versions, and expected predecessor;
+acting agent, owner, passenger count, branch, package scope, original fare, and difference are all
+server-derived.
 
 For GBP values:
 
@@ -335,10 +414,13 @@ difference = original fare - new fare
 ```
 
 The adjustment appends history and then becomes the active fare; it never deletes or rewrites an
-earlier adjustment. Ticketing emits the signed difference, acting agent, passenger count, and
-package-match variables. The Commission module alone decides whether the event creates a credit,
-debit, or no entry. Manager/Admin may correct acting-agent attribution through an audited source
-correction event.
+earlier adjustment or the issued root TK. Its date cannot predate the root issue date or the current
+tail. A positive difference emits `ticket_low_fare_adjusted`; a negative difference emits
+`ticket_higher_fare_adjusted`. Both carry the acting agent, original owner, signed difference,
+passenger count, branch, and package-match variables but zero target units and no calculated
+commission. The Commission module alone decides whether the event creates a credit, debit, or no
+entry. Zero-difference observations, non-GBP settlement, partial-passenger allocation, automatic
+R-ER creation, and transaction-scoped DC/R-ER attribution remain later workflows.
 
 ### 3.7 Refunds and company loss
 
@@ -443,29 +525,31 @@ remaining balance. Reuse must link to a new ticket from the same airline; a mism
 
 ### 4.1 Schema strategy
 
-Use a committed, idempotent migration under `scripts/migrations/`. The generated schema currently
-contains `ticket_ledger`, `airlines`, `commission_rules`, `commission_rate_components`,
-`commission_tiers`, and `employee_commission_assignments`, but the repository has no operational
-Ticketing migration/API using them. Ticketing migrations must not redesign those commission tables;
-their reconciliation belongs to the Commission module plan.
+Use committed, idempotent migrations under `scripts/migrations/`. The generated schema now contains
+the normalized Ticketing foundation and implemented TK/DC/R-ER/Low Fare capabilities alongside the
+frozen legacy `ticket_ledger`, `airlines`, `commission_rules`, `commission_rate_components`,
+`commission_tiers`, and `employee_commission_assignments`. Ticketing migrations must not redesign
+those commission tables; their reconciliation belongs to the Commission module plan.
 
 The normalized module will use:
 
-| Table                         | Responsibility                                                                                     |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ticket_bookings`             | PNR/customer owner, current lifecycle, package match, and current itinerary summary                |
-| `ticket_transactions`         | Immutable TK/DC/R-ER financial and issuance events                                                 |
-| `ticket_passenger_fare_lines` | Grouped ADT/CHD/INF quantities and source/GBP buy/sale values                                      |
-| `ticket_passengers`           | Later passenger names, types, ticket numbers, and per-person allocation                            |
-| `ticket_itinerary_sectors`    | Flight numbers, airports, local/UTC times, timezone, and active schedule                           |
-| `ticket_schedule_events`      | Marked, reviewed, and finalised manual schedule changes                                            |
-| `ticket_fare_adjustments`     | Low/higher fare history and acting-agent attribution                                               |
-| `ticket_refunds`              | Customer refund, airline recovery, fees, calculator/formula snapshot, claim status, and P&L inputs |
-| `ticket_vouchers`             | Claim entitlement, deadline, confirmed value, remaining value, and status                          |
-| `ticket_voucher_events`       | Submission, confirmation, partial use, refund receipt, expiry, and closure                         |
-| `ticket_package_links`        | PNR-derived package/reservation links and match resolution                                         |
-| `ticket_audit_events`         | Before/after metadata for every privileged correction or lifecycle event                           |
-| `ticket_notification_events`  | Idempotent time-limit and voucher reminder delivery records                                        |
+| Table                                   | Responsibility                                                                                     |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ticket_bookings`                       | PNR/customer owner, current lifecycle, package match, and current itinerary summary                |
+| `ticket_transactions`                   | Immutable TK/DC/R-ER financial and issuance events with aligned operational ownership              |
+| `ticket_booking_attribution_versions`   | Immutable primary/entered-by/change-actor versions for each root TK booking                        |
+| `ticket_booking_attribution_assistants` | Immutable independent assistants attached to one attribution version                               |
+| `ticket_passenger_fare_lines`           | Grouped ADT/CHD/INF quantities and source/GBP buy/sale values                                      |
+| `ticket_passengers`                     | Later passenger names, types, ticket numbers, and per-person allocation                            |
+| `ticket_itinerary_sectors`              | Flight numbers, airports, local/UTC times, timezone, and active schedule                           |
+| `ticket_schedule_events`                | Marked, reviewed, and finalised manual schedule changes                                            |
+| `ticket_fare_adjustments`               | Low/higher fare history and acting-agent attribution                                               |
+| `ticket_refunds`                        | Customer refund, airline recovery, fees, calculator/formula snapshot, claim status, and P&L inputs |
+| `ticket_vouchers`                       | Claim entitlement, deadline, confirmed value, remaining value, and status                          |
+| `ticket_voucher_events`                 | Submission, confirmation, partial use, refund receipt, expiry, and closure                         |
+| `ticket_package_links`                  | PNR-derived package/reservation links and match resolution                                         |
+| `ticket_audit_events`                   | Before/after metadata for every privileged correction or lifecycle event                           |
+| `ticket_notification_events`            | Idempotent time-limit and voucher reminder delivery records                                        |
 
 Do not delete the existing `ticket_ledger` in the first release. Backfill any existing rows into the
 new model with a migration map, then stop new application writes to the legacy table. Excel history
@@ -517,6 +601,7 @@ routes:
 
 - `GET/POST /api/ticketing/bookings`
 - `GET/PATCH /api/ticketing/bookings/{id}`
+- `PATCH /api/ticketing/ledger/{id}/attribution` for admin-only, audited attribution correction
 - `POST /api/ticketing/bookings/{id}/transactions`
 - `GET/POST/PATCH /api/ticketing/bookings/{id}/passengers`
 - `GET/POST/PATCH /api/ticketing/bookings/{id}/sectors`
@@ -531,7 +616,8 @@ routes:
 All routes must:
 
 - Resolve the actor and employee ID from `requireStaffSession`; never trust caller-supplied acting
-  or owner IDs.
+  IDs. A caller-supplied responsible/assistant selection is accepted only by the explicitly
+  admin-authorised attribution contracts and is revalidated inside the service-only database RPC.
 - Apply the own-record/team-oversight rules on the server, even when a UI control is hidden.
 - Use strict request schemas, bounded pagination, ISO dates/currencies, and semantic response DTOs.
 - Use idempotency keys for quick create, issuance/payment posting, fare adjustment, refund, voucher
@@ -590,16 +676,25 @@ All routes must:
 - **Implemented:** exact-PNR issued DC/R-ER entry with affected passenger-group quantities, full
   GBP supplier/customer unit values, immutable root/reissue lineage, Paid-at-create or later Paid
   state, package-scope variables, and target-safe service-specific source facts.
+- **Implemented locally; release pending:** audited admin-on-behalf root-TK detail and payment
+  completion that never impersonates the responsible employee and preserves current attribution in
+  all root-completion source facts.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
-  DC/R-ER, and completed itinerary sectors.
+  DC/R-ER, completed itinerary sectors, and transaction-scoped admin/assistant attribution for
+  DC/R-ER service completion.
 - Connect the dashboard's all-agent Flight Monitoring, manual schedule-change workflow, and
   24/6/2-hour time-limit reminders.
-- Add Manager/Admin all-agent ledger and correction tools.
+- Complete admin team-ledger pagination/search and the audited admin-on-behalf completion tools.
 
-### Phase 3: Targets and low fare — future
+### Phase 3: Targets and low fare — partially implemented
 
-- Add the shared Low Fare Queue, signed fare-difference source variables, and audited attribution
-  corrections without calculating or displaying commission.
+- **Implemented:** shared GBP whole-PNR Low Fare Queue, immutable signed fare-difference source
+  variables, acting-agent attribution, package snapshots, and no commission/profit presentation.
+- **Implemented:** admin entry-time and later correction of responsible/assistant TK attribution,
+  immutable attribution history, owner alignment, primary-only target variables, assistant zero
+  target units, and issued source-event correction lineage.
+- **Future:** same-fare check observations, non-GBP and partial-passenger adjustments, and complete
+  owner-filter options.
 - Connect issued TK passenger-ticket events to Commission-owned weekly/monthly targets and show the
   read-only non-financial progress card in Ticketing.
 - Verify that Ticketing emits every variable required by the separate Commission module plan.
@@ -636,6 +731,9 @@ All routes must:
 - Time-limit emails are emitted once at 24/6/2 hours and once at expiry.
 - Three TK passengers emit one idempotent issued event with `passenger_ticket_count=3`; payment,
   refund, or cancellation does not duplicate the issued-target count.
+- Admin entry for another employee keeps the admin as immutable actor, assigns all issued-target
+  units to the responsible employee, and gives every assistant zero target units. A correction moves
+  attribution through one linear source-event version without changing the original actor.
 - The default weekly/monthly target counts issued TK passenger-tickets, includes package tickets,
   excludes DC/R-ER/low-fare/refunds, and reverses only an erroneous issuance correction.
 - TK, DC, R-ER, low-fare, refund, package-match, and package-correction events emit complete,
@@ -655,8 +753,10 @@ All routes must:
 
 - An agent cannot list, edit, or refund another agent's private record through direct API calls.
 - The shared Low Fare Queue and Flight Monitoring return only their intentionally shared fields.
-- The acting agent is always session-derived, including cross-agent low-fare adjustments.
-- Manager/Admin can perform audited corrections and team actions; Maintenance Admin cannot.
+- The acting agent is always session-derived, including cross-agent low-fare adjustments and admin
+  ticket entry on behalf of staff.
+- Admin, Master Admin, and Super Admin can perform audited attribution corrections; Manager and
+  Maintenance Admin cannot. Recipient lists may still contain any active employee.
 - Duplicate requests and concurrent issue/payment/fare/refund submissions do not double-create a
   transaction, source event, target count, voucher allocation, or notification.
 - Public package endpoints never expose ticketing financial/customer-internal fields.
@@ -679,10 +779,13 @@ All routes must:
 Run at minimum:
 
 ```bash
+npm run test:db:ticketing
 npm run typecheck
 npm run lint
 npm run format:check:changed
 npm run docs:check
+npm run docs:check-api
+npm run api:check-boundaries
 npx vitest run --maxWorkers=4
 npx next build --webpack
 ```

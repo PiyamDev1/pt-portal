@@ -6,6 +6,8 @@ import {
   PackageCheck,
   PencilLine,
   TriangleAlert,
+  UserRoundCheck,
+  UserRoundCog,
 } from 'lucide-react'
 import type { TicketLedgerItem, TicketPassengerType } from './types'
 
@@ -86,13 +88,19 @@ function PackageBadge({ status }: { status: string }) {
 export function TicketLedgerList({
   items,
   timezone,
+  employeeId,
   onComplete,
   onMarkPaid,
+  canManageAttribution,
+  onCorrectAttribution,
 }: {
   items: TicketLedgerItem[]
   timezone: string
+  employeeId: string
   onComplete: (item: TicketLedgerItem) => void
   onMarkPaid: (item: TicketLedgerItem) => void
+  canManageAttribution: boolean
+  onCorrectAttribution: (item: TicketLedgerItem) => void
 }) {
   if (items.length === 0) {
     return (
@@ -127,6 +135,7 @@ export function TicketLedgerList({
         {items.map((item) => {
           const keyDate = item.operationalStatus === 'held' ? item.timeLimitAt : item.issuedAt
           const keyDateLabel = item.operationalStatus === 'held' ? 'Time limit' : 'Issued'
+          const isResponsibleEmployee = item.responsibleEmployee.id === employeeId
           return (
             <article
               key={item.transactionId}
@@ -153,6 +162,18 @@ export function TicketLedgerList({
                 <p className="mt-0.5 text-xs text-slate-500">
                   Booked {formatDate(item.bookingDate, timezone)}
                 </p>
+                <div className="mt-2 space-y-0.5 border-l-2 border-sky-200 pl-2">
+                  <p className="truncate text-[11px] font-bold text-slate-700">
+                    {item.serviceType === 'TK' ? 'Responsible' : 'Booking owner'}:{' '}
+                    {item.responsibleEmployee.fullName}
+                  </p>
+                  {item.serviceType === 'TK' && item.assistantEmployees.length > 0 && (
+                    <p className="truncate text-[11px] font-semibold text-slate-500">
+                      Assisted by:{' '}
+                      {item.assistantEmployees.map((employee) => employee.fullName).join(', ')}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -211,18 +232,49 @@ export function TicketLedgerList({
                       : 'Needs details'}
                 </span>
                 {item.serviceType === 'TK' ? (
-                  <button
-                    type="button"
-                    onClick={() => onComplete(item)}
-                    aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr}`}
-                    className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
-                  >
-                    <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-                    {item.detailsStatus === 'complete' ? 'View details' : 'Complete details'}
-                  </button>
+                  <>
+                    {isResponsibleEmployee ? (
+                      <button
+                        type="button"
+                        onClick={() => onComplete(item)}
+                        aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr}`}
+                        className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
+                      >
+                        <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
+                        {item.detailsStatus === 'complete' ? 'View details' : 'Complete details'}
+                      </button>
+                    ) : canManageAttribution ? (
+                      <button
+                        type="button"
+                        onClick={() => onComplete(item)}
+                        aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr} on behalf of ${item.responsibleEmployee.fullName}`}
+                        className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 hover:bg-violet-100"
+                      >
+                        <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                        {item.detailsStatus === 'complete'
+                          ? 'View on behalf'
+                          : 'Complete on behalf'}
+                      </button>
+                    ) : (
+                      <p className="rounded-xl bg-slate-100 px-3 py-2 text-center text-[11px] font-semibold text-slate-600">
+                        Details handled by {item.responsibleEmployee.fullName}
+                      </p>
+                    )}
+                    {canManageAttribution && (
+                      <button
+                        type="button"
+                        onClick={() => onCorrectAttribution(item)}
+                        aria-label={`Correct staff attribution for ${item.pnr}`}
+                        className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-black text-sky-800 hover:bg-sky-100"
+                      >
+                        <UserRoundCog className="h-3.5 w-3.5" aria-hidden="true" />
+                        Correct staff
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <>
-                    {item.paymentStatus === 'unpaid' ? (
+                    {item.paymentStatus === 'unpaid' && isResponsibleEmployee ? (
                       <button
                         type="button"
                         onClick={() => onMarkPaid(item)}
@@ -234,7 +286,9 @@ export function TicketLedgerList({
                       </button>
                     ) : (
                       <p className="text-center text-[11px] font-semibold text-slate-500">
-                        Financial service entry
+                        {item.paymentStatus === 'unpaid'
+                          ? `Payment handled by ${item.responsibleEmployee.fullName}`
+                          : 'Financial service entry'}
                       </p>
                     )}
                   </>

@@ -1,0 +1,103 @@
+import { describe, expect, it } from 'vitest'
+import { ticketingCorrectAttributionSchema } from '@/lib/ticketing/attributionContracts'
+import { ticketingQuickTkSchema } from '@/lib/ticketing/contracts'
+
+const PRIMARY_ID = '40000000-0000-4000-8000-000000000001'
+const ASSISTANT_ID = '40000000-0000-4000-8000-000000000002'
+
+describe('ticketing attribution contracts', () => {
+  it('accepts a strict, reasoned correction', () => {
+    expect(
+      ticketingCorrectAttributionSchema.parse({
+        expectedBookingVersion: 4,
+        responsibleEmployeeId: PRIMARY_ID,
+        assistantEmployeeIds: [ASSISTANT_ID],
+        reason: '  Corrected after an administrator covered the ticket  ',
+      }),
+    ).toEqual({
+      expectedBookingVersion: 4,
+      responsibleEmployeeId: PRIMARY_ID,
+      assistantEmployeeIds: [ASSISTANT_ID],
+      reason: 'Corrected after an administrator covered the ticket',
+    })
+  })
+
+  it.each([
+    {
+      name: 'duplicate assistants',
+      patch: { assistantEmployeeIds: [ASSISTANT_ID, ASSISTANT_ID] },
+    },
+    {
+      name: 'the primary repeated as an assistant',
+      patch: { assistantEmployeeIds: [PRIMARY_ID] },
+    },
+    {
+      name: 'more than ten assistants',
+      patch: {
+        assistantEmployeeIds: Array.from(
+          { length: 11 },
+          (_, index) => `40000000-0000-4000-8000-${String(index + 10).padStart(12, '0')}`,
+        ),
+      },
+    },
+    { name: 'a blank reason', patch: { reason: '  ' } },
+    { name: 'an unknown identity field', patch: { actingEmployeeId: PRIMARY_ID } },
+  ])('rejects $name', ({ patch }) => {
+    expect(
+      ticketingCorrectAttributionSchema.safeParse({
+        expectedBookingVersion: 4,
+        responsibleEmployeeId: PRIMARY_ID,
+        assistantEmployeeIds: [ASSISTANT_ID],
+        reason: 'Correction reason',
+        ...patch,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('applies empty attribution defaults to ordinary quick entry', () => {
+    const parsed = ticketingQuickTkSchema.parse({
+      customerName: 'Test Passenger',
+      pnr: 'ABC123',
+      airlineId: '50000000-0000-4000-8000-000000000001',
+      serviceType: 'TK',
+      operationalStatus: 'held',
+      bookingDate: '2026-08-24',
+      timeLimitAt: '2026-08-25T17:00',
+      issuedAt: null,
+      currency: 'GBP',
+      fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 400 }],
+    })
+
+    expect(parsed).toMatchObject({
+      assistantEmployeeIds: [],
+      attributionReason: null,
+    })
+    expect(parsed).not.toHaveProperty('responsibleEmployeeId')
+  })
+
+  it('rejects duplicate assistants and primary/assistant overlap on quick entry', () => {
+    const base = {
+      customerName: 'Test Passenger',
+      pnr: 'ABC123',
+      airlineId: '50000000-0000-4000-8000-000000000001',
+      serviceType: 'TK' as const,
+      operationalStatus: 'issued' as const,
+      bookingDate: '2026-08-24',
+      timeLimitAt: null,
+      issuedAt: '2026-08-24',
+      currency: 'GBP' as const,
+      fares: [{ passengerType: 'ADT' as const, quantity: 1, unitSupplierCost: 400 }],
+      responsibleEmployeeId: PRIMARY_ID,
+    }
+
+    expect(
+      ticketingQuickTkSchema.safeParse({
+        ...base,
+        assistantEmployeeIds: [ASSISTANT_ID, ASSISTANT_ID],
+      }).success,
+    ).toBe(false)
+    expect(
+      ticketingQuickTkSchema.safeParse({ ...base, assistantEmployeeIds: [PRIMARY_ID] }).success,
+    ).toBe(false)
+  })
+})

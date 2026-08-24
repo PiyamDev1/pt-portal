@@ -44,6 +44,28 @@ describe('Ticketing completion contracts', () => {
 
     expect(parsed.contactPhone).toBe('+44 7700 900123')
     expect(parsed.paymentStatus).toBe('paid')
+    expect(parsed.onBehalfReason).toBeNull()
+  })
+
+  it('accepts a bounded on-behalf reason without accepting identity fields', () => {
+    const parsed = ticketingCompleteTkDetailsSchema.parse({
+      ...validDetails(),
+      onBehalfReason: '  Completed while the responsible employee was off sick  ',
+    })
+
+    expect(parsed.onBehalfReason).toBe('Completed while the responsible employee was off sick')
+    expect(
+      ticketingCompleteTkDetailsSchema.safeParse({
+        ...validDetails(),
+        onBehalfReason: '   ',
+      }).success,
+    ).toBe(false)
+    expect(
+      ticketingCompleteTkDetailsSchema.safeParse({
+        ...validDetails(),
+        onBehalfReason: 'x'.repeat(501),
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects unknown fields at the root and nested levels', () => {
