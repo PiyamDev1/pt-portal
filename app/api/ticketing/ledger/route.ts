@@ -314,9 +314,29 @@ async function hasTicketingRuntimeCapability(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
 ) {
   const { data, error } = await supabase.rpc('ticketing_schema_status')
-  if (error || !data || typeof data !== 'object' || Array.isArray(data)) return false
+  if (error) {
+    console.error('[ticketing] schema capability check failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+    return false
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    console.error('[ticketing] schema capability check returned an invalid result')
+    return false
+  }
   const status = data as Record<string, unknown>
-  return status.ready === true && Number(status.version || 0) >= TICKETING_RUNTIME_VERSION
+  if (status.ready !== true || Number(status.version || 0) < TICKETING_RUNTIME_VERSION) {
+    console.error('[ticketing] schema capability is not ready', {
+      ready: status.ready,
+      version: status.version,
+      requiredVersion: TICKETING_RUNTIME_VERSION,
+    })
+    return false
+  }
+  return true
 }
 
 export async function GET(request: NextRequest) {
