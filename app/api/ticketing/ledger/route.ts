@@ -296,8 +296,16 @@ function mutationError(error: TicketingRpcError) {
   }
   if (error.code === '42501') return apiError('Forbidden', 403)
   if (error.code === 'P0002') return apiError(message || 'Invalid ticket details', 400)
-  if (['22007', '22023', '23503', '23514'].includes(String(error.code || ''))) {
+  if (error.code === '55000') {
+    return apiError('This ticket could not be saved consistently. Refresh and try again.', 409, {
+      code: 'TICKETING_STATE_CONFLICT',
+    })
+  }
+  if (['22007', '22023', '23503', '23505', '23514'].includes(String(error.code || ''))) {
     return apiError('Invalid ticket details', 400)
+  }
+  if (['42P01', '42883'].includes(String(error.code || ''))) {
+    return apiError('Ticketing quick entry is not installed on this database.', 503)
   }
   return apiError('Unable to save the ticket right now.', 500)
 }

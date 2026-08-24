@@ -772,6 +772,56 @@ describe('/api/ticketing/ledger', () => {
     expect(body.error).toBe('Active airline not found')
   })
 
+  it('maps ticketing state and schema failures instead of returning a generic server error', async () => {
+    const stateConflict = mocks.rpc
+      .mockResolvedValueOnce({
+        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '55000', message: 'Initial ticket attribution was not recorded atomically' },
+      })
+
+    const stateResponse = await POST(postRequest(validEntry(), 'state-conflict'))
+    expect(stateResponse.status).toBe(409)
+    expect(await stateResponse.json()).toEqual({
+      error: 'This ticket could not be saved consistently. Refresh and try again.',
+      code: 'TICKETING_STATE_CONFLICT',
+    })
+    expect(stateConflict).toHaveBeenCalled()
+
+    vi.clearAllMocks()
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'own',
+      user: { id: ACTOR_ID, email: 'agent@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'agent@example.test',
+        fullName: 'Ticket Agent',
+        role: 'Agent',
+        departments: ['Ticketing'],
+      },
+    })
+    mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function ticketing_create_quick_tk_attributed does not exist' },
+      })
+
+    const schemaResponse = await POST(postRequest(validEntry(), 'schema-missing'))
+    expect(schemaResponse.status).toBe(503)
+    expect(await schemaResponse.json()).toEqual({
+      error: 'Ticketing quick entry is not installed on this database.',
+    })
+  })
+
   it('maps an inactive attribution recipient to a stable client error', async () => {
     mocks.requireTicketingAccess.mockResolvedValue({
       authorized: true,
