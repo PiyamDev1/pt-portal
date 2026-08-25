@@ -323,15 +323,21 @@ async function hasTicketingRuntimeCapability(
     })
     return false
   }
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    console.error('[ticketing] schema capability check returned an invalid result')
+  const status = Array.isArray(data) ? data[0] : data
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    console.error('[ticketing] schema capability check returned an invalid result', {
+      resultType: Array.isArray(data) ? 'array' : typeof data,
+    })
     return false
   }
-  const status = data as Record<string, unknown>
-  if (status.ready !== true || Number(status.version || 0) < TICKETING_RUNTIME_VERSION) {
+  const capability = status as Record<string, unknown>
+  if (
+    capability.ready !== true ||
+    Number(capability.version || 0) < TICKETING_RUNTIME_VERSION
+  ) {
     console.error('[ticketing] schema capability is not ready', {
-      ready: status.ready,
-      version: status.version,
+      ready: capability.ready,
+      version: capability.version,
       requiredVersion: TICKETING_RUNTIME_VERSION,
     })
     return false

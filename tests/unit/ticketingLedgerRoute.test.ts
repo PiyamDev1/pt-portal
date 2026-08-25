@@ -822,6 +822,37 @@ describe('/api/ticketing/ledger', () => {
     })
   })
 
+  it('accepts a singleton array from the schema status RPC', async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: [{ ready: true, version: 2026082403, requiredVersion: 2026082403 }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          booking: { id: 'booking-1', operationalStatus: 'held', paymentStatus: 'unpaid' },
+          transaction: {
+            id: 'transaction-1',
+            serviceType: 'TK',
+            operationalStatus: 'held',
+            paymentStatus: 'unpaid',
+            passengerTicketCount: 1,
+          },
+          packageMatch: { status: 'unmatched' },
+          idempotentReplay: false,
+        },
+        error: null,
+      })
+
+    const response = await POST(postRequest(validEntry(), 'array-status'))
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_create_quick_tk_attributed',
+      expect.anything(),
+    )
+  })
+
   it('maps an inactive attribution recipient to a stable client error', async () => {
     mocks.requireTicketingAccess.mockResolvedValue({
       authorized: true,
