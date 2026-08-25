@@ -540,9 +540,18 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  if (error) return mutationError(error)
+  if (error) {
+    console.error('[ticketing] quick entry RPC failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+    return mutationError(error)
+  }
   const rpcResult = data as unknown as TicketingQuickTkRpcResult | null
   if (!rpcResult?.booking?.id || !rpcResult.transaction?.id) {
+    console.error('[ticketing] quick entry RPC returned an invalid result')
     return apiError('Ticketing returned an invalid save result.', 500)
   }
 
@@ -552,6 +561,10 @@ export async function POST(request: NextRequest) {
     !['held', 'issued'].includes(String(operationalStatus || '')) ||
     !['unmatched', 'matched', 'ambiguous'].includes(String(packageMatchStatus || ''))
   ) {
+    console.error('[ticketing] quick entry RPC returned invalid ticket status data', {
+      operationalStatus,
+      packageMatchStatus,
+    })
     return apiError('Ticketing returned an invalid save result.', 500)
   }
 
