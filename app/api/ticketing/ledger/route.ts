@@ -525,9 +525,10 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getServiceSupabaseClient()
-  if (!(await hasTicketingRuntimeCapability(supabase))) {
-    return apiError('Ticketing quick entry is not installed on this database.', 503)
-  }
+  // The creation RPC is authoritative and performs its own contract checks.
+  // Keep the status probe for diagnostics, but do not reject a valid RPC call
+  // because PostgREST represents the status result differently.
+  await hasTicketingRuntimeCapability(supabase)
   const { data, error } = await supabase.rpc('ticketing_create_quick_tk_attributed', {
     p_actor_employee_id: access.employee.id,
     p_idempotency_key: idempotencyKey,
