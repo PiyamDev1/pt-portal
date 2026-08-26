@@ -297,6 +297,7 @@ describe('TicketLedgerList', () => {
     }
 
     const onComplete = vi.fn()
+    const onEditItinerary = vi.fn()
     render(
       <TicketLedgerList
         items={[item]}
@@ -304,6 +305,7 @@ describe('TicketLedgerList', () => {
         employeeId="employee-agent"
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
+        onEditItinerary={onEditItinerary}
         canManageAttribution={false}
         onCorrectAttribution={vi.fn()}
       />,
@@ -316,6 +318,8 @@ describe('TicketLedgerList', () => {
     expect(screen.getByText('Assisted by: Assistant One')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Complete details for ABC123' }))
     expect(onComplete).toHaveBeenCalledWith(item)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit itinerary for ABC123' }))
+    expect(onEditItinerary).toHaveBeenCalledWith(item)
     expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
   })
 
@@ -353,6 +357,7 @@ describe('TicketLedgerList', () => {
         employeeId="employee-agent"
         onComplete={onComplete}
         onMarkPaid={onMarkPaid}
+        onEditItinerary={vi.fn()}
         canManageAttribution
         onCorrectAttribution={vi.fn()}
       />,
@@ -363,5 +368,45 @@ describe('TicketLedgerList', () => {
     expect(onMarkPaid).toHaveBeenCalledWith(child)
     expect(screen.queryByRole('button', { name: /details for ABC123/i })).toBeNull()
     expect(onComplete).not.toHaveBeenCalled()
+  })
+
+  it('offers itinerary editing only while a root TK is held or issued', () => {
+    const item: TicketLedgerItem = {
+      bookingId: 'booking-1',
+      transactionId: 'transaction-1',
+      bookingVersion: 4,
+      transactionVersion: 7,
+      pnr: 'ABC123',
+      customerName: 'Aisha Khan',
+      airline: AIRLINES[0],
+      serviceType: 'TK',
+      operationalStatus: 'cancelled',
+      paymentStatus: 'paid',
+      bookingDate: '2026-08-22',
+      timeLimitAt: null,
+      issuedAt: '2026-08-22',
+      passengerCount: 1,
+      packageMatchStatus: 'unmatched',
+      detailsStatus: 'complete',
+      responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
+      assistantEmployees: [],
+      attributionVersion: 1,
+      fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 450, unitSalePrice: 500 }],
+    }
+
+    render(
+      <TicketLedgerList
+        items={[item]}
+        timezone="Europe/London"
+        employeeId="employee-agent"
+        onComplete={vi.fn()}
+        onMarkPaid={vi.fn()}
+        onEditItinerary={vi.fn()}
+        canManageAttribution={false}
+        onCorrectAttribution={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Edit itinerary for ABC123' })).toBeNull()
   })
 })

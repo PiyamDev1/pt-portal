@@ -15,6 +15,7 @@ import {
   type TicketingCompletionFare,
   type TicketingCompletionPassenger,
 } from '@/lib/ticketing/completionContracts'
+import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_COMPLETION_VERSION = TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION
@@ -268,9 +269,7 @@ function detailFromRow(row: TransactionRow): TicketingCompletionDetail | null {
 
 async function hasCompletionCapability(supabase: ReturnType<typeof getServiceSupabaseClient>) {
   const { data, error } = await supabase.rpc('ticketing_schema_status')
-  if (error || !data || typeof data !== 'object' || Array.isArray(data)) return false
-  const status = data as Record<string, unknown>
-  return status.ready === true && Number(status.version || 0) >= TICKETING_COMPLETION_VERSION
+  return !error && hasTicketingSchemaCapability(data, TICKETING_COMPLETION_VERSION)
 }
 
 async function loadAccessibleDetail(

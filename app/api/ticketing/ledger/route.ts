@@ -17,6 +17,10 @@ import {
 } from '@/lib/ticketing/contracts'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import { ticketingDetailsStatus } from '@/lib/ticketing/completionContracts'
+import {
+  hasTicketingSchemaCapability,
+  normalizeTicketingSchemaStatus,
+} from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_RUNTIME_VERSION = TICKET_ATTRIBUTION_CAPABILITY_VERSION
@@ -317,27 +321,20 @@ async function hasTicketingRuntimeCapability(
   if (error) {
     console.error('[ticketing] schema capability check failed', {
       code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
     })
     return false
   }
-  const status = Array.isArray(data) ? data[0] : data
-  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+  const status = normalizeTicketingSchemaStatus(data)
+  if (!status) {
     console.error('[ticketing] schema capability check returned an invalid result', {
       resultType: Array.isArray(data) ? 'array' : typeof data,
     })
     return false
   }
-  const capability = status as Record<string, unknown>
-  if (
-    capability.ready !== true ||
-    Number(capability.version || 0) < TICKETING_RUNTIME_VERSION
-  ) {
+  if (!hasTicketingSchemaCapability(data, TICKETING_RUNTIME_VERSION)) {
     console.error('[ticketing] schema capability is not ready', {
-      ready: capability.ready,
-      version: capability.version,
+      ready: status.ready,
+      version: status.version,
       requiredVersion: TICKETING_RUNTIME_VERSION,
     })
     return false
@@ -525,10 +522,6 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getServiceSupabaseClient()
-  // The creation RPC is authoritative and performs its own contract checks.
-  // Keep the status probe for diagnostics, but do not reject a valid RPC call
-  // because PostgREST represents the status result differently.
-  await hasTicketingRuntimeCapability(supabase)
   const { data, error } = await supabase.rpc('ticketing_create_quick_tk_attributed', {
     p_actor_employee_id: access.employee.id,
     p_idempotency_key: idempotencyKey,
@@ -543,9 +536,6 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error('[ticketing] quick entry RPC failed', {
       code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
     })
     return mutationError(error)
   }

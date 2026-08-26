@@ -154,7 +154,7 @@ begin
 
   foreach source_kind in array array['sale-completed', 'paid']
   loop
-    select source_event.source_event_id
+    select source_event.id
     into first_event_id
     from public.commission_source_events source_event
     where source_event.source_record_id = root_transaction_id_value
@@ -624,7 +624,7 @@ begin
       select 1
       from public.commission_source_events latest
       join public.commission_source_events prior
-        on prior.source_event_id = latest.supersedes_event_id
+        on prior.id = latest.supersedes_event_id
         and prior.source_fact_key = latest.source_fact_key
         and prior.event_version = latest.event_version - 1
       where latest.source_record_id = transaction_id_value

@@ -1,7 +1,9 @@
 drop schema if exists public cascade;
 drop schema if exists auth cascade;
+drop schema if exists extensions cascade;
 create schema public;
 create schema auth;
+create schema extensions;
 
 do $$
 begin
@@ -19,7 +21,10 @@ $$;
 
 grant usage on schema public to anon, authenticated, service_role;
 
-create extension if not exists pgcrypto;
+-- Supabase installs pgcrypto outside public. Keep the disposable database
+-- faithful so restricted Ticketing function search paths cannot accidentally
+-- rely on PostgreSQL's local default extension layout.
+create extension if not exists pgcrypto with schema extensions;
 
 create table auth.users (
   id uuid primary key,

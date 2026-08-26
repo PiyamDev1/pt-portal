@@ -215,6 +215,17 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
     )
 
     mocks.state.capability = {
+      data: [{ ready: true, version: 2026082402, requiredVersion: 2026082402 }],
+      error: null,
+    }
+    const singletonResponse = await PATCH(request(validEntry(), 'singleton-capability'), context())
+    expect(singletonResponse.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_correct_booking_attribution',
+      expect.anything(),
+    )
+
+    mocks.state.capability = {
       data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
       error: null,
     }

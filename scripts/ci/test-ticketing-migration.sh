@@ -21,6 +21,10 @@ attribution_assertions="tests/integration/ticketing_attribution_overrides.sql"
 admin_completion_pre_upgrade="tests/integration/ticketing_admin_completion_pre_upgrade.sql"
 admin_completion_migration="scripts/migrations/20260824_ticketing_admin_completion.sql"
 admin_completion_assertions="tests/integration/ticketing_admin_completion.sql"
+pgcrypto_compat_migration="scripts/migrations/20260825_ticketing_pgcrypto_compat.sql"
+runtime_readiness_migration="scripts/migrations/20260826_ticketing_runtime_readiness.sql"
+itinerary_migration="scripts/migrations/20260826_ticketing_sector_itinerary.sql"
+itinerary_assertions="tests/integration/ticketing_root_itinerary.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -127,6 +131,36 @@ ticketing_schema_fingerprint() {
 }
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture"
+
+# Supabase installs pgcrypto in the extensions schema while Ticketing's
+# security-definer functions deliberately use a restricted search_path. Apply
+# the compatibility shim before exercising any historical runtime capability,
+# then prove it is least-privilege and idempotent.
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$pgcrypto_compat_migration"
+pgcrypto_compat_first_definition="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select pg_get_functiondef('public.digest(text,text)'::regprocedure)
+")"
+pgcrypto_compat_first_acl="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select coalesce(proacl::text, '')
+  from pg_proc
+  where oid = 'public.digest(text,text)'::regprocedure
+")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$pgcrypto_compat_migration"
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select
+    public.digest('ticketing-pgcrypto-compat', 'sha256') =
+      extensions.digest('ticketing-pgcrypto-compat', 'sha256')
+    and not has_function_privilege('public', 'public.digest(text,text)', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.digest(text,text)', 'EXECUTE')
+    and not has_function_privilege('authenticated', 'public.digest(text,text)', 'EXECUTE')
+    and has_function_privilege('service_role', 'public.digest(text,text)', 'EXECUTE')
+")" != "t" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select pg_get_functiondef('public.digest(text,text)'::regprocedure)")" != "$pgcrypto_compat_first_definition" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select coalesce(proacl::text, '') from pg_proc where oid = 'public.digest(text,text)'::regprocedure")" != "$pgcrypto_compat_first_acl" ]]; then
+  echo "Ticketing pgcrypto compatibility migration is incorrect or not idempotent"
+  exit 1
+fi
+
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$migration"
 first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
 
@@ -1712,6 +1746,25 @@ pre_2403_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
   from public.portal_schema_versions
   where component = 'ticketing'
 ")"
+pre_2403_capability_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select jsonb_array_length(details -> 'capabilities')
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+
+pre_2403_runtime_fingerprint="$(ticketing_schema_fingerprint)"
+skipped_runtime_predecessor_output=""
+if skipped_runtime_predecessor_output="$(
+  psql "$database_url" -v ON_ERROR_STOP=1 -f "$runtime_readiness_migration" 2>&1
+)"; then
+  echo "Ticketing runtime readiness skipped its required authorised-completion predecessor"
+  exit 1
+fi
+if [[ "$skipped_runtime_predecessor_output" != *"TICKETING_SCHEMA_NOT_READY"* ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$pre_2403_runtime_fingerprint" ]]; then
+  echo "Rejected pre-2403 runtime readiness migration returned the wrong error or changed schema"
+  exit 1
+fi
 
 # AC-UPG1 is deliberately completed and paid through the legacy owner RPC
 # before 2403 so migration-time v2 sale/payment enrichment is exercised.
@@ -1721,20 +1774,44 @@ admin_completion_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=
 admin_completion_first_fingerprint="$(ticketing_schema_fingerprint)"
 admin_completion_source_count_before_rerun="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select count(*) from public.commission_source_events")"
 
-if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 \
-  -v pre_capabilities="$pre_2403_capabilities" -c "
-    select
-      (details -> 'capabilities') @> :'pre_capabilities'::jsonb
-      and jsonb_array_length(details -> 'capabilities') =
-        jsonb_array_length(:'pre_capabilities'::jsonb) + 3
-      and (details -> 'capabilities') ?& array[
+post_2403_predecessor_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select coalesce(jsonb_agg(capability.value order by capability.ordinality), '[]'::jsonb)
+  from public.portal_schema_versions schema_version
+  cross join lateral jsonb_array_elements(schema_version.details -> 'capabilities')
+    with ordinality as capability(value, ordinality)
+  where schema_version.component = 'ticketing'
+    and capability.value not in (
+      to_jsonb('admin-on-behalf-tk-completion'::text),
+      to_jsonb('reasoned-on-behalf-audit'::text),
+      to_jsonb('root-completion-source-attribution'::text)
+    )
+")"
+post_2403_capability_state="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    jsonb_array_length(details -> 'capabilities'),
+    (
+      select count(*)
+      from jsonb_array_elements_text(details -> 'capabilities') capability(value)
+      where capability.value in (
         'admin-on-behalf-tk-completion',
         'reasoned-on-behalf-audit',
         'root-completion-source-attribution'
-      ]
-    from public.portal_schema_versions
-    where component = 'ticketing'
-  ")" != "t" ]]; then
+      )
+    ),
+    (
+      select count(distinct capability.value)
+      from jsonb_array_elements_text(details -> 'capabilities') capability(value)
+      where capability.value in (
+        'admin-on-behalf-tk-completion',
+        'reasoned-on-behalf-audit',
+        'root-completion-source-attribution'
+      )
+    )
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+if [[ "$post_2403_predecessor_capabilities" != "$pre_2403_capabilities" ]] \
+  || [[ "$post_2403_capability_state" != "$((pre_2403_capability_count + 3))|3|3" ]]; then
   echo "Authorised completion capability marker dropped or invented predecessor capabilities"
   exit 1
 fi
@@ -2014,6 +2091,183 @@ if [[ "$(ticketing_schema_fingerprint)" != "$post_2403_fingerprint" ]]; then
   exit 1
 fi
 
+if itinerary_prerequisite_output="$(
+  psql "$database_url" -v ON_ERROR_STOP=1 -f "$itinerary_migration" 2>&1
+)"; then
+  echo "Ticketing itinerary migration installed without runtime readiness capability 2026082601"
+  exit 1
+fi
+if [[ "$itinerary_prerequisite_output" != *"TICKETING_SCHEMA_NOT_READY"* ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$post_2403_fingerprint" ]]; then
+  echo "Ticketing itinerary prerequisite guard failed or changed predecessor state"
+  echo "$itinerary_prerequisite_output"
+  exit 1
+fi
+
+pre_runtime_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select details -> 'capabilities'
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+pre_runtime_capability_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select jsonb_array_length(details -> 'capabilities')
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$runtime_readiness_migration"
+runtime_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+runtime_first_fingerprint="$(ticketing_schema_fingerprint)"
+
+post_runtime_predecessor_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select coalesce(jsonb_agg(capability.value order by capability.ordinality), '[]'::jsonb)
+  from public.portal_schema_versions schema_version
+  cross join lateral jsonb_array_elements(schema_version.details -> 'capabilities')
+    with ordinality as capability(value, ordinality)
+  where schema_version.component = 'ticketing'
+    and capability.value not in (
+      to_jsonb('supabase-pgcrypto-digest-compatibility'::text),
+      to_jsonb('verified-ticketing-runtime-readiness'::text)
+    )
+")"
+runtime_state="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    schema_version.version,
+    public.ticketing_schema_status() ->> 'ready',
+    jsonb_array_length(schema_version.details -> 'capabilities'),
+    (
+      select count(distinct capability.value)
+      from jsonb_array_elements_text(schema_version.details -> 'capabilities') capability(value)
+      where capability.value in (
+        'supabase-pgcrypto-digest-compatibility',
+        'verified-ticketing-runtime-readiness'
+      )
+    ),
+    position('extensions.digest' in pg_get_functiondef('public.digest(text,text)'::regprocedure)) > 0,
+    position('pg_proc' in pg_get_functiondef('public.digest(text,text)'::regprocedure)) = 0,
+    (select prosecdef from pg_proc where oid = 'public.digest(text,text)'::regprocedure),
+    not has_function_privilege('anon', 'public.digest(text,text)', 'EXECUTE'),
+    not has_function_privilege('authenticated', 'public.digest(text,text)', 'EXECUTE'),
+    has_function_privilege('service_role', 'public.digest(text,text)', 'EXECUTE')
+  from public.portal_schema_versions schema_version
+  where schema_version.component = 'ticketing'
+")"
+if [[ "$post_runtime_predecessor_capabilities" != "$pre_runtime_capabilities" ]] \
+  || [[ "$runtime_state" != "2026082601|true|$((pre_runtime_capability_count + 2))|2|t|t|t|t|t|t" ]]; then
+  echo "Ticketing runtime readiness capability, pgcrypto bridge, or grants are incorrect"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$runtime_readiness_migration"
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$runtime_first_applied_at" ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$runtime_first_fingerprint" ]]; then
+  echo "Idempotent Ticketing runtime readiness rerun changed semantic schema state"
+  exit 1
+fi
+
+assert_forward_migration_replay_blocked "$admin_completion_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$runtime_first_fingerprint" ]]; then
+  echo "Blocked authorised-completion replay changed runtime-ready Ticketing schema state"
+  exit 1
+fi
+
+pre_itinerary_details="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select details
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+pre_itinerary_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select details -> 'capabilities'
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+pre_itinerary_capability_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select jsonb_array_length(details -> 'capabilities')
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$itinerary_migration"
+itinerary_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+itinerary_first_fingerprint="$(ticketing_schema_fingerprint)"
+
+post_itinerary_predecessor_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select coalesce(jsonb_agg(capability.value order by capability.ordinality), '[]'::jsonb)
+  from public.portal_schema_versions schema_version
+  cross join lateral jsonb_array_elements(schema_version.details -> 'capabilities')
+    with ordinality as capability(value, ordinality)
+  where schema_version.component = 'ticketing'
+    and capability.value not in (
+      to_jsonb('server-owned-airport-directory'::text),
+      to_jsonb('server-derived-itinerary-timezones'::text),
+      to_jsonb('versioned-root-tk-itinerary-replacement'::text),
+      to_jsonb('reasoned-itinerary-on-behalf-audit'::text)
+    )
+")"
+itinerary_state="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    schema_version.version,
+    public.ticketing_schema_status() ->> 'ready',
+    jsonb_array_length(schema_version.details -> 'capabilities'),
+    (
+      select count(distinct capability.value)
+      from jsonb_array_elements_text(schema_version.details -> 'capabilities') capability(value)
+      where capability.value in (
+        'server-owned-airport-directory',
+        'server-derived-itinerary-timezones',
+        'versioned-root-tk-itinerary-replacement',
+        'reasoned-itinerary-on-behalf-audit'
+      )
+    ),
+    schema_version.details -> 'runtimeDependencies' =
+      ('$pre_itinerary_details'::jsonb -> 'runtimeDependencies'),
+    to_regclass('public.ticket_airports') is not null,
+    to_regprocedure(
+      'public.ticketing_replace_root_tk_itinerary(uuid,uuid,bigint,text,jsonb,text)'
+    ) is not null
+  from public.portal_schema_versions schema_version
+  where schema_version.component = 'ticketing'
+")"
+if [[ "$post_itinerary_predecessor_capabilities" != "$pre_itinerary_capabilities" ]] \
+  || [[ "$itinerary_state" != "2026082602|true|$((pre_itinerary_capability_count + 4))|4|t|t|t" ]]; then
+  echo "Ticketing itinerary capability, predecessor details, or readiness state is incorrect"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$itinerary_migration"
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$itinerary_first_applied_at" ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$itinerary_first_fingerprint" ]]; then
+  echo "Idempotent Ticketing itinerary rerun changed semantic schema state"
+  exit 1
+fi
+
+# Capability 2602 must preserve 2601's actual pgcrypto-extension-member
+# readiness predicate, not merely the itinerary objects. Temporarily detach the
+# real digest member from pgcrypto, prove readiness fails closed, then restore it.
+psql "$database_url" -v ON_ERROR_STOP=1 -c \
+  "alter extension pgcrypto drop function extensions.digest(text,text)" >/dev/null
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select public.ticketing_schema_status() ->> 'ready'")" != "false" ]]; then
+  psql "$database_url" -v ON_ERROR_STOP=1 -c \
+    "alter extension pgcrypto add function extensions.digest(text,text)" >/dev/null
+  echo "Ticketing itinerary status ignored a broken pgcrypto runtime dependency"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -c \
+  "alter extension pgcrypto add function extensions.digest(text,text)" >/dev/null
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select public.ticketing_schema_status() ->> 'ready'")" != "true" ]]; then
+  echo "Ticketing itinerary status did not recover after restoring pgcrypto membership"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$itinerary_assertions"
+
+post_itinerary_fingerprint="$(ticketing_schema_fingerprint)"
+assert_forward_migration_replay_blocked "$runtime_readiness_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$post_itinerary_fingerprint" ]]; then
+  echo "Blocked runtime-readiness replay changed capability 2602 schema state"
+  exit 1
+fi
+
 psql "$database_url" -v ON_ERROR_STOP=1 -c \
   "set role authenticated; select count(*) from public.airlines; reset role" >/dev/null
 
@@ -2029,4 +2283,4 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, and authorised admin completion migration integration checks passed."
+echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, and root-itinerary migration integration checks passed."

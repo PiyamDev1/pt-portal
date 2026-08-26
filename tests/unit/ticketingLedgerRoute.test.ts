@@ -626,6 +626,34 @@ describe('/api/ticketing/ledger', () => {
         attributionReason: null,
       }),
     })
+    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+    expect(mocks.rpc).not.toHaveBeenCalledWith('ticketing_schema_status')
+  })
+
+  it('logs only a non-sensitive database error code when quick entry fails', async () => {
+    const privateValue = 'Private Passenger ABC123 +44 7700 900123'
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: 'XX000',
+        message: privateValue,
+        details: privateValue,
+        hint: privateValue,
+      },
+    })
+
+    try {
+      const response = await POST(postRequest(validEntry(), 'private-error-log'))
+
+      expect(response.status).toBe(500)
+      expect(consoleError).toHaveBeenCalledWith('[ticketing] quick entry RPC failed', {
+        code: 'XX000',
+      })
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain(privateValue)
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('lets an administrator assign primary and assistant roles only with a reason', async () => {
@@ -685,25 +713,20 @@ describe('/api/ticketing/ledger', () => {
   })
 
   it('turns the atomic duplicate check into a blocking confirmation response', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: {
-          code: '23505',
-          message: 'Duplicate TK confirmation required',
-          hint: 'TICKETING_DUPLICATE_TK',
-          details: JSON.stringify({
-            bookingId: 'existing-booking',
-            pnr: 'ABC123',
-            customerName: 'Existing Passenger',
-            ownedByActor: true,
-          }),
-        },
-      })
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '23505',
+        message: 'Duplicate TK confirmation required',
+        hint: 'TICKETING_DUPLICATE_TK',
+        details: JSON.stringify({
+          bookingId: 'existing-booking',
+          pnr: 'ABC123',
+          customerName: 'Existing Passenger',
+          ownedByActor: true,
+        }),
+      },
+    })
 
     const response = await POST(postRequest(validEntry()))
     const body = await response.json()
@@ -722,25 +745,20 @@ describe('/api/ticketing/ledger', () => {
   })
 
   it('does not disclose another agent customer through a duplicate response', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: {
-          code: '23505',
-          message: 'Duplicate TK confirmation required',
-          hint: 'TICKETING_DUPLICATE_TK',
-          details: JSON.stringify({
-            bookingId: 'other-agent-booking',
-            pnr: 'ABC123',
-            customerName: 'Private Customer',
-            ownedByActor: false,
-          }),
-        },
-      })
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '23505',
+        message: 'Duplicate TK confirmation required',
+        hint: 'TICKETING_DUPLICATE_TK',
+        details: JSON.stringify({
+          bookingId: 'other-agent-booking',
+          pnr: 'ABC123',
+          customerName: 'Private Customer',
+          ownedByActor: false,
+        }),
+      },
+    })
 
     const response = await POST(postRequest(validEntry()))
     const body = await response.json()
@@ -755,15 +773,10 @@ describe('/api/ticketing/ledger', () => {
   })
 
   it('returns a client error when an airline became inactive after the ledger loaded', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: 'P0002', message: 'Active airline not found' },
-      })
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'P0002', message: 'Active airline not found' },
+    })
 
     const response = await POST(postRequest(validEntry()))
     const body = await response.json()
@@ -773,15 +786,10 @@ describe('/api/ticketing/ledger', () => {
   })
 
   it('maps ticketing state and schema failures instead of returning a generic server error', async () => {
-    const stateConflict = mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: '55000', message: 'Initial ticket attribution was not recorded atomically' },
-      })
+    const stateConflict = mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: '55000', message: 'Initial ticket attribution was not recorded atomically' },
+    })
 
     const stateResponse = await POST(postRequest(validEntry(), 'state-conflict'))
     expect(stateResponse.status).toBe(409)
@@ -805,15 +813,13 @@ describe('/api/ticketing/ledger', () => {
       },
     })
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: '42883', message: 'function ticketing_create_quick_tk_attributed does not exist' },
-      })
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '42883',
+        message: 'function ticketing_create_quick_tk_attributed does not exist',
+      },
+    })
 
     const schemaResponse = await POST(postRequest(validEntry(), 'schema-missing'))
     expect(schemaResponse.status).toBe(503)
@@ -823,34 +829,15 @@ describe('/api/ticketing/ledger', () => {
   })
 
   it('accepts a singleton array from the schema status RPC', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: [{ ready: true, version: 2026082403, requiredVersion: 2026082403 }],
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: {
-          booking: { id: 'booking-1', operationalStatus: 'held', paymentStatus: 'unpaid' },
-          transaction: {
-            id: 'transaction-1',
-            serviceType: 'TK',
-            operationalStatus: 'held',
-            paymentStatus: 'unpaid',
-            passengerTicketCount: 1,
-          },
-          packageMatch: { status: 'unmatched' },
-          idempotentReplay: false,
-        },
-        error: null,
-      })
+    mocks.rpc.mockResolvedValueOnce({
+      data: [{ ready: true, version: 2026082403, requiredVersion: 2026082403 }],
+      error: null,
+    })
 
-    const response = await POST(postRequest(validEntry(), 'array-status'))
+    const response = await GET(new NextRequest('http://localhost/api/ticketing/ledger'))
 
-    expect(response.status).toBe(201)
-    expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_create_quick_tk_attributed',
-      expect.anything(),
-    )
+    expect(response.status).toBe(200)
+    expect(mocks.transactionSelect).toHaveBeenCalled()
   })
 
   it('maps an inactive attribution recipient to a stable client error', async () => {
@@ -866,15 +853,10 @@ describe('/api/ticketing/ledger', () => {
         departments: [],
       },
     })
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: '22023', message: 'Responsible employee is invalid or inactive' },
-      })
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: '22023', message: 'Responsible employee is invalid or inactive' },
+    })
 
     const response = await POST(
       postRequest({

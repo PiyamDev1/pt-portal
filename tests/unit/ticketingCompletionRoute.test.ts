@@ -398,6 +398,21 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     expect(mocks.detailSelect).not.toHaveBeenCalled()
   })
 
+  it('accepts a singleton-array completion capability response', async () => {
+    mocks.state.capability = {
+      data: [{ ready: true, version: 2026082403, requiredVersion: 2026082403 }],
+      error: null,
+    }
+
+    const response = await GET(
+      new NextRequest(`http://localhost/api/ticketing/ledger/${BOOKING_ID}`),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.detailSelect).toHaveBeenCalled()
+  })
+
   it('rejects unknown identity fields and missing retry keys before invoking the RPC', async () => {
     const spoofed = await PATCH(
       patchRequest({ ...validPatch(), ownerEmployeeId: 'other-agent' }),

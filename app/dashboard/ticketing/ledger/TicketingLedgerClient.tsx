@@ -8,6 +8,7 @@ import { TicketLedgerList } from './TicketLedgerList'
 import { TicketCompletionDrawer } from './TicketCompletionDrawer'
 import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
 import { TicketAttributionDialog } from './TicketAttributionDialog'
+import { TicketItineraryDrawer } from './TicketItineraryDrawer'
 import { loadTicketLedger, TicketLedgerApiError } from './ledgerClientApi'
 import type { TicketLedgerItem, TicketLedgerPayload } from './types'
 
@@ -20,6 +21,7 @@ export function TicketingLedgerClient() {
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
   const [selectedPaymentItem, setSelectedPaymentItem] = useState<TicketLedgerItem | null>(null)
+  const [selectedItineraryItem, setSelectedItineraryItem] = useState<TicketLedgerItem | null>(null)
   const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
     null,
   )
@@ -256,6 +258,7 @@ export function TicketingLedgerClient() {
           employeeId={payload.context.employeeId}
           onComplete={(item) => setSelectedBookingId(item.bookingId)}
           onMarkPaid={setSelectedPaymentItem}
+          onEditItinerary={setSelectedItineraryItem}
           canManageAttribution={payload.context.canManageAttribution}
           onCorrectAttribution={setSelectedAttributionItem}
         />
@@ -265,6 +268,13 @@ export function TicketingLedgerClient() {
         bookingId={selectedBookingId}
         timezone={payload.context.timezone}
         onClose={() => setSelectedBookingId(null)}
+        onSaved={() => refresh()}
+      />
+
+      <TicketItineraryDrawer
+        item={selectedItineraryItem}
+        airlines={payload.airlines}
+        onClose={() => setSelectedItineraryItem(null)}
         onSaved={() => refresh()}
       />
 

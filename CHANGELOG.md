@@ -6,6 +6,10 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 ### Added
 
+- Admin-authorised, reason-required Ticketing completion on behalf of the current responsible
+  employee while preserving the real acting employee and attributed issued/sale/paid source facts.
+- Tracked Ticketing runtime readiness for Supabase's pgcrypto extension layout, including a trusted
+  fixed-schema digest bridge and linked capability `2026082601`.
 - Audited Ticketing staff attribution with a session-derived entry actor, selectable responsible
   agent, independent assistants, primary-only issued-ticket target units, immutable correction
   history, and versioned Commission source-fact supersession.
@@ -18,6 +22,10 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 ### Changed
 
+- Normalized Ticketing schema-status responses across every route and redacted raw database details
+  from quick-entry diagnostics.
+- Restricted the legacy `exec_sql(text)` administrative helper to service-role execution after
+  verifying that anonymous PostgREST access had been removed.
 - Passkey login assurance now comes from signature-verified Supabase JWT authentication-method
   claims instead of browser-controlled hints; password and Microsoft sign-in also rerun active
   employee and MFA routing checks.

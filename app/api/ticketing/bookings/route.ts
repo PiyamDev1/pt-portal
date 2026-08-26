@@ -5,6 +5,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_SERVICE_TRANSACTION_VERSION = 2026082304
@@ -176,11 +177,7 @@ async function hasServiceTransactionCapability(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
 ) {
   const { data, error } = await supabase.rpc('ticketing_schema_status')
-  if (error || !data || typeof data !== 'object' || Array.isArray(data)) return false
-  const status = data as Record<string, unknown>
-  return (
-    status.ready === true && Number(status.version || 0) >= TICKETING_SERVICE_TRANSACTION_VERSION
-  )
+  return !error && hasTicketingSchemaCapability(data, TICKETING_SERVICE_TRANSACTION_VERSION)
 }
 
 export async function GET(request: NextRequest) {

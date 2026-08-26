@@ -4,7 +4,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: '13.0.5'
+    PostgrestVersion: '14.17'
   }
   public: {
     Tables: {
@@ -9998,6 +9998,7 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      digest: { Args: { p_data: string; p_type: string }; Returns: string }
       exec_sql: { Args: { sql: string }; Returns: Json[] }
       get_my_sessions: {
         Args: never
@@ -10180,6 +10181,15 @@ export type Database = {
         Returns: Json
       }
       ticketing_complete_tk_details: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_details: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_complete_tk_details_authorized: {
         Args: {
           p_actor_employee_id: string
           p_booking_id: string

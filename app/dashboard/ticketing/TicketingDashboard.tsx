@@ -1,17 +1,14 @@
 import {
-  AlertTriangle,
   BookOpenText,
   BadgePoundSterling,
   Calculator,
-  CalendarClock,
   CheckCircle2,
-  Clock3,
   Construction,
   PlaneTakeoff,
-  RefreshCw,
   ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
+import { FlightMonitoringPanel } from './FlightMonitoringPanel'
 
 const TICKETING_MODULES = [
   {
@@ -46,26 +43,16 @@ const TICKETING_MODULES = [
     available: true,
     actionLabel: 'Open Low Fare',
   },
-] as const
-
-const SCHEDULE_WORKFLOW = [
   {
-    title: 'On schedule',
-    description: 'The latest departure details still match the ticketed itinerary.',
-    icon: CheckCircle2,
-    tone: 'bg-emerald-50 text-emerald-800 ring-emerald-100',
-  },
-  {
-    title: 'Change marked',
-    description: 'Staff record the revised flight time or routing for review.',
-    icon: AlertTriangle,
-    tone: 'bg-amber-50 text-amber-800 ring-amber-100',
-  },
-  {
-    title: 'Finalised',
-    description: 'The reviewed change replaces the current flight details from the same row.',
-    icon: RefreshCw,
-    tone: 'bg-sky-50 text-sky-800 ring-sky-100',
+    title: 'Flight Monitoring',
+    description:
+      'Review upcoming flight sectors for every ticketing agent from one operational view.',
+    icon: PlaneTakeoff,
+    tone: 'border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50',
+    iconTone: 'bg-violet-100 text-violet-800',
+    href: '/dashboard/ticketing#flight-monitoring',
+    available: true,
+    actionLabel: 'View all flights',
   },
 ] as const
 
@@ -80,8 +67,8 @@ export function TicketingDashboard() {
             </p>
             <h1 className="mt-2 text-3xl font-black tracking-tight">Ticketing workspace</h1>
             <p className="mt-2 text-sm leading-6 text-red-50/85 md:text-base">
-              Record ticket activity quickly, then use the wider workspace for refunds and
-              upcoming-flight operations as those tools become available.
+              Record ticket activity quickly, review Low Fare and monitor every agent&apos;s
+              upcoming flights from one workspace.
             </p>
           </div>
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
@@ -101,7 +88,7 @@ export function TicketingDashboard() {
             </h2>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-            2 tools available
+            3 tools available
           </span>
         </div>
 
@@ -153,99 +140,7 @@ export function TicketingDashboard() {
         </div>
       </section>
 
-      <section
-        aria-labelledby="upcoming-flights-title"
-        className="rounded-2xl border border-slate-200 bg-white shadow-sm"
-      >
-        <div className="border-b border-slate-200 p-4 md:p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
-                Flight monitoring
-              </p>
-              <h2 id="upcoming-flights-title" className="mt-1 text-xl font-black text-slate-950">
-                Upcoming flights
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Review departures and handle schedule changes from the flight row.
-              </p>
-            </div>
-            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-800 ring-1 ring-amber-200">
-              <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-              Flight connection pending
-            </span>
-          </div>
-
-          <dl className="mt-4 grid grid-cols-3 gap-2 md:max-w-xl md:gap-3">
-            {[
-              ['Upcoming', '0'],
-              ['Changes marked', '0'],
-              ['Awaiting finalisation', '0'],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-                <dt className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                  {label}
-                </dt>
-                <dd className="mt-1 text-xl font-black text-slate-950">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="hidden grid-cols-[1.1fr_0.8fr_1fr_0.65fr_0.9fr_0.6fr] gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-wide text-slate-500 md:grid">
-          <span>Departure</span>
-          <span>Flight</span>
-          <span>Route</span>
-          <span>Passengers</span>
-          <span>Schedule status</span>
-          <span className="text-right">Action</span>
-        </div>
-
-        <div className="flex min-h-56 flex-col items-center justify-center px-5 py-10 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
-            <CalendarClock className="h-7 w-7" aria-hidden="true" />
-          </span>
-          <h3 className="mt-4 text-base font-black text-slate-950">No upcoming flights yet</h3>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Flights will appear here after itinerary sectors are completed and Flight Monitoring is
-            connected. TK records can now be added through My Sales Ledger.
-          </p>
-        </div>
-      </section>
-
-      <section aria-labelledby="schedule-workflow-title" className="rounded-2xl bg-slate-900 p-5">
-        <div className="max-w-3xl">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-300">
-            Planned workflow
-          </p>
-          <h2 id="schedule-workflow-title" className="mt-1 text-xl font-black text-white">
-            Schedule-change handling
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Once ledger data is enabled, staff will mark a detected change, review the revised
-            itinerary, then finalise it to update the active flight details directly from this
-            overview.
-          </p>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {SCHEDULE_WORKFLOW.map((step, index) => {
-            const Icon = step.icon
-            return (
-              <div key={step.title} className={`rounded-2xl p-4 ring-1 ${step.tone}`}>
-                <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm font-black">
-                    {index + 1}
-                  </span>
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                  <h3 className="font-black">{step.title}</h3>
-                </div>
-                <p className="mt-3 text-sm leading-5 opacity-80">{step.description}</p>
-              </div>
-            )
-          })}
-        </div>
-      </section>
+      <FlightMonitoringPanel />
     </div>
   )
 }

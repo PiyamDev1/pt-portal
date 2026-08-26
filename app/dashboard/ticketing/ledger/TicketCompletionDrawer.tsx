@@ -654,8 +654,8 @@ export function TicketCompletionDrawer({
                 </label>
               </div>
               <p className="text-xs text-slate-500">
-                Dates provide the ledger summary only. Flight Monitoring will use completed flight
-                sectors later. Times use {timezone}.
+                Dates provide the ledger summary only. Use the Itinerary action on the TK row for
+                Flight Monitoring sectors. Ledger times use {timezone}.
               </p>
             </fieldset>
 

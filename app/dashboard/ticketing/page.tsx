@@ -1,8 +1,8 @@
 /**
  * Ticketing System Page
  *
- * Front-end ticketing workspace. Ticket ledger/refund persistence is not
- * connected yet; the page defines the intended tools and flight-change flow.
+ * Operational ticketing workspace for the ledger, Low Fare and all-agent
+ * Flight Monitoring, with the refund calculator kept as a planned submodule.
  *
  * @module app/dashboard/ticketing/page
  */

@@ -286,6 +286,18 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
     expect(mocks.bookingSelect).not.toHaveBeenCalled()
   })
 
+  it('accepts a singleton-array DC/R-ER lookup capability response', async () => {
+    mocks.state.capability = {
+      data: [{ ready: true, version: 2026082304, requiredVersion: 2026082304 }],
+      error: null,
+    }
+
+    const response = await GET(request())
+
+    expect(response.status).toBe(200)
+    expect(mocks.bookingSelect).toHaveBeenCalled()
+  })
+
   it('fails closed on malformed relational data rather than returning a partial prefill', async () => {
     mocks.bookingLimit.mockResolvedValueOnce({
       data: [

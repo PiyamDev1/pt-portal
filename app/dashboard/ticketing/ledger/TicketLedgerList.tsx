@@ -5,6 +5,7 @@ import {
   CircleAlert,
   PackageCheck,
   PencilLine,
+  PlaneTakeoff,
   TriangleAlert,
   UserRoundCheck,
   UserRoundCog,
@@ -91,6 +92,7 @@ export function TicketLedgerList({
   employeeId,
   onComplete,
   onMarkPaid,
+  onEditItinerary,
   canManageAttribution,
   onCorrectAttribution,
 }: {
@@ -99,6 +101,7 @@ export function TicketLedgerList({
   employeeId: string
   onComplete: (item: TicketLedgerItem) => void
   onMarkPaid: (item: TicketLedgerItem) => void
+  onEditItinerary: (item: TicketLedgerItem) => void
   canManageAttribution: boolean
   onCorrectAttribution: (item: TicketLedgerItem) => void
 }) {
@@ -269,6 +272,17 @@ export function TicketLedgerList({
                       >
                         <UserRoundCog className="h-3.5 w-3.5" aria-hidden="true" />
                         Correct staff
+                      </button>
+                    )}
+                    {(item.operationalStatus === 'held' || item.operationalStatus === 'issued') && (
+                      <button
+                        type="button"
+                        onClick={() => onEditItinerary(item)}
+                        aria-label={`Edit itinerary for ${item.pnr}`}
+                        className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 hover:bg-violet-100"
+                      >
+                        <PlaneTakeoff className="h-3.5 w-3.5" aria-hidden="true" />
+                        Itinerary
                       </button>
                     )}
                   </>

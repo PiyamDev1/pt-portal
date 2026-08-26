@@ -271,6 +271,21 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
     )
   })
 
+  it('accepts a singleton-array DC/R-ER mutation capability response', async () => {
+    mocks.state.capability = {
+      data: [{ ready: true, version: 2026082304, requiredVersion: 2026082304 }],
+      error: null,
+    }
+
+    const response = await POST(request(validEntry()), context())
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_append_service_transaction',
+      expect.anything(),
+    )
+  })
+
   it.each([
     {
       name: 'version conflict',

@@ -427,6 +427,14 @@ describe('/api/ticketing/fare-adjustments', () => {
     ).toBe(503)
 
     mocks.state.capability = {
+      data: [{ ready: true, version: 2026082401, requiredVersion: 2026082401 }],
+      error: null,
+    }
+    expect(
+      (await GET(new NextRequest('http://localhost/api/ticketing/fare-adjustments'))).status,
+    ).toBe(200)
+
+    mocks.state.capability = {
       data: { ready: true, version: 2026082401, requiredVersion: 2026082401 },
       error: null,
     }

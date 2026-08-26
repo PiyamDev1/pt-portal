@@ -256,6 +256,21 @@ describe('PATCH /api/ticketing/bookings/[bookingId]/transactions/[transactionId]
     )
   })
 
+  it('accepts a singleton-array service-payment capability response', async () => {
+    mocks.state.capability = {
+      data: [{ ready: true, version: 2026082304, requiredVersion: 2026082304 }],
+      error: null,
+    }
+
+    const response = await PATCH(request(validPayment()), context())
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_mark_service_transaction_paid',
+      expect.anything(),
+    )
+  })
+
   it.each([
     {
       name: 'version conflict',

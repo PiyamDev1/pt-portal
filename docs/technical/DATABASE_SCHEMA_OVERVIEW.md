@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-Last verified against the repository and linked Ticketing capability: August 24, 2026.
+Last verified against the repository and linked Ticketing capability: August 26, 2026.
 
 ## Sources of truth
 
@@ -51,9 +51,13 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 | `20260823_ticketing_service_response_lineage_guard.sql` | immutable service replay dates, historical R-ER lineage after cancellation/refund, one historical successor, completed-response immutability, migration-ratchet tombstones, and capability `2026082304`                 |
 | `20260824_ticketing_low_fare_adjustments.sql`           | shared whole-PNR GBP supplier-fare queue/lineage, server-derived original fare and package scope, acting-agent source attribution, immutable target-safe adjustment events, and capability `2026082401`                 |
 | `20260824_ticketing_attribution_overrides.sql`          | immutable entered-by/primary/assistant attribution, admin-only optimistic correction, aligned operational ownership, primary-only issued-ticket targets, versioned source-event correction, and capability `2026082402` |
+| `20260824_ticketing_admin_completion.sql`               | audited Admin/Master Admin/Super Admin root-TK completion on behalf of the current primary, exact replay, attributed completion-source lineage, and capability `2026082403`                    |
+| `20260825_ticketing_pgcrypto_compat.sql`                 | compatibility bridge for Supabase projects that install `pgcrypto` outside `public`                                                                                                              |
+| `20260826_secure_exec_sql.sql`                           | revokes anonymous/authenticated execution of the legacy PostgreSQL-owner `exec_sql(text)` helper while retaining service-role deployment access                                                  |
+| `20260826_ticketing_runtime_readiness.sql`               | trusted fixed-schema pgcrypto bridge, verified runtime dependency status, preserved capability history, and Ticketing capability `2026082601`                                                     |
 
 Apply unapplied files in filename order and track which migrations have already run. Every
-Ticketing migration begins with a read-only forward-version guard: the foundation supports a fresh
+versioned Ticketing capability migration begins with a forward-version guard: the foundation supports a fresh
 install, follow-ups require their documented predecessor, and an exact same-version rerun is
 allowed. A script older than the installed capability fails before its first schema, grant, policy,
 or readiness mutation with
@@ -64,6 +68,9 @@ package-link mutations so an adjustment cannot snapshot package scope during a c
 Capability `2026082402` adds immutable attribution versions and a tightly scoped owner-correction
 path; assistants remain source facts with zero target units, while the primary responsible employee
 receives all issued passenger-ticket target units.
+Capability `2026082403` adds reasoned admin-on-behalf root-TK completion without impersonation.
+The compatibility bridge is tracked and hardened by capability `2026082601`, whose readiness status
+also verifies the installed pgcrypto runtime dependency.
 A feature deployment may require an earlier bootstrap noted by its active guide—for example
 bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against
 production.
@@ -99,10 +106,11 @@ the component to `2026082402` and installs
 `ticketing_correct_booking_attribution(uuid, uuid, bigint, text, jsonb)`. All mutation functions are
 executable only through the service-role boundary; the API derives the employee actor from the
 verified staff session and never accepts that identity from the browser. The linked project was
-verified ready at `2026082402` after deployment. The attribution tables have RLS, the two mutation
-RPCs are service-role-only, the transient write-context table is inaccessible to API roles, all six
-attribution invariant triggers are installed, and all Ticketing, fare-adjustment, attribution, and
-Commission source-event tables in this slice remain empty.
+verified ready at `2026082601` after deployment. The authorised completion RPC and attribution
+mutations are service-role-only, the transient write-context table is inaccessible to API roles,
+all expected attribution/invariant triggers are installed, and the saved root-TK record passed
+aggregate owner, attribution, target-unit, source-variable, and supersession checks. The generated
+types were refreshed from this linked schema.
 
 This capability supports TK Held/Issued quick entry, the authenticated agent's own ledger, partial
 TK detail completion, aggregate issued DC/R-ER financial service movements against an existing
@@ -118,6 +126,7 @@ adjustments, vouchers, targets, team flight monitoring, refunds, or the cancella
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 
 Privileged tables/functions revoke access from `public`, `anon`, and `authenticated` and grant only the needed service-role operations. Preserve that posture in follow-up migrations.
+The legacy `exec_sql(text)` administrative helper is explicitly denied to anonymous and authenticated roles; never broaden that grant.
 
 ## Access rules
 

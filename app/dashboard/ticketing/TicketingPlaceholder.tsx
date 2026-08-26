@@ -1,4 +1,4 @@
-import { BookOpenText, Calculator, Construction } from 'lucide-react'
+import { Calculator, Construction } from 'lucide-react'
 
 const PLACEHOLDERS = {
   refund: {
@@ -13,20 +13,6 @@ const PLACEHOLDERS = {
       'Airline and supplier penalties',
       'Agency service charge',
       'Final customer refund summary',
-    ],
-  },
-  ledger: {
-    eyebrow: 'Ticketing ledger',
-    title: 'Ticketing Ledger',
-    description:
-      'This submodule will hold issued-ticket records and provide the source for upcoming-flight and schedule-change monitoring.',
-    icon: BookOpenText,
-    items: [
-      'Passenger and ticket numbers',
-      'PNR, airline and supplier references',
-      'Flight sectors and departure times',
-      'Fare, tax and payment details',
-      'Schedule-change history and finalisation',
     ],
   },
 } as const

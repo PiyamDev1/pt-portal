@@ -152,6 +152,7 @@ describe('Ticketing attribution UI', () => {
         employeeId={ACTOR_ID}
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
+        onEditItinerary={vi.fn()}
         canManageAttribution
         onCorrectAttribution={onCorrectAttribution}
       />,
@@ -170,6 +171,7 @@ describe('Ticketing attribution UI', () => {
         employeeId={ACTOR_ID}
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
+        onEditItinerary={vi.fn()}
         canManageAttribution
         onCorrectAttribution={onCorrectAttribution}
       />,
@@ -193,6 +195,7 @@ describe('Ticketing attribution UI', () => {
         employeeId={ACTOR_ID}
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
+        onEditItinerary={vi.fn()}
         canManageAttribution={false}
         onCorrectAttribution={onCorrectAttribution}
       />,
@@ -215,6 +218,7 @@ describe('Ticketing attribution UI', () => {
         employeeId={ACTOR_ID}
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
+        onEditItinerary={vi.fn()}
         canManageAttribution
         onCorrectAttribution={onCorrectAttribution}
       />,

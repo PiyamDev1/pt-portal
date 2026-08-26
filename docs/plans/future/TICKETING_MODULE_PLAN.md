@@ -2,14 +2,12 @@
 
 > **Partial implementation record and remaining roadmap.** This document replaces the March 2026
 > brainstorm. The database foundation, TK ledger/detail completion, issued DC/R-ER financial
-> service entry, shared whole-PNR GBP Low Fare queue, and audited root-TK staff attribution are
-> implemented. Privileged admin-on-behalf TK completion is implemented locally but remains
-> unreleased until its disposable PostgreSQL suite, live migration, and generated-type refresh
-> complete; later Ticketing workflows described here remain proposals until their code,
-> migrations, and tests are shipped.
+> service entry, shared whole-PNR GBP Low Fare queue, audited root-TK staff attribution, and
+> privileged admin-on-behalf TK completion are implemented. Later Ticketing workflows described
+> here remain proposals until their code, migrations, and tests are shipped.
 
-- **Status:** Foundation, sales ledger, shared Low Fare, and root-TK attribution slices implemented
-- **Last updated:** August 24, 2026
+- **Status:** Foundation, sales ledger, shared Low Fare, and root-TK attribution/completion slices implemented
+- **Last updated:** August 26, 2026
 - **Owner:** PT-Portal Team
 
 ### Implementation checkpoint — August 23, 2026
@@ -118,13 +116,27 @@
   as independent downstream Commission inputs with zero target units, so assistance never advances
   an assistant's ticket target or primary-sale tier. Ticketing still stores no rate, calculated
   commission, statement, payout, margin, or profit.
-- Implemented capability `2026082403` locally for Admin, Master Admin, and Super Admin to finish a
+- Implemented and deployed capability `2026082403` for Admin, Master Admin, and Super Admin to finish a
   responsible employee's root-TK customer, journey, sale, and payment details without impersonating
   them. The database derives the current owner, preserves the authenticated admin as the acting
   employee, requires a bounded reason when actor and owner differ, and carries the corrected
-  primary/assistant attribution through issued, sale-completed, and paid source facts. This
-  capability is intentionally not marked deployed until the full disposable PostgreSQL runner is
-  green, the linked migration is applied and verified, and Supabase types are regenerated.
+  primary/assistant attribution through issued, sale-completed, and paid source facts.
+
+### Implementation checkpoint — August 26, 2026
+
+- Reverified the linked capability and the first saved root TK using aggregate-only integrity
+  checks. Capability `2026082403`, the authorised completion RPC, service-only grants, RLS, ten
+  attribution/invariant triggers, owner alignment, source attribution, zero assistant target units,
+  supersession lineage, and empty transient write contexts all passed.
+- Added and deployed capability `2026082601` to track Supabase's `extensions.pgcrypto` runtime
+  dependency, replace the dynamic digest lookup with a fixed trusted extension bridge, preserve all
+  predecessor capability tokens, and make `ticketing_schema_status()` report verified runtime
+  readiness. Linked Supabase types were regenerated afterward.
+- Centralized Supabase object/singleton-array capability parsing across every Ticketing route,
+  retained each route's minimum feature floor, and removed raw database details from quick-entry
+  logs. Malformed, multirow, stale, and unready responses fail closed.
+- The disposable PostgreSQL runner now reproduces Supabase's extension layout and passes through
+  foundation, TK completion, DC/R-ER, Low Fare, attribution, admin completion, and runtime readiness.
 
 ## 1. Summary
 
@@ -676,7 +688,7 @@ All routes must:
 - **Implemented:** exact-PNR issued DC/R-ER entry with affected passenger-group quantities, full
   GBP supplier/customer unit values, immutable root/reissue lineage, Paid-at-create or later Paid
   state, package-scope variables, and target-safe service-specific source facts.
-- **Implemented locally; release pending:** audited admin-on-behalf root-TK detail and payment
+- **Implemented:** audited admin-on-behalf root-TK detail and payment
   completion that never impersonates the responsible employee and preserves current attribution in
   all root-completion source facts.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
@@ -684,7 +696,8 @@ All routes must:
   DC/R-ER service completion.
 - Connect the dashboard's all-agent Flight Monitoring, manual schedule-change workflow, and
   24/6/2-hour time-limit reminders.
-- Complete admin team-ledger pagination/search and the audited admin-on-behalf completion tools.
+- Complete admin team-ledger pagination/search; audited admin-on-behalf root-TK completion is
+  implemented.
 
 ### Phase 3: Targets and low fare — partially implemented
 

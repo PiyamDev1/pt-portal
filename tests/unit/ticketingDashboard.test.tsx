@@ -1,9 +1,23 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TicketingDashboard } from '@/app/dashboard/ticketing/TicketingDashboard'
 import { TicketingPlaceholder } from '@/app/dashboard/ticketing/TicketingPlaceholder'
 
 describe('TicketingDashboard', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          generatedAt: '2026-08-26T10:00:00Z',
+          counts: { upcoming: 0, changeMarked: 0, awaitingFinalisation: 0 },
+          items: [],
+          nextCursor: null,
+        }),
+      ),
+    )
+  })
+
   it('opens the operational sales ledger and Low Fare queue while keeping refunds pending', () => {
     render(<TicketingDashboard />)
 
@@ -16,25 +30,25 @@ describe('TicketingDashboard', () => {
     expect(screen.getByRole('link', { name: /Low Fare/ }).getAttribute('href')).toBe(
       '/dashboard/ticketing/low-fare',
     )
-    expect(screen.getAllByText('Available')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: /Flight Monitoring/ }).getAttribute('href')).toBe(
+      '/dashboard/ticketing#flight-monitoring',
+    )
+    expect(screen.getAllByText('Available')).toHaveLength(3)
     expect(screen.getAllByText('Coming soon')).toHaveLength(1)
   })
 
-  it('keeps flight monitoring pending without describing the ledger as a placeholder', () => {
+  it('loads the all-agent Flight Monitoring mini-module', async () => {
     render(<TicketingDashboard />)
 
     expect(screen.getByRole('heading', { name: 'Upcoming flights' })).toBeTruthy()
-    expect(screen.getByText('No upcoming flights yet')).toBeTruthy()
-    expect(screen.getByText(/TK records can now be added through My Sales Ledger/)).toBeTruthy()
-  })
-
-  it('documents the planned mark, review and finalise schedule workflow', () => {
-    render(<TicketingDashboard />)
-
-    expect(screen.getByRole('heading', { name: 'On schedule' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Change marked' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Finalised' })).toBeTruthy()
-    expect(screen.getByText(/finalise it to update the active flight details/)).toBeTruthy()
+    expect(screen.getByText('All agents')).toBeTruthy()
+    expect(await screen.findByText('No upcoming flights')).toBeTruthy()
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/ticketing/flight-monitor?limit=100',
+        expect.anything(),
+      ),
+    )
   })
 
   it('keeps the refund destination explicitly non-operational', () => {
