@@ -351,7 +351,7 @@ export function TicketQuickEntryForm({
                 aria-invalid={Boolean(errors.customerName)}
                 aria-describedby={errors.customerName ? 'ticket-customer-error' : undefined}
                 className={fieldClass(Boolean(errors.customerName))}
-                placeholder="Customer name"
+                placeholder="Name Surname or Surname / Name"
               />
               <FieldError id="ticket-customer-error" message={errors.customerName} />
             </label>

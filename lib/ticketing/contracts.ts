@@ -40,6 +40,18 @@ const localDateTimeSchema = z
     )
   }, 'Use a valid local date and time')
 
+export function normalizeTicketingCustomerName(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ')
+  const separatorIndex = normalized.indexOf('/')
+  if (separatorIndex < 0 || normalized.indexOf('/', separatorIndex + 1) >= 0) {
+    return normalized
+  }
+
+  const lastName = normalized.slice(0, separatorIndex).trim()
+  const firstName = normalized.slice(separatorIndex + 1).trim()
+  return lastName && firstName ? `${firstName} ${lastName}` : normalized
+}
+
 export const ticketingQuickFareSchema = z
   .object({
     passengerType: z.enum(TICKET_PASSENGER_TYPES),
@@ -50,7 +62,7 @@ export const ticketingQuickFareSchema = z
 
 export const ticketingQuickTkSchema = z
   .object({
-    customerName: z.string().trim().min(1).max(200),
+    customerName: z.string().trim().min(1).max(200).transform(normalizeTicketingCustomerName),
     pnr: z.string().trim().min(1).max(20),
     airlineId: z.string().uuid(),
     serviceType: z.literal('TK'),

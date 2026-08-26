@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { ticketingCorrectAttributionSchema } from '@/lib/ticketing/attributionContracts'
-import { ticketingQuickTkSchema } from '@/lib/ticketing/contracts'
+import {
+  normalizeTicketingCustomerName,
+  ticketingQuickTkSchema,
+} from '@/lib/ticketing/contracts'
 
 const PRIMARY_ID = '40000000-0000-4000-8000-000000000001'
 const ASSISTANT_ID = '40000000-0000-4000-8000-000000000002'
 
 describe('ticketing attribution contracts', () => {
+  it.each([
+    ['SMITH / JOHN', 'JOHN SMITH'],
+    ['  Smith  /  John  ', 'John Smith'],
+    ['John Smith', 'John Smith'],
+    ['SMITH / JOHN / MR', 'SMITH / JOHN / MR'],
+  ])('normalizes customer names from GDS and NDC formats', (input, expected) => {
+    expect(normalizeTicketingCustomerName(input)).toBe(expected)
+  })
+
   it('accepts a strict, reasoned correction', () => {
     expect(
       ticketingCorrectAttributionSchema.parse({
@@ -69,6 +81,7 @@ describe('ticketing attribution contracts', () => {
     })
 
     expect(parsed).toMatchObject({
+      customerName: 'Test Passenger',
       assistantEmployeeIds: [],
       attributionReason: null,
     })
