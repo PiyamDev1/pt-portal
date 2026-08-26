@@ -10,10 +10,12 @@ const ASSISTANT_ID = '40000000-0000-4000-8000-000000000002'
 
 describe('ticketing attribution contracts', () => {
   it.each([
-    ['SMITH / JOHN', 'JOHN SMITH'],
-    ['  Smith  /  John  ', 'John Smith'],
-    ['John Smith', 'John Smith'],
-    ['SMITH / JOHN / MR', 'SMITH / JOHN / MR'],
+    ['SMITH / JOHN', 'John Smith'],
+    ['  SMITH  /  JOHN  ', 'John Smith'],
+    ['JOHN SMITH', 'John Smith'],
+    ["O'NEIL / ANNE-MARIE", "Anne-Marie O'Neil"],
+    ['John SMITH', 'John SMITH'],
+    ['SMITH / JOHN / MR', 'Smith / John / Mr'],
   ])('normalizes customer names from GDS and NDC formats', (input, expected) => {
     expect(normalizeTicketingCustomerName(input)).toBe(expected)
   })

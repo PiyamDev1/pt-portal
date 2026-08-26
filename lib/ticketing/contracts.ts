@@ -43,13 +43,18 @@ const localDateTimeSchema = z
 export function normalizeTicketingCustomerName(value: string) {
   const normalized = value.trim().replace(/\s+/g, ' ')
   const separatorIndex = normalized.indexOf('/')
-  if (separatorIndex < 0 || normalized.indexOf('/', separatorIndex + 1) >= 0) {
-    return normalized
-  }
+  const orderedName =
+    separatorIndex >= 0 && normalized.indexOf('/', separatorIndex + 1) < 0
+      ? (() => {
+          const lastName = normalized.slice(0, separatorIndex).trim()
+          const firstName = normalized.slice(separatorIndex + 1).trim()
+          return lastName && firstName ? `${firstName} ${lastName}` : normalized
+        })()
+      : normalized
 
-  const lastName = normalized.slice(0, separatorIndex).trim()
-  const firstName = normalized.slice(separatorIndex + 1).trim()
-  return lastName && firstName ? `${firstName} ${lastName}` : normalized
+  if (!/[A-Z]/.test(orderedName) || /[a-z]/.test(orderedName)) return orderedName
+
+  return orderedName.toLowerCase().replace(/(^|[\s'-])[a-z]/g, (match) => match.toUpperCase())
 }
 
 export const ticketingQuickFareSchema = z
