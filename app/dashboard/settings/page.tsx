@@ -21,6 +21,7 @@ import { redirect } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { DeviceLayoutPreference } from './components/DeviceLayoutPreference'
 
 const SettingsClient = dynamic(() => import('./client'), {
@@ -56,11 +57,13 @@ export default async function SettingsPage() {
   } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
+  const serviceSupabase = getServiceSupabaseClient()
+
   // 2. Fetch Hierarchy Data in Parallel (Fast)
   const [locations, departments, roles, employees, employeeDepartments, employeeData] =
     await Promise.all([
       supabase.from('locations').select('*').order('name'),
-      supabase.from('departments').select('*').order('name'),
+      serviceSupabase.from('departments').select('*').order('name'),
       supabase.from('roles').select('*').order('level'), // Level 1 = Boss
       supabase
         .from('employees')
