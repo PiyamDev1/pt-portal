@@ -32,8 +32,13 @@ export class TicketLedgerApiError extends Error {
   }
 }
 
-export async function loadTicketLedger(): Promise<TicketLedgerPayload> {
-  const response = await fetch('/api/ticketing/ledger?limit=100', { cache: 'no-store' })
+export async function loadTicketLedger(
+  options: { search?: string; cursor?: string } = {},
+): Promise<TicketLedgerPayload> {
+  const search = new URLSearchParams({ limit: '100' })
+  if (options.search?.trim()) search.set('search', options.search.trim())
+  if (options.cursor) search.set('cursor', options.cursor)
+  const response = await fetch(`/api/ticketing/ledger?${search.toString()}`, { cache: 'no-store' })
   const payload = (await response.json().catch(() => ({}))) as TicketLedgerPayload & ApiErrorPayload
 
   if (!response.ok) {
@@ -44,6 +49,7 @@ export async function loadTicketLedger(): Promise<TicketLedgerPayload> {
     items: Array.isArray(payload.items) ? payload.items : [],
     airlines: Array.isArray(payload.airlines) ? payload.airlines : [],
     context: payload.context,
+    nextCursor: typeof payload.nextCursor === 'string' ? payload.nextCursor : null,
   }
 }
 

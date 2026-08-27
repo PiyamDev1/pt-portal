@@ -63,6 +63,7 @@ export type TicketLedgerPayload = {
   items: TicketLedgerItem[]
   airlines: TicketAirlineOption[]
   context: TicketLedgerContext
+  nextCursor: string | null
 }
 
 export type TicketFareInput = {

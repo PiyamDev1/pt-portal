@@ -17,6 +17,8 @@ export function TicketingLedgerClient() {
   const [loadError, setLoadError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
@@ -27,24 +29,34 @@ export function TicketingLedgerClient() {
   )
   const [entryType, setEntryType] = useState<'TK' | 'DC' | 'R-ER'>('TK')
 
-  const refresh = useCallback(async (initial = false) => {
-    if (initial) setIsLoading(true)
-    else setIsRefreshing(true)
-    try {
-      const nextPayload = await loadTicketLedger()
-      setPayload(nextPayload)
-      setLoadError('')
-    } catch (error) {
-      setLoadError(
-        error instanceof TicketLedgerApiError
-          ? error.message
-          : 'Unable to load your sales ledger. Try again.',
-      )
-    } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
-  }, [])
+  const refresh = useCallback(
+    async (initial = false, cursor?: string) => {
+      if (initial) setIsLoading(true)
+      else if (cursor) setIsLoadingMore(true)
+      else setIsRefreshing(true)
+      try {
+        const nextPayload = await loadTicketLedger({ search, cursor })
+        setPayload((current) =>
+          cursor && current
+            ? { ...nextPayload, items: [...current.items, ...nextPayload.items] }
+            : nextPayload,
+        )
+        setNextCursor(nextPayload.nextCursor)
+        setLoadError('')
+      } catch (error) {
+        setLoadError(
+          error instanceof TicketLedgerApiError
+            ? error.message
+            : 'Unable to load your sales ledger. Try again.',
+        )
+      } finally {
+        setIsLoading(false)
+        setIsLoadingMore(false)
+        setIsRefreshing(false)
+      }
+    },
+    [search],
+  )
 
   useEffect(() => {
     void refresh(true)
@@ -192,7 +204,7 @@ export function TicketingLedgerClient() {
               Latest ticket records
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Showing {filteredItems.length} of the latest {payload.items.length} ticket records
+              Showing {filteredItems.length} of {payload.items.length} loaded ticket records
             </p>
           </div>
 
@@ -262,6 +274,17 @@ export function TicketingLedgerClient() {
           canManageAttribution={payload.context.canManageAttribution}
           onCorrectAttribution={setSelectedAttributionItem}
         />
+
+        {nextCursor && (
+          <button
+            type="button"
+            onClick={() => void refresh(false, nextCursor)}
+            disabled={isLoadingMore || isRefreshing}
+            className="ui-tap ui-focus mx-auto inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {isLoadingMore ? 'Loading more records' : 'Load more records'}
+          </button>
+        )}
       </section>
 
       <TicketCompletionDrawer

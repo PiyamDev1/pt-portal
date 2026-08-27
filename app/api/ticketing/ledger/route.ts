@@ -1,4 +1,6 @@
+import { Buffer } from 'node:buffer'
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
@@ -24,6 +26,46 @@ import {
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_RUNTIME_VERSION = TICKET_ATTRIBUTION_CAPABILITY_VERSION
+const LEDGER_MAX_LIMIT = 100
+
+const ledgerCursorSchema = z
+  .object({
+    createdAt: z.string().datetime({ offset: true }),
+    transactionId: z.string().uuid(),
+    search: z.string().max(100),
+  })
+  .strict()
+
+function parseLedgerQuery(request: NextRequest) {
+  const requestedLimit = Number(request.nextUrl.searchParams.get('limit') || 50)
+  const limit = Number.isInteger(requestedLimit)
+    ? Math.min(Math.max(requestedLimit, 1), LEDGER_MAX_LIMIT)
+    : 50
+  const search = (request.nextUrl.searchParams.get('search') || '').trim()
+  if (search.length > 100) return null
+  const rawCursor = request.nextUrl.searchParams.get('cursor')
+  if (!rawCursor) return { limit, search, cursor: null }
+  try {
+    const parsed = ledgerCursorSchema.safeParse(
+      JSON.parse(Buffer.from(rawCursor, 'base64url').toString('utf8')),
+    )
+    if (!parsed.success || parsed.data.search !== search) return null
+    return { limit, search, cursor: parsed.data }
+  } catch {
+    return null
+  }
+}
+
+function createLedgerCursor(row: TransactionRow, search: string) {
+  return Buffer.from(
+    JSON.stringify({ createdAt: row.created_at, transactionId: row.id, search }),
+    'utf8',
+  ).toString('base64url')
+}
+
+function escapeSearch(value: string) {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`)
+}
 
 type Related<T> = T | T[] | null
 
@@ -346,8 +388,9 @@ export async function GET(request: NextRequest) {
   const access = await requireTicketingAccess()
   if (!access.authorized) return access.response
 
-  const requestedLimit = Number(request.nextUrl.searchParams.get('limit') || 50)
-  const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50
+  const filters = parseLedgerQuery(request)
+  if (!filters) return apiError('Invalid ticket ledger filters.', 400)
+  const { limit, search, cursor } = filters
   const supabase = getServiceSupabaseClient()
   if (!(await hasTicketingRuntimeCapability(supabase))) {
     return apiError('Ticketing quick entry is not installed on this database.', 503)
@@ -412,6 +455,18 @@ export async function GET(request: NextRequest) {
   if (!canManageAttribution) {
     transactionsQuery = transactionsQuery.eq('owner_employee_id', access.employee.id)
   }
+  if (search) {
+    const escapedSearch = escapeSearch(search)
+    transactionsQuery = transactionsQuery.or(
+      `pnr.ilike.%${escapedSearch}%,customer_name.ilike.%${escapedSearch}%`,
+      { foreignTable: 'ticket_bookings' },
+    )
+  }
+  if (cursor) {
+    transactionsQuery = transactionsQuery.or(
+      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.transactionId})`,
+    )
+  }
 
   const attributionEmployeesPromise = canManageAttribution
     ? supabase
@@ -426,7 +481,7 @@ export async function GET(request: NextRequest) {
       transactionsQuery
         .is('ticket_bookings.archived_at', null)
         .order('created_at', { ascending: false })
-        .limit(limit),
+        .limit(limit + 1),
       supabase
         .from('airlines')
         .select('id, iata_code, name')
@@ -449,7 +504,9 @@ export async function GET(request: NextRequest) {
     return apiError('Unable to load the ticket ledger right now.', 500)
   }
 
-  const items = ((transactionsResult.data || []) as unknown as TransactionRow[])
+  const transactionRows = (transactionsResult.data || []) as unknown as TransactionRow[]
+  const pageRows = transactionRows.slice(0, limit)
+  const items = pageRows
     .map((row) => ledgerItem(row, access.employee.id, access.employee.fullName))
     .filter((item): item is TicketingLedgerItem => Boolean(item))
   const airlines = ((airlinesResult.data || []) as AirlineRow[]).map(airlineOption)
@@ -467,6 +524,10 @@ export async function GET(request: NextRequest) {
   return apiOk(
     {
       items,
+      nextCursor:
+        transactionRows.length > limit && pageRows.length > 0
+          ? createLedgerCursor(pageRows[pageRows.length - 1], search)
+          : null,
       airlines,
       context: {
         employeeId: access.employee.id,

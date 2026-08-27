@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => {
   const transactionLimit = vi.fn()
   const transactionOrder = vi.fn(() => ({ limit: transactionLimit }))
   const transactionIs = vi.fn(() => ({ order: transactionOrder }))
-  const transactionEq = vi.fn(() => ({ is: transactionIs }))
+  const transactionEq = vi.fn(() => ({ is: transactionIs, or: transactionOr }))
   const transactionOr = vi.fn(() => ({ is: transactionIs }))
   const transactionSelect = vi.fn(() => ({
     eq: transactionEq,
@@ -228,7 +228,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.transactionEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
-    expect(mocks.transactionLimit).toHaveBeenCalledWith(25)
+    expect(mocks.transactionLimit).toHaveBeenCalledWith(26)
     expect(body.items).toEqual([
       expect.objectContaining({
         bookingId: 'booking-1',
@@ -251,6 +251,18 @@ describe('/api/ticketing/ledger', () => {
     })
     expect(body).not.toHaveProperty('commission')
     expect(body).not.toHaveProperty('profit')
+  })
+
+  it('applies bounded server search to team ledger queries', async () => {
+    const response = await GET(
+      new NextRequest('http://localhost/api/ticketing/ledger?limit=25&search=ABC123'),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.transactionOr).toHaveBeenCalledWith(
+      'pnr.ilike.%ABC123%,customer_name.ilike.%ABC123%',
+      { foreignTable: 'ticket_bookings' },
+    )
   })
 
   it('lets an administrator review the bounded team ledger and maps current attribution', async () => {

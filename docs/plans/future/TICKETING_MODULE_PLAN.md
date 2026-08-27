@@ -185,6 +185,10 @@
 - Flight Monitoring now supports server-backed responsible-agent and local departure-date range
   filters, with filter-bound keyset cursors and filtered summary counts. Search remains a local
   operational text filter over the loaded page.
+- The Ticketing ledger now supports bounded server-side PNR/customer search, filter-bound opaque
+  keyset pagination, and a guarded Load more flow for the authorised team view. Ownership scoping
+  remains enforced server-side and the ledger continues to expose no calculated commission or
+  profit.
 
 ## 1. Summary
 
@@ -751,6 +755,8 @@ All routes must:
   itinerary revisions without Commission facts.
 - **Implemented:** Flight Monitoring responsible-agent and local departure-date filters applied to
   both rows and summary counts, with opaque cursors bound to the selected filters.
+- **Implemented:** bounded team-ledger PNR/customer search and opaque keyset pagination with a
+  client Load more control; own/team authorization remains server-enforced.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
   DC/R-ER, changed child-service itinerary allocation, and transaction-scoped admin/assistant
   attribution for DC/R-ER service completion.
