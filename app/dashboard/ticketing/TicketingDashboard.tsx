@@ -43,17 +43,6 @@ const TICKETING_MODULES = [
     available: true,
     actionLabel: 'Open Low Fare',
   },
-  {
-    title: 'Flight Monitoring',
-    description:
-      'Review upcoming flight sectors for every ticketing agent from one operational view.',
-    icon: PlaneTakeoff,
-    tone: 'border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50',
-    iconTone: 'bg-violet-100 text-violet-800',
-    href: '/dashboard/ticketing#flight-monitoring',
-    available: true,
-    actionLabel: 'View all flights',
-  },
 ] as const
 
 export function TicketingDashboard() {
@@ -88,7 +77,7 @@ export function TicketingDashboard() {
             </h2>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-            3 tools available
+            2 tools available
           </span>
         </div>
 

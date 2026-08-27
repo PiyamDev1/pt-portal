@@ -30,10 +30,8 @@ describe('TicketingDashboard', () => {
     expect(screen.getByRole('link', { name: /Low Fare/ }).getAttribute('href')).toBe(
       '/dashboard/ticketing/low-fare',
     )
-    expect(screen.getByRole('link', { name: /Flight Monitoring/ }).getAttribute('href')).toBe(
-      '/dashboard/ticketing#flight-monitoring',
-    )
-    expect(screen.getAllByText('Available')).toHaveLength(3)
+    expect(screen.queryByRole('link', { name: /Flight Monitoring/ })).toBeNull()
+    expect(screen.getAllByText('Available')).toHaveLength(2)
     expect(screen.getAllByText('Coming soon')).toHaveLength(1)
   })
 
