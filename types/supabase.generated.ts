@@ -5789,6 +5789,8 @@ export type Database = {
       ticket_legacy_migration_map: {
         Row: {
           booking_id: string | null
+          claim_token: string | null
+          claimed_at: string | null
           created_at: string
           legacy_payload: Json
           legacy_ticket_ledger_id: string
@@ -5800,6 +5802,8 @@ export type Database = {
         }
         Insert: {
           booking_id?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           legacy_payload: Json
           legacy_ticket_ledger_id: string
@@ -5811,6 +5815,8 @@ export type Database = {
         }
         Update: {
           booking_id?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           legacy_payload?: Json
           legacy_ticket_ledger_id?: string

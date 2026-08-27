@@ -65,6 +65,7 @@ language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
+#variable_conflict use_column
 declare
   effective_batch integer := least(greatest(coalesce(batch_size, 100), 1), 500);
 begin
@@ -113,6 +114,16 @@ begin
       version = booking.version + 1
   where booking.operational_status = 'held'
     and booking.archived_at is null
+    and booking.time_limit_at <= requested_at;
+
+  update public.ticket_transactions transaction_row
+  set operational_status = 'expired',
+      updated_at = requested_at,
+      version = transaction_row.version + 1
+  from public.ticket_bookings booking
+  where transaction_row.booking_id = booking.id
+    and transaction_row.operational_status = 'held'
+    and booking.operational_status = 'expired'
     and booking.time_limit_at <= requested_at;
 
   update public.ticket_notification_events
