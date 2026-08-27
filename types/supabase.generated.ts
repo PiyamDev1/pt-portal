@@ -4925,6 +4925,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_airports: {
+        Row: {
+          city: string
+          country_code: string
+          created_at: string
+          iata_code: string
+          is_active: boolean
+          name: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          city: string
+          country_code: string
+          created_at?: string
+          iata_code: string
+          is_active?: boolean
+          name: string
+          timezone: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string
+          country_code?: string
+          created_at?: string
+          iata_code?: string
+          is_active?: boolean
+          name?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ticket_attribution_write_contexts: {
         Row: {
           actor_employee_id: string
@@ -5493,7 +5526,10 @@ export type Database = {
           flight_number: string | null
           id: string
           is_active: boolean
+          itinerary_version: number
           origin_airport_code: string
+          retired_at: string | null
+          retired_by: string | null
           schedule_status: string
           sequence_number: number
           source_transaction_id: string | null
@@ -5514,7 +5550,10 @@ export type Database = {
           flight_number?: string | null
           id?: string
           is_active?: boolean
+          itinerary_version?: number
           origin_airport_code: string
+          retired_at?: string | null
+          retired_by?: string | null
           schedule_status?: string
           sequence_number: number
           source_transaction_id?: string | null
@@ -5535,7 +5574,10 @@ export type Database = {
           flight_number?: string | null
           id?: string
           is_active?: boolean
+          itinerary_version?: number
           origin_airport_code?: string
+          retired_at?: string | null
+          retired_by?: string | null
           schedule_status?: string
           sequence_number?: number
           source_transaction_id?: string | null
@@ -5564,8 +5606,79 @@ export type Database = {
             referencedColumns: ['id']
           },
           {
+            foreignKeyName: 'ticket_itinerary_sectors_retired_by_fkey'
+            columns: ['retired_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
             foreignKeyName: 'ticket_itinerary_sectors_transaction_booking_fkey'
             columns: ['source_transaction_id', 'booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id', 'booking_id']
+          },
+        ]
+      }
+      ticket_itinerary_write_contexts: {
+        Row: {
+          actor_employee_id: string
+          booking_id: string
+          changed_at: string
+          created_at: string
+          expected_insert_count: number
+          expected_retire_count: number
+          id: string
+          inserted_count: number
+          itinerary_version: number
+          retired_count: number
+          root_transaction_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          booking_id: string
+          changed_at: string
+          created_at?: string
+          expected_insert_count: number
+          expected_retire_count: number
+          id?: string
+          inserted_count?: number
+          itinerary_version: number
+          retired_count?: number
+          root_transaction_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          booking_id?: string
+          changed_at?: string
+          created_at?: string
+          expected_insert_count?: number
+          expected_retire_count?: number
+          id?: string
+          inserted_count?: number
+          itinerary_version?: number
+          retired_count?: number
+          root_transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_itinerary_write_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_itinerary_write_contexts_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_itinerary_write_contexts_root_booking_fkey'
+            columns: ['root_transaction_id', 'booking_id']
             isOneToOne: false
             referencedRelation: 'ticket_transactions'
             referencedColumns: ['id', 'booking_id']
@@ -10256,6 +10369,17 @@ export type Database = {
           p_old_primary_employee_id: string
         }
         Returns: boolean
+      }
+      ticketing_replace_root_tk_itinerary: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_expected_itinerary_version: number
+          p_idempotency_key: string
+          p_on_behalf_reason: string
+          p_sectors: Json
+        }
+        Returns: Json
       }
       ticketing_schema_status: { Args: never; Returns: Json }
       ticketing_transaction_has_been_issued_2026082304: {

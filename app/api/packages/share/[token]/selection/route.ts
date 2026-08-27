@@ -44,6 +44,16 @@ const packageSelectionSchema = z
       .strip()
       .nullable()
       .optional(),
+    paymentScope: z.enum(['current', 'group']).optional(),
+    groupPaymentBreakdown: z
+      .object({
+        cash: z.number().optional(),
+        bankTransfer: z.number().optional(),
+        card: z.number().optional(),
+      })
+      .strip()
+      .nullable()
+      .optional(),
     paymentIntent: z
       .enum(['full_payment', 'deposit_only', 'installment_request'])
       .nullable()
@@ -159,6 +169,25 @@ export async function POST(
 
   if (updateError) {
     return apiError(updateError.message || 'Failed to save package selection', 500)
+  }
+
+  if (!saveOnly && resolved.selection.paymentScope === 'group') {
+    const { data: membership } = await supabase
+      .from('travel_package_group_members')
+      .select('group_id')
+      .eq('quote_id', quote.id)
+      .maybeSingle()
+    const groupId = (membership as { group_id?: string } | null)?.group_id
+    if (groupId) {
+      await supabase
+        .from('travel_package_groups')
+        .update({
+          customer_file_mode: 'combined',
+          customer_visibility_mode: 'shared_group_view',
+          updated_at: now,
+        })
+        .eq('id', groupId)
+    }
   }
 
   await recordPackageAuditEvent(

@@ -169,6 +169,8 @@ export function createPublicPackageSelection(
     transportOptionId: selection.transportOptionId,
     paymentMethod: selection.paymentMethod,
     paymentBreakdown: createPublicPaymentBreakdown(selection.paymentBreakdown),
+    paymentScope: selection.paymentScope,
+    groupPaymentBreakdown: createPublicPaymentBreakdown(selection.groupPaymentBreakdown),
     paymentIntent: selection.paymentIntent,
     installmentRequested: selection.installmentRequested,
     depositPaymentMethod: selection.depositPaymentMethod,

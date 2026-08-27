@@ -145,12 +145,7 @@ function validUtcTimestamp(value: unknown): value is string {
 }
 
 function airlineFromRow(row: AirlineRow | null): TicketingItineraryAirline | null {
-  if (
-    !row ||
-    !validUuid(row.id) ||
-    !/^[A-Z0-9]{2}$/.test(row.iata_code) ||
-    !row.name?.trim()
-  ) {
+  if (!row || !validUuid(row.id) || !/^[A-Z0-9]{2}$/.test(row.iata_code) || !row.name?.trim()) {
     return null
   }
   return { id: row.id, iataCode: row.iata_code, name: row.name.trim() }
@@ -255,9 +250,7 @@ function monitorItemFromRow(
   const arrivalLocal = row.arrival_local
     ? ticketingLocalDateTimeSchema.safeParse(row.arrival_local)
     : null
-  const scheduleStatus = TICKET_SCHEDULE_STATUSES.find(
-    (status) => status === row.schedule_status,
-  )
+  const scheduleStatus = TICKET_SCHEDULE_STATUSES.find((status) => status === row.schedule_status)
   const originTimezone = airportTimezones.get(row.origin_airport_code)
   const destinationTimezone = airportTimezones.get(row.destination_airport_code)
 
@@ -340,12 +333,22 @@ async function monitorCount(
 ) {
   let query = supabase
     .from('ticket_itinerary_sectors')
-    .select('id, ticket_bookings!inner(id)', { count: 'exact', head: true })
+    .select(
+      `
+        id,
+        ticket_bookings!inner(id),
+        source_transaction:ticket_transactions!ticket_itinerary_sectors_transaction_booking_fkey!inner(id)
+      `,
+      { count: 'exact', head: true },
+    )
     .eq('is_active', true)
     .is('retired_at', null)
     .gte('departure_at_utc', generatedAt)
     .eq('ticket_bookings.operational_status', 'issued')
     .is('ticket_bookings.archived_at', null)
+    .eq('source_transaction.service_type', 'TK')
+    .is('source_transaction.parent_transaction_id', null)
+    .eq('source_transaction.operational_status', 'issued')
 
   if (status) query = query.eq('schedule_status', status)
   const { count, error } = await query
@@ -368,9 +371,7 @@ export async function GET(request: NextRequest) {
   if (!rateLimit.allowed) return rateLimit.response
 
   const supabase = getServiceSupabaseClient()
-  const { data: capability, error: capabilityError } = await supabase.rpc(
-    'ticketing_schema_status',
-  )
+  const { data: capability, error: capabilityError } = await supabase.rpc('ticketing_schema_status')
   if (
     capabilityError ||
     !hasTicketingSchemaCapability(capability, TICKET_ITINERARY_CAPABILITY_VERSION)
@@ -418,7 +419,7 @@ export async function GET(request: NextRequest) {
           archived_at,
           owner:employees!ticket_bookings_owner_employee_id_fkey(id, full_name)
         ),
-        source_transaction:ticket_transactions!ticket_itinerary_sectors_transaction_booking_fkey(
+        source_transaction:ticket_transactions!ticket_itinerary_sectors_transaction_booking_fkey!inner(
           id,
           service_type,
           parent_transaction_id,
@@ -463,9 +464,7 @@ export async function GET(request: NextRequest) {
   const rows = (data || []) as unknown as MonitorSectorRow[]
   const pageRows = rows.slice(0, filters.limit)
   const airportCodes = [
-    ...new Set(
-      pageRows.flatMap((row) => [row.origin_airport_code, row.destination_airport_code]),
-    ),
+    ...new Set(pageRows.flatMap((row) => [row.origin_airport_code, row.destination_airport_code])),
   ]
   let airportTimezones = new Map<string, string>()
   if (airportCodes.length > 0) {
@@ -479,9 +478,7 @@ export async function GET(request: NextRequest) {
     const airports = (airportData || []) as unknown as AirportTimezoneRow[]
     if (
       airports.length !== airportCodes.length ||
-      airports.some(
-        (airport) => !/^[A-Z]{3}$/.test(airport.iata_code) || !airport.timezone?.trim(),
-      )
+      airports.some((airport) => !/^[A-Z]{3}$/.test(airport.iata_code) || !airport.timezone?.trim())
     ) {
       return privateError('Unable to load flight monitoring safely.', 500)
     }

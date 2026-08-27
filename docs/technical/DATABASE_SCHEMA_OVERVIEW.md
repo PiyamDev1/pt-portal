@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-Last verified against the repository and linked Ticketing capability: August 26, 2026.
+Last verified against the repository and linked Ticketing capability: August 27, 2026.
 
 ## Sources of truth
 
@@ -51,10 +51,11 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 | `20260823_ticketing_service_response_lineage_guard.sql` | immutable service replay dates, historical R-ER lineage after cancellation/refund, one historical successor, completed-response immutability, migration-ratchet tombstones, and capability `2026082304`                 |
 | `20260824_ticketing_low_fare_adjustments.sql`           | shared whole-PNR GBP supplier-fare queue/lineage, server-derived original fare and package scope, acting-agent source attribution, immutable target-safe adjustment events, and capability `2026082401`                 |
 | `20260824_ticketing_attribution_overrides.sql`          | immutable entered-by/primary/assistant attribution, admin-only optimistic correction, aligned operational ownership, primary-only issued-ticket targets, versioned source-event correction, and capability `2026082402` |
-| `20260824_ticketing_admin_completion.sql`               | audited Admin/Master Admin/Super Admin root-TK completion on behalf of the current primary, exact replay, attributed completion-source lineage, and capability `2026082403`                    |
-| `20260825_ticketing_pgcrypto_compat.sql`                 | compatibility bridge for Supabase projects that install `pgcrypto` outside `public`                                                                                                              |
-| `20260826_secure_exec_sql.sql`                           | revokes anonymous/authenticated execution of the legacy PostgreSQL-owner `exec_sql(text)` helper while retaining service-role deployment access                                                  |
-| `20260826_ticketing_runtime_readiness.sql`               | trusted fixed-schema pgcrypto bridge, verified runtime dependency status, preserved capability history, and Ticketing capability `2026082601`                                                     |
+| `20260824_ticketing_admin_completion.sql`               | audited Admin/Master Admin/Super Admin root-TK completion on behalf of the current primary, exact replay, attributed completion-source lineage, and capability `2026082403`                                             |
+| `20260825_ticketing_pgcrypto_compat.sql`                | compatibility bridge for Supabase projects that install `pgcrypto` outside `public`                                                                                                                                     |
+| `20260826_secure_exec_sql.sql`                          | revokes anonymous/authenticated execution of the legacy PostgreSQL-owner `exec_sql(text)` helper while retaining service-role deployment access                                                                         |
+| `20260826_ticketing_runtime_readiness.sql`              | trusted fixed-schema pgcrypto bridge, verified runtime dependency status, preserved capability history, and Ticketing capability `2026082601`                                                                           |
+| `20260826_ticketing_sector_itinerary.sql`               | server-owned airport directory, airport-derived timezone/UTC sectors, retained root-TK itinerary revisions, audited administrator cover, guarded write context, and capability `2026082602`                             |
 
 Apply unapplied files in filename order and track which migrations have already run. Every
 versioned Ticketing capability migration begins with a forward-version guard: the foundation supports a fresh
@@ -71,6 +72,8 @@ receives all issued passenger-ticket target units.
 Capability `2026082403` adds reasoned admin-on-behalf root-TK completion without impersonation.
 The compatibility bridge is tracked and hardened by capability `2026082601`, whose readiness status
 also verifies the installed pgcrypto runtime dependency.
+Capability `2026082602` preserves those checks and adds the service-only versioned itinerary
+replacement boundary plus the read-only airport and sector projections.
 A feature deployment may require an earlier bootstrap noted by its active guide—for example
 bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against
 production.
@@ -106,11 +109,12 @@ the component to `2026082402` and installs
 `ticketing_correct_booking_attribution(uuid, uuid, bigint, text, jsonb)`. All mutation functions are
 executable only through the service-role boundary; the API derives the employee actor from the
 verified staff session and never accepts that identity from the browser. The linked project was
-verified ready at `2026082601` after deployment. The authorised completion RPC and attribution
-mutations are service-role-only, the transient write-context table is inaccessible to API roles,
-all expected attribution/invariant triggers are installed, and the saved root-TK record passed
-aggregate owner, attribution, target-unit, source-variable, and supersession checks. The generated
-types were refreshed from this linked schema.
+verified ready at `2026082602` after deployment. The authorised completion, attribution, and
+itinerary mutations are service-role-only; the attribution and itinerary transient write-context
+tables are inaccessible to API roles; and the expected invariant triggers are installed. Linked
+aggregate checks confirmed 29 active airports, RLS and least-privilege table grants, the enabled
+sector guard, unique preserved capability tokens, zero open itinerary contexts, and zero itinerary
+sectors before operational use. The generated types were refreshed from this linked schema.
 
 This capability supports TK Held/Issued quick entry, the authenticated agent's own ledger, partial
 TK detail completion, aggregate issued DC/R-ER financial service movements against an existing
@@ -119,9 +123,10 @@ service children carry affected ADT/CHD/INF quantities and full supplier/custome
 preserve immutable root facts, form an explicit R-ER supersession chain, and publish variables-only
 service/payment facts that do not count as issued-TK target events. Low Fare appends a separate
 linear supplier-fare history and target-safe positive/negative difference event without rewriting
-the root. The runtime does not yet capture the new itinerary, exact affected passenger identities,
-an airline-fee/fare-difference component split, same-fare check observations, non-GBP fare
-adjustments, vouchers, targets, team flight monitoring, refunds, or the cancellation calculator.
+the root. Root TKs now support retained itinerary revisions and the shared future-flight projection.
+The runtime does not yet capture exact affected passenger identities for DC/R-ER, an
+airline-fee/fare-difference component split, same-fare check observations, non-GBP fare adjustments,
+vouchers, targets, manual schedule-change finalisation, refunds, or the cancellation calculator.
 
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 

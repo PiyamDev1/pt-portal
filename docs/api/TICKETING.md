@@ -295,3 +295,95 @@ toward issued-TK targets, and the public response contains no commission or prof
 ticket is unavailable; `409` with `VERSION_CONFLICT`, `LINEAGE_CONFLICT`,
 `IDEMPOTENCY_CONFLICT`, or `CORRECTION_REQUIRED`; `429` when rate limited; `503` when capability
 `2026082401` is absent; `500` for an invalid or failed atomic result.
+
+### GET `/api/ticketing/airports`
+
+**Access:** Active Ticketing department staff or a Manager, Admin, Master Admin, or Super Admin.
+The directory is delivered through the authenticated staff route; `anon` and `authenticated` do
+not receive direct table access.
+
+**Input:** Optional strict `q` search of 1–80 letters, numbers, spaces, or hyphens across the IATA
+prefix, airport name, and city. Optional `limit` is `1`–`100` and defaults to `50`. Repeated or
+unknown query keys are rejected.
+
+**Success:** `200` with `items`, ordered by IATA code. Every active item contains `iataCode`,
+`name`, `city`, two-letter `countryCode`, and the authoritative IANA `timezone`. The timezone is
+display context only; itinerary mutations submit the airport code and the database derives the
+stored timezone and UTC instant.
+
+**Errors:** `400` for malformed filters; `401`/`403` for access failures; `429` when rate limited;
+`503` when capability `2026082602` is absent; `500` when the directory cannot be loaded or mapped
+safely.
+
+### GET `/api/ticketing/bookings/[bookingId]/sectors`
+
+**Access:** The current responsible owner may load their Held or Issued root-TK itinerary. Admin,
+Master Admin, and Super Admin may load another employee's root TK for the audited cover workflow.
+Manager, Maintenance Admin, and regular Ticketing staff remain owner-only; an inaccessible and a
+missing booking both return `404`.
+
+**Input:** `bookingId` is a UUID path segment. The route accepts no actor, owner, timezone, UTC,
+financial, or Commission query fields.
+
+**Success:** `200` with `booking`, `context`, dedicated non-negative `itineraryVersion`, and up to
+twelve current `sectors`. Booking context contains the PNR, customer name, Held/Issued state,
+responsible owner, booking version, and default airline. Each sector contains its stable ID,
+sequence and itinerary version, airline/flight, origin and destination IATA/timezone, local and UTC
+departure, optional local and UTC arrival, and schedule status. `context.isOnBehalf` and
+`onBehalfReasonRequired` tell the UI whether administrator cover needs a reason. No fare, payment,
+profit, package-profit, or commission value is returned.
+
+**Errors:** `401`/`403` for access failures; `404` for an invalid, unavailable, archived, terminal,
+non-root, or inaccessible TK; `503` when capability `2026082602` is absent; `500` when stored
+itinerary data cannot be loaded or mapped safely.
+
+### PUT `/api/ticketing/bookings/[bookingId]/sectors`
+
+**Access:** The same owner/administrator boundary as `GET`. The database rechecks active Ticketing
+membership or oversight, current ownership and attribution. Only Admin, Master Admin, and Super
+Admin may replace another employee's itinerary, with a reason; the responsible owner never changes
+and the authenticated employee remains the immutable actor.
+
+**Input:** A strict JSON body no larger than 32 KiB with UUID `requestId`, non-negative
+`expectedVersion`, nullable `adminReason` up to 500 characters, and `sectors` containing 1–12
+ordered entries. Each entry contains nullable `airlineId` (defaulting to the root booking airline),
+`flightNumber`, `originIata`, `destinationIata`, local `departureLocal`, and nullable local
+`arrivalLocal`. Local values are bounded to years 2000–2200. Timezone, UTC, owner, actor, audit,
+financial, and Commission fields are rejected. Airport timezones and UTC instants are derived
+server-side; nonexistent daylight-saving gap values and arrival-before-departure chronology are
+rejected.
+
+**Success:** `200` with the same semantic itinerary DTO as `GET`, plus `changed` and
+`idempotentReplay`. A real replacement advances only the dedicated itinerary version, retires the
+old active sectors, inserts a new active revision, and appends one redacted audit event. It does not
+advance an unrelated booking version or emit a Commission source fact. A new request carrying the
+same schedule is a no-op. An exact retry returns its immutable committed response before mutable
+employee, ownership, airline, airport, or lifecycle checks.
+
+**Errors:** `400` for malformed fields, invalid airport/airline/local time/chronology, missing or
+misused administrator reason, or `IDEMPOTENCY_CONFLICT`; `401`/`403` for access failures; `404` for
+an unavailable root TK; `409` with `VERSION_CONFLICT`; `429` when rate limited; `503` when
+capability `2026082602` is absent; `500` for an invalid or failed atomic result.
+
+### GET `/api/ticketing/flight-monitor`
+
+**Access:** Every active staff member with Ticketing access. This is an intentionally shared
+all-agent operational projection, unlike the private ledger. Maintenance Admin has no role-based
+bypass unless explicitly assigned to Ticketing.
+
+**Input:** Optional strict `status` (`on_schedule`, `change_marked`, or
+`awaiting_finalisation`), `limit` from `1`–`100` (default `50`), and opaque `cursor`. The cursor is
+bound to the normalized status filter. Repeated, unknown, malformed, or cross-filter cursor values
+are rejected.
+
+**Success:** `200` with one `generatedAt` snapshot time, exact `counts` for all upcoming sectors,
+`items` ordered by UTC departure and stable sector ID, and nullable `nextCursor`. Only future active
+sectors from non-archived Issued root TKs are eligible. Each item contains booking/sector IDs and
+versions, responsible agent, first persisted root passenger name with customer-name fallback, PNR,
+contact, passenger count, Issued state, airline/flight, route, origin/destination timezones, local
+and UTC departure/optional arrival, and schedule status. It returns no supplier/sale fare, payment,
+refund, package scope/profit, earnings, margin, or commission field.
+
+**Errors:** `400` for invalid filters or a cursor/filter mismatch; `401`/`403` for access failures;
+`429` when rate limited; `503` when capability `2026082602` is absent; `500` when the shared
+projection or exact counts cannot be loaded or mapped safely.

@@ -1401,4 +1401,25 @@ describe('package quote calculator', () => {
   it('defaults new package quotes to a 3 percent Credit Card processing fee', () => {
     expect(normalizePackageQuotePayload({}).cardProcessingFeePercent).toBe(3)
   })
+
+  it('keeps a linked-group payment request separate from the family price calculation', () => {
+    const resolved = resolvePackageSelection(payload, {
+      ...getDefaultPackageSelection(payload),
+      paymentScope: 'group',
+      groupPaymentBreakdown: {
+        cash: 500,
+        bankTransfer: 2500,
+        card: 0,
+      },
+    })
+
+    expect(resolved.selection.paymentScope).toBe('group')
+    expect(resolved.selection.groupPaymentBreakdown).toEqual({
+      cash: 500,
+      bankTransfer: 2500,
+      card: 0,
+    })
+    expect(resolved.combination.packageSubtotalPrice).toBe(1980)
+    expect(resolved.combination.totalPrice).toBe(1980)
+  })
 })

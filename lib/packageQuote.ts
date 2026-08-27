@@ -2375,6 +2375,18 @@ export function resolvePackageSelection(
       transportOptionId: transportOption?.id || null,
       paymentMethod,
       paymentBreakdown,
+      paymentScope: input.paymentScope === 'group' ? 'group' : 'current',
+      groupPaymentBreakdown:
+        input.paymentScope === 'group' && input.groupPaymentBreakdown
+          ? normalizePackagePaymentBreakdown(
+              input.groupPaymentBreakdown,
+              Object.values(input.groupPaymentBreakdown).reduce(
+                (total, amount) => total + Number(amount || 0),
+                0,
+              ),
+              requestedPaymentMethod,
+            )
+          : null,
       paymentIntent,
       installmentRequested: Boolean(
         input.installmentRequested || paymentIntent === 'installment_request',

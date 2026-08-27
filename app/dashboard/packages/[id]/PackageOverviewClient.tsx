@@ -134,6 +134,7 @@ export default function PackageOverviewClient({
     recipientName: string
   } | null>(null)
   const [invoice, setInvoice] = useState<TravelPackageInvoice | null>(null)
+  const [selectedInvoiceQuoteId, setSelectedInvoiceQuoteId] = useState('')
   const [reservationForm, setReservationForm] = useState<ReservationFormState>(() =>
     createInitialReservationForm(),
   )
@@ -352,8 +353,11 @@ export default function PackageOverviewClient({
       setInvoiceLoading(true)
       setInvoiceError(null)
       try {
+        const invoiceQuery = selectedInvoiceQuoteId
+          ? `?quoteId=${encodeURIComponent(selectedInvoiceQuoteId)}`
+          : ''
         const response = await fetch(
-          `/api/travel-packages/${encodeURIComponent(packageId)}/invoice`,
+          `/api/travel-packages/${encodeURIComponent(packageId)}/invoice${invoiceQuery}`,
         )
         const data = (await response.json()) as InvoiceResponse
         if (!response.ok) {
@@ -377,7 +381,7 @@ export default function PackageOverviewClient({
     }
 
     void loadInvoice()
-  }, [packageId])
+  }, [packageId, selectedInvoiceQuoteId])
 
   const loadPackageGroupDetail = useCallback(
     async (groupId: string) => {
@@ -619,6 +623,22 @@ export default function PackageOverviewClient({
   const selectedPayload = packageFolder?.selected_quote_snapshot?.payload
   const selectedSelection = packageFolder?.selected_quote_snapshot?.selection
   const selectedQuote = packageFolder?.selected_quote_snapshot?.quote
+  const groupInvoiceFamilies = useMemo(
+    () => packageFolder?.selected_quote_snapshot?.group?.families || [],
+    [packageFolder?.selected_quote_snapshot?.group?.families],
+  )
+  const selectedInvoiceFamily = groupInvoiceFamilies.find(
+    (family) => family.quoteId === selectedInvoiceQuoteId,
+  )
+  useEffect(() => {
+    if (groupInvoiceFamilies.length === 0) {
+      if (selectedInvoiceQuoteId) setSelectedInvoiceQuoteId('')
+      return
+    }
+    if (!groupInvoiceFamilies.some((family) => family.quoteId === selectedInvoiceQuoteId)) {
+      setSelectedInvoiceQuoteId(groupInvoiceFamilies[0].quoteId)
+    }
+  }, [groupInvoiceFamilies, selectedInvoiceQuoteId])
   const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
   const selectedVisaPassengerCounts = useMemo<VisaPassengerCounts>(
@@ -1735,6 +1755,8 @@ Please enter the access code and accept the data handling terms before downloadi
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             regenerate,
+            quoteId: selectedInvoiceFamily?.quoteId || null,
+            familyLabel: selectedInvoiceFamily?.familyLabel || null,
             currency: reservationCurrency,
             customerTerms: invoiceForm.customerTerms,
             internalNotes: invoiceForm.internalNotes,
@@ -4398,6 +4420,36 @@ Please enter the access code and accept the data handling terms before downloadi
                   </span>
                 )}
               </div>
+
+              {groupInvoiceFamilies.length > 0 && (
+                <div className="mb-4 border-y-4 border-cyan-900 bg-cyan-50 p-3 sm:rounded-lg sm:border-x">
+                  <p className="text-xs font-black uppercase text-cyan-900">Family invoices</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    This is one customer file. Select a family to create or edit its separate
+                    invoice and balance.
+                  </p>
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {groupInvoiceFamilies.map((family) => (
+                      <button
+                        key={family.quoteId}
+                        type="button"
+                        onClick={() => {
+                          setInvoice(null)
+                          setInvoiceForm(createInitialInvoiceForm())
+                          setSelectedInvoiceQuoteId(family.quoteId)
+                        }}
+                        className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-black transition ${
+                          selectedInvoiceQuoteId === family.quoteId
+                            ? 'bg-cyan-900 text-white'
+                            : 'border border-cyan-200 bg-white text-cyan-900 hover:bg-cyan-100'
+                        }`}
+                      >
+                        {family.familyLabel}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {invoiceError && (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">

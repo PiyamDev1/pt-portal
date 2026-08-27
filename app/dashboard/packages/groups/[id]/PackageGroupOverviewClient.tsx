@@ -6,8 +6,10 @@ import {
   ArrowLeft,
   Building2,
   Copy,
+  CreditCard,
   ExternalLink,
   FileText,
+  FolderPlus,
   Link2,
   Loader2,
   PackageCheck,
@@ -43,6 +45,7 @@ export default function PackageGroupOverviewClient({ groupId }: { groupId: strin
   const [group, setGroup] = useState<TravelPackageGroupDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [savingCustomerFile, setSavingCustomerFile] = useState(false)
 
   useEffect(() => {
     const loadGroup = async () => {
@@ -95,6 +98,70 @@ export default function PackageGroupOverviewClient({ groupId }: { groupId: strin
     if (!group.customerSharePath) return
     await navigator.clipboard.writeText(`${window.location.origin}${group.customerSharePath}`)
     toast.success('Single group customer link copied')
+  }
+  const setCustomerFileMode = async (mode: 'separate' | 'combined') => {
+    if (!group || savingCustomerFile) return
+    setSavingCustomerFile(true)
+    try {
+      const response = await fetch(`/api/travel-package-groups/${encodeURIComponent(group.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerFileMode: mode }),
+      })
+      const data = (await response.json()) as PackageGroupResponse
+      if (!response.ok || !data.group) {
+        throw new Error(data.message || data.error || 'Unable to update customer file mode')
+      }
+      setGroup((current) => (current ? { ...current, ...data.group } : data.group!))
+      toast.success(
+        mode === 'combined'
+          ? 'This group will use one customer file with separate family invoices'
+          : 'This group will keep separate customer files',
+      )
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : 'Unable to update group')
+    } finally {
+      setSavingCustomerFile(false)
+    }
+  }
+  const createGroupCustomerFile = async () => {
+    if (!group?.groupConversionQuoteId || savingCustomerFile) return
+    setSavingCustomerFile(true)
+    try {
+      const response = await fetch(
+        `/api/packages/${encodeURIComponent(group.groupConversionQuoteId)}/convert`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupCustomerFile: true }),
+        },
+      )
+      const data = (await response.json()) as {
+        package?: { id: string }
+        error?: string
+      }
+      if (!response.ok || !data.package) {
+        throw new Error(data.error || 'Unable to create the group customer file')
+      }
+      setGroup((current) =>
+        current
+          ? {
+              ...current,
+              customer_file_mode: 'combined',
+              customer_package_id: data.package!.id,
+              lead_package_id: data.package!.id,
+              status: 'finalised',
+            }
+          : current,
+      )
+      toast.success('One group customer file has been created')
+    } catch (createError) {
+      toast.error(
+        createError instanceof Error ? createError.message : 'Unable to create customer file',
+      )
+    } finally {
+      setSavingCustomerFile(false)
+    }
   }
 
   return (
@@ -163,6 +230,85 @@ export default function PackageGroupOverviewClient({ groupId }: { groupId: strin
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="border-y-4 border-cyan-900 bg-white p-4 shadow-sm sm:rounded-xl sm:border-x">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
+              <CreditCard className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-base font-black text-slate-950">Customer file and billing</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                Paying together creates one portal reference and operational folder. Each linked
+                family still keeps its own quotation, reservation items, invoice, and balance.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {(
+                [
+                  ['separate', 'Separate files'],
+                  ['combined', 'One group file'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => void setCustomerFileMode(mode)}
+                  disabled={savingCustomerFile || Boolean(group.customer_package_id)}
+                  className={`min-h-10 rounded-md px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    (group.customer_file_mode || 'separate') === mode
+                      ? 'bg-cyan-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {group.customer_package_id ? (
+              <Link
+                href={`/dashboard/packages/${group.customer_package_id}`}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-black"
+              >
+                Open Customer File
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void createGroupCustomerFile()}
+                disabled={
+                  savingCustomerFile ||
+                  group.customer_file_mode !== 'combined' ||
+                  !group.allFamilySelectionsReady ||
+                  !group.groupConversionQuoteId
+                }
+                title={
+                  group.allFamilySelectionsReady
+                    ? 'Create one operational folder for this group'
+                    : 'Every linked family must save and finalise a selection first'
+                }
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {savingCustomerFile ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderPlus className="h-4 w-4" />
+                )}
+                Create Group Customer File
+              </button>
+            )}
+          </div>
+        </div>
+        {!group.customer_package_id && !group.allFamilySelectionsReady && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+            Waiting for every linked family to save and finalise its selected options.
+          </p>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

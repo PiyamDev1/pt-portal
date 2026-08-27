@@ -6,6 +6,10 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 ### Added
 
+- Versioned root-TK itinerary editing with a server-owned airport directory, airport-derived IANA
+  timezones and UTC instants, retained revision history, and audited administrator cover.
+- All-agent Flight Monitoring with upcoming issued sectors, operational passenger/contact context,
+  exact schedule counts, and no fare, payment, profit, or commission fields.
 - Admin-authorised, reason-required Ticketing completion on behalf of the current responsible
   employee while preserving the real acting employee and attributed issued/sale/paid source facts.
 - Tracked Ticketing runtime readiness for Supabase's pgcrypto extension layout, including a trusted

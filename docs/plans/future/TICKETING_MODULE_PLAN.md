@@ -3,11 +3,12 @@
 > **Partial implementation record and remaining roadmap.** This document replaces the March 2026
 > brainstorm. The database foundation, TK ledger/detail completion, issued DC/R-ER financial
 > service entry, shared whole-PNR GBP Low Fare queue, audited root-TK staff attribution, and
-> privileged admin-on-behalf TK completion are implemented. Later Ticketing workflows described
-> here remain proposals until their code, migrations, and tests are shipped.
+> privileged admin-on-behalf TK completion are implemented. Root-TK itinerary entry and all-agent
+> Flight Monitoring are also live. Later workflows described here remain proposals until their
+> code, migrations, and tests are shipped.
 
-- **Status:** Foundation, sales ledger, shared Low Fare, and root-TK attribution/completion slices implemented
-- **Last updated:** August 26, 2026
+- **Status:** Foundation, sales ledger, shared Low Fare, root-TK completion/attribution, itinerary entry, and Flight Monitoring implemented
+- **Last updated:** August 27, 2026
 - **Owner:** PT-Portal Team
 
 ### Implementation checkpoint — August 23, 2026
@@ -138,6 +139,30 @@
 - The disposable PostgreSQL runner now reproduces Supabase's extension layout and passes through
   foundation, TK completion, DC/R-ER, Low Fare, attribution, admin completion, and runtime readiness.
 
+### Implementation checkpoint — August 27, 2026
+
+- Added, integration-tested, and deployed capability `2026082602` through
+  `scripts/migrations/20260826_ticketing_sector_itinerary.sql`. It adds 29 active airport-directory
+  seeds for common UK, Pakistan, Saudi, Turkey, and Gulf hubs; airport-derived IANA zones and UTC
+  instants; deterministic daylight-saving overlap handling; daylight-saving gap rejection; and a
+  dedicated monotonic root-TK itinerary version without advancing unrelated booking versions.
+- Root-TK owners can replace one to twelve active sectors for Held or Issued bookings. Admin,
+  Master Admin, and Super Admin can cover another employee with a required reason while preserving
+  the responsible owner and authenticated actor. Exact retries use an immutable response snapshot
+  before mutable employee, ownership, airport, airline, or booking-state checks.
+- Itinerary replacements retire rather than delete previous sectors, append a redacted audit event,
+  use an inaccessible transient write context and invariant trigger, and emit no Commission source
+  fact. The service role has read-only table access and mutation access only through the hardened
+  replacement RPC.
+- Connected the ledger itinerary drawer and the dashboard's shared Flight Monitoring section. The
+  monitor returns future active sectors from every agent's Issued root TK, with responsible agent,
+  persisted lead-passenger fallback, PNR, contact, flight/route, local departure/timezone,
+  passenger count, and schedule status—never fare, payment, package-profit, or commission fields.
+- Linked verification passed at ready capability `2026082602`: 29 active airports, RLS on the
+  airport/sector/context tables, least-privilege grants, the enabled sector guard, a hardened
+  service-only RPC, unique preserved capability tokens, zero open write contexts, and zero existing
+  itinerary sectors. Linked Supabase types were refreshed afterward.
+
 ## 1. Summary
 
 Ticketing should be a native PT-Portal operations and financial module, not a direct copy of the
@@ -252,9 +277,10 @@ commission tables are migration inputs, not sufficient contracts for the new mod
   values stay visible for reconciliation.
 - Timestamps are stored as `timestamptz`/UTC. Entry and display use the employee's branch timezone,
   defaulting UK branches to `Europe/London` with daylight-saving support.
-- Add an IANA timezone to each location and allow a per-booking or per-sector override when the
-  operational timezone differs from the branch default. Store the timezone identifier used for
-  entry alongside each deadline or sector.
+- Booking deadlines use the server-resolved branch IANA timezone. Itinerary sectors derive their
+  timezone from the selected airport directory entry; browsers never submit a timezone or UTC
+  instant. A future airport-directory correction must be an audited server-side operation rather
+  than a free-form per-sector override.
 
 ## 3. User experience and workflows
 
@@ -616,7 +642,8 @@ routes:
 - `PATCH /api/ticketing/ledger/{id}/attribution` for admin-only, audited attribution correction
 - `POST /api/ticketing/bookings/{id}/transactions`
 - `GET/POST/PATCH /api/ticketing/bookings/{id}/passengers`
-- `GET/POST/PATCH /api/ticketing/bookings/{id}/sectors`
+- `GET/PUT /api/ticketing/bookings/{id}/sectors`
+- `GET /api/ticketing/airports`
 - `GET/POST /api/ticketing/fare-adjustments`
 - `POST /api/ticketing/refunds/preview` and `GET/POST /api/ticketing/refunds`
 - `GET/POST/PATCH /api/ticketing/vouchers` and
@@ -691,11 +718,15 @@ All routes must:
 - **Implemented:** audited admin-on-behalf root-TK detail and payment
   completion that never impersonates the responsible employee and preserves current attribution in
   all root-completion source facts.
+- **Implemented:** one-to-twelve-sector root-TK itinerary replacement for Held/Issued bookings,
+  server-owned airport/timezone derivation, immutable revision history, dedicated optimistic
+  itinerary versions, and audited administrator cover without Commission facts.
+- **Implemented:** the dashboard's all-agent Flight Monitoring projection for future active Issued
+  sectors, with operational contact/passenger context and no financial or commission fields.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
-  DC/R-ER, completed itinerary sectors, and transaction-scoped admin/assistant attribution for
-  DC/R-ER service completion.
-- Connect the dashboard's all-agent Flight Monitoring, manual schedule-change workflow, and
-  24/6/2-hour time-limit reminders.
+  DC/R-ER, changed child-service itinerary allocation, and transaction-scoped admin/assistant
+  attribution for DC/R-ER service completion.
+- Connect the manual schedule-change workflow and 24/6/2-hour time-limit reminders.
 - Complete admin team-ledger pagination/search; audited admin-on-behalf root-TK completion is
   implemented.
 

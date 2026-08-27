@@ -36,6 +36,7 @@ export type PackageQuoteDiscountType = 'early_bird' | 'general_discount' | 'visa
 export type PackageDiscountEligibleService = 'flight' | 'hotel' | 'transport' | 'visa'
 export type PackagePaymentMethod = 'cash' | 'bank_transfer' | 'card'
 export type PackagePaymentIntent = 'full_payment' | 'deposit_only' | 'installment_request'
+export type PackagePaymentScope = 'current' | 'group'
 export type TravelPackageDocumentCategory =
   | 'flight'
   | 'hotel'
@@ -370,6 +371,8 @@ export interface PackageSelectionInput {
   transportOptionId?: string | null
   paymentMethod?: PackagePaymentMethod | null
   paymentBreakdown?: Partial<PackagePaymentBreakdown> | null
+  paymentScope?: PackagePaymentScope
+  groupPaymentBreakdown?: Partial<PackagePaymentBreakdown> | null
   paymentIntent?: PackagePaymentIntent | null
   installmentRequested?: boolean
   depositPaymentMethod?: PackagePaymentMethod | null
@@ -425,6 +428,9 @@ export interface TravelPackageGroup {
   lead_quote_id: string | null
   status: TravelPackageGroupStatus
   customer_visibility_mode: TravelPackageGroupVisibilityMode
+  customer_file_mode?: 'separate' | 'combined'
+  customer_package_id?: string | null
+  customer_file_created_at?: string | null
   internal_notes: string | null
   metadata: Record<string, unknown>
   created_by: string | null
@@ -492,6 +498,8 @@ export interface TravelPackageFolder {
   id: string
   package_reference: string
   source_quote_id: string | null
+  group_id?: string | null
+  customer_file_mode?: 'individual' | 'group'
   created_by: string | null
   assigned_agent_id: string | null
   sales_employee_id?: string | null
@@ -521,6 +529,20 @@ export interface TravelPackageFolder {
     quote?: TravelPackageQuote
     selection?: PackageResolvedSelection
     payload?: PackageQuotePayload
+    group?: {
+      id: string
+      reference: string
+      title: string
+      families: Array<{
+        memberId: string
+        quoteId: string
+        familyLabel: string
+        customerName: string
+        passengerSummary: Record<string, number>
+        selection: PackageResolvedSelection
+        payload: PackageQuotePayload
+      }>
+    }
   }
   current_public_summary: Record<string, unknown>
   passport_status: string
@@ -642,6 +664,7 @@ export interface TravelPackageReservation {
   id: string
   package_id: string
   quote_id: string | null
+  group_member_id?: string | null
   created_by: string | null
   updated_by: string | null
   reservation_type: TravelPackageReservationType
@@ -720,6 +743,7 @@ export interface TravelPackageInvoice {
   id: string
   package_id: string
   quote_id: string | null
+  group_member_id?: string | null
   created_by: string | null
   updated_by: string | null
   released_by: string | null
@@ -754,6 +778,8 @@ export interface TravelPackageInvoice {
 export interface TravelPackagePassenger {
   id: string
   package_id: string
+  quote_id?: string | null
+  group_member_id?: string | null
   first_name: string | null
   last_name: string | null
   date_of_birth: string | null
@@ -780,6 +806,8 @@ export interface TravelPackagePassenger {
 export interface TravelPackagePayment {
   id: string
   package_id: string
+  quote_id?: string | null
+  group_member_id?: string | null
   invoice_id: string | null
   reservation_id: string | null
   amount: number

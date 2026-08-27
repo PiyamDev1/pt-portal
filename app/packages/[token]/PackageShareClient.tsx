@@ -1518,6 +1518,11 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             paymentIntent === 'full_payment' && effectivePaymentScope === 'current'
               ? paymentBreakdown
               : null,
+          paymentScope: effectivePaymentScope,
+          groupPaymentBreakdown:
+            paymentIntent === 'full_payment' && effectivePaymentScope === 'group'
+              ? activePaymentBreakdown
+              : null,
           paymentIntent,
           installmentRequested: paymentIntent === 'installment_request',
           depositPaymentMethod: paymentIntent === 'deposit_only' ? depositPaymentMethod : null,

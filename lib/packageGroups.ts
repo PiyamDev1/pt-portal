@@ -95,7 +95,7 @@ export function copySharedPackageFlights(
 }
 
 export const TRAVEL_PACKAGE_GROUP_SCHEMA_HINT =
-  'Linked travel package group schema is not installed yet. Run scripts/migrations/20260721_create_travel_package_groups.sql in Supabase SQL editor.'
+  'Linked travel package group schema is incomplete. Run scripts/migrations/20260721_create_travel_package_groups.sql and scripts/migrations/20260827_create_group_customer_files.sql in Supabase SQL editor.'
 
 export const TRAVEL_PACKAGE_GROUP_STATUSES = new Set<TravelPackageGroupStatus>([
   'draft',
@@ -142,6 +142,8 @@ export type TravelPackageGroupDetail = TravelPackageGroup & {
   customerSharePath?: string | null
   customerShareQuoteId?: string | null
   customerShareExpiresAt?: string | null
+  allFamilySelectionsReady?: boolean
+  groupConversionQuoteId?: string | null
 }
 
 export type TravelPackageGroupShareQuote = Pick<
@@ -219,6 +221,9 @@ export function selectTravelPackageGroupColumns() {
     lead_quote_id,
     status,
     customer_visibility_mode,
+    customer_file_mode,
+    customer_package_id,
+    customer_file_created_at,
     internal_notes,
     metadata,
     created_by,

@@ -23,7 +23,7 @@ import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { selectTravelPackageInvoiceColumns, selectTravelPackageInvoiceLineColumns } from './columns'
 
 const SCHEMA_HINT =
-  'Travel package invoice schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_invoices.sql in Supabase SQL editor.'
+  'Travel package invoice schema is incomplete. Run scripts/migrations/20260712_create_travel_package_invoices.sql and scripts/migrations/20260827_create_group_customer_files.sql in Supabase SQL editor.'
 
 const INVOICE_STATUSES = new Set<TravelPackageInvoiceStatus>([
   'draft',
@@ -79,14 +79,15 @@ async function loadInvoiceLines(
 async function loadLatestInvoice(
   supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
   packageId: string,
+  quoteId?: string,
 ) {
-  return supabase
+  let query = supabase
     .from('travel_package_invoices')
     .select(selectTravelPackageInvoiceColumns())
     .eq('package_id', packageId)
     .neq('status', 'void')
-    .order('created_at', { ascending: false })
-    .limit(1)
+  if (quoteId) query = query.eq('quote_id', quoteId)
+  return query.order('created_at', { ascending: false }).limit(1)
 }
 
 async function loadPackageFolder(
@@ -95,7 +96,7 @@ async function loadPackageFolder(
 ) {
   return supabase
     .from('travel_packages')
-    .select('id, package_reference, source_quote_id, invoice_status')
+    .select('id, package_reference, source_quote_id, group_id, customer_file_mode, invoice_status')
     .eq('id', packageId)
     .single()
 }
@@ -134,7 +135,7 @@ async function syncPackageInvoiceStatus(
     .eq('id', packageId)
 }
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -143,7 +144,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const { data, error } = await loadLatestInvoice(supabase, id)
+  const quoteId = cleanText(request.nextUrl.searchParams.get('quoteId'))
+  const { data, error } = await loadLatestInvoice(supabase, id, quoteId || undefined)
   if (error) {
     if (isInvoiceSchemaError(error)) {
       return apiOk({ invoice: null, setupRequired: true, message: SCHEMA_HINT })
@@ -187,9 +189,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (isInvoiceSchemaError(packageError)) return apiError(SCHEMA_HINT, 503)
     return apiError('Travel package not found', 404)
   }
+  const packageFolder = packageData as unknown as Pick<
+    TravelPackageFolder,
+    'package_reference' | 'source_quote_id' | 'group_id' | 'customer_file_mode'
+  >
+  const familyQuoteId = cleanText(body.quoteId || body.quote_id) || packageFolder.source_quote_id
+  if (packageFolder.customer_file_mode === 'group' && !familyQuoteId) {
+    return apiError('Choose a family before creating its invoice', 400)
+  }
 
   if (!regenerate) {
-    const { data: existingData, error: existingError } = await loadLatestInvoice(supabase, id)
+    const { data: existingData, error: existingError } = await loadLatestInvoice(
+      supabase,
+      id,
+      familyQuoteId || undefined,
+    )
     if (existingError) {
       if (isInvoiceSchemaError(existingError)) return apiError(SCHEMA_HINT, 503)
       return apiError(existingError.message || 'Failed to check existing package invoice', 500)
@@ -207,11 +221,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  const { data: reservationData, error: reservationError } = await supabase
+  let reservationQuery = supabase
     .from('travel_package_reservations')
     .select(selectTravelPackageReservationColumns())
     .eq('package_id', id)
-    .order('created_at', { ascending: true })
+  if (packageFolder.customer_file_mode === 'group' && familyQuoteId) {
+    reservationQuery = reservationQuery.eq('quote_id', familyQuoteId)
+  }
+  const { data: reservationData, error: reservationError } = await reservationQuery.order(
+    'created_at',
+    { ascending: true },
+  )
 
   if (reservationError) {
     if (isInvoiceSchemaError(reservationError)) return apiError(SCHEMA_HINT, 503)
@@ -242,10 +262,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     items: itemsByReservation.get(reservation.id) || [],
   }))
   const invoiceLines = createPackageInvoiceLinesFromReservations(reservationsWithItems)
-  const { data: existingPaymentData } = await supabase
+  let paymentQuery = supabase
     .from('travel_package_payments')
     .select('amount, payment_type, payment_status')
     .eq('package_id', id)
+  if (packageFolder.customer_file_mode === 'group' && familyQuoteId) {
+    paymentQuery = paymentQuery.eq('quote_id', familyQuoteId)
+  }
+  const { data: existingPaymentData } = await paymentQuery
   const existingTotalPaid = roundPackageInvoiceMoney(
     (existingPaymentData || []).reduce((total, payment) => {
       if (payment.payment_status !== 'completed') return total
@@ -257,17 +281,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }, 0),
   )
   const totals = calculatePackageInvoiceTotals(invoiceLines, existingTotalPaid)
-  const packageFolder = packageData as Pick<
-    TravelPackageFolder,
-    'package_reference' | 'source_quote_id'
-  >
   const invoiceNumber = createPackageInvoiceNumber(packageFolder.package_reference)
 
   const { data: invoiceData, error: invoiceError } = await supabase
     .from('travel_package_invoices')
     .insert({
       package_id: id,
-      quote_id: packageFolder.source_quote_id,
+      quote_id: familyQuoteId,
+      group_member_id: reservations[0]?.group_member_id || null,
       created_by: user.id,
       updated_by: user.id,
       invoice_number: invoiceNumber,
@@ -285,7 +306,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       released_to_customer: false,
       customer_terms: cleanText(body.customerTerms) || null,
       internal_notes: cleanText(body.internalNotes) || null,
-      metadata: { source: 'reservations' },
+      metadata: {
+        source: 'reservations',
+        familyLabel: cleanText(body.familyLabel || body.family_label) || null,
+      },
       due_at: cleanText(body.dueAt) || new Date().toISOString(),
     })
     .select(selectTravelPackageInvoiceColumns())
@@ -315,11 +339,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     createdLines = (lineData || []) as unknown as TravelPackageInvoiceLine[]
   }
 
-  await supabase
+  let paymentAssignment = supabase
     .from('travel_package_payments')
     .update({ invoice_id: (invoiceData as unknown as { id: string }).id })
     .eq('package_id', id)
-    .is('invoice_id', null)
+  if (packageFolder.customer_file_mode === 'group' && familyQuoteId) {
+    paymentAssignment = paymentAssignment.eq('quote_id', familyQuoteId)
+  }
+  await paymentAssignment.is('invoice_id', null)
 
   await syncPackageInvoiceStatus(supabase, id, 'draft', false)
 

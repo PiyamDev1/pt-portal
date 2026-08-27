@@ -47,6 +47,8 @@ function selectTravelPackageColumns() {
     id,
     package_reference,
     source_quote_id,
+    group_id,
+    customer_file_mode,
     created_by,
     assigned_agent_id,
     sales_employee_id,

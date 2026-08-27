@@ -3,6 +3,7 @@ export function selectTravelPackageReservationColumns() {
     id,
     package_id,
     quote_id,
+    group_member_id,
     created_by,
     updated_by,
     reservation_type,

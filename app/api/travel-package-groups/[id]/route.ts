@@ -75,7 +75,9 @@ async function loadGroupDetail(
     quoteIds.length > 0
       ? supabase
           .from('travel_package_quotes')
-          .select('id, share_token, share_enabled, expires_at, status')
+          .select(
+            'id, share_token, share_enabled, expires_at, status, selected_option, selected_at, finalised_at, converted_package_id',
+          )
           .in('id', quoteIds)
       : Promise.resolve({ data: [], error: null }),
   ])
@@ -90,6 +92,36 @@ async function loadGroupDetail(
     groupMembers,
     (shareQuotes.data || []) as unknown as Parameters<typeof resolvePackageGroupCustomerShare>[2],
   )
+  const groupQuoteRows = (shareQuotes.data || []) as unknown as Array<
+    Parameters<typeof resolvePackageGroupCustomerShare>[2][number] & {
+      selected_option?: { selection?: { paymentScope?: string } } | null
+      selected_at?: string | null
+      finalised_at?: string | null
+      converted_package_id?: string | null
+    }
+  >
+  const quoteRowMap = new Map(groupQuoteRows.map((quote) => [quote.id, quote]))
+  const allFamilySelectionsReady =
+    quoteIds.length > 0 &&
+    quoteIds.every((quoteId) => {
+      const memberQuote = quoteRowMap.get(quoteId)
+      return Boolean(
+        memberQuote?.selected_option &&
+        memberQuote.selected_at &&
+        (memberQuote.finalised_at ||
+          ['customer_selected', 'agent_selected', 'finalised', 'converted'].includes(
+            memberQuote.status,
+          )),
+      )
+    })
+  const groupConversionQuoteId =
+    groupQuoteRows.find(
+      (memberQuote) => memberQuote.selected_option?.selection?.paymentScope === 'group',
+    )?.id ||
+    packageGroup.lead_quote_id ||
+    groupMembers.find((member) => member.is_lead_family)?.quote_id ||
+    quoteIds[0] ||
+    null
 
   return {
     ...packageGroup,
@@ -103,6 +135,8 @@ async function loadGroupDetail(
     customerSharePath: customerShare?.sharePath || null,
     customerShareQuoteId: customerShare?.quoteId || null,
     customerShareExpiresAt: customerShare?.expiresAt || null,
+    allFamilySelectionsReady,
+    groupConversionQuoteId,
   } as unknown as TravelPackageGroupDetail
 }
 
@@ -170,6 +204,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return apiError('Invalid customer visibility mode', 400)
     }
     update.customer_visibility_mode = visibility
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'customerFileMode') ||
+    Object.prototype.hasOwnProperty.call(body, 'customer_file_mode')
+  ) {
+    const customerFileMode = cleanPackageGroupText(body.customerFileMode || body.customer_file_mode)
+    if (!['separate', 'combined'].includes(customerFileMode)) {
+      return apiError('Invalid customer file mode', 400)
+    }
+    update.customer_file_mode = customerFileMode
   }
 
   if (
