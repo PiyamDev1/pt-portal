@@ -177,6 +177,14 @@
   denied browser execution, read-only service event projection, active sector guard, unique
   capability tokens, and zero transient contexts, schedule events, or open cases before use.
   Linked Supabase types were refreshed afterward. The workflow emits no Commission source fact.
+- Prepared capability `2026082702` in
+  `scripts/migrations/20260827_ticketing_time_limits.sql` for manual Supabase execution. It adds
+  exact Held booking and transaction expiry, catch-up-safe 24/6/2-hour and expiry notification
+  claims, atomic single-use delivery finalisation, and stale-claim recovery. The linked database was
+  inspected read-only and remains at `2026082701` until that migration is pasted and verified.
+- Flight Monitoring now supports server-backed responsible-agent and local departure-date range
+  filters, with filter-bound keyset cursors and filtered summary counts. Search remains a local
+  operational text filter over the loaded page.
 
 ## 1. Summary
 
@@ -741,6 +749,8 @@ All routes must:
 - **Implemented:** shared manual marking of flight-number/time changes, responsible-owner or
   reasoned administrator review/dismissal/finalisation, immutable case events, and finalised
   itinerary revisions without Commission facts.
+- **Implemented:** Flight Monitoring responsible-agent and local departure-date filters applied to
+  both rows and summary counts, with opaque cursors bound to the selected filters.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
   DC/R-ER, changed child-service itinerary allocation, and transaction-scoped admin/assistant
   attribution for DC/R-ER service completion.

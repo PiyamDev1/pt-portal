@@ -90,8 +90,8 @@ describe('FlightMonitoringPanel', () => {
     render(<FlightMonitoringPanel />)
 
     expect(await screen.findByText('Aisha Khan')).toBeTruthy()
-    expect(screen.getByText('Agent One')).toBeTruthy()
-    expect(screen.getByText('Agent Two')).toBeTruthy()
+    expect(screen.getAllByText('Agent One').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('Agent Two').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('ABC123')).toBeTruthy()
     expect(screen.getByText('07123 456789')).toBeTruthy()
     expect(screen.getByText('TK 1980')).toBeTruthy()
@@ -100,7 +100,7 @@ describe('FlightMonitoringPanel', () => {
     expect(screen.getAllByText('On Schedule')).toHaveLength(2)
     expect(screen.getAllByText('Change Marked')).toHaveLength(2)
     expect(screen.getByText('Not recorded')).toBeTruthy()
-    expect(screen.getByText('All agents')).toBeTruthy()
+    expect(screen.getAllByText('All agents').length).toBeGreaterThanOrEqual(2)
     expect(document.body.textContent).not.toMatch(/commission|profit|margin|fare|payment/i)
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/ticketing/flight-monitor?limit=100',
@@ -128,8 +128,33 @@ describe('FlightMonitoringPanel', () => {
     fireEvent.change(screen.getByLabelText('Filter flights by status'), {
       target: { value: 'on_schedule' },
     })
-    expect(screen.getByText('Aisha Khan')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('Aisha Khan')).toBeTruthy())
     expect(screen.queryByText('Bilal Ali')).toBeNull()
+  })
+
+  it('reloads server-side for agent and departure-date filters', async () => {
+    const fetchMock = vi.fn(async () => Response.json(PAYLOAD))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<FlightMonitoringPanel />)
+    expect(await screen.findByText('Aisha Khan')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Filter flights by agent'), {
+      target: { value: 'agent-2' },
+    })
+    fireEvent.change(screen.getByLabelText('Departing from'), {
+      target: { value: '2026-09-01' },
+    })
+    fireEvent.change(screen.getByLabelText('Departing to'), {
+      target: { value: '2026-09-03' },
+    })
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        '/api/ticketing/flight-monitor?limit=100&ownerEmployeeId=agent-2&departureFrom=2026-09-01&departureTo=2026-09-03',
+        expect.objectContaining({ cache: 'no-store' }),
+      ),
+    )
   })
 
   it('does not repeat an airline code already included in the flight number', async () => {

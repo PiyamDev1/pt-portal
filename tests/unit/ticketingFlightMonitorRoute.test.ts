@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => {
     const value: Record<string, ReturnType<typeof vi.fn>> & {
       then?: PromiseLike<Result>['then']
     } = {}
-    for (const method of ['select', 'eq', 'is', 'gte', 'or', 'order', 'limit', 'in']) {
+    for (const method of ['select', 'eq', 'is', 'gte', 'lt', 'or', 'order', 'limit', 'in']) {
       value[method] = vi.fn(() => value)
     }
     value.then = (onFulfilled, onRejected) =>
@@ -427,6 +427,19 @@ describe('GET /api/ticketing/flight-monitor', () => {
     expect(mocks.listQuery.order).toHaveBeenCalledWith('departure_at_utc', { ascending: true })
     expect(mocks.listQuery.order).toHaveBeenCalledWith('id', { ascending: true })
     expect(mocks.listQuery.limit).toHaveBeenCalledWith(13)
+  })
+
+  it('applies owner and local departure-date filters', async () => {
+    const response = await GET(
+      request(
+        `ownerEmployeeId=${OWNER_ID}&departureFrom=2026-09-01&departureTo=2026-09-03&limit=12`,
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listQuery.eq).toHaveBeenCalledWith('ticket_bookings.owner_employee_id', OWNER_ID)
+    expect(mocks.listQuery.gte).toHaveBeenCalledWith('departure_local', '2026-09-01T00:00:00')
+    expect(mocks.listQuery.lt).toHaveBeenCalledWith('departure_local', '2026-09-03T23:59:59.999999')
   })
 
   it('rejects malformed, duplicate, unrelated, and mismatched filters before database access', async () => {

@@ -115,6 +115,9 @@ export function FlightMonitoringPanel() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
+  const [ownerEmployeeId, setOwnerEmployeeId] = useState('all')
+  const [departureFrom, setDepartureFrom] = useState('')
+  const [departureTo, setDepartureTo] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -135,7 +138,12 @@ export function FlightMonitoringPanel() {
       else if (mode === 'more') setIsLoadingMore(true)
       else setIsRefreshing(true)
       try {
-        const payload = await loadFlightMonitoring(signal, cursor)
+        const payload = await loadFlightMonitoring(signal, cursor, {
+          status,
+          ownerEmployeeId: ownerEmployeeId === 'all' ? undefined : ownerEmployeeId,
+          departureFrom: departureFrom || undefined,
+          departureTo: departureTo || undefined,
+        })
         setItems((current) => (mode === 'more' ? [...current, ...payload.items] : payload.items))
         setCounts(payload.counts)
         setNextCursor(payload.nextCursor)
@@ -155,7 +163,7 @@ export function FlightMonitoringPanel() {
         }
       }
     },
-    [],
+    [departureFrom, departureTo, ownerEmployeeId, status],
   )
 
   useEffect(() => {
@@ -166,6 +174,13 @@ export function FlightMonitoringPanel() {
 
   const statuses = useMemo(
     () => [...new Set(items.map((item) => item.scheduleStatus))].sort((a, b) => a.localeCompare(b)),
+    [items],
+  )
+  const owners = useMemo(
+    () =>
+      [...new Map(items.map((item) => [item.ownerEmployee.id, item.ownerEmployee.fullName]))].sort(
+        (left, right) => left[1].localeCompare(right[1]),
+      ),
     [items],
   )
   const filteredItems = useMemo(() => {
@@ -263,7 +278,7 @@ export function FlightMonitoringPanel() {
             </p>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_11rem_auto]">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(14rem,1fr)_11rem_11rem_11rem_11rem_auto]">
             <label className="relative">
               <span className="sr-only">Search upcoming flights</span>
               <Search
@@ -292,6 +307,41 @@ export function FlightMonitoringPanel() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter flights by agent</span>
+              <select
+                value={ownerEmployeeId}
+                onChange={(event) => setOwnerEmployeeId(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+              >
+                <option value="all">All agents</option>
+                {owners.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Departing from</span>
+              <input
+                type="date"
+                aria-label="Departing from"
+                value={departureFrom}
+                onChange={(event) => setDepartureFrom(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Departing to</span>
+              <input
+                type="date"
+                aria-label="Departing to"
+                value={departureTo}
+                onChange={(event) => setDepartureTo(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+              />
             </label>
             <button
               type="button"

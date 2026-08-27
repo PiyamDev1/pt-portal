@@ -74,6 +74,13 @@ export type FlightMonitoringPayload = {
   nextCursor: string | null
 }
 
+export type FlightMonitoringFilters = {
+  status?: string
+  ownerEmployeeId?: string
+  departureFrom?: string
+  departureTo?: string
+}
+
 type ApiErrorPayload = {
   error?: string
 }
@@ -88,9 +95,14 @@ export class FlightMonitoringApiError extends Error {
 export async function loadFlightMonitoring(
   signal?: AbortSignal,
   cursor?: string,
+  filters: FlightMonitoringFilters = {},
 ): Promise<FlightMonitoringPayload> {
   const search = new URLSearchParams({ limit: '100' })
   if (cursor) search.set('cursor', cursor)
+  if (filters.status && filters.status !== 'all') search.set('status', filters.status)
+  if (filters.ownerEmployeeId) search.set('ownerEmployeeId', filters.ownerEmployeeId)
+  if (filters.departureFrom) search.set('departureFrom', filters.departureFrom)
+  if (filters.departureTo) search.set('departureTo', filters.departureTo)
   const response = await fetch(`/api/ticketing/flight-monitor?${search.toString()}`, {
     cache: 'no-store',
     signal,

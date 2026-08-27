@@ -26,6 +26,9 @@ const TIMESTAMPTZ_PATTERN =
 const monitorQuerySchema = z
   .object({
     status: z.enum(TICKET_SCHEDULE_STATUSES).optional(),
+    ownerEmployeeId: z.string().uuid().optional(),
+    departureFrom: z.string().date().optional(),
+    departureTo: z.string().date().optional(),
     limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
     cursor: z
       .string()
@@ -43,6 +46,9 @@ const monitorCursorSchema = z
       .refine((value) => !Number.isNaN(Date.parse(value))),
     sectorId: z.string().uuid(),
     status: z.enum(TICKET_SCHEDULE_STATUSES).nullable(),
+    ownerEmployeeId: z.string().uuid().nullable().optional().default(null),
+    departureFrom: z.string().date().nullable().optional().default(null),
+    departureTo: z.string().date().nullable().optional().default(null),
   })
   .strict()
 
@@ -118,6 +124,13 @@ type MonitorSectorRow = {
 type AirportTimezoneRow = {
   iata_code: string
   timezone: string
+}
+
+type MonitorFilterValues = {
+  status?: (typeof TICKET_SCHEDULE_STATUSES)[number]
+  ownerEmployeeId?: string
+  departureFrom?: string
+  departureTo?: string
 }
 
 type ActiveScheduleChangeRow = {
@@ -259,13 +272,21 @@ function parseCursor(value: string | undefined) {
 
 function createCursor(
   row: MonitorSectorRow,
-  status: (typeof TICKET_SCHEDULE_STATUSES)[number] | undefined,
+  filters: {
+    status?: (typeof TICKET_SCHEDULE_STATUSES)[number]
+    ownerEmployeeId?: string
+    departureFrom?: string
+    departureTo?: string
+  },
 ) {
   return Buffer.from(
     JSON.stringify({
       departureAtUtc: row.departure_at_utc,
       sectorId: row.id,
-      status: status || null,
+      status: filters.status || null,
+      ownerEmployeeId: filters.ownerEmployeeId || null,
+      departureFrom: filters.departureFrom || null,
+      departureTo: filters.departureTo || null,
     }),
     'utf8',
   ).toString('base64url')
@@ -274,8 +295,16 @@ function createCursor(
 function parseQuery(request: NextRequest) {
   const keys = [...request.nextUrl.searchParams.keys()]
   if (
-    keys.some((key) => !['status', 'limit', 'cursor'].includes(key)) ||
+    keys.some(
+      (key) =>
+        !['status', 'ownerEmployeeId', 'departureFrom', 'departureTo', 'limit', 'cursor'].includes(
+          key,
+        ),
+    ) ||
     request.nextUrl.searchParams.getAll('status').length > 1 ||
+    request.nextUrl.searchParams.getAll('ownerEmployeeId').length > 1 ||
+    request.nextUrl.searchParams.getAll('departureFrom').length > 1 ||
+    request.nextUrl.searchParams.getAll('departureTo').length > 1 ||
     request.nextUrl.searchParams.getAll('limit').length > 1 ||
     request.nextUrl.searchParams.getAll('cursor').length > 1
   ) {
@@ -284,13 +313,31 @@ function parseQuery(request: NextRequest) {
 
   const parsed = monitorQuerySchema.safeParse({
     status: request.nextUrl.searchParams.get('status') || undefined,
+    ownerEmployeeId: request.nextUrl.searchParams.get('ownerEmployeeId') || undefined,
+    departureFrom: request.nextUrl.searchParams.get('departureFrom') || undefined,
+    departureTo: request.nextUrl.searchParams.get('departureTo') || undefined,
     limit: request.nextUrl.searchParams.get('limit') || undefined,
     cursor: request.nextUrl.searchParams.get('cursor') || undefined,
   })
   if (!parsed.success) return null
   const cursor = parseCursor(parsed.data.cursor)
   if (cursor === null) return null
-  if (cursor && cursor.status !== (parsed.data.status || null)) return null
+  if (
+    cursor &&
+    (cursor.status !== (parsed.data.status || null) ||
+      (cursor.ownerEmployeeId ?? null) !== (parsed.data.ownerEmployeeId || null) ||
+      (cursor.departureFrom ?? null) !== (parsed.data.departureFrom || null) ||
+      (cursor.departureTo ?? null) !== (parsed.data.departureTo || null))
+  ) {
+    return null
+  }
+  if (
+    parsed.data.departureFrom &&
+    parsed.data.departureTo &&
+    parsed.data.departureFrom > parsed.data.departureTo
+  ) {
+    return null
+  }
   return { ...parsed.data, cursor }
 }
 
@@ -426,7 +473,7 @@ function monitorItemFromRow(
 async function monitorCount(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
   generatedAt: string,
-  status?: (typeof TICKET_SCHEDULE_STATUSES)[number],
+  filters: MonitorFilterValues,
 ) {
   let query = supabase
     .from('ticket_itinerary_sectors')
@@ -447,7 +494,16 @@ async function monitorCount(
     .is('source_transaction.parent_transaction_id', null)
     .eq('source_transaction.operational_status', 'issued')
 
-  if (status) query = query.eq('schedule_status', status)
+  if (filters.status) query = query.eq('schedule_status', filters.status)
+  if (filters.ownerEmployeeId) {
+    query = query.eq('ticket_bookings.owner_employee_id', filters.ownerEmployeeId)
+  }
+  if (filters.departureFrom) {
+    query = query.gte('departure_local', `${filters.departureFrom}T00:00:00`)
+  }
+  if (filters.departureTo) {
+    query = query.lt('departure_local', `${filters.departureTo}T23:59:59.999999`)
+  }
   const { count, error } = await query
   return error || typeof count !== 'number' || count < 0 ? null : count
 }
@@ -478,9 +534,9 @@ export async function GET(request: NextRequest) {
 
   const generatedAt = new Date().toISOString()
   const countsPromise = Promise.all([
-    monitorCount(supabase, generatedAt),
-    monitorCount(supabase, generatedAt, 'change_marked'),
-    monitorCount(supabase, generatedAt, 'awaiting_finalisation'),
+    monitorCount(supabase, generatedAt, filters),
+    monitorCount(supabase, generatedAt, { ...filters, status: 'change_marked' }),
+    monitorCount(supabase, generatedAt, { ...filters, status: 'awaiting_finalisation' }),
   ])
 
   let query = supabase
@@ -540,6 +596,15 @@ export async function GET(request: NextRequest) {
     .eq('source_transaction.operational_status', 'issued')
 
   if (filters.status) query = query.eq('schedule_status', filters.status)
+  if (filters.ownerEmployeeId) {
+    query = query.eq('ticket_bookings.owner_employee_id', filters.ownerEmployeeId)
+  }
+  if (filters.departureFrom) {
+    query = query.gte('departure_local', `${filters.departureFrom}T00:00:00`)
+  }
+  if (filters.departureTo) {
+    query = query.lt('departure_local', `${filters.departureTo}T23:59:59.999999`)
+  }
   if (filters.cursor) {
     query = query.or(
       `departure_at_utc.gt.${filters.cursor.departureAtUtc},and(departure_at_utc.eq.${filters.cursor.departureAtUtc},id.gt.${filters.cursor.sectorId})`,
@@ -663,7 +728,7 @@ export async function GET(request: NextRequest) {
     items,
     nextCursor:
       rows.length > filters.limit && pageRows.length > 0
-        ? createCursor(pageRows[pageRows.length - 1], filters.status)
+        ? createCursor(pageRows[pageRows.length - 1], filters)
         : null,
   }
   return apiOk(response, PRIVATE_RESPONSE)
