@@ -27,7 +27,7 @@
     },
     {
       "path": "/api/cron/ticketing/time-limits",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }
