@@ -12,7 +12,7 @@ import {
 } from '@/lib/ticketing/serviceTransactionContracts'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_SERVICE_TRANSACTION_VERSION = 2026082304
+const TICKETING_SERVICE_TRANSACTION_VERSION = 2026082703
 const PACKAGE_MATCH_STATUSES = ['unmatched', 'matched', 'ambiguous', 'manually_resolved'] as const
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const TIMESTAMPTZ_PATTERN =
@@ -269,7 +269,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return privateError('Ticketing DC/R-ER entry is not installed on this database.', 503)
   }
 
-  const { data, error } = await supabase.rpc('ticketing_append_service_transaction', {
+  const { data, error } = await supabase.rpc('ticketing_append_service_transaction_allocated', {
     p_actor_employee_id: access.employee.id,
     p_booking_id: parsedBookingId.data,
     p_idempotency_key: idempotencyKey,

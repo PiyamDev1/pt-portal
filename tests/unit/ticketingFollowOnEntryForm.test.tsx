@@ -41,6 +41,26 @@ function bookingOption(
       { passengerType: 'ADT', quantity: 2 },
       { passengerType: 'CHD', quantity: 1 },
     ],
+    passengers: [
+      {
+        id: 'a1000000-0000-4000-8000-000000000001',
+        passengerType: 'ADT',
+        position: 1,
+        fullName: 'Aisha Khan',
+      },
+      {
+        id: 'a1000000-0000-4000-8000-000000000002',
+        passengerType: 'ADT',
+        position: 2,
+        fullName: 'Bilal Khan',
+      },
+      {
+        id: 'a1000000-0000-4000-8000-000000000003',
+        passengerType: 'CHD',
+        position: 1,
+        fullName: 'Child Khan',
+      },
+    ],
   }
 }
 
@@ -59,6 +79,14 @@ function fillAffectedCharges() {
     target: { value: '30.00' },
   })
   fireEvent.change(screen.getByLabelText('CHD affected quantity'), { target: { value: '0' } })
+}
+
+function selectAllPassengers() {
+  for (const checkbox of screen.getAllByRole('checkbox')) {
+    if (!(checkbox as HTMLInputElement).checked) {
+      fireEvent.click(checkbox)
+    }
+  }
 }
 
 describe('TicketFollowOnEntryForm', () => {
@@ -96,6 +124,7 @@ describe('TicketFollowOnEntryForm', () => {
     findPnr()
     expect(await screen.findByText('Aisha Khan')).toBeTruthy()
     expect(screen.getByText('Root TK verified')).toBeTruthy()
+    selectAllPassengers()
     fillAffectedCharges()
     fireEvent.click(screen.getByRole('button', { name: 'Save DC' }))
 
@@ -218,6 +247,7 @@ describe('TicketFollowOnEntryForm', () => {
 
     findPnr()
     await screen.findByText('Root TK verified')
+    selectAllPassengers()
     fireEvent.change(screen.getByLabelText('CHD affected quantity'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save DC' }))
     expect(screen.getByText('Enter the unit service cost.')).toBeTruthy()
@@ -260,6 +290,7 @@ describe('TicketFollowOnEntryForm', () => {
 
     findPnr()
     await screen.findByText('Root TK verified')
+    selectAllPassengers()
     fillAffectedCharges()
     fireEvent.click(screen.getByRole('button', { name: 'Save DC' }))
 

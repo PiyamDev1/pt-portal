@@ -55,6 +55,11 @@ type RootTransactionRow = {
   parent_transaction_id: string | null
   booking_date: string
   ticket_passenger_fare_lines: FareRow[] | null
+  ticket_transaction_passengers: Array<{
+    passenger_id: string
+    position: number | string
+    ticket_passengers: Related<{ id: string; passenger_type: (typeof PASSENGER_TYPES)[number]; full_name: string | null }>
+  }> | null
 }
 
 type BookingRow = {
@@ -155,6 +160,21 @@ function bookingItem(row: BookingRow) {
     return null
   }
 
+  const passengers = (rootTransaction.ticket_transaction_passengers || [])
+    .map((allocation) => {
+      const passenger = firstRelated(allocation.ticket_passengers)
+      return passenger
+        ? {
+            id: passenger.id,
+            passengerType: passenger.passenger_type,
+            position: Number(allocation.position),
+            fullName: passenger.full_name,
+          }
+        : null
+    })
+    .filter((passenger): passenger is NonNullable<typeof passenger> => passenger !== null)
+    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
+
   return {
     bookingId: row.id,
     bookingVersion,
@@ -170,6 +190,7 @@ function bookingItem(row: BookingRow) {
     airline: { id: airline.id, iataCode: airline.iata_code, name: airline.name },
     packageMatchStatus,
     fares,
+    passengers,
   }
 }
 
@@ -241,6 +262,11 @@ export async function GET(request: NextRequest) {
           ticket_passenger_fare_lines(
             passenger_type,
             quantity
+          ),
+          ticket_transaction_passengers(
+            passenger_id,
+            position,
+            ticket_passengers!inner(id, passenger_type, full_name)
           )
         )
       `,

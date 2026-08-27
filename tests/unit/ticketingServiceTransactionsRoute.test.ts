@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => {
   }
   const rpc = vi.fn(async (functionName: string) => {
     if (functionName === 'ticketing_schema_status') return state.capability
-    if (functionName === 'ticketing_append_service_transaction') return state.append
+    if (functionName === 'ticketing_append_service_transaction_allocated') return state.append
     throw new Error(`Unexpected RPC: ${functionName}`)
   })
   const getServiceSupabaseClient = vi.fn(() => ({ rpc }))
@@ -48,6 +48,10 @@ function validEntry() {
     paymentStatus: 'unpaid' as const,
     paidAt: null,
     currency: 'GBP' as const,
+    selectedPassengerIds: [
+      'a1000000-0000-4000-8000-000000000001',
+      'a1000000-0000-4000-8000-000000000002',
+    ],
     fares: [
       {
         passengerType: 'ADT' as const,
@@ -121,7 +125,7 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082304, requiredVersion: 2026082304 },
+      data: { ready: true, version: 2026082703, requiredVersion: 2026082703 },
       error: null,
     }
     mocks.state.append = { data: rpcResult(), error: null }
@@ -189,7 +193,7 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
         identities: [`user:${ACTOR_ID}`, 'ip:127.0.0.1'],
       }),
     )
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_append_service_transaction', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_append_service_transaction_allocated', {
       p_actor_employee_id: ACTOR_ID,
       p_booking_id: BOOKING_ID,
       p_idempotency_key: 'dc-save-1',
@@ -251,7 +255,7 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
     expect(response.status).toBe(201)
     expect(body).toMatchObject({ serviceType: 'R-ER', paymentStatus: 'paid' })
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_append_service_transaction',
+      'ticketing_append_service_transaction_allocated',
       expect.objectContaining({ p_entry: entry }),
     )
   })
@@ -266,14 +270,14 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
 
     expect(response.status).toBe(503)
     expect(mocks.rpc).not.toHaveBeenCalledWith(
-      'ticketing_append_service_transaction',
+      'ticketing_append_service_transaction_allocated',
       expect.anything(),
     )
   })
 
   it('accepts a singleton-array DC/R-ER mutation capability response', async () => {
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082304, requiredVersion: 2026082304 }],
+      data: [{ ready: true, version: 2026082703, requiredVersion: 2026082703 }],
       error: null,
     }
 
@@ -281,7 +285,7 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
 
     expect(response.status).toBe(201)
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_append_service_transaction',
+      'ticketing_append_service_transaction_allocated',
       expect.anything(),
     )
   })

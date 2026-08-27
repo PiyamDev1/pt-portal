@@ -130,6 +130,7 @@ export function TicketFollowOnEntryForm({
   const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'paid'>('unpaid')
   const [paidAt, setPaidAt] = useState(today)
   const [fares, setFares] = useState<FareDraft>({})
+  const [selectedPassengerIds, setSelectedPassengerIds] = useState<string[]>([])
   const [errors, setErrors] = useState<EntryErrors>({})
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -144,6 +145,7 @@ export function TicketFollowOnEntryForm({
   const selectBooking = (booking: TicketServiceBookingOption, retained: FareDraft = {}) => {
     setSelected(booking)
     setFares(initialFares(booking, retained))
+    setSelectedPassengerIds([])
     setErrors({})
     idempotencyKey.current = newIdempotencyKey()
   }
@@ -160,6 +162,7 @@ export function TicketFollowOnEntryForm({
     setPaymentStatus('unpaid')
     setPaidAt(todayInTimezone(timezone))
     setFares({})
+    setSelectedPassengerIds([])
     setErrors({})
     idempotencyKey.current = newIdempotencyKey()
     if (typeof requestAnimationFrame === 'function') {
@@ -187,6 +190,7 @@ export function TicketFollowOnEntryForm({
     setHasMoreMatches(false)
     setNextLookupCursor(null)
     setFares({})
+    setSelectedPassengerIds([])
     idempotencyKey.current = newIdempotencyKey()
 
     try {
@@ -308,6 +312,9 @@ export function TicketFollowOnEntryForm({
     ) {
       nextErrors.fares = 'Select at least one affected passenger.'
     }
+    if (selected && selectedPassengerIds.length === 0) {
+      nextErrors.selectedPassengerIds = 'Select the exact passengers affected by this service.'
+    }
     if (Object.keys(nextErrors).length > 0 || !selected) return { errors: nextErrors }
 
     return {
@@ -321,6 +328,7 @@ export function TicketFollowOnEntryForm({
         paymentStatus,
         paidAt: paymentStatus === 'paid' ? paidAt : null,
         currency: 'GBP',
+        selectedPassengerIds,
         fares: affectedFares,
       },
     }
@@ -593,6 +601,64 @@ export function TicketFollowOnEntryForm({
                 </p>
               </div>
             </div>
+
+            <fieldset className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+              <legend className="text-xs font-black uppercase tracking-[0.14em] text-sky-900">
+                Select affected passengers
+              </legend>
+              <p className="mt-1 text-xs font-semibold text-sky-800">
+                Select the exact root-ticket passengers receiving this {serviceLabel}.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {(selected.passengers || []).map((passenger) => (
+                  <label
+                    key={passenger.id}
+                    className="flex min-h-11 items-center gap-3 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedPassengerIds.includes(passenger.id)}
+                      onChange={(event) => {
+                        setSelectedPassengerIds((current) => {
+                          const next = event.target.checked
+                            ? [...current, passenger.id]
+                            : current.filter((id) => id !== passenger.id)
+                          setFares((currentFares) => {
+                            const counts = new Map<TicketPassengerType, number>()
+                            for (const candidate of selected.passengers) {
+                              if (next.includes(candidate.id)) {
+                                counts.set(
+                                  candidate.passengerType,
+                                  (counts.get(candidate.passengerType) || 0) + 1,
+                                )
+                              }
+                            }
+                            return Object.fromEntries(
+                              selected.fares.map((fare) => [
+                                fare.passengerType,
+                                {
+                                  ...(currentFares[fare.passengerType] || {}),
+                                  quantity: String(counts.get(fare.passengerType) || 0),
+                                },
+                              ]),
+                            ) as FareDraft
+                          })
+                          return next
+                        })
+                        setErrors({})
+                        idempotencyKey.current = newIdempotencyKey()
+                      }}
+                      disabled={isSaving}
+                    />
+                    <span>
+                      {passenger.passengerType} {passenger.position} ·{' '}
+                      {passenger.fullName || 'Passenger name not recorded'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <FieldError id="follow-on-passenger-error" message={errors.selectedPassengerIds} />
+            </fieldset>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="text-xs font-bold text-slate-700">

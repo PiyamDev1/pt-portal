@@ -36,6 +36,7 @@ export const ticketingAppendServiceTransactionSchema = z
     paymentStatus: z.enum(['unpaid', 'paid']),
     paidAt: isoDateSchema.nullable(),
     currency: z.literal('GBP'),
+    selectedPassengerIds: z.array(z.string().uuid()).min(1).max(99),
     fares: z.array(ticketingServiceFareSchema).min(1).max(3),
   })
   .strict()
@@ -77,6 +78,22 @@ export const ticketingAppendServiceTransactionSchema = z
         code: 'custom',
         path: ['fares'],
         message: 'A service transaction can affect at most 99 passengers',
+      })
+    }
+
+    if (new Set(entry.selectedPassengerIds).size !== entry.selectedPassengerIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['selectedPassengerIds'],
+        message: 'Each affected passenger can only be selected once',
+      })
+    }
+
+    if (entry.selectedPassengerIds.length !== entry.fares.reduce((total, fare) => total + fare.quantity, 0)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['selectedPassengerIds'],
+        message: 'Selected passengers must match the affected quantities',
       })
     }
   })

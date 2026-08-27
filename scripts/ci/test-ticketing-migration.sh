@@ -29,6 +29,8 @@ schedule_change_migration="scripts/migrations/20260827_ticketing_schedule_change
 schedule_change_assertions="tests/integration/ticketing_schedule_changes.sql"
 time_limit_migration="scripts/migrations/20260827_ticketing_time_limits.sql"
 time_limit_assertions="tests/integration/ticketing_time_limits.sql"
+service_passenger_allocation_migration="scripts/migrations/20260827_ticketing_service_passenger_allocation.sql"
+service_passenger_allocation_assertions="tests/integration/ticketing_service_passenger_allocation.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2344,6 +2346,9 @@ if [[ "$first_time_limit_applied_at" != "$second_time_limit_applied_at" ]]; then
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$time_limit_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$service_passenger_allocation_migration"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$service_passenger_allocation_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"

@@ -109,6 +109,12 @@ export type TicketServiceBookingOption = {
     passengerType: TicketPassengerType
     quantity: number
   }>
+  passengers: Array<{
+    id: string
+    passengerType: TicketPassengerType
+    position: number
+    fullName: string | null
+  }>
 }
 
 export type TicketServiceBookingLookupResult = {
