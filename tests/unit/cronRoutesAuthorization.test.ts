@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   dispatchOutboxBatch: vi.fn(),
   queueRecentTimeclockAttendance: vi.fn(),
   getSupabaseClient: vi.fn(),
+  getServiceSupabaseClient: vi.fn(),
 }))
 
 vi.mock('@/lib/security/cronAuth.server', () => ({
@@ -22,6 +23,10 @@ vi.mock('@/lib/supabaseClient', () => ({
   getSupabaseClient: mocks.getSupabaseClient,
 }))
 
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
+
 vi.mock('@/lib/bookingEmail', () => ({ sendBookingEmail: vi.fn() }))
 vi.mock('@/lib/bookingPersistence', () => ({ storeBookingEmailAttempt: vi.fn() }))
 vi.mock('@/lib/issueReportStorage', () => ({ deleteIssueArtifact: vi.fn() }))
@@ -31,6 +36,7 @@ import { GET as dispatchFrappeOutbox } from '@/app/api/cron/integrations/frappe/
 import { GET as backfillFrappeAttendance } from '@/app/api/cron/integrations/frappe/timeclock-attendance/route'
 import { GET as cleanupIssueReports } from '@/app/api/cron/issue-reports/cleanup/route'
 import { GET as cleanupPassportDrafts } from '@/app/api/cron/passports/pak/drafts-cleanup/route'
+import { GET as processTicketingTimeLimits } from '@/app/api/cron/ticketing/time-limits/route'
 
 describe('cron route authorization wiring', () => {
   beforeEach(() => {
@@ -44,6 +50,7 @@ describe('cron route authorization wiring', () => {
       backfillFrappeAttendance,
       cleanupIssueReports,
       cleanupPassportDrafts,
+      processTicketingTimeLimits,
     ]
 
     for (const handler of handlers) {

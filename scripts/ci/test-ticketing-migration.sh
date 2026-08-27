@@ -27,6 +27,8 @@ itinerary_migration="scripts/migrations/20260826_ticketing_sector_itinerary.sql"
 itinerary_assertions="tests/integration/ticketing_root_itinerary.sql"
 schedule_change_migration="scripts/migrations/20260827_ticketing_schedule_changes.sql"
 schedule_change_assertions="tests/integration/ticketing_schedule_changes.sql"
+time_limit_migration="scripts/migrations/20260827_ticketing_time_limits.sql"
+time_limit_assertions="tests/integration/ticketing_time_limits.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2332,6 +2334,16 @@ if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from
 fi
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$schedule_change_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$time_limit_migration"
+first_time_limit_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$time_limit_migration"
+second_time_limit_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+if [[ "$first_time_limit_applied_at" != "$second_time_limit_applied_at" ]]; then
+  echo "Idempotent rerun changed the Ticketing time-limit capability application timestamp"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$time_limit_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"

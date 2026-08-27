@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/integrations/frappe/timeclock-attendance",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/ticketing/time-limits",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
