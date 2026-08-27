@@ -25,6 +25,8 @@ pgcrypto_compat_migration="scripts/migrations/20260825_ticketing_pgcrypto_compat
 runtime_readiness_migration="scripts/migrations/20260826_ticketing_runtime_readiness.sql"
 itinerary_migration="scripts/migrations/20260826_ticketing_sector_itinerary.sql"
 itinerary_assertions="tests/integration/ticketing_root_itinerary.sql"
+schedule_change_migration="scripts/migrations/20260827_ticketing_schedule_changes.sql"
+schedule_change_assertions="tests/integration/ticketing_schedule_changes.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2268,6 +2270,76 @@ if [[ "$(ticketing_schema_fingerprint)" != "$post_itinerary_fingerprint" ]]; the
   exit 1
 fi
 
+pre_schedule_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select details -> 'capabilities'
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+pre_schedule_capability_count="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select jsonb_array_length(details -> 'capabilities')
+  from public.portal_schema_versions
+  where component = 'ticketing'
+")"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$schedule_change_migration"
+schedule_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+schedule_first_fingerprint="$(ticketing_schema_fingerprint)"
+
+post_schedule_predecessor_capabilities="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select coalesce(jsonb_agg(capability.value order by capability.ordinality), '[]'::jsonb)
+  from public.portal_schema_versions schema_version
+  cross join lateral jsonb_array_elements(schema_version.details -> 'capabilities')
+    with ordinality as capability(value, ordinality)
+  where schema_version.component = 'ticketing'
+    and capability.value not in (
+      to_jsonb('manual-flight-schedule-change-cases'::text),
+      to_jsonb('owner-admin-schedule-finalisation'::text),
+      to_jsonb('schedule-finalisation-itinerary-revision'::text)
+    )
+")"
+schedule_state="$(psql "$database_url" -Atq -F '|' -v ON_ERROR_STOP=1 -c "
+  select
+    schema_version.version,
+    public.ticketing_schema_status() ->> 'ready',
+    jsonb_array_length(schema_version.details -> 'capabilities'),
+    (
+      select count(distinct capability.value)
+      from jsonb_array_elements_text(schema_version.details -> 'capabilities') capability(value)
+      where capability.value in (
+        'manual-flight-schedule-change-cases',
+        'owner-admin-schedule-finalisation',
+        'schedule-finalisation-itinerary-revision'
+      )
+    ),
+    to_regclass('public.ticket_schedule_write_contexts') is not null,
+    to_regprocedure(
+      'public.ticketing_transition_schedule_change(uuid,uuid,bigint,text,text,uuid,jsonb,text)'
+    ) is not null
+  from public.portal_schema_versions schema_version
+  where schema_version.component = 'ticketing'
+")"
+if [[ "$post_schedule_predecessor_capabilities" != "$pre_schedule_capabilities" ]] \
+  || [[ "$schedule_state" != "2026082701|true|$((pre_schedule_capability_count + 3))|3|t|t" ]]; then
+  echo "Ticketing schedule-change capability, predecessor details, or readiness state is incorrect"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$schedule_change_migration"
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$schedule_first_applied_at" ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$schedule_first_fingerprint" ]]; then
+  echo "Idempotent Ticketing schedule-change rerun changed semantic schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$schedule_change_assertions"
+
+post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
+assert_forward_migration_replay_blocked "$itinerary_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$post_schedule_fingerprint" ]]; then
+  echo "Blocked itinerary replay changed capability 2026082701 schema state"
+  exit 1
+fi
+
 psql "$database_url" -v ON_ERROR_STOP=1 -c \
   "set role authenticated; select count(*) from public.airlines; reset role" >/dev/null
 
@@ -2283,4 +2355,4 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, and root-itinerary migration integration checks passed."
+echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, and manual schedule-change migration integration checks passed."

@@ -10,6 +10,8 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
   timezones and UTC instants, retained revision history, and audited administrator cover.
 - All-agent Flight Monitoring with upcoming issued sectors, operational passenger/contact context,
   exact schedule counts, and no fare, payment, profit, or commission fields.
+- Manual Flight Monitoring schedule-change cases with shared-team marking, owner/admin review and
+  dismissal, reasoned administrator cover, and finalisation through retained itinerary revisions.
 - Admin-authorised, reason-required Ticketing completion on behalf of the current responsible
   employee while preserving the real acting employee and attributed issued/sale/paid source facts.
 - Tracked Ticketing runtime readiness for Supabase's pgcrypto extension layout, including a trusted

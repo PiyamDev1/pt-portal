@@ -246,6 +246,7 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 | `GET`, `PUT`   | `/api/ticketing/bookings/[bookingId]/sectors`                      |
 | `GET`          | `/api/ticketing/airports`                                          |
 | `GET`          | `/api/ticketing/flight-monitor`                                    |
+| `POST`         | `/api/ticketing/flight-monitor/[sectorId]/schedule-change`         |
 
 The My Sales Ledger endpoint verifies an active Ticketing department member or Ticketing oversight
 role, but always returns and creates records for the authenticated employee in this first slice.
@@ -256,9 +257,11 @@ conflict handling. The exact-PNR booking route uses bounded keyset pages so ever
 remains reachable, and the child-transaction routes add issued DC/R-ER financial service movements
 plus a separate Unpaid-to-Paid transition. Root-TK itinerary routes remain owner-only except for
 reasoned Admin/Master Admin/Super Admin cover. Flight Monitoring is intentionally shared across all
-agents but exposes only operational flight, passenger, contact, and owner context. API mutation
-responses and the ledger never expose calculated commission, earnings, margin, or profit. See the
-[Ticketing API](../api/TICKETING.md).
+agents but exposes only operational flight, passenger, contact, owner, and active schedule-case
+context. Any authorised Ticketing employee may mark a suspected time/flight-number change; only
+the responsible owner or reasoned Admin/Master Admin/Super Admin cover may review, dismiss, or
+finalise it. API mutation responses and the ledger never expose calculated commission, earnings,
+margin, or profit. See the [Ticketing API](../api/TICKETING.md).
 
 ## Frappe, HR, training, and dashboard services
 

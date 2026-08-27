@@ -3,12 +3,14 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
-  TICKET_ITINERARY_CAPABILITY_VERSION,
+  TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION,
   TICKET_SCHEDULE_STATUSES,
   ticketingLocalDateTimeSchema,
+  type TicketingActiveScheduleChange,
   type TicketingFlightMonitorItem,
   type TicketingFlightMonitorResponse,
   type TicketingItineraryAirline,
@@ -118,6 +120,21 @@ type AirportTimezoneRow = {
   timezone: string
 }
 
+type ActiveScheduleChangeRow = {
+  sector_id: string
+  change_case_id: string
+  event_version: number | string
+  proposed_schedule: unknown
+  marked_by_employee_id: string
+  marked_by_employee_name: string | null
+  marked_at: string
+  mark_reason: string | null
+  reviewed_by_employee_id: string | null
+  reviewed_by_employee_name: string | null
+  reviewed_at: string | null
+  review_reason: string | null
+}
+
 function privateError(message: string, status: number, extra: Record<string, unknown> = {}) {
   return apiError(message, status, extra, PRIVATE_RESPONSE)
 }
@@ -128,6 +145,15 @@ function firstRelated<T>(value: Related<T>): T | null {
 
 function validUuid(value: unknown): value is string {
   return z.string().uuid().safeParse(value).success
+}
+
+function normalizeRole(value: string) {
+  return value.trim().toLowerCase().replace(/[_-]+/g, ' ')
+}
+
+function canResolveOnBehalf(role: string) {
+  const normalizedRole = normalizeRole(role)
+  return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
 }
 
 function positiveInteger(value: number | string) {
@@ -149,6 +175,75 @@ function airlineFromRow(row: AirlineRow | null): TicketingItineraryAirline | nul
     return null
   }
   return { id: row.id, iataCode: row.iata_code, name: row.name.trim() }
+}
+
+function activeScheduleChangeFromRow(
+  row: ActiveScheduleChangeRow,
+): TicketingActiveScheduleChange | null {
+  const proposed =
+    row.proposed_schedule &&
+    typeof row.proposed_schedule === 'object' &&
+    !Array.isArray(row.proposed_schedule)
+      ? (row.proposed_schedule as Record<string, unknown>)
+      : null
+  const departureLocal = ticketingLocalDateTimeSchema.safeParse(proposed?.departureLocal)
+  const arrivalLocal =
+    proposed?.arrivalLocal === null
+      ? null
+      : ticketingLocalDateTimeSchema.safeParse(proposed?.arrivalLocal)
+  const eventVersion = positiveInteger(row.event_version)
+  const hasReviewer = row.reviewed_by_employee_id !== null
+
+  if (
+    !validUuid(row.sector_id) ||
+    !validUuid(row.change_case_id) ||
+    !eventVersion ||
+    !proposed ||
+    typeof proposed.flightNumber !== 'string' ||
+    !proposed.flightNumber.trim() ||
+    !departureLocal.success ||
+    !validUtcTimestamp(proposed.departureAtUtc) ||
+    (proposed.arrivalLocal === null) !== (proposed.arrivalAtUtc === null) ||
+    (arrivalLocal !== null && !arrivalLocal.success) ||
+    (proposed.arrivalAtUtc !== null && !validUtcTimestamp(proposed.arrivalAtUtc)) ||
+    !validUuid(row.marked_by_employee_id) ||
+    !row.marked_at ||
+    Number.isNaN(Date.parse(row.marked_at)) ||
+    !row.mark_reason?.trim() ||
+    hasReviewer !== (row.reviewed_at !== null) ||
+    hasReviewer !== (row.review_reason !== null) ||
+    (hasReviewer && !validUuid(row.reviewed_by_employee_id)) ||
+    (row.reviewed_at !== null && Number.isNaN(Date.parse(row.reviewed_at)))
+  ) {
+    return null
+  }
+
+  return {
+    changeId: row.change_case_id,
+    eventVersion,
+    proposedSchedule: {
+      flightNumber: proposed.flightNumber.trim(),
+      departureLocal: departureLocal.data,
+      departureAtUtc: proposed.departureAtUtc as string,
+      arrivalLocal: arrivalLocal?.success ? arrivalLocal.data : null,
+      arrivalAtUtc: typeof proposed.arrivalAtUtc === 'string' ? proposed.arrivalAtUtc : null,
+    },
+    markedBy: {
+      id: row.marked_by_employee_id,
+      fullName: row.marked_by_employee_name?.trim() || 'Staff member',
+    },
+    markedAt: row.marked_at,
+    markReason: row.mark_reason.trim(),
+    reviewedBy:
+      hasReviewer && row.reviewed_by_employee_id
+        ? {
+            id: row.reviewed_by_employee_id,
+            fullName: row.reviewed_by_employee_name?.trim() || 'Staff member',
+          }
+        : null,
+    reviewedAt: row.reviewed_at,
+    reviewReason: row.review_reason?.trim() || null,
+  }
 }
 
 function parseCursor(value: string | undefined) {
@@ -323,6 +418,8 @@ function monitorItemFromRow(
     arrivalLocal: arrivalLocal?.success ? arrivalLocal.data : null,
     arrivalAtUtc: row.arrival_at_utc,
     scheduleStatus,
+    activeScheduleChange: null,
+    allowedScheduleActions: [],
   }
 }
 
@@ -374,7 +471,7 @@ export async function GET(request: NextRequest) {
   const { data: capability, error: capabilityError } = await supabase.rpc('ticketing_schema_status')
   if (
     capabilityError ||
-    !hasTicketingSchemaCapability(capability, TICKET_ITINERARY_CAPABILITY_VERSION)
+    !hasTicketingSchemaCapability(capability, TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION)
   ) {
     return privateError('Ticketing flight monitoring is not installed on this database.', 503)
   }
@@ -485,8 +582,74 @@ export async function GET(request: NextRequest) {
     airportTimezones = new Map(airports.map((airport) => [airport.iata_code, airport.timezone]))
   }
 
-  const items = pageRows.map((row) => monitorItemFromRow(row, airportTimezones))
-  if (items.some((item) => item === null)) {
+  const monitorItems = pageRows.map((row) => monitorItemFromRow(row, airportTimezones))
+  if (monitorItems.some((item) => item === null)) {
+    return privateError('Unable to load flight monitoring safely.', 500)
+  }
+
+  const openSectorIds = pageRows
+    .filter((row) => row.schedule_status !== 'on_schedule')
+    .map((row) => row.id)
+  const activeChanges = new Map<string, TicketingActiveScheduleChange>()
+  if (openSectorIds.length > 0) {
+    const { data: changeData, error: changeError } = await supabase
+      .from('ticket_active_schedule_changes')
+      .select(
+        `
+          sector_id,
+          change_case_id,
+          event_version,
+          proposed_schedule,
+          marked_by_employee_id,
+          marked_by_employee_name,
+          marked_at,
+          mark_reason,
+          reviewed_by_employee_id,
+          reviewed_by_employee_name,
+          reviewed_at,
+          review_reason
+        `,
+      )
+      .in('sector_id', openSectorIds)
+      .limit(MAX_LIMIT)
+    if (changeError) return privateError('Unable to load flight monitoring right now.', 500)
+
+    for (const row of (changeData || []) as unknown as ActiveScheduleChangeRow[]) {
+      const mapped = activeScheduleChangeFromRow(row)
+      if (!mapped || activeChanges.has(row.sector_id)) {
+        return privateError('Unable to load flight monitoring safely.', 500)
+      }
+      activeChanges.set(row.sector_id, mapped)
+    }
+  }
+
+  const mayResolveAny = canResolveOnBehalf(access.employee.role)
+  const items = (monitorItems as TicketingFlightMonitorItem[]).map((item) => {
+    const mayResolve = mayResolveAny || item.ownerEmployee.id === access.employee.id
+    const allowedScheduleActions: TicketingFlightMonitorItem['allowedScheduleActions'] =
+      item.scheduleStatus === 'on_schedule'
+        ? ['mark']
+        : !mayResolve
+          ? []
+          : item.scheduleStatus === 'change_marked'
+            ? ['review', 'dismiss']
+            : ['finalise', 'dismiss']
+    return {
+      ...item,
+      activeScheduleChange: activeChanges.get(item.sectorId) || null,
+      allowedScheduleActions,
+    }
+  })
+  if (
+    items.some(
+      (item) =>
+        (item.scheduleStatus === 'on_schedule') !== (item.activeScheduleChange === null) ||
+        (item.scheduleStatus === 'change_marked' &&
+          item.activeScheduleChange?.reviewedBy !== null) ||
+        (item.scheduleStatus === 'awaiting_finalisation' &&
+          item.activeScheduleChange?.reviewedBy === null),
+    )
+  ) {
     return privateError('Unable to load flight monitoring safely.', 500)
   }
 
@@ -497,7 +660,7 @@ export async function GET(request: NextRequest) {
       changeMarked: counts[1] as number,
       awaitingFinalisation: counts[2] as number,
     },
-    items: items as TicketingFlightMonitorItem[],
+    items,
     nextCursor:
       rows.length > filters.limit && pageRows.length > 0
         ? createCursor(pageRows[pageRows.length - 1], filters.status)

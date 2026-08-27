@@ -56,6 +56,7 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 | `20260826_secure_exec_sql.sql`                          | revokes anonymous/authenticated execution of the legacy PostgreSQL-owner `exec_sql(text)` helper while retaining service-role deployment access                                                                         |
 | `20260826_ticketing_runtime_readiness.sql`              | trusted fixed-schema pgcrypto bridge, verified runtime dependency status, preserved capability history, and Ticketing capability `2026082601`                                                                           |
 | `20260826_ticketing_sector_itinerary.sql`               | server-owned airport directory, airport-derived timezone/UTC sectors, retained root-TK itinerary revisions, audited administrator cover, guarded write context, and capability `2026082602`                             |
+| `20260827_ticketing_schedule_changes.sql`               | immutable manual schedule-change cases, shared marking, owner/admin resolution, guarded status transitions, itinerary-revision finalisation, and capability `2026082701`                                                |
 
 Apply unapplied files in filename order and track which migrations have already run. Every
 versioned Ticketing capability migration begins with a forward-version guard: the foundation supports a fresh
@@ -74,6 +75,9 @@ The compatibility bridge is tracked and hardened by capability `2026082601`, who
 also verifies the installed pgcrypto runtime dependency.
 Capability `2026082602` preserves those checks and adds the service-only versioned itinerary
 replacement boundary plus the read-only airport and sector projections.
+Capability `2026082701` adds immutable manual schedule cases, single-use status contexts, a
+read-only active-case projection, and owner/reasoned-administrator finalisation through itinerary
+replacement.
 A feature deployment may require an earlier bootstrap noted by its active guide—for example
 bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against
 production.
@@ -109,12 +113,13 @@ the component to `2026082402` and installs
 `ticketing_correct_booking_attribution(uuid, uuid, bigint, text, jsonb)`. All mutation functions are
 executable only through the service-role boundary; the API derives the employee actor from the
 verified staff session and never accepts that identity from the browser. The linked project was
-verified ready at `2026082602` after deployment. The authorised completion, attribution, and
-itinerary mutations are service-role-only; the attribution and itinerary transient write-context
-tables are inaccessible to API roles; and the expected invariant triggers are installed. Linked
-aggregate checks confirmed 29 active airports, RLS and least-privilege table grants, the enabled
-sector guard, unique preserved capability tokens, zero open itinerary contexts, and zero itinerary
-sectors before operational use. The generated types were refreshed from this linked schema.
+verified ready at `2026082701` after deployment. The authorised completion, attribution, itinerary,
+and schedule-change mutations are service-role-only; transient write-context tables are
+inaccessible to API roles; and the expected invariant triggers are installed. The service role can
+read but cannot directly append schedule events. Linked aggregate checks confirmed the active
+sector guard, security-definer schedule RPC, denied browser execution, unique preserved capability
+tokens, and zero open schedule contexts/events/cases before operational use. The generated types
+were refreshed from this linked schema.
 
 This capability supports TK Held/Issued quick entry, the authenticated agent's own ledger, partial
 TK detail completion, aggregate issued DC/R-ER financial service movements against an existing
@@ -123,10 +128,11 @@ service children carry affected ADT/CHD/INF quantities and full supplier/custome
 preserve immutable root facts, form an explicit R-ER supersession chain, and publish variables-only
 service/payment facts that do not count as issued-TK target events. Low Fare appends a separate
 linear supplier-fare history and target-safe positive/negative difference event without rewriting
-the root. Root TKs now support retained itinerary revisions and the shared future-flight projection.
+the root. Root TKs now support retained itinerary revisions, the shared future-flight projection,
+and manual flight-number/time change cases with owner/administrator resolution.
 The runtime does not yet capture exact affected passenger identities for DC/R-ER, an
 airline-fee/fare-difference component split, same-fare check observations, non-GBP fare adjustments,
-vouchers, targets, manual schedule-change finalisation, refunds, or the cancellation calculator.
+vouchers, targets, time-limit reminder/expiry processing, refunds, or the cancellation calculator.
 
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 

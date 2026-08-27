@@ -381,9 +381,38 @@ are rejected.
 sectors from non-archived Issued root TKs are eligible. Each item contains booking/sector IDs and
 versions, responsible agent, first persisted root passenger name with customer-name fallback, PNR,
 contact, passenger count, Issued state, airline/flight, route, origin/destination timezones, local
-and UTC departure/optional arrival, and schedule status. It returns no supplier/sale fare, payment,
-refund, package scope/profit, earnings, margin, or commission field.
+and UTC departure/optional arrival, schedule status, active immutable change-case proposal, and the
+schedule actions currently allowed for the authenticated employee. It returns no supplier/sale
+fare, payment, refund, package scope/profit, earnings, margin, or commission field.
 
 **Errors:** `400` for invalid filters or a cursor/filter mismatch; `401`/`403` for access failures;
-`429` when rate limited; `503` when capability `2026082602` is absent; `500` when the shared
+`429` when rate limited; `503` when capability `2026082701` is absent; `500` when the shared
 projection or exact counts cannot be loaded or mapped safely.
+
+### POST `/api/ticketing/flight-monitor/[sectorId]/schedule-change`
+
+**Access:** Any active Ticketing employee may mark a suspected change on an upcoming Issued root-TK
+sector shown in the shared monitor. Only the responsible employee, or Admin/Master Admin/Super Admin
+acting on behalf with the required reason, may review, finalise, or dismiss the case. Manager and
+other Ticketing employees cannot resolve another responsible employee's case.
+
+**Input:** `sectorId` is a UUID path segment. The strict JSON body is limited to 16 KiB and contains
+UUID `requestId`, `action` (`mark`, `review`, `finalise`, or `dismiss`), positive
+`expectedItineraryVersion`, trimmed `reason` from 1–500 characters, and action-specific fields. A
+`mark` requires nullable `changeId`, plus `proposal` with `flightNumber`, local `departureLocal`,
+and nullable local `arrivalLocal`. Later actions require the active UUID `changeId` and must submit
+`proposal: null`; they cannot replace the immutable marked proposal. Airline, route, timezone, UTC,
+actor, owner, financial, audit, and Commission fields are rejected.
+
+**Success:** `200` with the action/case/event IDs, prior/current sector IDs, resulting itinerary
+version and schedule status, immutable responsible/acting employee IDs, on-behalf state, nullable
+applied sector, and replay state. Marking moves `on_schedule` to `change_marked`; review moves it to
+`awaiting_finalisation`; dismissal returns the unchanged sector to `on_schedule`. Finalisation calls
+the versioned root-itinerary replacement boundary, retires the previous schedule, applies the
+recorded flight-number/local-time proposal as a new itinerary revision, and returns to
+`on_schedule`. Every state event is append-only and no Commission source fact is emitted.
+
+**Errors:** `400` for malformed or oversized action combinations, unchanged proposals, invalid
+flight/local times, chronology, or missing reason; `401`/`403` for access failures; `404` for an
+unavailable sector or case; `409` for stale itinerary/state or idempotency conflict; `429` when rate
+limited; `503` when capability `2026082701` is absent; `500` for an invalid or failed atomic result.

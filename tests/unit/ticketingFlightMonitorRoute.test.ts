@@ -17,11 +17,13 @@ const mocks = vi.hoisted(() => {
     counts: Result[]
     sectors: Result
     airports: Result
+    changes: Result
   } = {
     capability: {},
     counts: [],
     sectors: {},
     airports: {},
+    changes: {},
   }
 
   function query(result: () => Result) {
@@ -31,7 +33,8 @@ const mocks = vi.hoisted(() => {
     for (const method of ['select', 'eq', 'is', 'gte', 'or', 'order', 'limit', 'in']) {
       value[method] = vi.fn(() => value)
     }
-    value.then = (onFulfilled, onRejected) => Promise.resolve(result()).then(onFulfilled, onRejected)
+    value.then = (onFulfilled, onRejected) =>
+      Promise.resolve(result()).then(onFulfilled, onRejected)
     return value
   }
 
@@ -39,6 +42,7 @@ const mocks = vi.hoisted(() => {
   let sectorCall = 0
   let listQuery = query(() => state.sectors)
   let airportQuery = query(() => state.airports)
+  let changeQuery = query(() => state.changes)
 
   const from = vi.fn((table: string) => {
     if (table === 'ticket_itinerary_sectors') {
@@ -53,6 +57,7 @@ const mocks = vi.hoisted(() => {
       return listQuery
     }
     if (table === 'ticket_airports') return airportQuery
+    if (table === 'ticket_active_schedule_changes') return changeQuery
     throw new Error(`Unexpected table: ${table}`)
   })
   const rpc = vi.fn(async (name: string) => {
@@ -65,6 +70,7 @@ const mocks = vi.hoisted(() => {
     countQueries.splice(0)
     listQuery = query(() => state.sectors)
     airportQuery = query(() => state.airports)
+    changeQuery = query(() => state.changes)
   }
 
   return {
@@ -77,6 +83,9 @@ const mocks = vi.hoisted(() => {
     },
     get airportQuery() {
       return airportQuery
+    },
+    get changeQuery() {
+      return changeQuery
     },
     from,
     rpc,
@@ -99,9 +108,7 @@ vi.mock('@/lib/security/rateLimit', () => ({
 import { GET } from '@/app/api/ticketing/flight-monitor/route'
 
 function request(query = '') {
-  return new NextRequest(
-    `http://localhost/api/ticketing/flight-monitor${query ? `?${query}` : ''}`,
-  )
+  return new NextRequest(`http://localhost/api/ticketing/flight-monitor${query ? `?${query}` : ''}`)
 }
 
 function sectorRow(
@@ -184,6 +191,29 @@ function sectorRow(
   }
 }
 
+function activeChangeRow() {
+  return {
+    sector_id: SECTOR_ID,
+    change_case_id: '88000000-0000-4000-8000-000000000001',
+    event_version: 1,
+    proposed_schedule: {
+      flightNumber: 'TK 201',
+      departureLocal: '2026-09-01T12:30:00',
+      departureAtUtc: '2026-09-01T11:30:00+00:00',
+      arrivalLocal: null,
+      arrivalAtUtc: null,
+    },
+    marked_by_employee_id: ACTOR_ID,
+    marked_by_employee_name: 'Ticketing Agent',
+    marked_at: '2026-08-27T10:00:00+00:00',
+    mark_reason: 'Airline email received',
+    reviewed_by_employee_id: null,
+    reviewed_by_employee_name: null,
+    reviewed_at: null,
+    review_reason: null,
+  }
+}
+
 describe('GET /api/ticketing/flight-monitor', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -208,7 +238,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082602 },
+      data: { ready: true, version: 2026082701 },
       error: null,
     }
     mocks.state.counts = [
@@ -224,6 +254,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
       ],
       error: null,
     }
+    mocks.state.changes = { data: [], error: null }
   })
 
   it('authenticates before rate limiting or service-role access', async () => {
@@ -272,6 +303,8 @@ describe('GET /api/ticketing/flight-monitor', () => {
           arrivalLocal: null,
           arrivalAtUtc: null,
           scheduleStatus: 'on_schedule',
+          activeScheduleChange: null,
+          allowedScheduleActions: ['mark'],
         },
       ],
       nextCursor: null,
@@ -299,6 +332,44 @@ describe('GET /api/ticketing/flight-monitor', () => {
     expect((await response.json()).items[0].leadPassenger).toBe('Paying Customer')
   })
 
+  it('returns the active change and keeps resolution actions owner/admin-only', async () => {
+    mocks.state.sectors = { data: [sectorRow({ status: 'change_marked' })], error: null }
+    mocks.state.changes = { data: [activeChangeRow()], error: null }
+
+    const response = await GET(request())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.items[0].activeScheduleChange).toEqual(
+      expect.objectContaining({
+        changeId: '88000000-0000-4000-8000-000000000001',
+        markReason: 'Airline email received',
+        reviewedBy: null,
+      }),
+    )
+    expect(body.items[0].allowedScheduleActions).toEqual([])
+    expect(mocks.changeQuery.in).toHaveBeenCalledWith('sector_id', [SECTOR_ID])
+
+    mocks.resetQueries()
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'own',
+      user: { id: OWNER_ID, email: 'owner@example.test' },
+      employee: {
+        id: OWNER_ID,
+        email: 'owner@example.test',
+        fullName: 'Another Agent',
+        role: 'Ticketing Agent',
+        departments: ['Ticketing'],
+      },
+    })
+    const ownerResponse = await GET(request())
+    expect((await ownerResponse.json()).items[0].allowedScheduleActions).toEqual([
+      'review',
+      'dismiss',
+    ])
+  })
+
   it('keeps Held TK records out of Flight Monitoring', async () => {
     mocks.state.counts = [
       { count: 0, error: null },
@@ -313,10 +384,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
     expect(response.status).toBe(200)
     expect(body.items).toEqual([])
     expect(body.counts.upcoming).toBe(0)
-    expect(mocks.listQuery.eq).toHaveBeenCalledWith(
-      'ticket_bookings.operational_status',
-      'issued',
-    )
+    expect(mocks.listQuery.eq).toHaveBeenCalledWith('ticket_bookings.operational_status', 'issued')
     for (const query of mocks.countQueries) {
       expect(query.eq).toHaveBeenCalledWith('ticket_bookings.operational_status', 'issued')
     }
@@ -324,10 +392,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
 
   it('binds an opaque cursor to its normalized status filter', async () => {
     mocks.state.sectors = {
-      data: [
-        sectorRow(),
-        sectorRow({ id: '89000000-0000-4000-8000-000000000002' }),
-      ],
+      data: [sectorRow(), sectorRow({ id: '89000000-0000-4000-8000-000000000002' })],
       error: null,
     }
     const firstResponse = await GET(request('status=on_schedule&limit=1'))
@@ -358,9 +423,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.listQuery.eq).toHaveBeenCalledWith('schedule_status', 'on_schedule')
-    expect(mocks.listQuery.or).toHaveBeenCalledWith(
-      expect.stringContaining(`id.gt.${SECTOR_ID}`),
-    )
+    expect(mocks.listQuery.or).toHaveBeenCalledWith(expect.stringContaining(`id.gt.${SECTOR_ID}`))
     expect(mocks.listQuery.order).toHaveBeenCalledWith('departure_at_utc', { ascending: true })
     expect(mocks.listQuery.order).toHaveBeenCalledWith('id', { ascending: true })
     expect(mocks.listQuery.limit).toHaveBeenCalledWith(13)
@@ -391,10 +454,10 @@ describe('GET /api/ticketing/flight-monitor', () => {
   })
 
   it('fails closed on unavailable capability, count errors, and malformed rows', async () => {
-    mocks.state.capability = { data: { ready: true, version: 2026082601 }, error: null }
+    mocks.state.capability = { data: { ready: true, version: 2026082602 }, error: null }
     expect((await GET(request())).status).toBe(503)
 
-    mocks.state.capability = { data: { ready: true, version: 2026082602 }, error: null }
+    mocks.state.capability = { data: { ready: true, version: 2026082701 }, error: null }
     mocks.resetQueries()
     mocks.state.counts = [
       { count: null, error: { code: 'DB_ERROR', message: 'private data' } },

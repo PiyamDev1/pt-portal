@@ -4,10 +4,10 @@
 > brainstorm. The database foundation, TK ledger/detail completion, issued DC/R-ER financial
 > service entry, shared whole-PNR GBP Low Fare queue, audited root-TK staff attribution, and
 > privileged admin-on-behalf TK completion are implemented. Root-TK itinerary entry and all-agent
-> Flight Monitoring are also live. Later workflows described here remain proposals until their
-> code, migrations, and tests are shipped.
+> Flight Monitoring and its manual schedule-change workflow are also live. Later workflows
+> described here remain proposals until their code, migrations, and tests are shipped.
 
-- **Status:** Foundation, sales ledger, shared Low Fare, root-TK completion/attribution, itinerary entry, and Flight Monitoring implemented
+- **Status:** Foundation, sales ledger, shared Low Fare, root-TK completion/attribution, itinerary entry, Flight Monitoring, and manual schedule changes implemented
 - **Last updated:** August 27, 2026
 - **Owner:** PT-Portal Team
 
@@ -162,6 +162,21 @@
   airport/sector/context tables, least-privilege grants, the enabled sector guard, a hardened
   service-only RPC, unique preserved capability tokens, zero open write contexts, and zero existing
   itinerary sectors. Linked Supabase types were refreshed afterward.
+- Added, integration-tested, and deployed capability `2026082701` through
+  `scripts/migrations/20260827_ticketing_schedule_changes.sql`. Any authorised Ticketing employee
+  may mark a flight-number/time change discovered in the shared monitor. The responsible employee,
+  or Admin/Master Admin/Super Admin acting with a reason, may review, dismiss, or finalise it.
+- Marked proposals become immutable case facts. Review/finalisation calls cannot replace the
+  proposal from the browser, status changes require an inaccessible single-use write context, and
+  direct service-role event inserts are denied. Finalisation delegates to root-itinerary
+  replacement, retaining the previous sector and advancing only the itinerary version.
+- Flight Monitoring now displays the proposed departure, case evidence, and only the schedule
+  actions permitted for the current employee. Route/airport/airline changes remain in the full
+  itinerary editor; this fast operational workflow handles the common flight-number and time case.
+- Linked verification passed at ready capability `2026082701`: security-definer/service-only RPC,
+  denied browser execution, read-only service event projection, active sector guard, unique
+  capability tokens, and zero transient contexts, schedule events, or open cases before use.
+  Linked Supabase types were refreshed afterward. The workflow emits no Commission source fact.
 
 ## 1. Summary
 
@@ -723,10 +738,13 @@ All routes must:
   itinerary versions, and audited administrator cover without Commission facts.
 - **Implemented:** the dashboard's all-agent Flight Monitoring projection for future active Issued
   sectors, with operational contact/passenger context and no financial or commission fields.
+- **Implemented:** shared manual marking of flight-number/time changes, responsible-owner or
+  reasoned administrator review/dismissal/finalisation, immutable case events, and finalised
+  itinerary revisions without Commission facts.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
   DC/R-ER, changed child-service itinerary allocation, and transaction-scoped admin/assistant
   attribution for DC/R-ER service completion.
-- Connect the manual schedule-change workflow and 24/6/2-hour time-limit reminders.
+- Connect the 24/6/2-hour time-limit reminders and exact expiry processing.
 - Complete admin team-ledger pagination/search; audited admin-on-behalf root-TK completion is
   implemented.
 

@@ -4,15 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CalendarClock,
   CircleAlert,
+  ClipboardCheck,
   PlaneTakeoff,
   RefreshCw,
   Search,
   UsersRound,
+  X,
 } from 'lucide-react'
 import {
   FlightMonitoringApiError,
   loadFlightMonitoring,
+  updateScheduleChange,
   type FlightMonitoringItem,
+  type ScheduleChangeAction,
 } from './flightMonitoringClientApi'
 
 function titleCase(value: string) {
@@ -83,6 +87,24 @@ function searchableText(item: FlightMonitoringItem) {
     .toLowerCase()
 }
 
+function actionLabel(action: ScheduleChangeAction) {
+  switch (action) {
+    case 'mark':
+      return 'Mark change'
+    case 'review':
+      return 'Review change'
+    case 'finalise':
+      return 'Finalise change'
+    case 'dismiss':
+      return 'Dismiss report'
+  }
+}
+
+type ScheduleDialogState = {
+  item: FlightMonitoringItem
+  action: ScheduleChangeAction
+}
+
 export function FlightMonitoringPanel() {
   const [items, setItems] = useState<FlightMonitoringItem[]>([])
   const [counts, setCounts] = useState({
@@ -97,6 +119,15 @@ export function FlightMonitoringPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState('')
+  const [scheduleDialog, setScheduleDialog] = useState<ScheduleDialogState | null>(null)
+  const [scheduleDraft, setScheduleDraft] = useState({
+    flightNumber: '',
+    departureLocal: '',
+    arrivalLocal: '',
+    reason: '',
+  })
+  const [scheduleError, setScheduleError] = useState('')
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false)
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' | 'more', signal?: AbortSignal, cursor?: string) => {
@@ -145,6 +176,68 @@ export function FlightMonitoringPanel() {
         (!query || searchableText(item).includes(query)),
     )
   }, [items, search, status])
+
+  const openScheduleDialog = useCallback(
+    (item: FlightMonitoringItem, action: ScheduleChangeAction) => {
+      const proposal = item.activeScheduleChange?.proposedSchedule
+      setScheduleDialog({ item, action })
+      setScheduleDraft({
+        flightNumber: proposal?.flightNumber || item.flightNumber,
+        departureLocal: (proposal?.departureLocal || item.departureLocal).slice(0, 16),
+        arrivalLocal: (proposal?.arrivalLocal || item.arrivalLocal || '').slice(0, 16),
+        reason: '',
+      })
+      setScheduleError('')
+    },
+    [],
+  )
+
+  const submitScheduleChange = useCallback(async () => {
+    if (!scheduleDialog) return
+    const reason = scheduleDraft.reason.trim()
+    if (!reason) {
+      setScheduleError('Add a short operational note for the audit history.')
+      return
+    }
+    if (
+      scheduleDialog.action === 'mark' &&
+      (!scheduleDraft.flightNumber.trim() || !scheduleDraft.departureLocal)
+    ) {
+      setScheduleError('Enter the proposed flight number and departure time.')
+      return
+    }
+
+    setIsSavingSchedule(true)
+    setScheduleError('')
+    try {
+      await updateScheduleChange(scheduleDialog.item.sectorId, {
+        requestId: crypto.randomUUID(),
+        action: scheduleDialog.action,
+        expectedItineraryVersion: scheduleDialog.item.itineraryVersion,
+        changeId: scheduleDialog.item.activeScheduleChange?.changeId || null,
+        proposal:
+          scheduleDialog.action === 'mark'
+            ? {
+                flightNumber: scheduleDraft.flightNumber.trim(),
+                departureLocal: scheduleDraft.departureLocal,
+                arrivalLocal: scheduleDraft.arrivalLocal || null,
+              }
+            : null,
+        reason,
+      })
+      setScheduleDialog(null)
+      await load('refresh')
+    } catch (caught) {
+      setScheduleError(
+        caught instanceof FlightMonitoringApiError
+          ? caught.message
+          : 'Unable to update the flight schedule. Try again.',
+      )
+    } finally {
+      setIsSavingSchedule(false)
+    }
+  }, [load, scheduleDialog, scheduleDraft])
+
   return (
     <section
       id="flight-monitoring"
@@ -274,7 +367,7 @@ export function FlightMonitoringPanel() {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <div className="hidden min-w-[74rem] grid-cols-[1.15fr_0.75fr_0.8fr_1.1fr_1fr_0.5fr_0.75fr] gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-wide text-slate-500 lg:grid">
+          <div className="hidden min-w-[82rem] grid-cols-[1.15fr_0.8fr_0.8fr_1.05fr_0.9fr_0.45fr_0.7fr_0.9fr] gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-wide text-slate-500 lg:grid">
             <span>Departure</span>
             <span>Flight / route</span>
             <span>Agent</span>
@@ -282,12 +375,13 @@ export function FlightMonitoringPanel() {
             <span>Contact</span>
             <span>Passengers</span>
             <span>Status</span>
+            <span>Schedule action</span>
           </div>
           <div className="divide-y divide-slate-100">
             {filteredItems.map((item) => (
               <article
                 key={item.sectorId}
-                className="grid gap-3 px-4 py-4 transition hover:bg-slate-50/70 lg:min-w-[74rem] lg:grid-cols-[1.15fr_0.75fr_0.8fr_1.1fr_1fr_0.5fr_0.75fr] lg:items-center lg:px-5"
+                className="grid gap-3 px-4 py-4 transition hover:bg-slate-50/70 lg:min-w-[82rem] lg:grid-cols-[1.15fr_0.8fr_0.8fr_1.05fr_0.9fr_0.45fr_0.7fr_0.9fr] lg:items-center lg:px-5"
               >
                 <div>
                   <time
@@ -299,6 +393,14 @@ export function FlightMonitoringPanel() {
                   <p className="mt-0.5 break-all text-[11px] font-semibold text-slate-500">
                     {item.originTimezone}
                   </p>
+                  {item.activeScheduleChange && (
+                    <p className="mt-1 text-[11px] font-bold text-amber-800">
+                      Proposed{' '}
+                      {formatLocalDeparture(
+                        item.activeScheduleChange.proposedSchedule.departureLocal,
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="font-mono text-sm font-black tracking-wide text-slate-950">
@@ -347,6 +449,26 @@ export function FlightMonitoringPanel() {
                     {titleCase(item.scheduleStatus)}
                   </span>
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  {(item.allowedScheduleActions || []).length === 0 ? (
+                    <span className="text-xs font-semibold text-slate-400">Owner action</span>
+                  ) : (
+                    (item.allowedScheduleActions || []).map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        onClick={() => openScheduleDialog(item, action)}
+                        className={`ui-tap ui-focus inline-flex min-h-9 items-center justify-center rounded-lg px-3 text-xs font-black ${
+                          action === 'dismiss'
+                            ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            : 'bg-[#8b1e2d] text-white hover:bg-[#741824]'
+                        }`}
+                      >
+                        {actionLabel(action)}
+                      </button>
+                    ))
+                  )}
+                </div>
               </article>
             ))}
           </div>
@@ -366,6 +488,193 @@ export function FlightMonitoringPanel() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {scheduleDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target && !isSavingSchedule) setScheduleDialog(null)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="schedule-change-title"
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-2xl"
+          >
+            <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b1e2d]">
+                  {scheduleDialog.item.pnr} · {formatFlight(scheduleDialog.item)}
+                </p>
+                <h3 id="schedule-change-title" className="mt-1 text-xl font-black text-slate-950">
+                  {actionLabel(scheduleDialog.action)}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {scheduleDialog.item.originIata} → {scheduleDialog.item.destinationIata} ·
+                  Responsible agent {scheduleDialog.item.ownerEmployee.fullName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScheduleDialog(null)}
+                disabled={isSavingSchedule}
+                aria-label="Close schedule change"
+                className="ui-tap ui-focus rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              {scheduleDialog.action === 'mark' ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="sm:col-span-2">
+                    <span className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">
+                      Proposed flight number
+                    </span>
+                    <input
+                      value={scheduleDraft.flightNumber}
+                      onChange={(event) =>
+                        setScheduleDraft((current) => ({
+                          ...current,
+                          flightNumber: event.target.value.toUpperCase(),
+                        }))
+                      }
+                      maxLength={20}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">
+                      Proposed departure
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={scheduleDraft.departureLocal}
+                      onChange={(event) =>
+                        setScheduleDraft((current) => ({
+                          ...current,
+                          departureLocal: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                    />
+                    <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                      {scheduleDialog.item.originTimezone}
+                    </span>
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">
+                      Proposed arrival
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={scheduleDraft.arrivalLocal}
+                      onChange={(event) =>
+                        setScheduleDraft((current) => ({
+                          ...current,
+                          arrivalLocal: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                    />
+                    <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                      {scheduleDialog.item.destinationTimezone}
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <ClipboardCheck
+                      className="mt-0.5 h-5 w-5 shrink-0 text-amber-800"
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <p className="text-sm font-black text-amber-950">
+                        Proposed{' '}
+                        {scheduleDialog.item.activeScheduleChange?.proposedSchedule.flightNumber}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-amber-900">
+                        {scheduleDialog.item.activeScheduleChange
+                          ? formatLocalDeparture(
+                              scheduleDialog.item.activeScheduleChange.proposedSchedule
+                                .departureLocal,
+                            )
+                          : 'Schedule unavailable'}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-amber-900">
+                        Marked by {scheduleDialog.item.activeScheduleChange?.markedBy.fullName}:{' '}
+                        {scheduleDialog.item.activeScheduleChange?.markReason}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <label>
+                <span className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">
+                  Operational note
+                </span>
+                <textarea
+                  value={scheduleDraft.reason}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({ ...current, reason: event.target.value }))
+                  }
+                  maxLength={500}
+                  rows={3}
+                  placeholder={
+                    scheduleDialog.action === 'mark'
+                      ? 'Where was the new schedule confirmed?'
+                      : scheduleDialog.action === 'dismiss'
+                        ? 'Why is this report being dismissed?'
+                        : 'What was checked or communicated?'
+                  }
+                  className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                />
+              </label>
+
+              {scheduleDialog.action === 'finalise' && (
+                <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-semibold leading-5 text-sky-900">
+                  Finalising applies the proposed times as a new itinerary revision. The previous
+                  schedule remains in history and no Commission event is created.
+                </p>
+              )}
+
+              {scheduleError && (
+                <p role="alert" className="text-sm font-bold text-red-700">
+                  {scheduleError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setScheduleDialog(null)}
+                disabled={isSavingSchedule}
+                className="ui-tap ui-focus min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitScheduleChange()}
+                disabled={isSavingSchedule}
+                className={`ui-tap ui-focus min-h-11 rounded-xl px-5 text-sm font-black text-white disabled:opacity-50 ${
+                  scheduleDialog.action === 'dismiss'
+                    ? 'bg-slate-700 hover:bg-slate-800'
+                    : 'bg-[#8b1e2d] hover:bg-[#741824]'
+                }`}
+              >
+                {isSavingSchedule ? 'Saving…' : actionLabel(scheduleDialog.action)}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </section>

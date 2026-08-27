@@ -6114,8 +6114,10 @@ export type Database = {
       ticket_schedule_events: {
         Row: {
           actor_employee_id: string
+          change_case_id: string
           created_at: string
           event_type: string
+          event_version: number
           id: string
           previous_schedule: Json
           proposed_schedule: Json
@@ -6126,8 +6128,10 @@ export type Database = {
         }
         Insert: {
           actor_employee_id: string
+          change_case_id: string
           created_at?: string
           event_type: string
+          event_version: number
           id?: string
           previous_schedule?: Json
           proposed_schedule?: Json
@@ -6138,8 +6142,10 @@ export type Database = {
         }
         Update: {
           actor_employee_id?: string
+          change_case_id?: string
           created_at?: string
           event_type?: string
+          event_version?: number
           id?: string
           previous_schedule?: Json
           proposed_schedule?: Json
@@ -6165,6 +6171,51 @@ export type Database = {
           },
           {
             foreignKeyName: 'ticket_schedule_events_sector_id_fkey'
+            columns: ['sector_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_itinerary_sectors'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_schedule_write_contexts: {
+        Row: {
+          actor_employee_id: string
+          consumed: boolean
+          created_at: string
+          from_status: string
+          id: string
+          sector_id: string
+          to_status: string
+        }
+        Insert: {
+          actor_employee_id: string
+          consumed?: boolean
+          created_at?: string
+          from_status: string
+          id?: string
+          sector_id: string
+          to_status: string
+        }
+        Update: {
+          actor_employee_id?: string
+          consumed?: boolean
+          created_at?: string
+          from_status?: string
+          id?: string
+          sector_id?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_schedule_write_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_schedule_write_contexts_sector_id_fkey'
             columns: ['sector_id']
             isOneToOne: false
             referencedRelation: 'ticket_itinerary_sectors'
@@ -7519,6 +7570,9 @@ export type Database = {
           archived_at: string | null
           created_at: string
           created_by: string | null
+          customer_file_created_at: string | null
+          customer_file_mode: string
+          customer_package_id: string | null
           customer_visibility_mode: string
           group_reference: string
           id: string
@@ -7535,6 +7589,9 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           created_by?: string | null
+          customer_file_created_at?: string | null
+          customer_file_mode?: string
+          customer_package_id?: string | null
           customer_visibility_mode?: string
           group_reference?: string
           id?: string
@@ -7551,6 +7608,9 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           created_by?: string | null
+          customer_file_created_at?: string | null
+          customer_file_mode?: string
+          customer_package_id?: string | null
           customer_visibility_mode?: string
           group_reference?: string
           id?: string
@@ -7564,6 +7624,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: 'travel_package_groups_customer_package_id_fkey'
+            columns: ['customer_package_id']
+            isOneToOne: false
+            referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'travel_package_groups_lead_package_id_fkey'
             columns: ['lead_package_id']
@@ -7757,6 +7824,7 @@ export type Database = {
           due_at: string | null
           expected_commission_total: number
           finalised_at: string | null
+          group_member_id: string | null
           id: string
           internal_notes: string | null
           invoice_number: string
@@ -7790,6 +7858,7 @@ export type Database = {
           due_at?: string | null
           expected_commission_total?: number
           finalised_at?: string | null
+          group_member_id?: string | null
           id?: string
           internal_notes?: string | null
           invoice_number: string
@@ -7823,6 +7892,7 @@ export type Database = {
           due_at?: string | null
           expected_commission_total?: number
           finalised_at?: string | null
+          group_member_id?: string | null
           id?: string
           internal_notes?: string | null
           invoice_number?: string
@@ -7846,6 +7916,13 @@ export type Database = {
           voided_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: 'travel_package_invoices_group_member_id_fkey'
+            columns: ['group_member_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_group_members'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'travel_package_invoices_package_id_fkey'
             columns: ['package_id']
@@ -7991,6 +8068,7 @@ export type Database = {
           created_by: string | null
           date_of_birth: string | null
           first_name: string | null
+          group_member_id: string | null
           id: string
           internal_notes: string | null
           last_name: string | null
@@ -7999,6 +8077,7 @@ export type Database = {
           passport_checked: boolean
           passport_issue_note: string | null
           passport_received: boolean
+          quote_id: string | null
           room_allocation: string | null
           ticket_status: string
           updated_at: string
@@ -8010,6 +8089,7 @@ export type Database = {
           created_by?: string | null
           date_of_birth?: string | null
           first_name?: string | null
+          group_member_id?: string | null
           id?: string
           internal_notes?: string | null
           last_name?: string | null
@@ -8018,6 +8098,7 @@ export type Database = {
           passport_checked?: boolean
           passport_issue_note?: string | null
           passport_received?: boolean
+          quote_id?: string | null
           room_allocation?: string | null
           ticket_status?: string
           updated_at?: string
@@ -8029,6 +8110,7 @@ export type Database = {
           created_by?: string | null
           date_of_birth?: string | null
           first_name?: string | null
+          group_member_id?: string | null
           id?: string
           internal_notes?: string | null
           last_name?: string | null
@@ -8037,6 +8119,7 @@ export type Database = {
           passport_checked?: boolean
           passport_issue_note?: string | null
           passport_received?: boolean
+          quote_id?: string | null
           room_allocation?: string | null
           ticket_status?: string
           updated_at?: string
@@ -8045,10 +8128,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: 'travel_package_passengers_group_member_id_fkey'
+            columns: ['group_member_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_group_members'
+            referencedColumns: ['id']
+          },
+          {
             foreignKeyName: 'travel_package_passengers_package_id_fkey'
             columns: ['package_id']
             isOneToOne: false
             referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'travel_package_passengers_quote_id_fkey'
+            columns: ['quote_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_quotes'
             referencedColumns: ['id']
           },
         ]
@@ -8129,6 +8226,7 @@ export type Database = {
           created_by: string | null
           currency: string
           due_at: string | null
+          group_member_id: string | null
           id: string
           invoice_id: string | null
           metadata: Json
@@ -8137,6 +8235,7 @@ export type Database = {
           payment_method: string
           payment_status: string
           payment_type: string
+          quote_id: string | null
           receipt_document_id: string | null
           receipt_reference: string | null
           received_at: string | null
@@ -8152,6 +8251,7 @@ export type Database = {
           created_by?: string | null
           currency?: string
           due_at?: string | null
+          group_member_id?: string | null
           id?: string
           invoice_id?: string | null
           metadata?: Json
@@ -8160,6 +8260,7 @@ export type Database = {
           payment_method?: string
           payment_status?: string
           payment_type?: string
+          quote_id?: string | null
           receipt_document_id?: string | null
           receipt_reference?: string | null
           received_at?: string | null
@@ -8175,6 +8276,7 @@ export type Database = {
           created_by?: string | null
           currency?: string
           due_at?: string | null
+          group_member_id?: string | null
           id?: string
           invoice_id?: string | null
           metadata?: Json
@@ -8183,6 +8285,7 @@ export type Database = {
           payment_method?: string
           payment_status?: string
           payment_type?: string
+          quote_id?: string | null
           receipt_document_id?: string | null
           receipt_reference?: string | null
           received_at?: string | null
@@ -8193,6 +8296,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: 'travel_package_payments_group_member_id_fkey'
+            columns: ['group_member_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_group_members'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'travel_package_payments_invoice_id_fkey'
             columns: ['invoice_id']
@@ -8205,6 +8315,13 @@ export type Database = {
             columns: ['package_id']
             isOneToOne: false
             referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'travel_package_payments_quote_id_fkey'
+            columns: ['quote_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_quotes'
             referencedColumns: ['id']
           },
           {
@@ -8472,6 +8589,7 @@ export type Database = {
           deposit_due_at: string | null
           deposit_required: boolean
           discount_total: number
+          group_member_id: string | null
           id: string
           internal_notes: string | null
           last_refund_reason: string | null
@@ -8509,6 +8627,7 @@ export type Database = {
           deposit_due_at?: string | null
           deposit_required?: boolean
           discount_total?: number
+          group_member_id?: string | null
           id?: string
           internal_notes?: string | null
           last_refund_reason?: string | null
@@ -8546,6 +8665,7 @@ export type Database = {
           deposit_due_at?: string | null
           deposit_required?: boolean
           discount_total?: number
+          group_member_id?: string | null
           id?: string
           internal_notes?: string | null
           last_refund_reason?: string | null
@@ -8568,6 +8688,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: 'travel_package_reservations_group_member_id_fkey'
+            columns: ['group_member_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_group_members'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'travel_package_reservations_package_id_fkey'
             columns: ['package_id']
@@ -9063,6 +9190,7 @@ export type Database = {
           current_public_summary: Json
           customer_access_last_name: string | null
           customer_email: string | null
+          customer_file_mode: string
           customer_name: string | null
           customer_phone: string | null
           departure_date: string | null
@@ -9073,6 +9201,7 @@ export type Database = {
           document_access_token: string | null
           document_release_status: string
           earned_at: string | null
+          group_id: string | null
           id: string
           invoice_status: string
           location_id: string | null
@@ -9111,6 +9240,7 @@ export type Database = {
           current_public_summary?: Json
           customer_access_last_name?: string | null
           customer_email?: string | null
+          customer_file_mode?: string
           customer_name?: string | null
           customer_phone?: string | null
           departure_date?: string | null
@@ -9121,6 +9251,7 @@ export type Database = {
           document_access_token?: string | null
           document_release_status?: string
           earned_at?: string | null
+          group_id?: string | null
           id?: string
           invoice_status?: string
           location_id?: string | null
@@ -9159,6 +9290,7 @@ export type Database = {
           current_public_summary?: Json
           customer_access_last_name?: string | null
           customer_email?: string | null
+          customer_file_mode?: string
           customer_name?: string | null
           customer_phone?: string | null
           departure_date?: string | null
@@ -9169,6 +9301,7 @@ export type Database = {
           document_access_token?: string | null
           document_release_status?: string
           earned_at?: string | null
+          group_id?: string | null
           id?: string
           invoice_status?: string
           location_id?: string | null
@@ -9202,6 +9335,13 @@ export type Database = {
             columns: ['booking_responsible_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'travel_packages_group_id_fkey'
+            columns: ['group_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_groups'
             referencedColumns: ['id']
           },
           {
@@ -9955,6 +10095,45 @@ export type Database = {
       }
     }
     Views: {
+      ticket_active_schedule_changes: {
+        Row: {
+          change_case_id: string | null
+          event_version: number | null
+          mark_reason: string | null
+          marked_at: string | null
+          marked_by_employee_id: string | null
+          marked_by_employee_name: string | null
+          proposed_schedule: Json | null
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by_employee_id: string | null
+          reviewed_by_employee_name: string | null
+          sector_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
+            columns: ['marked_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
+            columns: ['reviewed_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_schedule_events_sector_id_fkey'
+            columns: ['sector_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_itinerary_sectors'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       ticket_booking_current_attribution: {
         Row: {
           assistant_employee_ids: string[] | null
@@ -10385,6 +10564,19 @@ export type Database = {
       ticketing_transaction_has_been_issued_2026082304: {
         Args: { p_issued_at: string; p_operational_status: string }
         Returns: boolean
+      }
+      ticketing_transition_schedule_change: {
+        Args: {
+          p_action: string
+          p_actor_employee_id: string
+          p_change_id: string
+          p_expected_itinerary_version: number
+          p_idempotency_key: string
+          p_proposal: Json
+          p_reason: string
+          p_sector_id: string
+        }
+        Returns: Json
       }
       ticketing_uuid_array_is_unique_2026082402: {
         Args: { p_values: string[] }

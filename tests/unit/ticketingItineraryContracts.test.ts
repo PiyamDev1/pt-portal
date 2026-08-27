@@ -3,6 +3,7 @@ import {
   TICKET_ITINERARY_MAX_SECTORS,
   ticketingLocalDateTimeSchema,
   ticketingReplaceItinerarySchema,
+  ticketingScheduleChangeMutationSchema,
 } from '@/lib/ticketing/itineraryContracts'
 
 const REQUEST_ID = '90000000-0000-4000-8000-000000000001'
@@ -122,6 +123,78 @@ describe('Ticketing itinerary contracts', () => {
     ).toBe(false)
     expect(
       ticketingReplaceItinerarySchema.safeParse({ ...base, actorEmployeeId: REQUEST_ID }).success,
+    ).toBe(false)
+  })
+
+  it('keeps marked schedule proposals separate from later state transitions', () => {
+    expect(
+      ticketingScheduleChangeMutationSchema.parse({
+        requestId: REQUEST_ID,
+        action: 'mark',
+        expectedItineraryVersion: 2,
+        proposal: {
+          flightNumber: 'tk 201',
+          departureLocal: '2026-09-01T12:30',
+          arrivalLocal: null,
+        },
+        reason: ' Airline notice received ',
+      }),
+    ).toEqual({
+      requestId: REQUEST_ID,
+      action: 'mark',
+      expectedItineraryVersion: 2,
+      changeId: null,
+      proposal: {
+        flightNumber: 'TK 201',
+        departureLocal: '2026-09-01T12:30',
+        arrivalLocal: null,
+      },
+      reason: 'Airline notice received',
+    })
+
+    const changeId = '91000000-0000-4000-8000-000000000001'
+    expect(
+      ticketingScheduleChangeMutationSchema.safeParse({
+        requestId: REQUEST_ID,
+        action: 'review',
+        expectedItineraryVersion: 2,
+        changeId,
+        proposal: null,
+        reason: 'Schedule checked',
+      }).success,
+    ).toBe(true)
+    expect(
+      ticketingScheduleChangeMutationSchema.safeParse({
+        requestId: REQUEST_ID,
+        action: 'review',
+        expectedItineraryVersion: 2,
+        changeId,
+        proposal: {
+          flightNumber: 'TK 999',
+          departureLocal: '2026-09-01T13:00',
+        },
+        reason: 'Browser attempted to replace the marked proposal',
+      }).success,
+    ).toBe(false)
+    expect(
+      ticketingScheduleChangeMutationSchema.safeParse({
+        requestId: REQUEST_ID,
+        action: 'mark',
+        expectedItineraryVersion: 2,
+        changeId,
+        proposal: null,
+        reason: 'Invalid mark state',
+      }).success,
+    ).toBe(false)
+    expect(
+      ticketingScheduleChangeMutationSchema.safeParse({
+        requestId: REQUEST_ID,
+        action: 'review',
+        expectedItineraryVersion: 0,
+        changeId,
+        proposal: null,
+        reason: 'Invalid initial itinerary version',
+      }).success,
     ).toBe(false)
   })
 })
