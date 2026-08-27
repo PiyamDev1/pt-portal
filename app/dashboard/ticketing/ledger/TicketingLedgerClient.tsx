@@ -19,6 +19,7 @@ export function TicketingLedgerClient() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [currentTimeMs, setCurrentTimeMs] = useState(0)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
@@ -62,11 +63,25 @@ export function TicketingLedgerClient() {
     void refresh(true)
   }, [refresh])
 
+  useEffect(() => {
+    setCurrentTimeMs(Date.now())
+    const interval = window.setInterval(() => setCurrentTimeMs(Date.now()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+
   const filteredItems = useMemo(() => {
     if (!payload) return []
     const query = search.trim().toLowerCase()
     return payload.items.filter((item) => {
-      const matchesStatus = status === 'all' || item.operationalStatus === status
+      const matchesStatus =
+        status === 'all' ||
+        item.operationalStatus === status ||
+        (status === 'needs_details' && item.detailsStatus === 'needs_details') ||
+        (status === 'overdue_action' &&
+          item.operationalStatus === 'held' &&
+          item.timeLimitAt !== null &&
+          currentTimeMs > 0 &&
+          new Date(item.timeLimitAt).getTime() <= currentTimeMs)
       const matchesSearch =
         !query ||
         item.pnr.toLowerCase().includes(query) ||
@@ -77,7 +92,7 @@ export function TicketingLedgerClient() {
         item.assistantEmployees.some((employee) => employee.fullName.toLowerCase().includes(query))
       return matchesStatus && matchesSearch
     })
-  }, [payload, search, status])
+  }, [currentTimeMs, payload, search, status])
 
   if (isLoading && !payload) {
     return (
@@ -231,6 +246,8 @@ export function TicketingLedgerClient() {
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
               >
                 <option value="all">All states</option>
+                <option value="needs_details">Needs details</option>
+                <option value="overdue_action">Overdue action</option>
                 <option value="held">Held</option>
                 <option value="issued">Issued</option>
                 <option value="expired">Expired</option>
@@ -268,6 +285,7 @@ export function TicketingLedgerClient() {
           items={filteredItems}
           timezone={payload.context.timezone}
           employeeId={payload.context.employeeId}
+          currentTimeMs={currentTimeMs}
           onComplete={(item) => setSelectedBookingId(item.bookingId)}
           onMarkPaid={setSelectedPaymentItem}
           onEditItinerary={setSelectedItineraryItem}

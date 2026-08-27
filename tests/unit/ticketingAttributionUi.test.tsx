@@ -71,6 +71,7 @@ describe('Ticketing attribution UI', () => {
         airlines={AIRLINES}
         timezone="Europe/London"
         employeeId={ACTOR_ID}
+        currentTimeMs={Date.parse('2026-08-27T12:00:00Z')}
         employeeName="Admin User"
         canManageAttribution={false}
         attributionEmployees={[]}

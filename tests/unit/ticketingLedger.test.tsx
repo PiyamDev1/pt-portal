@@ -303,6 +303,7 @@ describe('TicketLedgerList', () => {
         items={[item]}
         timezone="Europe/London"
         employeeId="employee-agent"
+        currentTimeMs={Date.parse('2026-08-27T12:00:00Z')}
         onComplete={onComplete}
         onMarkPaid={vi.fn()}
         onEditItinerary={onEditItinerary}

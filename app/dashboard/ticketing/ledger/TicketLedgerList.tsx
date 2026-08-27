@@ -90,6 +90,7 @@ export function TicketLedgerList({
   items,
   timezone,
   employeeId,
+  currentTimeMs,
   onComplete,
   onMarkPaid,
   onEditItinerary,
@@ -99,6 +100,7 @@ export function TicketLedgerList({
   items: TicketLedgerItem[]
   timezone: string
   employeeId: string
+  currentTimeMs: number
   onComplete: (item: TicketLedgerItem) => void
   onMarkPaid: (item: TicketLedgerItem) => void
   onEditItinerary: (item: TicketLedgerItem) => void
@@ -139,6 +141,10 @@ export function TicketLedgerList({
           const keyDate = item.operationalStatus === 'held' ? item.timeLimitAt : item.issuedAt
           const keyDateLabel = item.operationalStatus === 'held' ? 'Time limit' : 'Issued'
           const isResponsibleEmployee = item.responsibleEmployee.id === employeeId
+          const isOverdue =
+            item.operationalStatus === 'held' &&
+            item.timeLimitAt !== null &&
+            new Date(item.timeLimitAt).getTime() <= currentTimeMs
           return (
             <article
               key={item.transactionId}
@@ -195,6 +201,12 @@ export function TicketLedgerList({
                 >
                   {titleCase(item.paymentStatus)}
                 </span>
+                {isOverdue && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-800 ring-1 ring-red-200">
+                    <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                    Overdue action
+                  </span>
+                )}
               </div>
 
               <div>

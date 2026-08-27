@@ -189,6 +189,10 @@
   keyset pagination, and a guarded Load more flow for the authorised team view. Ownership scoping
   remains enforced server-side and the ledger continues to expose no calculated commission or
   profit.
+- The ledger now exposes actionable `Needs details` and `Overdue action` filters. Held rows whose
+  airline deadline has passed are marked for action immediately in the UI while the expiry cron
+  catches up; the derived clock is branch-independent because the stored deadline is an absolute
+  server timestamp.
 
 ## 1. Summary
 
@@ -757,6 +761,8 @@ All routes must:
   both rows and summary counts, with opaque cursors bound to the selected filters.
 - **Implemented:** bounded team-ledger PNR/customer search and opaque keyset pagination with a
   client Load more control; own/team authorization remains server-enforced.
+- **Implemented:** ledger filters and row indicators for incomplete TK details and Held records
+  past their airline time limit.
 - **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
   DC/R-ER, changed child-service itinerary allocation, and transaction-scoped admin/assistant
   attribution for DC/R-ER service completion.

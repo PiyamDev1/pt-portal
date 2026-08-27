@@ -39,7 +39,7 @@ describe('TicketingDashboard', () => {
     render(<TicketingDashboard />)
 
     expect(screen.getByRole('heading', { name: 'Upcoming flights' })).toBeTruthy()
-    expect(screen.getByText('All agents')).toBeTruthy()
+    expect(screen.getAllByText('All agents').length).toBeGreaterThanOrEqual(2)
     expect(await screen.findByText('No upcoming flights')).toBeTruthy()
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
