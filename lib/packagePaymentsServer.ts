@@ -31,7 +31,11 @@ export async function syncPackagePaymentFinancials(
 
   const invoice = (invoiceData || null) as unknown as TravelPackageInvoice | null
   if (invoice) {
-    const totalPaid = paymentSummary.netPaid
+    const invoicePayments = invoice.quote_id
+      ? payments.filter((payment) => payment.quote_id === invoice.quote_id)
+      : payments
+    const invoicePaymentSummary = calculatePackagePaymentSummary(invoicePayments)
+    const totalPaid = invoicePaymentSummary.netPaid
     const balanceDue = roundPackageInvoiceMoney(invoice.total_sold - totalPaid)
     const status = invoice.released_to_customer
       ? 'released'

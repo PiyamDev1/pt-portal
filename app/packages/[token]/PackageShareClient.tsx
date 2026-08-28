@@ -77,6 +77,7 @@ type PublicLinkedFamily = {
   pricing: {
     grossPrice: number
     discountTotal: number
+    refundAdjustmentTotal?: number
     totalPrice: number
     currency: string
     breakdown: PackagePassengerPriceBreakdown
@@ -409,6 +410,10 @@ function getPricingSubtotal(pricing: PublicLinkedFamily['pricing']) {
   return Math.max(0, pricing.grossPrice - pricing.discountTotal)
 }
 
+function getCommercialDiscountTotal(pricing: NonNullable<PublicLinkedFamily['pricing']>) {
+  return Math.max(0, pricing.discountTotal - Number(pricing.refundAdjustmentTotal || 0))
+}
+
 function normalizeMatchValue(value: string) {
   return value
     .toLowerCase()
@@ -630,6 +635,7 @@ function getLinkedFamilyPricing(
   return {
     grossPrice: result.resolved.combination.grossPrice,
     discountTotal: result.resolved.combination.offerDiscountTotal,
+    refundAdjustmentTotal: Number(result.resolved.combination.refundAdjustmentTotal || 0),
     totalPrice: result.resolved.combination.totalPrice,
     currency: result.resolved.combination.currency,
     breakdown,
@@ -727,7 +733,7 @@ function LinkedFamilySummaryCard({
 
       {expanded && (
         <div className="mt-3 border-t-4 border-cyan-600 pt-3">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-4">
             <div className="rounded-lg bg-slate-50 p-3">
               <p className="text-[11px] font-black uppercase text-slate-500">Subtotal</p>
               <p className="mt-1 text-sm font-black text-slate-950">
@@ -737,11 +743,19 @@ function LinkedFamilySummaryCard({
             <div className="rounded-lg bg-emerald-50 p-3">
               <p className="text-[11px] font-black uppercase text-emerald-700">Discount</p>
               <p className="mt-1 text-sm font-black text-emerald-800">
-                {pricing.discountTotal > 0
-                  ? `-${formatMoney(pricing.discountTotal, pricing.currency)}`
+                {getCommercialDiscountTotal(pricing) > 0
+                  ? `-${formatMoney(getCommercialDiscountTotal(pricing), pricing.currency)}`
                   : 'None'}
               </p>
             </div>
+            {Number(pricing.refundAdjustmentTotal || 0) > 0 && (
+              <div className="rounded-lg bg-sky-50 p-3">
+                <p className="text-[11px] font-black uppercase text-sky-700">Previous refund</p>
+                <p className="mt-1 text-sm font-black text-sky-800">
+                  -{formatMoney(Number(pricing.refundAdjustmentTotal || 0), pricing.currency)}
+                </p>
+              </div>
+            )}
             <div className="rounded-lg bg-slate-950 p-3 text-white">
               <p className="text-[11px] font-black uppercase text-white/70">Total</p>
               <p className="mt-1 text-sm font-black">
@@ -776,6 +790,7 @@ function PriceSummaryContent({
   superGroupTotals: {
     grossPrice: number
     discountTotal: number
+    refundAdjustmentTotal: number
     totalPrice: number
     currency: string
   } | null
@@ -795,14 +810,29 @@ function PriceSummaryContent({
         <div className="flex items-center justify-between gap-3 text-emerald-700">
           <span className="font-bold">Discounts applied</span>
           <span className="font-black">
-            {resolved.combination.offerDiscountTotal > 0
+            {resolved.combination.offerDiscountTotal -
+              Number(resolved.combination.refundAdjustmentTotal || 0) >
+            0
               ? `-${formatMoney(
-                  resolved.combination.offerDiscountTotal,
+                  resolved.combination.offerDiscountTotal -
+                    Number(resolved.combination.refundAdjustmentTotal || 0),
                   resolved.combination.currency,
                 )}`
               : 'None'}
           </span>
         </div>
+        {Number(resolved.combination.refundAdjustmentTotal || 0) > 0 && (
+          <div className="flex items-center justify-between gap-3 text-sky-700">
+            <span className="font-bold">Previous refund adjustment</span>
+            <span className="font-black">
+              -
+              {formatMoney(
+                Number(resolved.combination.refundAdjustmentTotal || 0),
+                resolved.combination.currency,
+              )}
+            </span>
+          </div>
+        )}
         <div className="border-t border-slate-200 pt-2">
           <div className="flex items-center justify-between gap-3">
             <span className="font-black text-slate-950">Total package price</span>
@@ -824,11 +854,19 @@ function PriceSummaryContent({
                 {formatMoney(pricing.totalPrice, pricing.currency)}
               </span>
             </div>
-            {pricing.discountTotal > 0 && (
+            {getCommercialDiscountTotal(pricing) > 0 && (
               <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
                 <span className="font-bold">Discount applied</span>
                 <span className="font-black">
-                  -{formatMoney(pricing.discountTotal, pricing.currency)}
+                  -{formatMoney(getCommercialDiscountTotal(pricing), pricing.currency)}
+                </span>
+              </div>
+            )}
+            {Number(pricing.refundAdjustmentTotal || 0) > 0 && (
+              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-sky-700">
+                <span className="font-bold">Previous refund adjustment</span>
+                <span className="font-black">
+                  -{formatMoney(Number(pricing.refundAdjustmentTotal || 0), pricing.currency)}
                 </span>
               </div>
             )}
@@ -865,11 +903,22 @@ function PriceSummaryContent({
             <div className="flex items-center justify-between gap-3 text-emerald-700">
               <span className="font-bold">Group discounts applied</span>
               <span className="font-black">
-                {superGroupTotals.discountTotal > 0
-                  ? `-${formatMoney(superGroupTotals.discountTotal, superGroupTotals.currency)}`
+                {superGroupTotals.discountTotal - superGroupTotals.refundAdjustmentTotal > 0
+                  ? `-${formatMoney(
+                      superGroupTotals.discountTotal - superGroupTotals.refundAdjustmentTotal,
+                      superGroupTotals.currency,
+                    )}`
                   : 'None'}
               </span>
             </div>
+            {superGroupTotals.refundAdjustmentTotal > 0 && (
+              <div className="flex items-center justify-between gap-3 text-sky-700">
+                <span className="font-bold">Previous refund adjustments</span>
+                <span className="font-black">
+                  -{formatMoney(superGroupTotals.refundAdjustmentTotal, superGroupTotals.currency)}
+                </span>
+              </div>
+            )}
             <div className="border-t border-slate-200 pt-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-black text-slate-950">After group discounts</span>
@@ -1252,12 +1301,15 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       (totals, item) => ({
         grossPrice: totals.grossPrice + item.pricing.grossPrice,
         discountTotal: totals.discountTotal + item.pricing.discountTotal,
+        refundAdjustmentTotal:
+          totals.refundAdjustmentTotal + Number(item.pricing.refundAdjustmentTotal || 0),
         totalPrice: totals.totalPrice + item.pricing.totalPrice,
         currency: totals.currency,
       }),
       {
         grossPrice: resolved.combination.grossPrice,
         discountTotal: resolved.combination.offerDiscountTotal,
+        refundAdjustmentTotal: Number(resolved.combination.refundAdjustmentTotal || 0),
         totalPrice: resolved.combination.totalPrice,
         currency: resolved.combination.currency,
       },
@@ -1270,6 +1322,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         ? {
             grossPrice: resolved.combination.grossPrice,
             discountTotal: resolved.combination.offerDiscountTotal,
+            refundAdjustmentTotal: Number(resolved.combination.refundAdjustmentTotal || 0),
             totalPrice: resolved.combination.totalPrice,
             currency: resolved.combination.currency,
             breakdown: priceBreakdown,
@@ -1466,6 +1519,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       pricing: {
                         grossPrice: saved.combination.grossPrice,
                         discountTotal: saved.combination.offerDiscountTotal,
+                        refundAdjustmentTotal: Number(saved.combination.refundAdjustmentTotal || 0),
                         totalPrice: saved.combination.totalPrice,
                         currency: saved.combination.currency,
                         breakdown,
@@ -1698,7 +1752,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               </p>
             </div>
             {superGroupTotals && linkedFamilyCards.length > 1 && (
-              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-cyan-200 pt-4">
+              <div className="mt-4 grid grid-cols-2 gap-2 border-t border-cyan-200 pt-4 sm:grid-cols-4">
                 <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:p-3">
                   <p className="text-[10px] font-black uppercase text-slate-500 sm:text-xs">
                     Subtotal
@@ -1712,8 +1766,24 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     Discount
                   </p>
                   <p className="mt-1 text-sm font-black text-emerald-800 sm:text-base">
-                    {superGroupTotals.discountTotal > 0
-                      ? `-${formatMoney(superGroupTotals.discountTotal, superGroupTotals.currency)}`
+                    {superGroupTotals.discountTotal - superGroupTotals.refundAdjustmentTotal > 0
+                      ? `-${formatMoney(
+                          superGroupTotals.discountTotal - superGroupTotals.refundAdjustmentTotal,
+                          superGroupTotals.currency,
+                        )}`
+                      : 'None'}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-sky-200 bg-sky-50 p-2 sm:p-3">
+                  <p className="text-[10px] font-black uppercase text-sky-700 sm:text-xs">
+                    Previous refund
+                  </p>
+                  <p className="mt-1 text-sm font-black text-sky-800 sm:text-base">
+                    {superGroupTotals.refundAdjustmentTotal > 0
+                      ? `-${formatMoney(
+                          superGroupTotals.refundAdjustmentTotal,
+                          superGroupTotals.currency,
+                        )}`
                       : 'None'}
                   </p>
                 </div>
@@ -3116,14 +3186,29 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       <div className="flex items-center justify-between gap-3 text-emerald-700">
                         <span className="font-bold">Discounts applied</span>
                         <span className="font-black">
-                          {resolved.combination.offerDiscountTotal > 0
+                          {resolved.combination.offerDiscountTotal -
+                            Number(resolved.combination.refundAdjustmentTotal || 0) >
+                          0
                             ? `-${formatMoney(
-                                resolved.combination.offerDiscountTotal,
+                                resolved.combination.offerDiscountTotal -
+                                  Number(resolved.combination.refundAdjustmentTotal || 0),
                                 resolved.combination.currency,
                               )}`
                             : 'None'}
                         </span>
                       </div>
+                      {Number(resolved.combination.refundAdjustmentTotal || 0) > 0 && (
+                        <div className="flex items-center justify-between gap-3 text-sky-700">
+                          <span className="font-bold">Previous refund adjustment</span>
+                          <span className="font-black">
+                            -
+                            {formatMoney(
+                              Number(resolved.combination.refundAdjustmentTotal || 0),
+                              resolved.combination.currency,
+                            )}
+                          </span>
+                        </div>
+                      )}
                       <div className="border-t border-slate-200 pt-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-black text-slate-950">Total package price</span>
@@ -3148,11 +3233,24 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                               {formatMoney(pricing.totalPrice, pricing.currency)}
                             </span>
                           </div>
-                          {pricing.discountTotal > 0 && (
+                          {getCommercialDiscountTotal(pricing) > 0 && (
                             <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
                               <span className="font-bold">Discount applied</span>
                               <span className="font-black">
-                                -{formatMoney(pricing.discountTotal, pricing.currency)}
+                                -
+                                {formatMoney(getCommercialDiscountTotal(pricing), pricing.currency)}
+                              </span>
+                            </div>
+                          )}
+                          {Number(pricing.refundAdjustmentTotal || 0) > 0 && (
+                            <div className="mt-1 flex items-center justify-between gap-3 text-xs text-sky-700">
+                              <span className="font-bold">Previous refund adjustment</span>
+                              <span className="font-black">
+                                -
+                                {formatMoney(
+                                  Number(pricing.refundAdjustmentTotal || 0),
+                                  pricing.currency,
+                                )}
                               </span>
                             </div>
                           )}
@@ -3176,14 +3274,29 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                             <div className="flex items-center justify-between gap-3 text-emerald-700">
                               <span className="font-bold">Group discounts applied</span>
                               <span className="font-black">
-                                {superGroupTotals.discountTotal > 0
+                                {superGroupTotals.discountTotal -
+                                  superGroupTotals.refundAdjustmentTotal >
+                                0
                                   ? `-${formatMoney(
-                                      superGroupTotals.discountTotal,
+                                      superGroupTotals.discountTotal -
+                                        superGroupTotals.refundAdjustmentTotal,
                                       superGroupTotals.currency,
                                     )}`
                                   : 'None'}
                               </span>
                             </div>
+                            {superGroupTotals.refundAdjustmentTotal > 0 && (
+                              <div className="flex items-center justify-between gap-3 text-sky-700">
+                                <span className="font-bold">Previous refund adjustments</span>
+                                <span className="font-black">
+                                  -
+                                  {formatMoney(
+                                    superGroupTotals.refundAdjustmentTotal,
+                                    superGroupTotals.currency,
+                                  )}
+                                </span>
+                              </div>
+                            )}
                             <div className="border-t border-slate-200 pt-2">
                               <div className="flex items-center justify-between gap-3">
                                 <span className="font-black text-slate-950">

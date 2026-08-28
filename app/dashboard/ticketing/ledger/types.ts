@@ -7,7 +7,7 @@ import type {
   TicketingCorrectAttributionInput,
 } from '@/lib/ticketing/attributionContracts'
 
-export type TicketPassengerType = 'ADT' | 'CHD' | 'INF'
+export type TicketPassengerType = 'ADT' | 'YTH' | 'CHD' | 'INF'
 
 export type TicketDetailsStatus = 'needs_details' | 'complete' | 'recorded'
 
@@ -24,6 +24,8 @@ export type TicketLedgerFare = {
   quantity: number
   unitSupplierCost: string | number | null
   unitSalePrice: string | number | null
+  unitGrossSalePrice?: string | number | null
+  unitDiscount?: string | number | null
 }
 
 export type TicketLedgerItem = {
@@ -70,6 +72,8 @@ export type TicketFareInput = {
   passengerType: TicketPassengerType
   quantity: number
   unitSupplierCost: number
+  unitSalePrice: number
+  unitDiscount: number
 }
 
 export type CreateTkTicketInput = {

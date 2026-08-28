@@ -121,6 +121,7 @@ function buildPublicFamilySummary(
     pricing: {
       grossPrice: resolved.combination.grossPrice,
       discountTotal: resolved.combination.offerDiscountTotal,
+      refundAdjustmentTotal: Number(resolved.combination.refundAdjustmentTotal || 0),
       totalPrice: resolved.combination.totalPrice,
       currency: resolved.combination.currency,
       breakdown,

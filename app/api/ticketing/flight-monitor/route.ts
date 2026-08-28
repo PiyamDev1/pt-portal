@@ -94,7 +94,7 @@ type PassengerAllocationRow = {
 
 type PassengerRow = {
   id: string
-  passenger_type: 'ADT' | 'CHD' | 'INF'
+  passenger_type: 'ADT' | 'YTH' | 'CHD' | 'INF'
   full_name: string | null
 }
 
@@ -342,7 +342,7 @@ function parseQuery(request: NextRequest) {
 }
 
 function leadPassenger(transaction: RootTransactionRow, customerName: string) {
-  const typeOrder = { ADT: 0, CHD: 1, INF: 2 } as const
+  const typeOrder = { ADT: 0, YTH: 1, CHD: 2, INF: 3 } as const
   const persisted = (transaction.ticket_transaction_passengers || [])
     .flatMap((allocation) => {
       const passenger = firstRelated(allocation.ticket_passengers)

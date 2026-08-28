@@ -9,6 +9,7 @@ import { TicketCompletionDrawer } from './TicketCompletionDrawer'
 import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
 import { TicketAttributionDialog } from './TicketAttributionDialog'
 import { TicketItineraryDrawer } from './TicketItineraryDrawer'
+import { TicketArchiveDialog } from './TicketArchiveDialog'
 import { loadTicketLedger, TicketLedgerApiError } from './ledgerClientApi'
 import type { TicketLedgerItem, TicketLedgerPayload } from './types'
 
@@ -28,6 +29,7 @@ export function TicketingLedgerClient() {
   const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
     null,
   )
+  const [selectedArchiveItem, setSelectedArchiveItem] = useState<TicketLedgerItem | null>(null)
   const [entryType, setEntryType] = useState<'TK' | 'DC' | 'R-ER'>('TK')
 
   const refresh = useCallback(
@@ -291,6 +293,7 @@ export function TicketingLedgerClient() {
           onEditItinerary={setSelectedItineraryItem}
           canManageAttribution={payload.context.canManageAttribution}
           onCorrectAttribution={setSelectedAttributionItem}
+          onArchive={setSelectedArchiveItem}
         />
 
         {nextCursor && (
@@ -336,6 +339,15 @@ export function TicketingLedgerClient() {
           employees={payload.context.attributionEmployees}
           onClose={() => setSelectedAttributionItem(null)}
           onSaved={() => refresh()}
+        />
+      )}
+
+      {selectedArchiveItem && (
+        <TicketArchiveDialog
+          key={selectedArchiveItem.bookingId}
+          item={selectedArchiveItem}
+          onClose={() => setSelectedArchiveItem(null)}
+          onArchived={() => refresh()}
         />
       )}
     </div>

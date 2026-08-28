@@ -309,6 +309,85 @@ describe('group customer file conversion', () => {
     )
   })
 
+  it('records shared transport sales per family and supplier cost once for the group', async () => {
+    const transportPayload: PackageQuotePayload = {
+      ...basePayload,
+      transportOptions: [
+        {
+          id: 'shared-transport',
+          title: 'Option 1',
+          summary: 'Jeddah Airport to Makkah Hotel',
+          price: 200,
+          pricingMode: 'total',
+          transportNetCost: 300,
+          transportNetCurrency: 'GBP',
+          transportMainSupplierName: 'Operations Supplier',
+          transportRoutes: [],
+        },
+      ],
+    }
+    const createTransportQuote = (id: string, name: string) => ({
+      ...familyQuote(id, name, 'current'),
+      payload: transportPayload,
+      selected_option: resolvePackageSelection(transportPayload, {
+        stayOptionIds: { makkah: 'hotel-a' },
+        transportOptionId: 'shared-transport',
+        customerName: name,
+      }),
+    })
+    mocks.groupQuoteIn.mockResolvedValue({
+      data: [
+        createTransportQuote('quote-1', 'Lead Family'),
+        createTransportQuote('quote-2', 'Second Family'),
+      ],
+      error: null,
+    })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupCustomerFile: true }),
+      }) as never,
+      { params: Promise.resolve({ id: 'quote-1' }) },
+    )
+
+    expect(response.status).toBe(201)
+    const reservationRows = mocks.reservationInsert.mock.calls[0][0] as Array<
+      Record<string, unknown>
+    >
+    const transportRows = reservationRows.filter((row) => row.reservation_type === 'transport')
+    const familyAllocations = transportRows.filter((row) => row.quote_id)
+    const physicalReservations = transportRows.filter((row) => !row.quote_id)
+
+    expect(familyAllocations).toHaveLength(2)
+    expect(familyAllocations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          quote_id: 'quote-1',
+          booked_cost_total: 0,
+          sold_price_total: 200,
+        }),
+        expect.objectContaining({
+          quote_id: 'quote-2',
+          booked_cost_total: 0,
+          sold_price_total: 200,
+        }),
+      ]),
+    )
+    expect(physicalReservations).toEqual([
+      expect.objectContaining({
+        booked_cost_total: 300,
+        sold_price_total: 0,
+        supplier_name: 'Operations Supplier',
+        metadata: expect.objectContaining({
+          sharedGroupTransport: true,
+          physicalReservation: true,
+        }),
+      }),
+    ])
+  })
+
   it('does not convert while a linked family only has a saved draft selection', async () => {
     mocks.groupQuoteIn.mockResolvedValue({
       data: [

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
+  allocateSharedGroupTransportBookedCost,
   calculatePackageInvoiceTotals,
   createPackageInvoiceLinesFromReservations,
   createPackageInvoiceNumber,
@@ -221,13 +222,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  let reservationQuery = supabase
+  const reservationQuery = supabase
     .from('travel_package_reservations')
     .select(selectTravelPackageReservationColumns())
     .eq('package_id', id)
-  if (packageFolder.customer_file_mode === 'group' && familyQuoteId) {
-    reservationQuery = reservationQuery.eq('quote_id', familyQuoteId)
-  }
   const { data: reservationData, error: reservationError } = await reservationQuery.order(
     'created_at',
     { ascending: true },
@@ -238,7 +236,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return apiError(reservationError.message || 'Failed to load package reservations', 500)
   }
 
-  const reservations = (reservationData || []) as unknown as TravelPackageReservation[]
+  const packageReservations = (reservationData || []) as unknown as TravelPackageReservation[]
+  const familyReservations =
+    packageFolder.customer_file_mode === 'group' && familyQuoteId
+      ? packageReservations.filter((reservation) => reservation.quote_id === familyQuoteId)
+      : packageReservations
+  const reservations =
+    packageFolder.customer_file_mode === 'group' && familyQuoteId
+      ? allocateSharedGroupTransportBookedCost(
+          familyReservations,
+          packageReservations,
+          familyQuoteId,
+        )
+      : familyReservations
   const { data: itemData, error: itemError } = await supabase
     .from('travel_package_reservation_items')
     .select(selectTravelPackageReservationItemColumns())
@@ -273,7 +283,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const existingTotalPaid = roundPackageInvoiceMoney(
     (existingPaymentData || []).reduce((total, payment) => {
       if (payment.payment_status !== 'completed') return total
-      if (['deposit', 'payment'].includes(payment.payment_type))
+      if (['deposit', 'payment', 'account_credit'].includes(payment.payment_type))
         return total + Number(payment.amount || 0)
       if (['refund', 'chargeback'].includes(payment.payment_type))
         return total - Number(payment.amount || 0)

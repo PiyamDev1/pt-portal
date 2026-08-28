@@ -196,4 +196,35 @@ describe('travel package discount allocations', () => {
     expect(allocations.flight.total).toBe(50)
     expect(allocations.hotel.total).toBe(0)
   })
+
+  it('keeps previous refund credit out of service discount allocations', () => {
+    const refundAdjustment = {
+      id: 'previous-refund',
+      title: 'Previous refund adjustment',
+      summary: '',
+      expiresAt: '',
+      discountAmount: 200,
+      discountMode: 'total' as const,
+      discountType: 'refund_adjustment' as const,
+      eligibleServices: [] as const,
+      reference: 'PT-OLD123',
+      active: true,
+    }
+    const reservations = [reservation('flight', 'flight', 800, 500)]
+    const snapshot = {
+      payload: { ...payload, limitedTimeOffers: [{ ...refundAdjustment }] },
+      selection: {
+        combination: {
+          appliedOffers: [{ ...refundAdjustment }],
+          offerDiscountTotal: 200,
+          refundAdjustmentTotal: 200,
+        },
+      },
+    } as TravelPackageFolder['selected_quote_snapshot']
+
+    const allocations = calculateTravelPackageDiscountAllocations(reservations, snapshot)
+
+    expect(allocations.flight.total).toBe(0)
+    expect(allocations.flight.remainingProfit).toBe(300)
+  })
 })

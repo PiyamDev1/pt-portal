@@ -32,7 +32,11 @@ export type TravelPackageFolderStatus =
   | 'archived'
 export type PackagePricingMode = 'total' | 'per_person'
 export type PackageDiscountMode = 'total' | 'per_person'
-export type PackageQuoteDiscountType = 'early_bird' | 'general_discount' | 'visa_special'
+export type PackageQuoteDiscountType =
+  | 'early_bird'
+  | 'general_discount'
+  | 'refund_adjustment'
+  | 'visa_special'
 export type PackageDiscountEligibleService = 'flight' | 'hotel' | 'transport' | 'visa'
 export type PackagePaymentMethod = 'cash' | 'bank_transfer' | 'card'
 export type PackagePaymentIntent = 'full_payment' | 'deposit_only' | 'installment_request'
@@ -232,6 +236,7 @@ export interface PackageLimitedTimeOffer {
   visaOptionId?: string | null
   visaPassengerCategory?: PackageVisaPassengerCategory
   visaQuantity?: number
+  reference?: string | null
   active: boolean
 }
 
@@ -329,6 +334,7 @@ export interface PackageCombination {
   totalPrice: number
   grossPrice: number
   offerDiscountTotal: number
+  refundAdjustmentTotal?: number
   perPersonPrice: number
   payingGuests: number
   servicePassengers: number

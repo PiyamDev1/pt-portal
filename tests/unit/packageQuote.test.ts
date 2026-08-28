@@ -805,6 +805,88 @@ describe('package quote calculator', () => {
     expect(resolved.combination.totalPrice).toBe(925)
   })
 
+  it('adds the main flight, linked leg, visa, and total transport exactly once', () => {
+    const completeServicePayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 1,
+      childrenPaying: 1,
+      childrenFree: 1,
+      infants: 1,
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [{ id: 'hotel', title: 'Hotel', summary: '', price: 1000 }],
+        },
+      ],
+      flightOptions: [
+        {
+          id: 'main-flight',
+          title: 'Main flight',
+          summary: '',
+          price: 0,
+          adultPrice: 500,
+          childPrice: 400,
+          infantPrice: 100,
+          pricingMode: 'per_person',
+          isDefault: true,
+        },
+      ],
+      linkedFlightGroups: [
+        {
+          id: 'return-leg',
+          baseFlightOptionId: 'main-flight',
+          routeLabel: 'Madinah to London',
+          defaultOptionId: 'return-included',
+          options: [
+            {
+              id: 'return-included',
+              airlineName: 'Included airline',
+              summary: '',
+              adultPrice: 200,
+              childPrice: 150,
+              infantPrice: 50,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+              isDefault: true,
+            },
+          ],
+        },
+      ],
+      visaOptions: [
+        {
+          id: 'visa',
+          title: 'Visa',
+          summary: '',
+          price: 50,
+          pricingMode: 'per_person',
+        },
+      ],
+      transportOptions: [
+        {
+          id: 'transport',
+          title: 'Transport',
+          summary: '',
+          price: 300,
+          pricingMode: 'total',
+          isDefault: true,
+        },
+      ],
+      limitedTimeOffers: [],
+    })
+
+    const resolved = resolvePackageSelection(
+      completeServicePayload,
+      getDefaultPackageSelection(completeServicePayload),
+    )
+
+    expect(resolved.combination.totalPrice).toBe(3450)
+    expect(
+      getPackagePassengerPriceBreakdown(completeServicePayload, resolved.combination).total,
+    ).toBeCloseTo(3450, 2)
+  })
+
   it('refreshes a converted package snapshot from corrected transport data', () => {
     const originalPayload = normalizePackageQuotePayload({
       ...payload,
@@ -1150,6 +1232,46 @@ describe('package quote calculator', () => {
     expect(copy).toContain('****EARLY BIRD OFFER****')
     expect(copy).toContain('*Discount Applied: -£120.00*')
     expect(copy).toContain('*Total Package Cost: £1,785.00*')
+  })
+
+  it('separates previous refund credit from commercial discounts', () => {
+    const refundPayload: PackageQuotePayload = {
+      ...payload,
+      limitedTimeOffers: [
+        {
+          id: 'further-discount',
+          title: 'Further discount',
+          summary: '',
+          expiresAt: '',
+          discountAmount: 100,
+          discountMode: 'total',
+          discountType: 'general_discount',
+          active: true,
+        },
+        {
+          id: 'previous-refund',
+          title: 'Previous refund adjustment',
+          summary: '',
+          expiresAt: '',
+          discountAmount: 200,
+          discountMode: 'total',
+          discountType: 'refund_adjustment',
+          reference: 'PT-OLD123',
+          active: true,
+        },
+      ],
+    }
+
+    const [combination] = buildPackageCombinations(refundPayload)
+
+    expect(combination.grossPrice).toBe(1905)
+    expect(combination.offerDiscountTotal).toBe(300)
+    expect(combination.refundAdjustmentTotal).toBe(200)
+    expect(combination.totalPrice).toBe(1605)
+    expect(getPackagePassengerPriceBreakdown(refundPayload, combination).total).toBeCloseTo(
+      combination.totalPrice,
+      2,
+    )
   })
 
   it('spreads package discounts evenly across all passenger price lines', () => {

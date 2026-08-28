@@ -71,6 +71,7 @@ type SalesLinkedFamilyPricing = {
   quoteTitle: string
   grossPrice: number
   discountTotal: number
+  refundAdjustmentTotal: number
   totalPrice: number
   currency: string
 }
@@ -365,6 +366,7 @@ async function loadSalesLinkedFamilyPricing(
           quoteTitle: data.quote.title,
           grossPrice: resolved.combination.grossPrice,
           discountTotal: resolved.combination.offerDiscountTotal,
+          refundAdjustmentTotal: Number(resolved.combination.refundAdjustmentTotal || 0),
           totalPrice: resolved.combination.totalPrice,
           currency: resolved.combination.currency,
         } satisfies SalesLinkedFamilyPricing
@@ -512,6 +514,9 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
       discountTotal:
         current.offerDiscountTotal +
         linkedFamilyPricing.reduce((total, family) => total + family.discountTotal, 0),
+      refundAdjustmentTotal:
+        Number(current.refundAdjustmentTotal || 0) +
+        linkedFamilyPricing.reduce((total, family) => total + family.refundAdjustmentTotal, 0),
       totalPrice:
         current.totalPrice +
         linkedFamilyPricing.reduce((total, family) => total + family.totalPrice, 0),
@@ -1192,14 +1197,29 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   <div className="flex items-center justify-between gap-3 text-emerald-700">
                     <span className="font-bold">Discounts applied</span>
                     <span className="font-black">
-                      {resolved.combination.offerDiscountTotal > 0
+                      {resolved.combination.offerDiscountTotal -
+                        Number(resolved.combination.refundAdjustmentTotal || 0) >
+                      0
                         ? `-${formatMoney(
-                            resolved.combination.offerDiscountTotal,
+                            resolved.combination.offerDiscountTotal -
+                              Number(resolved.combination.refundAdjustmentTotal || 0),
                             resolved.combination.currency,
                           )}`
                         : 'None'}
                     </span>
                   </div>
+                  {Number(resolved.combination.refundAdjustmentTotal || 0) > 0 && (
+                    <div className="flex items-center justify-between gap-3 text-sky-700">
+                      <span className="font-bold">Previous refund adjustment</span>
+                      <span className="font-black">
+                        -
+                        {formatMoney(
+                          Number(resolved.combination.refundAdjustmentTotal || 0),
+                          resolved.combination.currency,
+                        )}
+                      </span>
+                    </div>
+                  )}
                   {resolved.combination.paymentSurchargeTotal > 0 ? (
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-bold text-slate-600">Credit Card processing fee</span>
@@ -1281,14 +1301,29 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                         <div className="flex items-center justify-between gap-3 text-emerald-700">
                           <span className="font-bold">Combined discounts</span>
                           <span className="font-black">
-                            {combinedGroupPricing.discountTotal > 0
+                            {combinedGroupPricing.discountTotal -
+                              combinedGroupPricing.refundAdjustmentTotal >
+                            0
                               ? `-${formatMoney(
-                                  combinedGroupPricing.discountTotal,
+                                  combinedGroupPricing.discountTotal -
+                                    combinedGroupPricing.refundAdjustmentTotal,
                                   combinedGroupPricing.currency,
                                 )}`
                               : 'None'}
                           </span>
                         </div>
+                        {combinedGroupPricing.refundAdjustmentTotal > 0 && (
+                          <div className="flex items-center justify-between gap-3 text-sky-700">
+                            <span className="font-bold">Previous refund adjustments</span>
+                            <span className="font-black">
+                              -
+                              {formatMoney(
+                                combinedGroupPricing.refundAdjustmentTotal,
+                                combinedGroupPricing.currency,
+                              )}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between gap-3 border-t border-red-200 pt-2">
                           <span className="font-black text-slate-950">Combined total</span>
                           <span className="text-lg font-black text-[#8b1e2d]">

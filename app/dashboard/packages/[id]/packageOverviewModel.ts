@@ -257,6 +257,7 @@ function normalizeSelectedCombination(
     totalPrice: Number(combination.totalPrice || 0),
     grossPrice: Number(combination.grossPrice || combination.totalPrice || 0),
     offerDiscountTotal: Number(combination.offerDiscountTotal || 0),
+    refundAdjustmentTotal: Number(combination.refundAdjustmentTotal || 0),
     perPersonPrice: Number(combination.perPersonPrice || 0),
     payingGuests: Number(combination.payingGuests || 0),
     servicePassengers: Number(combination.servicePassengers || 0),

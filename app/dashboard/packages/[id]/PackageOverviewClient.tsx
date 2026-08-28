@@ -879,42 +879,49 @@ export default function PackageOverviewClient({
   const quoteReservationPrefills = useMemo<QuoteReservationPrefill[]>(() => {
     if (!selectedCombination) return []
     const servicePassengers = selectedCombination.servicePassengers
+    const selectedComponentPassengerSummary = {
+      adults: Number(selectedPayload?.adults || 0),
+      childrenPaying: Number(selectedPayload?.childrenPaying || 0),
+      childrenFree: Number(selectedPayload?.childrenFree || 0),
+      infants: Number(selectedPayload?.infants || 0),
+    }
     const prefills: QuoteReservationPrefill[] = []
     if (selectedCombination.flightOption) {
-      const linkedFlightSoldTotal =
-        selectedPayload && selectedCombination.linkedFlightSelections.length > 0
-          ? selectedCombination.linkedFlightSelections.reduce(
-              (total, selection) =>
-                total +
-                getLinkedFlightOptionTotal(selection.group, selection.option, selectedPayload),
-              0,
-            )
-          : 0
-      const linkedFlightNotes = selectedCombination.linkedFlightSelections
-        .map(
-          (selection) =>
-            `${selection.group.routeLabel}: ${selection.option.airlineName}${
-              selection.option.summary ? `\n${selection.option.summary}` : ''
-            }`,
-        )
-        .join('\n\n')
       prefills.push({
         key: `flight-${selectedCombination.flightOption.id}`,
         reservationType: 'flight',
         title: selectedCombination.flightOption.title,
-        soldPriceTotal:
-          getOptionSoldTotal(
-            selectedCombination.flightOption,
-            servicePassengers,
-            passengerSummary,
-          ) + linkedFlightSoldTotal,
-        internalNotes: [
-          getReservationSummary(selectedCombination.flightOption),
-          linkedFlightNotes ? `Linked included flight legs:\n${linkedFlightNotes}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n\n'),
-        sourceLabel: 'Flight from final quote',
+        soldPriceTotal: getOptionSoldTotal(
+          selectedCombination.flightOption,
+          servicePassengers,
+          selectedComponentPassengerSummary,
+        ),
+        internalNotes: getReservationSummary(selectedCombination.flightOption),
+        sourceLabel: 'Main flight from final quote',
+        metadata: { flightPart: 'main', optionId: selectedCombination.flightOption.id },
+      })
+    }
+    if (selectedPayload) {
+      selectedCombination.linkedFlightSelections.forEach((selection) => {
+        const sold = getLinkedFlightOptionTotal(selection.group, selection.option, selectedPayload)
+        prefills.push({
+          key: `linked-flight-${selection.group.id}-${selection.option.id}`,
+          reservationType: 'flight',
+          title: `${selection.group.routeLabel}: ${selection.option.airlineName}`,
+          soldPriceTotal: sold,
+          internalNotes: [
+            selection.option.summary,
+            `Quoted linked leg value: ${selectedCombination.currency} ${sold.toFixed(2)}`,
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
+          sourceLabel: 'Linked flight leg from final quote',
+          metadata: {
+            flightPart: 'linked_leg',
+            groupId: selection.group.id,
+            optionId: selection.option.id,
+          },
+        })
       })
     }
     selectedCombination.visaOptions.forEach((option) => {
@@ -939,15 +946,26 @@ export default function PackageOverviewClient({
       prefills.push({
         key: `transport-${selectedCombination.transportOption.id}`,
         reservationType: 'transport',
-        title: selectedCombination.transportOption.title,
-        bookedCostTotal: Number(selectedCombination.transportOption.transportNetCost || 0),
+        title:
+          packageFolder?.customer_file_mode === 'group'
+            ? 'Shared group transport'
+            : selectedCombination.transportOption.title,
+        bookedCostTotal:
+          packageFolder?.customer_file_mode === 'group'
+            ? 0
+            : Number(selectedCombination.transportOption.transportNetCost || 0),
         soldPriceTotal: getOptionSoldTotal(
           selectedCombination.transportOption,
           servicePassengers,
-          passengerSummary,
+          selectedComponentPassengerSummary,
         ),
         internalNotes: getTransportReservationSummary(selectedCombination.transportOption),
         sourceLabel: 'Transport from final quote',
+        metadata: {
+          optionId: selectedCombination.transportOption.id,
+          sharedGroupTransport: packageFolder?.customer_file_mode === 'group',
+          billingAllocation: packageFolder?.customer_file_mode === 'group',
+        },
       })
     }
     selectedCombination.staySelections.forEach((stay) => {
@@ -973,7 +991,9 @@ export default function PackageOverviewClient({
       })
     })
     const componentTotal = prefills.reduce((total, prefill) => total + prefill.soldPriceTotal, 0)
-    const adjustment = Math.round((selectedCombination.totalPrice - componentTotal) * 100) / 100
+    const accountingSaleTotal =
+      selectedCombination.totalPrice + Number(selectedCombination.refundAdjustmentTotal || 0)
+    const adjustment = Math.round((accountingSaleTotal - componentTotal) * 100) / 100
     if (adjustment > 0) {
       prefills.push({
         key: 'package-pricing-adjustment',
@@ -996,7 +1016,7 @@ export default function PackageOverviewClient({
     }
     return prefills
   }, [
-    passengerSummary,
+    packageFolder?.customer_file_mode,
     reservationCurrency,
     selectedCombination,
     selectedPayload,

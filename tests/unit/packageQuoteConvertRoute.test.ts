@@ -282,7 +282,7 @@ describe('POST /api/packages/[id]/convert', () => {
     )
   })
 
-  it('adds selected linked flight leg costs to the flight reservation row', async () => {
+  it('creates separate reservation rows for the main and linked flight legs', async () => {
     const linkedPayload: PackageQuotePayload = {
       ...payload,
       flightOptions: [
@@ -337,21 +337,84 @@ describe('POST /api/packages/[id]/convert', () => {
     const reservationRows = mocks.reservationInsert.mock.calls[0]?.[0] as Array<
       Record<string, unknown>
     >
-    const flightRow = reservationRows.find((row) => row.reservation_type === 'flight')
-    expect(flightRow).toEqual(
+    const flightRows = reservationRows.filter((row) => row.reservation_type === 'flight')
+    expect(flightRows).toHaveLength(2)
+    expect(flightRows[0]).toEqual(
       expect.objectContaining({
-        sold_price_total: 300,
+        title: 'Flight - Main flight',
+        sold_price_total: 200,
+        metadata: expect.objectContaining({ flightPart: 'main' }),
+      }),
+    )
+    expect(flightRows[1]).toEqual(
+      expect.objectContaining({
+        title: 'Flight leg - Madinah to London',
+        sold_price_total: 100,
         metadata: expect.objectContaining({
-          linkedFlightSelections: [
-            expect.objectContaining({
-              groupId: 'return-leg',
-              optionId: 'included-return',
-            }),
-          ],
+          flightPart: 'linked_leg',
+          linkedFlightSelection: expect.objectContaining({
+            groupId: 'return-leg',
+            optionId: 'included-return',
+          }),
         }),
       }),
     )
     expect(reservationRows.some((row) => row.title === 'Package pricing adjustment')).toBe(false)
+  })
+
+  it('converts a previous refund adjustment into account credit without discounting revenue', async () => {
+    const creditPayload: PackageQuotePayload = {
+      ...payload,
+      limitedTimeOffers: [
+        {
+          id: 'refund-credit',
+          title: 'Previous refund balance',
+          summary: 'Balance transferred from cancelled package.',
+          expiresAt: '',
+          discountAmount: 150,
+          discountMode: 'total',
+          discountType: 'refund_adjustment',
+          eligibleServices: [],
+          reference: 'PT-OLD123',
+          active: true,
+        },
+      ],
+    }
+    const creditQuote: TravelPackageQuote = {
+      ...quote,
+      payload: creditPayload,
+      selected_option: resolvePackageSelection(creditPayload, {
+        stayOptionIds: { makkah: 'hotel-a' },
+        paymentMethod: 'bank_transfer',
+      }),
+    }
+    mocks.quoteSingle.mockResolvedValueOnce({ data: creditQuote, error: null })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      { params: Promise.resolve({ id: 'quote-1' }) },
+    )
+
+    expect(response.status).toBe(201)
+    const reservationRows = mocks.reservationInsert.mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    expect(reservationRows.some((row) => Number(row.discount_total || 0) > 0)).toBe(false)
+    expect(mocks.paymentInsert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          amount: 150,
+          payment_type: 'account_credit',
+          payment_status: 'completed',
+          receipt_reference: 'PT-OLD123',
+        }),
+        expect.objectContaining({
+          amount: 850,
+          payment_type: 'payment',
+          payment_method: 'bank_transfer',
+        }),
+      ]),
+    )
   })
 
   it('adds card processing fee to full-payment card payment rows', async () => {

@@ -32,6 +32,7 @@ const VALID_DISCOUNT_MODES = new Set<PackageDiscountMode>(['total', 'per_person'
 const VALID_QUOTE_DISCOUNT_TYPES = new Set<PackageQuoteDiscountType>([
   'early_bird',
   'general_discount',
+  'refund_adjustment',
   'visa_special',
 ])
 const VALID_DISCOUNT_ELIGIBLE_SERVICES = new Set<PackageDiscountEligibleService>([
@@ -523,6 +524,7 @@ function normalizeOffer(raw: unknown, fallbackId: string): PackageLimitedTimeOff
     visaOptionId: asString(candidate?.visaOptionId) || null,
     visaPassengerCategory,
     ...(visaQuantity > 0 ? { visaQuantity } : {}),
+    reference: asString(candidate?.reference) || null,
     active,
   }
 }
@@ -1226,6 +1228,7 @@ export function getPackageQuoteDiscountType(offer: PackageLimitedTimeOffer) {
 }
 
 export function getPackageQuoteDiscountEligibleServices(offer: PackageLimitedTimeOffer) {
+  if (getPackageQuoteDiscountType(offer) === 'refund_adjustment') return []
   if (getPackageQuoteDiscountType(offer) === 'visa_special') {
     return ['visa'] as PackageDiscountEligibleService[]
   }
@@ -1317,6 +1320,7 @@ export function getPackageOfferDiscountBreakdown(
       const amount = getOfferDiscountTotal(offer, payload)
       const discountType = getPackageQuoteDiscountType(offer)
       if (discountType === 'visa_special') totals.visaSpecialTotal += amount
+      else if (discountType === 'refund_adjustment') totals.refundAdjustmentTotal += amount
       else if (discountType === 'general_discount') totals.generalDiscountTotal += amount
       else totals.earlyBirdTotal += amount
       totals.total += amount
@@ -1325,9 +1329,23 @@ export function getPackageOfferDiscountBreakdown(
     {
       earlyBirdTotal: 0,
       generalDiscountTotal: 0,
+      refundAdjustmentTotal: 0,
       visaSpecialTotal: 0,
       total: 0,
     },
+  )
+}
+
+export function getPackageRefundAdjustmentTotal(
+  payloadInput: unknown,
+  offersInput?: PackageLimitedTimeOffer[],
+) {
+  const payload = normalizePackageQuotePayload(payloadInput)
+  const offers = offersInput ? normalizeOffers(offersInput) : getActiveOffers(payload)
+  return roundMoney(
+    offers
+      .filter((offer) => getPackageQuoteDiscountType(offer) === 'refund_adjustment')
+      .reduce((total, offer) => total + getOfferDiscountTotal(offer, payload), 0),
   )
 }
 
@@ -1421,6 +1439,7 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
     (sum, offer) => sum + getOfferDiscountTotal(offer, payload),
     0,
   )
+  const refundAdjustmentTotal = getPackageRefundAdjustmentTotal(payload, activeOffers)
 
   const combinations: PackageCombination[] = []
 
@@ -1474,6 +1493,7 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
           totalPrice,
           grossPrice,
           offerDiscountTotal,
+          refundAdjustmentTotal,
           perPersonPrice: totalPrice / payingGuests,
           payingGuests,
           servicePassengers,
@@ -1813,6 +1833,7 @@ export function getPackagePassengerPriceBreakdown(
   const sharedDiscountTotal =
     offerDiscountBreakdown.earlyBirdTotal +
     offerDiscountBreakdown.generalDiscountTotal +
+    offerDiscountBreakdown.refundAdjustmentTotal +
     untargetedVisaSpecialDiscount
   const discountUnit = servicePassengers > 0 ? sharedDiscountTotal / servicePassengers : 0
   const surchargeUnit = payingGuests > 0 ? combination.paymentSurchargeTotal / payingGuests : 0
@@ -2421,6 +2442,7 @@ export function resolvePackageSelection(
     (sum, offer) => sum + getOfferDiscountTotal(offer, payload),
     0,
   )
+  const refundAdjustmentTotal = getPackageRefundAdjustmentTotal(payload, activeOffers)
   const packageSubtotalPrice = Math.max(0, grossPrice - offerDiscountTotal)
   const paymentBreakdown = normalizePackagePaymentBreakdown(
     input.paymentBreakdown,
@@ -2499,6 +2521,7 @@ export function resolvePackageSelection(
       totalPrice,
       grossPrice,
       offerDiscountTotal,
+      refundAdjustmentTotal,
       perPersonPrice: totalPrice / payingGuests,
       payingGuests,
       servicePassengers,

@@ -215,6 +215,7 @@ function newLimitedTimeOffer(): PackageLimitedTimeOffer {
     eligibleServices: ['flight', 'hotel', 'transport'],
     visaOptionId: null,
     visaPassengerCategory: 'all',
+    reference: null,
     active: true,
   }
 }
@@ -3524,8 +3525,8 @@ export default function PackagesClient({
             />
             {payload.limitedTimeOffers.length === 0 ? (
               <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm font-semibold text-slate-500">
-                No discount added. Use the plus button for an Early Bird, Further Discount, or
-                passenger-specific Visa Special Discount.
+                No adjustment added. Use the plus button for an Early Bird, Further Discount,
+                previous Refund Adjustment, or passenger-specific Visa Special Discount.
               </p>
             ) : (
               <div className="space-y-3">
@@ -3582,13 +3583,15 @@ export default function PackagesClient({
                               eligibleServices:
                                 discountType === 'visa_special'
                                   ? ['visa']
-                                  : (offer.eligibleServices || []).filter(
-                                        (service) => service !== 'visa',
-                                      ).length
-                                    ? (offer.eligibleServices || []).filter(
-                                        (service) => service !== 'visa',
-                                      )
-                                    : ['flight', 'hotel', 'transport'],
+                                  : discountType === 'refund_adjustment'
+                                    ? []
+                                    : (offer.eligibleServices || []).filter(
+                                          (service) => service !== 'visa',
+                                        ).length
+                                      ? (offer.eligibleServices || []).filter(
+                                          (service) => service !== 'visa',
+                                        )
+                                      : ['flight', 'hotel', 'transport'],
                               visaOptionId:
                                 discountType === 'visa_special'
                                   ? offer.visaOptionId || payload.visaOptions[0]?.id || null
@@ -3609,11 +3612,29 @@ export default function PackagesClient({
                         >
                           <option value="early_bird">Early Bird offer</option>
                           <option value="general_discount">General Further Discount</option>
+                          <option value="refund_adjustment">Previous Refund Adjustment</option>
                           <option value="visa_special">Visa Special Discount</option>
                         </select>
                       </label>
 
-                      {(offer.discountType || 'early_bird') !== 'visa_special' ? (
+                      {(offer.discountType || 'early_bird') === 'refund_adjustment' ? (
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-bold text-slate-500">
+                            Previous package / refund reference
+                          </span>
+                          <input
+                            value={offer.reference || ''}
+                            onChange={(event) =>
+                              updateLimitedTimeOffer(index, {
+                                ...offer,
+                                reference: event.target.value,
+                              })
+                            }
+                            placeholder="For example: PT-ABC123 or refund reference"
+                            className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
+                          />
+                        </label>
+                      ) : (offer.discountType || 'early_bird') !== 'visa_special' ? (
                         <fieldset>
                           <legend className="mb-1 text-xs font-bold text-slate-500">
                             Allocate across
@@ -3753,7 +3774,9 @@ export default function PackagesClient({
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-xs font-bold text-slate-500">
-                          Discount
+                          {(offer.discountType || 'early_bird') === 'refund_adjustment'
+                            ? 'Credit amount'
+                            : 'Discount'}
                         </span>
                         <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
                           <span className="mr-2 text-sm font-black text-slate-500">GBP</span>

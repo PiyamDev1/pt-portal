@@ -31,6 +31,8 @@ time_limit_migration="scripts/migrations/20260827_ticketing_time_limits.sql"
 time_limit_assertions="tests/integration/ticketing_time_limits.sql"
 service_passenger_allocation_migration="scripts/migrations/20260827_ticketing_service_passenger_allocation.sql"
 service_passenger_allocation_assertions="tests/integration/ticketing_service_passenger_allocation.sql"
+youth_assistance_archive_migration="scripts/migrations/20260828_ticketing_youth_assistance_archive.sql"
+youth_assistance_archive_assertions="tests/integration/ticketing_youth_assistance_archive.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2349,6 +2351,15 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$time_limit_assertions"
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$service_passenger_allocation_migration"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$service_passenger_allocation_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$youth_assistance_archive_migration"
+youth_assistance_archive_first_fingerprint="$(ticketing_schema_fingerprint)"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$youth_assistance_archive_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$youth_assistance_archive_first_fingerprint" ]]; then
+  echo "Idempotent YTH, assistance, and archive migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$youth_assistance_archive_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ticketingCorrectAttributionSchema } from '@/lib/ticketing/attributionContracts'
-import {
-  normalizeTicketingCustomerName,
-  ticketingQuickTkSchema,
-} from '@/lib/ticketing/contracts'
+import { normalizeTicketingCustomerName, ticketingQuickTkSchema } from '@/lib/ticketing/contracts'
 
 const PRIMARY_ID = '40000000-0000-4000-8000-000000000001'
 const ASSISTANT_ID = '40000000-0000-4000-8000-000000000002'
@@ -79,7 +76,15 @@ describe('ticketing attribution contracts', () => {
       timeLimitAt: '2026-08-25T17:00',
       issuedAt: null,
       currency: 'GBP',
-      fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 400 }],
+      fares: [
+        {
+          passengerType: 'ADT',
+          quantity: 1,
+          unitSupplierCost: 400,
+          unitSalePrice: 500,
+          unitDiscount: 0,
+        },
+      ],
     })
 
     expect(parsed).toMatchObject({
@@ -101,7 +106,15 @@ describe('ticketing attribution contracts', () => {
       timeLimitAt: null,
       issuedAt: '2026-08-24',
       currency: 'GBP' as const,
-      fares: [{ passengerType: 'ADT' as const, quantity: 1, unitSupplierCost: 400 }],
+      fares: [
+        {
+          passengerType: 'ADT' as const,
+          quantity: 1,
+          unitSupplierCost: 400,
+          unitSalePrice: 500,
+          unitDiscount: 0,
+        },
+      ],
       responsibleEmployeeId: PRIMARY_ID,
     }
 
@@ -114,5 +127,30 @@ describe('ticketing attribution contracts', () => {
     expect(
       ticketingQuickTkSchema.safeParse({ ...base, assistantEmployeeIds: [PRIMARY_ID] }).success,
     ).toBe(false)
+  })
+
+  it('keeps ticket discount within the entered sale price', () => {
+    const parsed = ticketingQuickTkSchema.safeParse({
+      customerName: 'Youth Passenger',
+      pnr: 'YTH123',
+      airlineId: '50000000-0000-4000-8000-000000000001',
+      serviceType: 'TK',
+      operationalStatus: 'issued',
+      bookingDate: '2026-08-28',
+      timeLimitAt: null,
+      issuedAt: '2026-08-28',
+      currency: 'GBP',
+      fares: [
+        {
+          passengerType: 'YTH',
+          quantity: 1,
+          unitSupplierCost: 200,
+          unitSalePrice: 250,
+          unitDiscount: 300,
+        },
+      ],
+    })
+
+    expect(parsed.success).toBe(false)
   })
 })

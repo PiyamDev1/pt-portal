@@ -133,7 +133,15 @@ export async function PATCH(
     .eq('package_id', id)
     .select(selectTravelPackagePaymentColumns())
     .single()
-  if (error || !data) return apiError(error?.message || 'Failed to update payment', 500)
+  if (error || !data) {
+    if (nextPaymentType === 'account_credit' && error?.code === '23514') {
+      return apiError(
+        'Previous-refund credit is not enabled in Supabase yet. Run scripts/migrations/2026082801_repair_travel_package_account_credit.sql.',
+        503,
+      )
+    }
+    return apiError(error?.message || 'Failed to update payment', 500)
+  }
 
   const payment = data as unknown as TravelPackagePayment
   await syncLinkedReservationRefund(supabase, id, current, payment)

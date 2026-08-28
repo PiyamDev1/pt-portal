@@ -13,10 +13,13 @@ import type {
   TicketPassengerType,
 } from './types'
 
-const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'CHD', 'INF']
+const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'YTH', 'CHD', 'INF']
 const MONEY_PATTERN = /^\d+(?:\.\d{1,2})?$/
 
-type FareDraft = Record<TicketPassengerType, { quantity: string; unitSupplierCost: string }>
+type FareDraft = Record<
+  TicketPassengerType,
+  { quantity: string; unitSupplierCost: string; unitSalePrice: string; unitDiscount: string }
+>
 
 type QuickEntryDraft = {
   customerName: string
@@ -64,9 +67,10 @@ function initialDraft(
     timeLimitAt: '',
     issuedAt: today,
     fares: {
-      ADT: { quantity: '1', unitSupplierCost: '' },
-      CHD: { quantity: '0', unitSupplierCost: '' },
-      INF: { quantity: '0', unitSupplierCost: '' },
+      ADT: { quantity: '1', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
+      YTH: { quantity: '0', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
+      CHD: { quantity: '0', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
+      INF: { quantity: '0', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
     },
     responsibleEmployeeId,
     assistantEmployeeIds: [],
@@ -124,9 +128,7 @@ export function TicketQuickEntryForm({
   )
   const idempotencyKey = useRef(newIdempotencyKey())
   const customerInput = useRef<HTMLInputElement>(null)
-  const attributionOverride =
-    canManageAttribution &&
-    (draft.responsibleEmployeeId !== employeeId || draft.assistantEmployeeIds.length > 0)
+  const attributionOverride = canManageAttribution && draft.responsibleEmployeeId !== employeeId
   const selectedAssistantEmployees = draft.assistantEmployeeIds.flatMap((id) => {
     const employee = attributionEmployees.find((option) => option.id === id)
     return employee ? [employee] : []
@@ -159,9 +161,7 @@ export function TicketQuickEntryForm({
     const airline = airlines.find(
       (option) => option.iataCode.toUpperCase() === draft.airlineCode.trim().toUpperCase(),
     )
-    const attributionOverride =
-      canManageAttribution &&
-      (draft.responsibleEmployeeId !== employeeId || draft.assistantEmployeeIds.length > 0)
+    const attributionOverride = canManageAttribution && draft.responsibleEmployeeId !== employeeId
 
     if (!customerName) nextErrors.customerName = 'Enter the customer or lead passenger name.'
     if (!pnr) nextErrors.pnr = 'Enter the PNR.'
@@ -181,25 +181,24 @@ export function TicketQuickEntryForm({
     } else if (draft.issuedAt && draft.bookingDate && draft.issuedAt < draft.bookingDate) {
       nextErrors.issuedAt = 'Issued date cannot be before the booking date.'
     }
+    const availableEmployeeIds = new Set(attributionEmployees.map((employee) => employee.id))
     if (canManageAttribution) {
-      const availableEmployeeIds = new Set(attributionEmployees.map((employee) => employee.id))
       if (!availableEmployeeIds.has(draft.responsibleEmployeeId)) {
         nextErrors.responsibleEmployeeId = 'Choose an active responsible agent.'
-      }
-      if (draft.assistantEmployeeIds.length > 10) {
-        nextErrors.assistantEmployeeIds = 'A ticket can have at most 10 assistants.'
-      } else if (
-        draft.assistantEmployeeIds.includes(draft.responsibleEmployeeId) ||
-        draft.assistantEmployeeIds.some((id) => !availableEmployeeIds.has(id))
-      ) {
-        nextErrors.assistantEmployeeIds =
-          'Choose valid assistants who are not the responsible agent.'
       }
       if (attributionOverride && !draft.attributionReason.trim()) {
         nextErrors.attributionReason = 'Explain why this ticket is being entered for other staff.'
       } else if (draft.attributionReason.trim().length > 500) {
         nextErrors.attributionReason = 'Keep the attribution reason to 500 characters or fewer.'
       }
+    }
+    if (draft.assistantEmployeeIds.length > 10) {
+      nextErrors.assistantEmployeeIds = 'A ticket can have at most 10 assistants.'
+    } else if (
+      draft.assistantEmployeeIds.includes(draft.responsibleEmployeeId) ||
+      draft.assistantEmployeeIds.some((id) => !availableEmployeeIds.has(id))
+    ) {
+      nextErrors.assistantEmployeeIds = 'Choose valid assistants who are not the responsible agent.'
     }
 
     const fares = PASSENGER_TYPES.flatMap((passengerType) => {
@@ -221,11 +220,30 @@ export function TicketQuickEntryForm({
           'Fare cost is above the allowed limit.'
         return []
       }
-      return [{ passengerType, quantity, unitSupplierCost }]
+      if (!MONEY_PATTERN.test(fare.unitSalePrice)) {
+        nextErrors[`fare.${passengerType}.unitSalePrice`] =
+          'Enter the sale price per ticket with up to 2 decimals.'
+        return []
+      }
+      if (!MONEY_PATTERN.test(fare.unitDiscount)) {
+        nextErrors[`fare.${passengerType}.unitDiscount`] =
+          'Enter the discount per ticket with up to 2 decimals.'
+        return []
+      }
+      const unitSalePrice = Number(fare.unitSalePrice)
+      const unitDiscount = Number(fare.unitDiscount)
+      if (unitSalePrice > 99_999_999.99 || unitDiscount > unitSalePrice) {
+        nextErrors[`fare.${passengerType}.unitDiscount`] =
+          unitDiscount > unitSalePrice
+            ? 'Discount cannot exceed the sale price.'
+            : 'Sale price is above the allowed limit.'
+        return []
+      }
+      return [{ passengerType, quantity, unitSupplierCost, unitSalePrice, unitDiscount }]
     })
 
     if (fares.length === 0 && !Object.keys(nextErrors).some((key) => key.startsWith('fare.'))) {
-      nextErrors.fares = 'Add at least one ADT, CHD, or INF passenger.'
+      nextErrors.fares = 'Add at least one ADT, YTH, CHD, or INF passenger.'
     } else if (fares.reduce((total, fare) => total + fare.quantity, 0) > 99) {
       nextErrors.fares = 'A quick entry can contain at most 99 passengers.'
     }
@@ -245,13 +263,9 @@ export function TicketQuickEntryForm({
         issuedAt: draft.operationalStatus === 'issued' ? draft.issuedAt : null,
         currency: 'GBP',
         fares,
-        ...(canManageAttribution
-          ? {
-              responsibleEmployeeId: draft.responsibleEmployeeId,
-              assistantEmployeeIds: draft.assistantEmployeeIds,
-              attributionReason: attributionOverride ? draft.attributionReason.trim() : null,
-            }
-          : {}),
+        responsibleEmployeeId: draft.responsibleEmployeeId,
+        assistantEmployeeIds: draft.assistantEmployeeIds,
+        attributionReason: attributionOverride ? draft.attributionReason.trim() : null,
       },
     }
   }
@@ -481,169 +495,169 @@ export function TicketQuickEntryForm({
             )}
           </div>
 
-          {canManageAttribution && (
-            <fieldset className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
-              <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-sky-900">
-                Staff attribution
-              </legend>
-              <div className="grid gap-3 lg:grid-cols-2">
-                <label className="text-xs font-bold text-slate-700">
-                  Responsible agent
-                  <select
-                    value={draft.responsibleEmployeeId}
-                    onChange={(event) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        responsibleEmployeeId: event.target.value,
-                        assistantEmployeeIds: current.assistantEmployeeIds.filter(
-                          (id) => id !== event.target.value,
-                        ),
-                      }))
-                    }
-                    disabled={isSaving}
-                    aria-label="Responsible agent"
-                    aria-invalid={Boolean(errors.responsibleEmployeeId)}
-                    aria-describedby={
-                      errors.responsibleEmployeeId ? 'ticket-responsible-agent-error' : undefined
-                    }
-                    className={fieldClass(Boolean(errors.responsibleEmployeeId))}
-                  >
-                    {attributionEmployees.map((employee) => (
+          <fieldset className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+            <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-sky-900">
+              Staff attribution
+            </legend>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <label className="text-xs font-bold text-slate-700">
+                Responsible agent
+                <select
+                  value={draft.responsibleEmployeeId}
+                  onChange={(event) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      responsibleEmployeeId: event.target.value,
+                      assistantEmployeeIds: current.assistantEmployeeIds.filter(
+                        (id) => id !== event.target.value,
+                      ),
+                    }))
+                  }
+                  disabled={isSaving || !canManageAttribution}
+                  aria-label="Responsible agent"
+                  aria-invalid={Boolean(errors.responsibleEmployeeId)}
+                  aria-describedby={
+                    errors.responsibleEmployeeId ? 'ticket-responsible-agent-error' : undefined
+                  }
+                  className={fieldClass(Boolean(errors.responsibleEmployeeId))}
+                >
+                  {attributionEmployees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.id === employeeId
+                        ? `Me — ${employeeName || employee.fullName}`
+                        : employee.fullName}
+                    </option>
+                  ))}
+                </select>
+                <FieldError
+                  id="ticket-responsible-agent-error"
+                  message={errors.responsibleEmployeeId}
+                />
+                <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                  Issued passenger tickets count toward this agent&apos;s targets.
+                </span>
+              </label>
+
+              <div className="text-xs font-bold text-slate-700">
+                <label htmlFor="ticket-add-assistant">Assisted by (optional)</label>
+                <select
+                  id="ticket-add-assistant"
+                  value=""
+                  onChange={(event) => {
+                    const employeeIdToAdd = event.target.value
+                    if (!employeeIdToAdd) return
+                    updateDraft((current) => ({
+                      ...current,
+                      assistantEmployeeIds: current.assistantEmployeeIds.includes(employeeIdToAdd)
+                        ? current.assistantEmployeeIds
+                        : [...current.assistantEmployeeIds, employeeIdToAdd].slice(0, 10),
+                    }))
+                  }}
+                  disabled={isSaving || draft.assistantEmployeeIds.length >= 10}
+                  aria-label="Add assistant"
+                  aria-invalid={Boolean(errors.assistantEmployeeIds)}
+                  aria-describedby={
+                    errors.assistantEmployeeIds ? 'ticket-assistant-agent-error' : undefined
+                  }
+                  className={fieldClass(Boolean(errors.assistantEmployeeIds))}
+                >
+                  <option value="">
+                    {draft.assistantEmployeeIds.length >= 10
+                      ? 'Maximum 10 assistants reached'
+                      : 'Add an assistant…'}
+                  </option>
+                  {attributionEmployees
+                    .filter(
+                      (employee) =>
+                        employee.id !== draft.responsibleEmployeeId &&
+                        !draft.assistantEmployeeIds.includes(employee.id),
+                    )
+                    .map((employee) => (
                       <option key={employee.id} value={employee.id}>
-                        {employee.id === employeeId
-                          ? `Me — ${employeeName || employee.fullName}`
-                          : employee.fullName}
+                        {employee.fullName}
                       </option>
                     ))}
-                  </select>
-                  <FieldError
-                    id="ticket-responsible-agent-error"
-                    message={errors.responsibleEmployeeId}
-                  />
-                  <span className="mt-1 block text-[11px] font-medium text-slate-500">
-                    Issued passenger tickets count toward this agent&apos;s targets.
-                  </span>
-                </label>
-
-                <div className="text-xs font-bold text-slate-700">
-                  <label htmlFor="ticket-add-assistant">Assisted by (optional)</label>
-                  <select
-                    id="ticket-add-assistant"
-                    value=""
-                    onChange={(event) => {
-                      const employeeIdToAdd = event.target.value
-                      if (!employeeIdToAdd) return
-                      updateDraft((current) => ({
-                        ...current,
-                        assistantEmployeeIds: current.assistantEmployeeIds.includes(employeeIdToAdd)
-                          ? current.assistantEmployeeIds
-                          : [...current.assistantEmployeeIds, employeeIdToAdd].slice(0, 10),
-                      }))
-                    }}
-                    disabled={isSaving || draft.assistantEmployeeIds.length >= 10}
-                    aria-label="Add assistant"
-                    aria-invalid={Boolean(errors.assistantEmployeeIds)}
-                    aria-describedby={
-                      errors.assistantEmployeeIds ? 'ticket-assistant-agent-error' : undefined
-                    }
-                    className={fieldClass(Boolean(errors.assistantEmployeeIds))}
-                  >
-                    <option value="">
-                      {draft.assistantEmployeeIds.length >= 10
-                        ? 'Maximum 10 assistants reached'
-                        : 'Add an assistant…'}
-                    </option>
-                    {attributionEmployees
-                      .filter(
-                        (employee) =>
-                          employee.id !== draft.responsibleEmployeeId &&
-                          !draft.assistantEmployeeIds.includes(employee.id),
-                      )
-                      .map((employee) => (
-                        <option key={employee.id} value={employee.id}>
-                          {employee.fullName}
-                        </option>
-                      ))}
-                  </select>
-                  <FieldError
-                    id="ticket-assistant-agent-error"
-                    message={errors.assistantEmployeeIds}
-                  />
-                  <span className="mt-1 block text-[11px] font-medium text-slate-500">
-                    Assistance is recorded independently and never counts toward ticket targets.
-                  </span>
-                  {selectedAssistantEmployees.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2" aria-label="Selected assistants">
-                      {selectedAssistantEmployees.map((employee) => (
-                        <span
-                          key={employee.id}
-                          className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-sky-900 ring-1 ring-sky-200"
+                </select>
+                <FieldError
+                  id="ticket-assistant-agent-error"
+                  message={errors.assistantEmployeeIds}
+                />
+                <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                  Assistance is recorded independently and never counts toward ticket targets.
+                </span>
+                {selectedAssistantEmployees.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2" aria-label="Selected assistants">
+                    {selectedAssistantEmployees.map((employee) => (
+                      <span
+                        key={employee.id}
+                        className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-sky-900 ring-1 ring-sky-200"
+                      >
+                        <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                        {employee.fullName}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateDraft((current) => ({
+                              ...current,
+                              assistantEmployeeIds: current.assistantEmployeeIds.filter(
+                                (id) => id !== employee.id,
+                              ),
+                            }))
+                          }
+                          disabled={isSaving}
+                          aria-label={`Remove ${employee.fullName} as assistant`}
+                          className="ui-focus ml-0.5 rounded-full text-sky-700 hover:text-red-700 disabled:opacity-50"
                         >
-                          <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                          {employee.fullName}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateDraft((current) => ({
-                                ...current,
-                                assistantEmployeeIds: current.assistantEmployeeIds.filter(
-                                  (id) => id !== employee.id,
-                                ),
-                              }))
-                            }
-                            disabled={isSaving}
-                            aria-label={`Remove ${employee.fullName} as assistant`}
-                            className="ui-focus ml-0.5 rounded-full text-sky-700 hover:text-red-700 disabled:opacity-50"
-                          >
-                            <X className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                          <X className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
+            </div>
 
-              {attributionOverride && (
-                <label className="mt-3 block text-xs font-bold text-slate-700">
-                  Attribution reason
-                  <textarea
-                    value={draft.attributionReason}
-                    onChange={(event) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        attributionReason: event.target.value,
-                      }))
-                    }
-                    maxLength={500}
-                    rows={2}
-                    disabled={isSaving}
-                    aria-label="Attribution reason"
-                    aria-invalid={Boolean(errors.attributionReason)}
-                    aria-describedby={
-                      errors.attributionReason ? 'ticket-attribution-reason-error' : undefined
-                    }
-                    className={fieldClass(Boolean(errors.attributionReason))}
-                    placeholder="For example: entered while the responsible agent was off sick"
-                  />
-                  <FieldError
-                    id="ticket-attribution-reason-error"
-                    message={errors.attributionReason}
-                  />
-                </label>
-              )}
-            </fieldset>
-          )}
+            {attributionOverride && (
+              <label className="mt-3 block text-xs font-bold text-slate-700">
+                Attribution reason
+                <textarea
+                  value={draft.attributionReason}
+                  onChange={(event) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      attributionReason: event.target.value,
+                    }))
+                  }
+                  maxLength={500}
+                  rows={2}
+                  disabled={isSaving}
+                  aria-label="Attribution reason"
+                  aria-invalid={Boolean(errors.attributionReason)}
+                  aria-describedby={
+                    errors.attributionReason ? 'ticket-attribution-reason-error' : undefined
+                  }
+                  className={fieldClass(Boolean(errors.attributionReason))}
+                  placeholder="For example: entered while the responsible agent was off sick"
+                />
+                <FieldError
+                  id="ticket-attribution-reason-error"
+                  message={errors.attributionReason}
+                />
+              </label>
+            )}
+          </fieldset>
 
           <fieldset aria-describedby={errors.fares ? 'ticket-fares-error' : undefined}>
             <legend className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
               Passenger mix and unit fare cost
             </legend>
-            <div className="mt-2 grid gap-3 md:grid-cols-3">
+            <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {PASSENGER_TYPES.map((passengerType) => {
                 const fare = draft.fares[passengerType]
                 const quantityError = errors[`fare.${passengerType}.quantity`]
                 const costError = errors[`fare.${passengerType}.unitSupplierCost`]
+                const saleError = errors[`fare.${passengerType}.unitSalePrice`]
+                const discountError = errors[`fare.${passengerType}.unitDiscount`]
                 const disabled = Number(fare.quantity) === 0
                 const fareErrorId = `ticket-${passengerType.toLowerCase()}-fare-error`
                 return (
@@ -674,6 +688,14 @@ export function TicketQuickEntryForm({
                                     Number(event.target.value) === 0
                                       ? ''
                                       : current.fares[passengerType].unitSupplierCost,
+                                  unitSalePrice:
+                                    Number(event.target.value) === 0
+                                      ? ''
+                                      : current.fares[passengerType].unitSalePrice,
+                                  unitDiscount:
+                                    Number(event.target.value) === 0
+                                      ? '0'
+                                      : current.fares[passengerType].unitDiscount,
                                 },
                               },
                             }))
@@ -710,10 +732,60 @@ export function TicketQuickEntryForm({
                           placeholder={disabled ? 'Not used' : '0.00'}
                         />
                       </label>
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Sale price (£)
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={fare.unitSalePrice}
+                          disabled={disabled || isSaving}
+                          onChange={(event) =>
+                            updateDraft((current) => ({
+                              ...current,
+                              fares: {
+                                ...current.fares,
+                                [passengerType]: {
+                                  ...current.fares[passengerType],
+                                  unitSalePrice: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          aria-label={`${passengerType} unit sale price`}
+                          aria-invalid={Boolean(saleError)}
+                          className={fieldClass(Boolean(saleError))}
+                          placeholder={disabled ? 'Not used' : '0.00'}
+                        />
+                      </label>
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Discount (£)
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={fare.unitDiscount}
+                          disabled={disabled || isSaving}
+                          onChange={(event) =>
+                            updateDraft((current) => ({
+                              ...current,
+                              fares: {
+                                ...current.fares,
+                                [passengerType]: {
+                                  ...current.fares[passengerType],
+                                  unitDiscount: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          aria-label={`${passengerType} unit discount`}
+                          aria-invalid={Boolean(discountError)}
+                          className={fieldClass(Boolean(discountError))}
+                          placeholder="0.00"
+                        />
+                      </label>
                     </div>
-                    {(quantityError || costError) && (
+                    {(quantityError || costError || saleError || discountError) && (
                       <p id={fareErrorId} className="mt-2 text-xs font-semibold text-red-700">
-                        {quantityError || costError}
+                        {quantityError || costError || saleError || discountError}
                       </p>
                     )}
                   </div>

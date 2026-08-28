@@ -53,7 +53,7 @@ type BookingRow = {
 
 type FareRow = {
   id: string
-  passenger_type: 'ADT' | 'CHD' | 'INF'
+  passenger_type: 'ADT' | 'YTH' | 'CHD' | 'INF'
   quantity: number
   unit_supplier_cost_source: number | string | null
   unit_sale_price_source: number | string | null
@@ -61,7 +61,7 @@ type FareRow = {
 
 type PassengerRow = {
   id: string
-  passenger_type: 'ADT' | 'CHD' | 'INF'
+  passenger_type: 'ADT' | 'YTH' | 'CHD' | 'INF'
   full_name: string | null
   contact_phone: string | null
   date_of_birth: string | null

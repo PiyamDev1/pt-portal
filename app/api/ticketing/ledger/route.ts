@@ -6,12 +6,10 @@ import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import {
-  TICKET_ATTRIBUTION_CAPABILITY_VERSION,
-  type TicketingAttributionEmployee,
-} from '@/lib/ticketing/attributionContracts'
+import { type TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
 import {
   ticketingQuickTkSchema,
+  TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION,
   type TicketingAirlineOption,
   type TicketingLedgerFare,
   type TicketingLedgerItem,
@@ -25,7 +23,7 @@ import {
 } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_RUNTIME_VERSION = TICKET_ATTRIBUTION_CAPABILITY_VERSION
+const TICKETING_RUNTIME_VERSION = TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION
 const LEDGER_MAX_LIMIT = 100
 
 const ledgerCursorSchema = z
@@ -117,14 +115,16 @@ type BookingRow = {
 }
 
 type FareRow = {
-  passenger_type: 'ADT' | 'CHD' | 'INF'
+  passenger_type: 'ADT' | 'YTH' | 'CHD' | 'INF'
   quantity: number
   unit_supplier_cost_source: number | null
   unit_sale_price_source: number | null
+  unit_gross_sale_price_source: number | null
+  unit_discount_source: number | null
 }
 
 type PassengerRow = {
-  passenger_type: 'ADT' | 'CHD' | 'INF'
+  passenger_type: 'ADT' | 'YTH' | 'CHD' | 'INF'
   full_name: string | null
 }
 
@@ -239,6 +239,8 @@ function ledgerItem(
     quantity: fare.quantity,
     unitSupplierCost: fare.unit_supplier_cost_source,
     unitSalePrice: fare.unit_sale_price_source,
+    unitGrossSalePrice: fare.unit_gross_sale_price_source,
+    unitDiscount: fare.unit_discount_source,
   }))
   const passengers = (row.ticket_transaction_passengers || [])
     .map((allocation) => ({
@@ -441,7 +443,9 @@ export async function GET(request: NextRequest) {
             passenger_type,
             quantity,
             unit_supplier_cost_source,
-            unit_sale_price_source
+            unit_sale_price_source,
+            unit_gross_sale_price_source,
+            unit_discount_source
           ),
           ticket_transaction_passengers(
             position,
@@ -468,13 +472,11 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const attributionEmployeesPromise = canManageAttribution
-    ? supabase
-        .from('employees')
-        .select('id, full_name')
-        .eq('is_active', true)
-        .order('full_name', { ascending: true })
-    : Promise.resolve({ data: [], error: null })
+  const attributionEmployeesPromise = supabase
+    .from('employees')
+    .select('id, full_name')
+    .eq('is_active', true)
+    .order('full_name', { ascending: true })
 
   const [transactionsResult, airlinesResult, employeeResult, attributionEmployeesResult] =
     await Promise.all([
@@ -564,16 +566,15 @@ export async function POST(request: NextRequest) {
   const canManageAttribution = canManageTicketingAttribution(access.employee.role)
   const responsibleEmployeeId = entry.responsibleEmployeeId || access.employee.id
   const assistantEmployeeIds = entry.assistantEmployeeIds
-  const attributionChanged =
-    responsibleEmployeeId !== access.employee.id || assistantEmployeeIds.length > 0
+  const responsibleEmployeeChanged = responsibleEmployeeId !== access.employee.id
 
-  if (!canManageAttribution && attributionChanged) {
+  if (!canManageAttribution && responsibleEmployeeChanged) {
     return apiError('Only an administrator can assign a ticket to another employee.', 403)
   }
   if (assistantEmployeeIds.includes(responsibleEmployeeId)) {
     return apiError('The responsible employee cannot also be an assistant.', 400)
   }
-  if (attributionChanged && !entry.attributionReason) {
+  if (responsibleEmployeeChanged && !entry.attributionReason) {
     return apiError('A reason is required when changing ticket attribution.', 400)
   }
 
@@ -583,14 +584,14 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getServiceSupabaseClient()
-  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_attributed', {
+  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_priced', {
     p_actor_employee_id: access.employee.id,
     p_idempotency_key: idempotencyKey,
     p_entry: {
       ...entry,
       responsibleEmployeeId,
       assistantEmployeeIds,
-      attributionReason: attributionChanged ? entry.attributionReason : null,
+      attributionReason: responsibleEmployeeChanged ? entry.attributionReason : null,
     },
   })
 

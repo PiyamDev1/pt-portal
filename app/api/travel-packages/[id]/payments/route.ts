@@ -35,6 +35,10 @@ function isSchemaError(error: unknown) {
   return code === '42P01' || code === '42703'
 }
 
+function isMissingAccountCreditConstraint(error: unknown, paymentType: TravelPackagePaymentType) {
+  return paymentType === 'account_credit' && (error as { code?: string } | null)?.code === '23514'
+}
+
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
@@ -157,6 +161,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select(selectTravelPackagePaymentColumns())
     .single()
   if (error || !data) {
+    if (isMissingAccountCreditConstraint(error, paymentType)) {
+      return apiError(
+        'Previous-refund credit is not enabled in Supabase yet. Run scripts/migrations/2026082801_repair_travel_package_account_credit.sql.',
+        503,
+      )
+    }
     if (isSchemaError(error)) return apiError(SCHEMA_HINT, 503)
     return apiError(error?.message || 'Failed to record payment', 500)
   }

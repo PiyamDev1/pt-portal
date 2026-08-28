@@ -5,8 +5,7 @@ const mocks = vi.hoisted(() => {
   const packageSingle = vi.fn()
   const existingInvoiceLimit = vi.fn()
   const reservationOrder = vi.fn()
-  const reservationQuoteEq = vi.fn(() => ({ order: reservationOrder }))
-  const reservationPackageEq = vi.fn(() => ({ eq: reservationQuoteEq }))
+  const reservationPackageEq = vi.fn(() => ({ order: reservationOrder }))
   const itemOrder = vi.fn()
   const paymentSelectResult = vi.fn()
   const paymentQuoteEq = vi.fn(() => paymentSelectResult())
@@ -61,7 +60,6 @@ const mocks = vi.hoisted(() => {
     packageSingle,
     existingInvoiceLimit,
     reservationOrder,
-    reservationQuoteEq,
     itemOrder,
     paymentSelectResult,
     paymentQuoteEq,
@@ -119,12 +117,59 @@ describe('group family invoice route', () => {
           commission_received_total: 0,
           customer_refund_total: 0,
         },
+        {
+          id: 'shared-transport-family-2',
+          package_id: 'package-1',
+          quote_id: 'quote-2',
+          group_member_id: 'member-2',
+          reservation_type: 'transport',
+          title: 'Family 2 - Shared group transport',
+          currency: 'GBP',
+          sold_price_total: 300,
+          booked_cost_total: 0,
+          discount_total: 0,
+          commission_expected_total: 0,
+          commission_received_total: 0,
+          customer_refund_total: 0,
+          metadata: {
+            billingAllocation: true,
+            sharedGroupTransport: true,
+            optionId: 'transport-1',
+          },
+        },
+        {
+          id: 'shared-transport-physical',
+          package_id: 'package-1',
+          quote_id: null,
+          group_member_id: null,
+          reservation_type: 'transport',
+          title: 'Shared group transport',
+          currency: 'GBP',
+          sold_price_total: 0,
+          booked_cost_total: 500,
+          discount_total: 0,
+          commission_expected_total: 0,
+          commission_received_total: 0,
+          customer_refund_total: 0,
+          metadata: {
+            physicalReservation: true,
+            sharedGroupTransport: true,
+            optionId: 'transport-1',
+            familyAllocations: [
+              { quoteId: 'quote-1', soldPrice: 200 },
+              { quoteId: 'quote-2', soldPrice: 300 },
+            ],
+          },
+        },
       ],
       error: null,
     })
     mocks.itemOrder.mockResolvedValue({ data: [], error: null })
     mocks.paymentSelectResult.mockResolvedValue({
-      data: [{ amount: 500, payment_type: 'deposit', payment_status: 'completed' }],
+      data: [
+        { amount: 500, payment_type: 'deposit', payment_status: 'completed' },
+        { amount: 300, payment_type: 'account_credit', payment_status: 'completed' },
+      ],
       error: null,
     })
     mocks.invoiceInsertSingle.mockResolvedValue({
@@ -159,7 +204,6 @@ describe('group family invoice route', () => {
     )
 
     expect(response.status).toBe(201)
-    expect(mocks.reservationQuoteEq).toHaveBeenCalledWith('quote_id', 'quote-2')
     expect(mocks.paymentQuoteEq).toHaveBeenCalledWith('quote_id', 'quote-2')
     expect(mocks.paymentAssignmentQuoteEq).toHaveBeenCalledWith('quote_id', 'quote-2')
     expect(mocks.invoiceInsert).toHaveBeenCalledWith(
@@ -167,11 +211,13 @@ describe('group family invoice route', () => {
         package_id: 'package-1',
         quote_id: 'quote-2',
         group_member_id: 'member-2',
-        subtotal_sold: 2500,
+        subtotal_sold: 2800,
         discount_total: 100,
-        total_sold: 2400,
-        total_paid: 500,
+        total_sold: 2700,
+        total_paid: 800,
         balance_due: 1900,
+        total_booked_cost: 2200,
+        projected_margin: 500,
         metadata: expect.objectContaining({ familyLabel: 'Family 2' }),
       }),
     )

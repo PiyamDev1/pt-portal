@@ -50,9 +50,12 @@ function getQuoteDiscountTotal(
   snapshot: PackageDiscountSnapshot,
   reservations: TravelPackageReservation[],
   calculatedTotal: number,
+  refundAdjustmentTotal: number,
 ) {
   const snapshotTotal = Number(snapshot?.selection?.combination?.offerDiscountTotal)
-  if (Number.isFinite(snapshotTotal) && snapshotTotal > 0) return money(snapshotTotal)
+  if (Number.isFinite(snapshotTotal) && snapshotTotal > 0) {
+    return money(Math.max(0, snapshotTotal - refundAdjustmentTotal))
+  }
 
   const legacyAdjustment = reservations.find((reservation) => {
     const metadata = reservation.metadata || {}
@@ -177,14 +180,26 @@ export function calculateTravelPackageDiscountAllocations(
   ) as Record<string, TravelPackageReservationDiscountAllocation>
   const payload = normalizePackageQuotePayload(snapshot?.payload || {})
   const offers = getAppliedOffers(snapshot, payload)
-  const configuredSources: AllocationSource[] = offers.map((offer) => ({
-    offer,
-    discountType: getPackageQuoteDiscountType(offer),
-    amount: getPackageOfferDiscountTotal(offer, payload),
-    eligibleServices: getPackageQuoteDiscountEligibleServices(offer),
-  }))
+  const refundAdjustmentTotal = money(
+    offers
+      .filter((offer) => getPackageQuoteDiscountType(offer) === 'refund_adjustment')
+      .reduce((total, offer) => total + getPackageOfferDiscountTotal(offer, payload), 0),
+  )
+  const configuredSources: AllocationSource[] = offers
+    .filter((offer) => getPackageQuoteDiscountType(offer) !== 'refund_adjustment')
+    .map((offer) => ({
+      offer,
+      discountType: getPackageQuoteDiscountType(offer),
+      amount: getPackageOfferDiscountTotal(offer, payload),
+      eligibleServices: getPackageQuoteDiscountEligibleServices(offer),
+    }))
   const configuredTotal = money(configuredSources.reduce((sum, source) => sum + source.amount, 0))
-  const quoteDiscountTotal = getQuoteDiscountTotal(snapshot, reservations, configuredTotal)
+  const quoteDiscountTotal = getQuoteDiscountTotal(
+    snapshot,
+    reservations,
+    configuredTotal,
+    refundAdjustmentTotal,
+  )
   const residual = money(Math.max(0, quoteDiscountTotal - configuredTotal))
   const sources = [...configuredSources]
   if (residual > 0) {
@@ -214,6 +229,7 @@ export function calculateTravelPackageDiscountAllocations(
       early_bird: 0,
       general_discount: 1,
       visa_special: 2,
+      refund_adjustment: 3,
     }
     return order[a.discountType] - order[b.discountType]
   })

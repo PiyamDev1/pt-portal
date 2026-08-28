@@ -113,6 +113,18 @@ export async function correctTicketAttribution(
   }
 }
 
+export async function archiveTicketBooking(bookingId: string, reason: string): Promise<void> {
+  const response = await fetch(`/api/ticketing/ledger/${encodeURIComponent(bookingId)}/archive`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  if (!response.ok) {
+    throw new TicketLedgerApiError(payload.error || 'Unable to archive the ticket')
+  }
+}
+
 export async function lookupIssuedTicketBookings(
   pnr: string,
   signal?: AbortSignal,

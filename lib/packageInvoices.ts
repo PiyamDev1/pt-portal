@@ -207,6 +207,64 @@ export function createPackageInvoiceLinesFromReservations(
   return lines
 }
 
+export function allocateSharedGroupTransportBookedCost(
+  familyReservations: TravelPackageReservation[],
+  packageReservations: TravelPackageReservation[],
+  quoteId: string,
+) {
+  const allocated = familyReservations.map((reservation) => ({ ...reservation }))
+
+  packageReservations.forEach((physicalReservation) => {
+    const metadata = physicalReservation.metadata || {}
+    if (
+      physicalReservation.reservation_type !== 'transport' ||
+      metadata.physicalReservation !== true ||
+      metadata.sharedGroupTransport !== true
+    ) {
+      return
+    }
+
+    const familyAllocations = Array.isArray(metadata.familyAllocations)
+      ? (metadata.familyAllocations as Array<Record<string, unknown>>)
+      : []
+    const matchingAllocation = familyAllocations.find(
+      (allocation) => String(allocation.quoteId || '') === quoteId,
+    )
+    if (!matchingAllocation || familyAllocations.length === 0) return
+
+    const totalWeight = familyAllocations.reduce(
+      (total, allocation) => total + Math.max(0, Number(allocation.soldPrice || 0)),
+      0,
+    )
+    const matchingWeight = Math.max(0, Number(matchingAllocation.soldPrice || 0))
+    const bookedCost = roundPackageInvoiceMoney(physicalReservation.booked_cost_total)
+    const allocatedCost = roundPackageInvoiceMoney(
+      totalWeight > 0
+        ? (bookedCost * matchingWeight) / totalWeight
+        : bookedCost / familyAllocations.length,
+    )
+    const optionId = String(metadata.optionId || '')
+    const targetIndex = allocated.findIndex((reservation) => {
+      const reservationMetadata = reservation.metadata || {}
+      return (
+        reservation.reservation_type === 'transport' &&
+        reservationMetadata.billingAllocation === true &&
+        (!optionId || !reservationMetadata.optionId || reservationMetadata.optionId === optionId)
+      )
+    })
+    if (targetIndex < 0) return
+
+    allocated[targetIndex] = {
+      ...allocated[targetIndex],
+      booked_cost_total: roundPackageInvoiceMoney(
+        allocated[targetIndex].booked_cost_total + allocatedCost,
+      ),
+    }
+  })
+
+  return allocated
+}
+
 export function createCustomerInvoiceSnapshot(
   invoice: TravelPackageInvoice,
   lines: TravelPackageInvoiceLine[],

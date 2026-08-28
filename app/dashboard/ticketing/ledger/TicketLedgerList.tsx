@@ -9,10 +9,11 @@ import {
   TriangleAlert,
   UserRoundCheck,
   UserRoundCog,
+  Trash2,
 } from 'lucide-react'
 import type { TicketLedgerItem, TicketPassengerType } from './types'
 
-const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'CHD', 'INF']
+const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'YTH', 'CHD', 'INF']
 
 function titleCase(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
@@ -96,6 +97,7 @@ export function TicketLedgerList({
   onEditItinerary,
   canManageAttribution,
   onCorrectAttribution,
+  onArchive,
 }: {
   items: TicketLedgerItem[]
   timezone: string
@@ -106,6 +108,7 @@ export function TicketLedgerList({
   onEditItinerary: (item: TicketLedgerItem) => void
   canManageAttribution: boolean
   onCorrectAttribution: (item: TicketLedgerItem) => void
+  onArchive: (item: TicketLedgerItem) => void
 }) {
   if (items.length === 0) {
     return (
@@ -256,7 +259,7 @@ export function TicketLedgerList({
                         className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
                       >
                         <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-                        {item.detailsStatus === 'complete' ? 'View details' : 'Complete details'}
+                        {item.detailsStatus === 'complete' ? 'Edit details' : 'Complete details'}
                       </button>
                     ) : canManageAttribution ? (
                       <button
@@ -295,6 +298,17 @@ export function TicketLedgerList({
                       >
                         <PlaneTakeoff className="h-3.5 w-3.5" aria-hidden="true" />
                         Itinerary
+                      </button>
+                    )}
+                    {(isResponsibleEmployee || canManageAttribution) && (
+                      <button
+                        type="button"
+                        onClick={() => onArchive(item)}
+                        aria-label={`Delete ticket ${item.pnr}`}
+                        className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-800 hover:bg-red-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Delete
                       </button>
                     )}
                   </>

@@ -379,22 +379,22 @@ Minimum quick-save fields:
 4. Service type: TK, DC, or R-ER.
 5. Booking date.
 6. Airline time limit for a held booking, or issued date for an already-issued entry.
-7. ADT, CHD, and INF groups, each with quantity and fare cost when its quantity is non-zero.
+7. ADT, YTH, CHD, and INF groups, each with quantity, supplier fare, sale price, and discount when
+   its quantity is non-zero. Payable unit price is sale price minus discount.
 
 Fast-entry defaults:
 
 - The acting/entered-by employee comes from the authenticated staff session and is never accepted
   from the browser.
-- For ordinary staff, the responsible agent defaults permanently to the acting employee and there
-  are no assistant controls. Admin, Master Admin, and Super Admin see a fast responsible-agent
-  selector defaulted to **Me**, may add up to ten unique assistants, and must enter a reason when
-  responsibility differs or assistance is recorded.
+- For ordinary staff, the responsible agent is fixed to the acting employee, but they may record up
+  to ten active assistants. Assistance emits independent zero-target source facts. Admin, Master
+  Admin, and Super Admin may additionally select another responsible agent with a reason.
 - Booking date defaults to today in the operational timezone.
 - Payment defaults to Unpaid; passenger mix defaults to one ADT.
 - Currency defaults to GBP.
 - Airline is an autocomplete by IATA code, retaining recent selections.
-- Return date, contact number, departure details, sale prices, individual passenger names, and
-  ticket numbers can be completed after the quick save.
+- Return date, contact number, departure details, individual passenger names, and ticket numbers can
+  be completed or edited after the quick save.
 
 Completion rules:
 
@@ -738,8 +738,12 @@ All routes must:
 ### Phase 2: Sales ledger and flight operations — partially implemented
 
 - **Implemented:** replace the ledger placeholder with keyboard-first Held/Issued TK quick entry,
-  grouped ADT/CHD/INF supplier fares, own-record search/status filters, duplicate confirmation, and
-  package-match status. The API and database operation use verified actor identity and idempotency.
+  grouped ADT/YTH/CHD/INF supplier fares, gross unit sale prices, explicit unit discounts, own-record
+  search/status filters, duplicate confirmation, and package-match status. The API and database
+  operation use verified actor identity and idempotency.
+- **Implemented:** responsible-agent/admin ticket detail editing and reasoned booking archive from
+  the ledger. Archive removes the booking from active views while preserving audit history and
+  superseding Commission facts with zero ticket/assistant target units.
 - **Implemented:** lazy own-record completion for customer/journey details, grouped sale values,
   Paid/Unpaid transition, and individual passenger names, contacts, dates of birth, and ticket
   numbers. Saves are atomic, versioned, retry-safe, and do not calculate/display commission.
@@ -774,9 +778,9 @@ All routes must:
 
 - **Implemented:** shared GBP whole-PNR Low Fare Queue, immutable signed fare-difference source
   variables, acting-agent attribution, package snapshots, and no commission/profit presentation.
-- **Implemented:** admin entry-time and later correction of responsible/assistant TK attribution,
-  immutable attribution history, owner alignment, primary-only target variables, assistant zero
-  target units, and issued source-event correction lineage.
+- **Implemented:** agent entry-time assistant selection plus admin entry-time/later correction of
+  responsible/assistant TK attribution, immutable attribution history, owner alignment, primary-only
+  target variables, assistant zero target units, and issued source-event correction lineage.
 - **Future:** same-fare check observations, non-GBP and partial-passenger adjustments, and complete
   owner-filter options.
 - Connect issued TK passenger-ticket events to Commission-owned weekly/monthly targets and show the

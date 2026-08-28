@@ -25,6 +25,7 @@ function fillRequiredIssuedFields() {
   fireEvent.change(screen.getByLabelText('PNR'), { target: { value: 'ab c123' } })
   fireEvent.change(screen.getByLabelText('Airline'), { target: { value: 'tk' } })
   fireEvent.change(screen.getByLabelText('ADT unit fare cost'), { target: { value: '450.25' } })
+  fireEvent.change(screen.getByLabelText('ADT unit sale price'), { target: { value: '525' } })
 }
 
 describe('TicketQuickEntryForm', () => {
@@ -71,12 +72,22 @@ describe('TicketQuickEntryForm', () => {
       operationalStatus: 'issued',
       timeLimitAt: null,
       currency: 'GBP',
-      fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 450.25 }],
+      fares: [
+        {
+          passengerType: 'ADT',
+          quantity: 1,
+          unitSupplierCost: 450.25,
+          unitSalePrice: 525,
+          unitDiscount: 0,
+        },
+      ],
     })
     expect(body).not.toHaveProperty('employeeId')
-    expect(body).not.toHaveProperty('responsibleEmployeeId')
-    expect(body).not.toHaveProperty('assistantEmployeeIds')
-    expect(body).not.toHaveProperty('attributionReason')
+    expect(body).toMatchObject({
+      responsibleEmployeeId: 'employee-agent',
+      assistantEmployeeIds: [],
+      attributionReason: null,
+    })
     expect(body).not.toHaveProperty('paymentStatus')
     expect(body).not.toHaveProperty('commission')
     await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
@@ -162,6 +173,7 @@ describe('TicketQuickEntryForm', () => {
     fireEvent.change(screen.getByLabelText('ADT quantity'), { target: { value: '99' } })
     fireEvent.change(screen.getByLabelText('CHD quantity'), { target: { value: '1' } })
     fireEvent.change(screen.getByLabelText('CHD unit fare cost'), { target: { value: '100' } })
+    fireEvent.change(screen.getByLabelText('CHD unit sale price'), { target: { value: '150' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save TK' }))
 
     expect(screen.getByText('A quick entry can contain at most 99 passengers.')).toBeTruthy()

@@ -100,7 +100,15 @@ function validEntry() {
     timeLimitAt: '2026-08-23T18:00',
     issuedAt: null,
     currency: 'GBP',
-    fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 400 }],
+    fares: [
+      {
+        passengerType: 'ADT',
+        quantity: 1,
+        unitSupplierCost: 400,
+        unitSalePrice: 500,
+        unitDiscount: 0,
+      },
+    ],
   }
 }
 
@@ -139,7 +147,7 @@ describe('/api/ticketing/ledger', () => {
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
+          data: { ready: true, version: 2026082801, requiredVersion: 2026082801 },
           error: null,
         }
       }
@@ -610,8 +618,20 @@ describe('/api/ticketing/ledger', () => {
       postRequest({
         ...validEntry(),
         fares: [
-          { passengerType: 'ADT', quantity: 99, unitSupplierCost: 400 },
-          { passengerType: 'CHD', quantity: 1, unitSupplierCost: 300 },
+          {
+            passengerType: 'ADT',
+            quantity: 99,
+            unitSupplierCost: 400,
+            unitSalePrice: 500,
+            unitDiscount: 0,
+          },
+          {
+            passengerType: 'CHD',
+            quantity: 1,
+            unitSupplierCost: 300,
+            unitSalePrice: 400,
+            unitDiscount: 0,
+          },
         ],
       }),
     )
@@ -620,13 +640,48 @@ describe('/api/ticketing/ledger', () => {
     expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
+  it('accepts YTH as an independent passenger fare group', async () => {
+    const response = await POST(
+      postRequest({
+        ...validEntry(),
+        fares: [
+          {
+            passengerType: 'YTH',
+            quantity: 2,
+            unitSupplierCost: 325,
+            unitSalePrice: 450,
+            unitDiscount: 25,
+          },
+        ],
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_create_quick_tk_priced',
+      expect.objectContaining({
+        p_entry: expect.objectContaining({
+          fares: [
+            {
+              passengerType: 'YTH',
+              quantity: 2,
+              unitSupplierCost: 325,
+              unitSalePrice: 450,
+              unitDiscount: 25,
+            },
+          ],
+        }),
+      }),
+    )
+  })
+
   it('passes the verified actor and retry key to one atomic quick-TK RPC', async () => {
     const response = await POST(postRequest(validEntry(), 'save-click-1'))
     const body = await response.json()
 
     expect(response.status).toBe(201)
     expect(body.bookingId).toBe('booking-1')
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_attributed', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_priced', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'save-click-1',
       p_entry: expect.objectContaining({
@@ -640,6 +695,31 @@ describe('/api/ticketing/ledger', () => {
     })
     expect(mocks.rpc).toHaveBeenCalledTimes(1)
     expect(mocks.rpc).not.toHaveBeenCalledWith('ticketing_schema_status')
+  })
+
+  it('lets an agent record an assistant while retaining ownership and target credit', async () => {
+    const response = await POST(
+      postRequest(
+        {
+          ...validEntry(),
+          responsibleEmployeeId: ACTOR_ID,
+          assistantEmployeeIds: [ASSISTANT_ID],
+          attributionReason: null,
+        },
+        'agent-assistance-1',
+      ),
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_priced', {
+      p_actor_employee_id: ACTOR_ID,
+      p_idempotency_key: 'agent-assistance-1',
+      p_entry: expect.objectContaining({
+        responsibleEmployeeId: ACTOR_ID,
+        assistantEmployeeIds: [ASSISTANT_ID],
+        attributionReason: null,
+      }),
+    })
   })
 
   it('logs only a non-sensitive database error code when quick entry fails', async () => {
@@ -691,7 +771,7 @@ describe('/api/ticketing/ledger', () => {
     const response = await POST(postRequest(override, 'admin-cover-1'))
 
     expect(response.status).toBe(201)
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_attributed', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_priced', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'admin-cover-1',
       p_entry: expect.objectContaining({
@@ -842,7 +922,7 @@ describe('/api/ticketing/ledger', () => {
 
   it('accepts a singleton array from the schema status RPC', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: [{ ready: true, version: 2026082403, requiredVersion: 2026082403 }],
+      data: [{ ready: true, version: 2026082801, requiredVersion: 2026082801 }],
       error: null,
     })
 

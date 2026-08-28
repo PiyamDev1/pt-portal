@@ -10,7 +10,7 @@ import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_SERVICE_TRANSACTION_VERSION = 2026082304
 const MATCH_PAGE_SIZE = 10
-const PASSENGER_TYPES = ['ADT', 'CHD', 'INF'] as const
+const PASSENGER_TYPES = ['ADT', 'YTH', 'CHD', 'INF'] as const
 const PACKAGE_MATCH_STATUSES = ['unmatched', 'matched', 'ambiguous', 'manually_resolved'] as const
 const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)$/

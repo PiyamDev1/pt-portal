@@ -26,7 +26,7 @@ export async function recalculatePackageInvoice(
       .order('sort_order'),
     supabase
       .from('travel_package_payments')
-      .select('amount, payment_type, payment_status')
+      .select('amount, payment_type, payment_status, quote_id')
       .eq('package_id', packageId),
   ])
   if (invoiceError || !invoiceData)
@@ -37,8 +37,9 @@ export async function recalculatePackageInvoice(
   const lines = (lineData || []) as unknown as TravelPackageInvoiceLine[]
   const totalPaid = roundPackageInvoiceMoney(
     (paymentData || []).reduce((total, payment) => {
+      if (invoice.quote_id && payment.quote_id !== invoice.quote_id) return total
       if (payment.payment_status !== 'completed') return total
-      if (['deposit', 'payment'].includes(payment.payment_type))
+      if (['deposit', 'payment', 'account_credit'].includes(payment.payment_type))
         return total + Number(payment.amount || 0)
       if (['refund', 'chargeback'].includes(payment.payment_type))
         return total - Number(payment.amount || 0)

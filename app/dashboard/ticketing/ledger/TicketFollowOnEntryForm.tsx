@@ -14,7 +14,7 @@ import type {
   TicketServiceBookingOption,
 } from './types'
 
-const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'CHD', 'INF']
+const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'YTH', 'CHD', 'INF']
 const MONEY_PATTERN = /^\d+(?:\.\d{1,2})?$/
 
 type ServiceType = 'DC' | 'R-ER'

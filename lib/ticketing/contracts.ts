@@ -5,7 +5,8 @@ import {
   type TicketingAttributionEmployee,
 } from '@/lib/ticketing/attributionContracts'
 
-export const TICKET_PASSENGER_TYPES = ['ADT', 'CHD', 'INF'] as const
+export const TICKET_PASSENGER_TYPES = ['ADT', 'YTH', 'CHD', 'INF'] as const
+export const TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION = 2026082801
 export const TICKET_QUICK_ENTRY_STATUSES = ['held', 'issued'] as const
 export const TICKET_DETAILS_STATUSES = ['needs_details', 'complete', 'recorded'] as const
 
@@ -62,8 +63,14 @@ export const ticketingQuickFareSchema = z
     passengerType: z.enum(TICKET_PASSENGER_TYPES),
     quantity: z.number().int().min(1).max(99),
     unitSupplierCost: z.number().finite().min(0).max(99_999_999.99),
+    unitSalePrice: z.number().finite().min(0).max(99_999_999.99),
+    unitDiscount: z.number().finite().min(0).max(99_999_999.99),
   })
   .strict()
+  .refine((fare) => fare.unitDiscount <= fare.unitSalePrice, {
+    path: ['unitDiscount'],
+    message: 'Discount cannot exceed the sale price',
+  })
 
 export const ticketingQuickTkSchema = z
   .object({
@@ -76,7 +83,7 @@ export const ticketingQuickTkSchema = z
     timeLimitAt: localDateTimeSchema.nullable(),
     issuedAt: isoDateSchema.nullable(),
     currency: z.literal('GBP'),
-    fares: z.array(ticketingQuickFareSchema).min(1).max(3),
+    fares: z.array(ticketingQuickFareSchema).min(1).max(4),
     confirmDuplicate: z.boolean().optional().default(false),
     responsibleEmployeeId: z.string().uuid().optional(),
     assistantEmployeeIds: z
@@ -177,6 +184,8 @@ export type TicketingLedgerFare = {
   quantity: number
   unitSupplierCost: number | null
   unitSalePrice: number | null
+  unitGrossSalePrice: number | null
+  unitDiscount: number | null
 }
 
 export type TicketingLedgerItem = {

@@ -633,6 +633,10 @@ export default function PackageOperationsWorkspace({
   }
 
   const addPayment = async () => {
+    if (groupFamilies.length > 0 && !selectedPaymentFamily) {
+      toast.error('Select a family before recording a payment or previous-refund credit.')
+      return
+    }
     setSaving('payment')
     try {
       const response = await fetch(`/api/travel-packages/${packageFolder.id}/payments`, {
