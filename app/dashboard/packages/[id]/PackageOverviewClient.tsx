@@ -23,6 +23,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Save,
   ShieldCheck,
   Trash2,
   Upload,
@@ -44,6 +45,13 @@ import type {
   TravelPackageThirdPartyDocumentShare,
 } from '@/app/types/packages'
 import { formatMoney, getLinkedFlightOptionTotal } from '@/lib/packageQuote'
+import {
+  PACKAGE_AGENT_COMMISSION_METADATA_KEY,
+  getPackageAgentCommissionAmount,
+  getPackageAgentCommissionDeduction,
+  normalizePackageAgentCommissionAllocations,
+  type PackageAgentCommissionAllocation,
+} from '@/lib/packageAgentCommission'
 import { calculateTravelPackageDiscountAllocations } from '@/lib/packageDiscountAllocations'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
 import { renderStandaloneAccessVoucherHtml } from '@/lib/packageTransportVoucher'
@@ -114,6 +122,19 @@ import type { VisaPassengerCounts } from './packageOverviewModel'
 import { getReservationIcon, PackageStatusCard } from './PackageOverviewPrimitives'
 import { useAppDialog } from '@/components/AppDialog'
 
+function createBlankAgentCommissionAllocation(): PackageAgentCommissionAllocation {
+  return {
+    id: `agent-commission-${Date.now()}`,
+    employeeId: '',
+    role: 'ticketing_agent',
+    basis: 'ticket_commission',
+    quantity: 1,
+    unitAmount: 0,
+    deductFromProfit: true,
+    note: '',
+  }
+}
+
 export default function PackageOverviewClient({
   packageId,
   employees = [],
@@ -164,6 +185,10 @@ export default function PackageOverviewClient({
   const [savingDocument, setSavingDocument] = useState(false)
   const [savingThirdPartyShare, setSavingThirdPartyShare] = useState(false)
   const [savingInvoice, setSavingInvoice] = useState(false)
+  const [savingAgentCommissions, setSavingAgentCommissions] = useState(false)
+  const [agentCommissionAllocations, setAgentCommissionAllocations] = useState<
+    PackageAgentCommissionAllocation[]
+  >([])
   const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
   const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null)
   const [documentRenameForm, setDocumentRenameForm] = useState({ name: '' })
@@ -212,6 +237,11 @@ export default function PackageOverviewClient({
           throw new Error(data.message || data.error || 'Travel package not found')
         }
         setPackageFolder(data.package)
+        setAgentCommissionAllocations(
+          normalizePackageAgentCommissionAllocations(
+            data.package.metadata?.[PACKAGE_AGENT_COMMISSION_METADATA_KEY],
+          ),
+        )
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package')
       } finally {
@@ -842,7 +872,9 @@ export default function PackageOverviewClient({
   }, [reservations])
   const bookedSoldDifference =
     reservationTotals.sold - reservationTotals.discount - reservationTotals.booked
-  const estimatedMargin = bookedSoldDifference + reservationTotals.commission
+  const profitBeforeAgentCommission = bookedSoldDifference + reservationTotals.commission
+  const agentCommissionDeduction = getPackageAgentCommissionDeduction(agentCommissionAllocations)
+  const estimatedMargin = profitBeforeAgentCommission - agentCommissionDeduction
   const netReservationSold = reservationTotals.sold - reservationTotals.discount
   const quoteReservationPrefills = useMemo<QuoteReservationPrefill[]>(() => {
     if (!selectedCombination) return []
@@ -2203,6 +2235,72 @@ Please enter the access code and accept the data handling terms before downloadi
     }
   }
 
+  const updateAgentCommissionAllocation = <Key extends keyof PackageAgentCommissionAllocation>(
+    allocationId: string,
+    key: Key,
+    value: PackageAgentCommissionAllocation[Key],
+  ) => {
+    setAgentCommissionAllocations((current) =>
+      current.map((allocation) => {
+        if (allocation.id !== allocationId) return allocation
+        const updated = { ...allocation, [key]: value }
+        if (key === 'basis' && value === 'none') {
+          return {
+            ...updated,
+            quantity: 0,
+            unitAmount: 0,
+            deductFromProfit: false,
+          }
+        }
+        if (key === 'basis' && value === 'fixed_amount') {
+          return { ...updated, quantity: 1 }
+        }
+        return updated
+      }),
+    )
+  }
+
+  const saveAgentCommissionAllocations = async () => {
+    if (!packageFolder || savingAgentCommissions) return
+    const employeeIds = agentCommissionAllocations.map((allocation) => allocation.employeeId)
+    if (employeeIds.some((employeeId) => !employeeId)) {
+      setReservationError('Choose an employee for every agent commission line.')
+      return
+    }
+    if (new Set(employeeIds).size !== employeeIds.length) {
+      setReservationError('Each employee can only have one agent commission line.')
+      return
+    }
+
+    setSavingAgentCommissions(true)
+    setReservationError(null)
+    setReservationNotice(null)
+    try {
+      const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentCommissionAllocations }),
+      })
+      const data = (await response.json()) as PackageResponse
+      if (!response.ok || !data.package) {
+        throw new Error(data.message || data.error || 'Failed to save agent commissions')
+      }
+      setPackageFolder(data.package)
+      setAgentCommissionAllocations(
+        normalizePackageAgentCommissionAllocations(
+          data.package.metadata?.[PACKAGE_AGENT_COMMISSION_METADATA_KEY],
+        ),
+      )
+      setReservationNotice('Provisional agent commission deductions saved.')
+    } catch (saveError) {
+      setReservationError(
+        saveError instanceof Error ? saveError.message : 'Failed to save agent commissions',
+      )
+    } finally {
+      setSavingAgentCommissions(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[24rem] items-center justify-center">
@@ -3175,7 +3273,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 </div>
               )}
 
-              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Net booked cost</p>
                   <p className="mt-1 text-sm font-black text-slate-950">
@@ -3212,9 +3310,19 @@ Please enter the access code and accept the data handling terms before downloadi
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Commission</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Supplier commission</p>
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(reservationTotals.commission, reservationCurrency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-bold uppercase text-amber-800">Agent commission</p>
+                  <p className="mt-1 text-sm font-black text-amber-950">
+                    -{formatMoney(agentCommissionDeduction, reservationCurrency)}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-amber-800">
+                    Before deduction:{' '}
+                    {formatMoney(profitBeforeAgentCommission, reservationCurrency)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -3223,10 +3331,228 @@ Please enter the access code and accept the data handling terms before downloadi
                     {formatMoney(estimatedMargin, reservationCurrency)}
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    Sold - discounts - booked + commission
+                    Sold - discounts - booked + supplier commission - agent commission
                   </p>
                 </div>
               </div>
+
+              <section className="mb-4 overflow-hidden rounded-lg border border-amber-200 bg-white">
+                <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-amber-800" />
+                      <h3 className="text-sm font-black text-slate-950">
+                        Provisional agent commission
+                      </h3>
+                    </div>
+                    <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600">
+                      Record the employee and current manual earning basis. Selected lines reduce
+                      this package&apos;s profit estimate. The future Commission module will replace
+                      this provisional calculation with approved policies and statements.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAgentCommissionAllocations((current) => [
+                          ...current,
+                          createBlankAgentCommissionAllocation(),
+                        ])
+                      }
+                      className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 text-xs font-black text-amber-950 hover:bg-amber-100"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add agent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void saveAgentCommissionAllocations()}
+                      disabled={savingAgentCommissions}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-amber-800 px-3 text-xs font-black text-white hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {savingAgentCommissions ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save deductions
+                    </button>
+                  </div>
+                </div>
+
+                {agentCommissionAllocations.length === 0 ? (
+                  <p className="px-4 py-5 text-sm font-semibold text-slate-500">
+                    No agent commission has been allocated to this package.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-200">
+                    {agentCommissionAllocations.map((allocation) => {
+                      const amount = getPackageAgentCommissionAmount(allocation)
+                      return (
+                        <div key={allocation.id} className="space-y-3 p-4">
+                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_0.65fr_0.75fr_auto]">
+                            <label className="text-xs font-bold text-slate-600">
+                              Employee
+                              <select
+                                value={allocation.employeeId}
+                                onChange={(event) =>
+                                  updateAgentCommissionAllocation(
+                                    allocation.id,
+                                    'employeeId',
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                              >
+                                <option value="">Select employee</option>
+                                {employees.map((employee) => (
+                                  <option key={employee.id} value={employee.id}>
+                                    {employee.full_name || employee.email || employee.id}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="text-xs font-bold text-slate-600">
+                              Package role
+                              <select
+                                value={allocation.role}
+                                onChange={(event) =>
+                                  updateAgentCommissionAllocation(
+                                    allocation.id,
+                                    'role',
+                                    event.target.value as PackageAgentCommissionAllocation['role'],
+                                  )
+                                }
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                              >
+                                <option value="ticketing_agent">Ticketing agent</option>
+                                <option value="assisting_agent">Assisting agent</option>
+                                <option value="main_dealer">Main dealer</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </label>
+                            <label className="text-xs font-bold text-slate-600">
+                              Earning basis
+                              <select
+                                value={allocation.basis}
+                                onChange={(event) =>
+                                  updateAgentCommissionAllocation(
+                                    allocation.id,
+                                    'basis',
+                                    event.target.value as PackageAgentCommissionAllocation['basis'],
+                                  )
+                                }
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                              >
+                                <option value="ticket_commission">Per issued ticket</option>
+                                <option value="fixed_amount">Fixed assistance</option>
+                                <option value="none">No commission</option>
+                              </select>
+                            </label>
+                            <label className="text-xs font-bold text-slate-600">
+                              {allocation.basis === 'ticket_commission' ? 'Tickets' : 'Quantity'}
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                disabled={allocation.basis !== 'ticket_commission'}
+                                value={allocation.quantity}
+                                onChange={(event) =>
+                                  updateAgentCommissionAllocation(
+                                    allocation.id,
+                                    'quantity',
+                                    Number(event.target.value),
+                                  )
+                                }
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-bold disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                            </label>
+                            <label className="text-xs font-bold text-slate-600">
+                              {allocation.basis === 'ticket_commission'
+                                ? 'Per ticket'
+                                : 'Fixed amount'}
+                              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3">
+                                <span className="mr-2 text-xs font-black text-slate-500">
+                                  {reservationCurrency}
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  disabled={allocation.basis === 'none'}
+                                  value={allocation.unitAmount}
+                                  onChange={(event) =>
+                                    updateAgentCommissionAllocation(
+                                      allocation.id,
+                                      'unitAmount',
+                                      Number(event.target.value),
+                                    )
+                                  }
+                                  className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
+                                />
+                              </div>
+                            </label>
+                            <button
+                              type="button"
+                              aria-label="Remove agent commission"
+                              onClick={() =>
+                                setAgentCommissionAllocations((current) =>
+                                  current.filter((item) => item.id !== allocation.id),
+                                )
+                              }
+                              className="mt-5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                            <label className="text-xs font-bold text-slate-600">
+                              Internal note
+                              <input
+                                value={allocation.note}
+                                onChange={(event) =>
+                                  updateAgentCommissionAllocation(
+                                    allocation.id,
+                                    'note',
+                                    event.target.value,
+                                  )
+                                }
+                                placeholder="For example: assisted with the complete package"
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
+                              />
+                            </label>
+                            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-950">
+                              <input
+                                type="checkbox"
+                                disabled={allocation.basis === 'none'}
+                                checked={allocation.deductFromProfit}
+                                onChange={(event) =>
+                                  updateAgentCommissionAllocation(
+                                    allocation.id,
+                                    'deductFromProfit',
+                                    event.target.checked,
+                                  )
+                                }
+                                className="h-4 w-4 accent-amber-800"
+                              />
+                              Subtract from profit
+                            </label>
+                            <div className="min-w-36 rounded-lg bg-slate-900 px-3 py-2 text-right text-white">
+                              <p className="text-[10px] font-bold uppercase text-slate-300">
+                                Total
+                              </p>
+                              <p className="text-sm font-black">
+                                {formatMoney(amount, reservationCurrency)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
               {Object.values(reservationDiscountAllocations).some(
                 (allocation) => allocation.total > 0,
               ) && (

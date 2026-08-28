@@ -2341,10 +2341,16 @@ The reservation/invoice has both:
 Margin:
 
 ```text
-margin = sold price - booked cost + received commission - discounts/adjustments
+margin = sold price - booked cost + received supplier commission - discounts/adjustments
+         - agent commission deductions
 ```
 
 This is provisional until the customer returns and commissions are settled.
+
+Until the dedicated Commission module is complete, employee-attributed package commission lines
+are captured as provisional package metadata and may be selected for deduction from the displayed
+profit estimate. They must use `employees.id`, remain internal, and must later be reconciled into
+the Commission module without creating a duplicate earning or payment.
 
 ### 15.2 Quote Pricing
 

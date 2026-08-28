@@ -4,6 +4,10 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type { TravelPackageFolder, TravelPackageFolderStatus } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import {
+  PACKAGE_AGENT_COMMISSION_METADATA_KEY,
+  normalizePackageAgentCommissionAllocations,
+} from '@/lib/packageAgentCommission'
+import {
   canTransitionTravelPackageStatus,
   getLifecycleTimestampUpdate,
 } from '@/lib/packageWorkflow'
@@ -238,6 +242,35 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (body.currentPublicSummary && typeof body.currentPublicSummary === 'object') {
     update.current_public_summary = body.currentPublicSummary
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'agentCommissionAllocations')) {
+    if (!Array.isArray(body.agentCommissionAllocations)) {
+      return apiError('Agent commission allocations must be a list', 400)
+    }
+    const allocations = normalizePackageAgentCommissionAllocations(body.agentCommissionAllocations)
+    if (allocations.length !== body.agentCommissionAllocations.length) {
+      return apiError('Every agent commission allocation requires an employee', 400)
+    }
+    const employeeIds = allocations.map((allocation) => allocation.employeeId)
+    if (new Set(employeeIds).size !== employeeIds.length) {
+      return apiError('An employee can only have one package commission allocation', 400)
+    }
+    if (employeeIds.length > 0) {
+      const { data: employeeRows, error: employeeError } = await supabase
+        .from('employees')
+        .select('id')
+        .in('id', employeeIds)
+        .eq('is_active', true)
+      if (employeeError || (employeeRows || []).length !== employeeIds.length) {
+        return apiError('Choose active employees for every agent commission allocation', 400)
+      }
+    }
+    update.metadata = {
+      ...(existing.metadata || {}),
+      [PACKAGE_AGENT_COMMISSION_METADATA_KEY]: allocations,
+      agentCommissionCaptureStatus: 'provisional',
+      agentCommissionUpdatedAt: new Date().toISOString(),
+    }
   }
 
   if (Object.keys(update).length === 0) return apiError('No package changes supplied', 400)

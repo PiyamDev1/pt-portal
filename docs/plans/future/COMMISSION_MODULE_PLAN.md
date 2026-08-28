@@ -160,6 +160,46 @@ Packages emits:
 Ticket-related package events use package scope. They do not also earn a ticketing commission unless
 an explicit future policy is designed to do so.
 
+### 4.4 Interim package commission capture
+
+Until the Commission module processor, policy assignments, and statements are complete, Package
+folders may capture **provisional agent commission deductions** in package metadata. This is an
+operational estimate only; it is not a posted Commission entry, approved statement, payroll fact,
+or permanent policy definition.
+
+Each provisional line records:
+
+- `employees.id` for the recipient
+- package role: ticketing agent, assisting agent, main dealer, or other
+- manual earning basis: per issued ticket, fixed assistance amount, or explicit no commission
+- ticket quantity and per-ticket amount when applicable
+- whether the calculated amount should be subtracted from the package profit estimate
+- an internal explanation
+
+The interim package profit display is:
+
+```text
+provisional package profit =
+  sold price
+  - discounts
+  - booked cost
+  + supplier commission
+  - selected provisional agent commission deductions
+```
+
+Required example supported by this interim capture:
+
+| Employee | Package role    | Interim basis     | Treatment                                      |
+| -------- | --------------- | ----------------- | ---------------------------------------------- |
+| Agent 1  | Ticketing agent | Per issued ticket | Five issued tickets earn ticket commission     |
+| Agent 2  | Assisting agent | Fixed amount      | Full agreed fixed assistance commission        |
+| Agent 3  | Main dealer     | No commission     | No commission; remains responsible for package |
+
+When the Commission module is completed, it must ingest or reconcile these provisional records,
+replace manual rates with effective-dated policy results, prevent duplicate payment, and retain the
+original package metadata as audit evidence. Package pages must then display the Commission
+module's posted result instead of recalculating the amount locally.
+
 ## 5. Policy model
 
 ### 5.1 Policy assignment
