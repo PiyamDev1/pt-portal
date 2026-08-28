@@ -731,7 +731,11 @@ export function rebuildConvertedPackageSnapshot(
   previousSnapshot: TravelPackageFolder['selected_quote_snapshot'] | null | undefined,
 ) {
   const payload = normalizePackageQuotePayload(quote.payload)
-  const previousSelection = quote.selected_option || previousSnapshot?.selection
+  const groupFamily = previousSnapshot?.group?.families.find(
+    (family) => family.quoteId === quote.id,
+  )
+  const previousSelection =
+    quote.selected_option || groupFamily?.selection || previousSnapshot?.selection
   if (!previousSelection) {
     throw new Error('The converted package has no final selection to refresh')
   }
@@ -746,6 +750,67 @@ export function rebuildConvertedPackageSnapshot(
       previousSnapshot?.quote?.selection_note ??
       previousSelection.selection.note ??
       null,
+  }
+
+  if (previousSnapshot?.group?.families.length) {
+    if (!groupFamily) {
+      throw new Error('The edited quote is not part of the converted group customer file')
+    }
+
+    const families = previousSnapshot.group.families.map((family) =>
+      family.quoteId === quote.id
+        ? {
+            ...family,
+            customerName:
+              selection.selection.customerName || quote.customer_name || payload.customerName || '',
+            passengerSummary: buildPassengerSummary(payload),
+            selection,
+            payload,
+          }
+        : family,
+    )
+    const isLeadQuote = previousSnapshot.quote?.id === quote.id
+    const leadSnapshot = isLeadQuote
+      ? buildPackageSnapshot(snapshotQuote)
+      : {
+          quote: previousSnapshot.quote,
+          payload: previousSnapshot.payload,
+          selection: previousSnapshot.selection,
+        }
+    const totals = families.reduce(
+      (result, family) => {
+        result.packageSubtotalPrice += family.selection.combination.packageSubtotalPrice
+        result.paymentSurchargeTotal += family.selection.combination.paymentSurchargeTotal
+        result.totalPrice += family.selection.combination.totalPrice
+        return result
+      },
+      { packageSubtotalPrice: 0, paymentSurchargeTotal: 0, totalPrice: 0 },
+    )
+    const leadSelection = leadSnapshot.selection || selection
+
+    return {
+      snapshot: {
+        ...leadSnapshot,
+        group: {
+          ...previousSnapshot.group,
+          families,
+        },
+      },
+      selection,
+      publicSummary: {
+        title: previousSnapshot.group.title,
+        ...totals,
+        paymentMethod: leadSelection.combination.paymentMethod,
+        currency: leadSelection.combination.currency,
+        familyCount: families.length,
+        families: families.map((family) => ({
+          quoteId: family.quoteId,
+          familyLabel: family.familyLabel,
+          totalPrice: family.selection.combination.totalPrice,
+          discountTotal: family.selection.combination.offerDiscountTotal,
+        })),
+      },
+    }
   }
 
   return {

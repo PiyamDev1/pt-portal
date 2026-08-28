@@ -363,7 +363,7 @@ function createInitialPayload(): PackageQuotePayload {
     flightOptions: [newOption('flight', { isDefault: true })],
     linkedFlightGroups: [],
     visaOptions: [newOption('visa')],
-    transportOptions: [newOption('transport', { isDefault: true })],
+    transportOptions: [newOption('transport', { isDefault: true, title: 'Option 1' })],
     limitedTimeOffers: [],
     cardProcessingFeePercent: DEFAULT_CARD_PROCESSING_FEE_PERCENT,
     depositRequired: false,
@@ -831,6 +831,7 @@ function OptionEditor({
   onChange,
   onRemove,
   titlePlaceholder,
+  fallbackTitle = '',
   summaryPlaceholder,
   priceLabel = 'Total price',
   showPricingMode = false,
@@ -851,6 +852,7 @@ function OptionEditor({
   onChange: (next: PackageComponentOption) => void
   onRemove: () => void
   titlePlaceholder: string
+  fallbackTitle?: string
   summaryPlaceholder: string
   priceLabel?: string
   showPricingMode?: boolean
@@ -922,7 +924,7 @@ function OptionEditor({
 
       onChange({
         ...option,
-        title: option.title || (mainSupplier ? `${mainSupplier.supplierName} transport` : ''),
+        title: option.title || fallbackTitle,
         summary,
         transportRoutes: routes,
         transportMainSupplierId: mainSupplier?.supplierId || '',
@@ -933,7 +935,7 @@ function OptionEditor({
           routes.some((route) => route.kind !== 'transfer') || option.includesZiyarat,
       })
     },
-    [onChange, option, transportPricingData],
+    [fallbackTitle, onChange, option, transportPricingData],
   )
 
   useEffect(() => {
@@ -1633,7 +1635,7 @@ export default function PackagesClient({
         stayGroups: defaultStaySetup.stayGroups,
         transportOptions:
           packageType === 'holiday'
-            ? [newOption('transport', { isDefault: true })]
+            ? [newOption('transport', { isDefault: true, title: 'Option 1' })]
             : current.transportOptions,
       })
 
@@ -1993,6 +1995,7 @@ export default function PackagesClient({
       [key]: [
         ...payload[key],
         newOption(prefix, {
+          title: key === 'transportOptions' ? `Option ${payload.transportOptions.length + 1}` : '',
           isDefault:
             (key === 'flightOptions' && payload.flightOptions.length === 0) ||
             (key === 'transportOptions' && payload.transportOptions.length === 0),
@@ -3372,7 +3375,8 @@ export default function PackagesClient({
                   <OptionEditor
                     key={option.id}
                     option={option}
-                    titlePlaceholder="Transport option"
+                    titlePlaceholder={`Option ${index + 1}`}
+                    fallbackTitle={`Option ${index + 1}`}
                     summaryPlaceholder="Airport transfers, hotel transfers, ziyarat, vehicle type"
                     priceLabel="Transport cost"
                     showPricingMode

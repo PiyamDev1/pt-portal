@@ -6,7 +6,7 @@ import type { TravelPackagePassenger, TravelPackagePassengerType } from '@/app/t
 import { selectTravelPackagePassengerColumns } from './columns'
 
 const SCHEMA_HINT =
-  'Passenger tracking is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
+  'Passenger tracking is incomplete. Run the package workflow migrations, including scripts/migrations/20260827_create_group_customer_files.sql.'
 const PASSENGER_TYPES = new Set<TravelPackagePassengerType>(['adult', 'child', 'infant'])
 
 function isSchemaError(error: unknown) {
@@ -54,11 +54,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     body.passengerType || body.passenger_type,
   ) as TravelPackagePassengerType
   if (!PASSENGER_TYPES.has(passengerType)) return apiError('Invalid passenger type', 400)
+  const quoteId = cleanText(body.quoteId || body.quote_id) || null
+  const groupMemberId = cleanText(body.groupMemberId || body.group_member_id) || null
+  if (Boolean(quoteId) !== Boolean(groupMemberId)) {
+    return apiError('Choose both a family quotation and its group member', 400)
+  }
+  if (quoteId && groupMemberId) {
+    const { data: packageRow, error: packageError } = await supabase
+      .from('travel_packages')
+      .select('group_id, customer_file_mode')
+      .eq('id', id)
+      .single()
+    if (packageError || !packageRow || packageRow.customer_file_mode !== 'group') {
+      return apiError('Family passengers can only be assigned inside a group customer file', 400)
+    }
+    const { data: familyMember, error: familyError } = await supabase
+      .from('travel_package_group_members')
+      .select('id')
+      .eq('id', groupMemberId)
+      .eq('group_id', packageRow.group_id)
+      .eq('quote_id', quoteId)
+      .maybeSingle()
+    if (familyError || !familyMember) {
+      return apiError('The selected family does not belong to this group customer file', 400)
+    }
+  }
 
   const { data, error } = await supabase
     .from('travel_package_passengers')
     .insert({
       package_id: id,
+      quote_id: quoteId,
+      group_member_id: groupMemberId,
       first_name: cleanText(body.firstName || body.first_name) || null,
       last_name: cleanText(body.lastName || body.last_name) || null,
       date_of_birth: cleanText(body.dateOfBirth || body.date_of_birth) || null,
@@ -83,6 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
     {
       packageId: id,
+      quoteId,
       actorId: user.id,
       eventType: 'passenger_created',
       eventSummary: 'Passenger record added.',

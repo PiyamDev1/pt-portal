@@ -8,6 +8,7 @@ import {
   Check,
   ExternalLink,
   FileClock,
+  GripVertical,
   History,
   Loader2,
   Pencil,
@@ -103,6 +104,10 @@ export default function PackageOperationsWorkspace({
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingPassengerId, setEditingPassengerId] = useState<string | null>(null)
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const [showAddPassengerForm, setShowAddPassengerForm] = useState(false)
+  const [selectedPassengerFamilyQuoteId, setSelectedPassengerFamilyQuoteId] = useState('')
+  const [selectedPaymentFamilyQuoteId, setSelectedPaymentFamilyQuoteId] = useState('')
+  const [draggedVoucherSegmentIndex, setDraggedVoucherSegmentIndex] = useState<number | null>(null)
   const [voucherPreviewQrCodeDataUrl, setVoucherPreviewQrCodeDataUrl] = useState('')
   const [accessVoucherQrCodeDataUrl, setAccessVoucherQrCodeDataUrl] = useState('')
 
@@ -281,7 +286,83 @@ export default function PackageOperationsWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packageFolder.id])
 
-  const paymentSummary = useMemo(() => calculatePackagePaymentSummary(payments), [payments])
+  const groupFamilies = useMemo(
+    () => packageFolder.selected_quote_snapshot?.group?.families || [],
+    [packageFolder.selected_quote_snapshot?.group?.families],
+  )
+  const selectedPaymentFamily = groupFamilies.find(
+    (family) => family.quoteId === selectedPaymentFamilyQuoteId,
+  )
+  const selectedPassengerFamily = groupFamilies.find(
+    (family) => family.quoteId === selectedPassengerFamilyQuoteId,
+  )
+  const familyByQuoteId = useMemo(
+    () => new Map(groupFamilies.map((family) => [family.quoteId, family])),
+    [groupFamilies],
+  )
+  const visiblePayments = useMemo(
+    () =>
+      selectedPaymentFamilyQuoteId && selectedPaymentFamilyQuoteId !== 'all'
+        ? payments.filter((payment) => payment.quote_id === selectedPaymentFamilyQuoteId)
+        : payments,
+    [payments, selectedPaymentFamilyQuoteId],
+  )
+  const paymentSummary = useMemo(
+    () => calculatePackagePaymentSummary(visiblePayments),
+    [visiblePayments],
+  )
+  const selectedFamilyInvoice =
+    selectedPaymentFamily && invoice?.quote_id === selectedPaymentFamily.quoteId ? invoice : null
+  const paymentBalance = selectedPaymentFamily
+    ? (selectedFamilyInvoice?.balance_due ??
+      Math.max(0, selectedPaymentFamily.selection.combination.totalPrice - paymentSummary.netPaid))
+    : groupFamilies.length > 0
+      ? Math.max(
+          0,
+          groupFamilies.reduce(
+            (total, family) => total + family.selection.combination.totalPrice,
+            0,
+          ) - paymentSummary.netPaid,
+        )
+      : invoice?.balance_due || 0
+
+  useEffect(() => {
+    if (groupFamilies.length === 0) {
+      if (selectedPaymentFamilyQuoteId) setSelectedPaymentFamilyQuoteId('')
+      return
+    }
+    if (
+      selectedPaymentFamilyQuoteId !== 'all' &&
+      !groupFamilies.some((family) => family.quoteId === selectedPaymentFamilyQuoteId)
+    ) {
+      setSelectedPaymentFamilyQuoteId(groupFamilies[0].quoteId)
+    }
+  }, [groupFamilies, selectedPaymentFamilyQuoteId])
+  useEffect(() => {
+    if (groupFamilies.length === 0) {
+      if (selectedPassengerFamilyQuoteId) setSelectedPassengerFamilyQuoteId('')
+      return
+    }
+    if (!groupFamilies.some((family) => family.quoteId === selectedPassengerFamilyQuoteId)) {
+      setSelectedPassengerFamilyQuoteId(groupFamilies[0].quoteId)
+    }
+  }, [groupFamilies, selectedPassengerFamilyQuoteId])
+  useEffect(() => {
+    if (!onInvoiceChange || !selectedPaymentFamilyQuoteId || selectedPaymentFamilyQuoteId === 'all')
+      return
+    let cancelled = false
+    const loadFamilyInvoice = async () => {
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/invoice?quoteId=${encodeURIComponent(selectedPaymentFamilyQuoteId)}`,
+      )
+      const data = (await response.json()) as { invoice?: TravelPackageInvoice | null }
+      if (!cancelled && response.ok && data.invoice) onInvoiceChange(data.invoice)
+    }
+    void loadFamilyInvoice()
+    return () => {
+      cancelled = true
+    }
+  }, [onInvoiceChange, packageFolder.id, selectedPaymentFamilyQuoteId])
   const openTasks = tasks.filter((task) => ['open', 'in_progress', 'blocked'].includes(task.status))
   const openRisks = risks.filter((risk) => risk.status !== 'resolved')
   const availableStatuses = [
@@ -420,9 +501,10 @@ export default function PackageOperationsWorkspace({
     await patchPackage({ status })
   }
 
-  const refreshInvoice = async () => {
+  const refreshInvoice = async (quoteId = selectedPaymentFamilyQuoteId) => {
     if (!onInvoiceChange) return
-    const response = await fetch(`/api/travel-packages/${packageFolder.id}/invoice`)
+    const query = quoteId ? `?quoteId=${encodeURIComponent(quoteId)}` : ''
+    const response = await fetch(`/api/travel-packages/${packageFolder.id}/invoice${query}`)
     const data = (await response.json()) as { invoice?: TravelPackageInvoice | null }
     if (response.ok && data.invoice) onInvoiceChange(data.invoice)
   }
@@ -458,12 +540,17 @@ export default function PackageOperationsWorkspace({
       const response = await fetch(`/api/travel-packages/${packageFolder.id}/passengers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(passengerForm),
+        body: JSON.stringify({
+          ...passengerForm,
+          quoteId: selectedPassengerFamily?.quoteId || null,
+          groupMemberId: selectedPassengerFamily?.memberId || null,
+        }),
       })
       const data = (await response.json()) as { passenger?: TravelPackagePassenger; error?: string }
       if (!response.ok || !data.passenger) throw new Error(data.error || 'Failed to add passenger')
       setPassengers((current) => [...current, data.passenger!])
       setPassengerForm({ firstName: '', lastName: '', dateOfBirth: '', passengerType: 'adult' })
+      setShowAddPassengerForm(false)
       toast.success('Passenger added')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to add passenger')
@@ -553,14 +640,19 @@ export default function PackageOperationsWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...paymentForm,
-          invoiceId: invoice?.id || null,
-          currency: invoice?.currency || 'GBP',
+          invoiceId: selectedFamilyInvoice?.id || null,
+          quoteId: selectedPaymentFamily?.quoteId || null,
+          groupMemberId: selectedPaymentFamily?.memberId || null,
+          currency: selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
+          metadata: selectedPaymentFamily
+            ? { familyLabel: selectedPaymentFamily.familyLabel }
+            : undefined,
         }),
       })
       const data = (await response.json()) as { payment?: TravelPackagePayment; error?: string }
       if (!response.ok || !data.payment) throw new Error(data.error || 'Failed to record payment')
       setPayments((current) => [data.payment!, ...current])
-      await refreshInvoice()
+      await refreshInvoice(selectedPaymentFamily?.quoteId)
       await refreshPaymentPlan()
       setPaymentForm({
         amount: '',
@@ -599,7 +691,7 @@ export default function PackageOperationsWorkspace({
       setPayments((current) =>
         current.map((item) => (item.id === payment.id ? data.payment! : item)),
       )
-      await refreshInvoice()
+      await refreshInvoice(payment.quote_id || undefined)
       await refreshPaymentPlan()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update payment')
@@ -644,7 +736,7 @@ export default function PackageOperationsWorkspace({
         current.map((item) => (item.id === payment.id ? data.payment! : item)),
       )
       setEditingPaymentId(null)
-      await refreshInvoice()
+      await refreshInvoice(payment.quote_id || undefined)
       await refreshPaymentPlan()
       toast.success('Payment updated')
     } catch (error) {
@@ -672,7 +764,7 @@ export default function PackageOperationsWorkspace({
       if (!response.ok) throw new Error(data.error || 'Failed to delete payment')
       setPayments((current) => current.filter((item) => item.id !== payment.id))
       if (editingPaymentId === payment.id) setEditingPaymentId(null)
-      await refreshInvoice()
+      await refreshInvoice(payment.quote_id || undefined)
       await refreshPaymentPlan()
       toast.success('Payment deleted')
     } catch (error) {
@@ -854,6 +946,37 @@ export default function PackageOperationsWorkspace({
       const routeAssignments = (current.routeAssignments || []).filter(
         (_, itemIndex) => itemIndex !== index,
       )
+      return {
+        ...current,
+        itinerary,
+        routeAssignments,
+        routes: itinerary.map((item) => item.description.trim()).filter(Boolean),
+      }
+    })
+  }
+
+  const moveVoucherItineraryItem = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
+    setVoucherForm((current) => {
+      const itinerary = [...(current.itinerary || [])]
+      const fallbackVehicle = current.vehicleType || current.vehicle || ''
+      const routeAssignments = itinerary.map((item, index) =>
+        current.routeAssignments?.[index]
+          ? { ...current.routeAssignments[index] }
+          : {
+              routeName: item.description,
+              type: item.type,
+              supplierName: '',
+              vehicleType: fallbackVehicle,
+              date: item.date,
+              time: item.time,
+            },
+      )
+      const [movedItinerary] = itinerary.splice(fromIndex, 1)
+      const [movedAssignment] = routeAssignments.splice(fromIndex, 1)
+      if (!movedItinerary || !movedAssignment) return current
+      itinerary.splice(toIndex, 0, movedItinerary)
+      routeAssignments.splice(toIndex, 0, movedAssignment)
       return {
         ...current,
         itinerary,
@@ -1424,80 +1547,124 @@ export default function PackageOperationsWorkspace({
 
           {activeTab === 'passengers' && (
             <div className="space-y-4">
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void addPassenger()
-                }}
-                className="grid gap-3 border border-slate-200 bg-slate-50 p-4 md:grid-cols-5"
-              >
-                <label className="text-xs font-bold text-slate-600">
-                  First name
-                  <input
-                    value={passengerForm.firstName}
-                    onChange={(event) =>
-                      setPassengerForm((current) => ({
-                        ...current,
-                        firstName: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Last name
-                  <input
-                    value={passengerForm.lastName}
-                    onChange={(event) =>
-                      setPassengerForm((current) => ({ ...current, lastName: event.target.value }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Date of birth
-                  <input
-                    type="date"
-                    value={passengerForm.dateOfBirth}
-                    onChange={(event) =>
-                      setPassengerForm((current) => ({
-                        ...current,
-                        dateOfBirth: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Passenger type
-                  <select
-                    value={passengerForm.passengerType}
-                    onChange={(event) =>
-                      setPassengerForm((current) => ({
-                        ...current,
-                        passengerType: event.target.value as TravelPackagePassengerType,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    <option value="adult">Adult</option>
-                    <option value="child">Child</option>
-                    <option value="infant">Infant under 2</option>
-                  </select>
-                </label>
+              <div className="flex flex-col gap-3 border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-950">Passenger list</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Quote passengers start without names. Click a name or date of birth in the table
+                    to enter it when documents arrive.
+                  </p>
+                </div>
                 <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
+                  type="button"
+                  onClick={() => setShowAddPassengerForm((current) => !current)}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-[#8b1e2d] px-3 text-xs font-black text-white"
                 >
-                  <UserPlus className="h-4 w-4" />
-                  Add passenger
+                  {showAddPassengerForm ? (
+                    <X className="h-4 w-4" />
+                  ) : (
+                    <UserPlus className="h-4 w-4" />
+                  )}
+                  {showAddPassengerForm ? 'Close' : 'Add passenger'}
                 </button>
-              </form>
+              </div>
+              {showAddPassengerForm && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void addPassenger()
+                  }}
+                  className="grid gap-3 border border-slate-200 bg-slate-50 p-4 md:grid-cols-5 xl:grid-cols-6"
+                >
+                  {groupFamilies.length > 0 && (
+                    <label className="text-xs font-bold text-slate-600">
+                      Family
+                      <select
+                        value={selectedPassengerFamilyQuoteId}
+                        onChange={(event) => setSelectedPassengerFamilyQuoteId(event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        required
+                      >
+                        {groupFamilies.map((family) => (
+                          <option key={family.quoteId} value={family.quoteId}>
+                            {family.familyLabel}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <label className="text-xs font-bold text-slate-600">
+                    First name
+                    <input
+                      value={passengerForm.firstName}
+                      onChange={(event) =>
+                        setPassengerForm((current) => ({
+                          ...current,
+                          firstName: event.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Last name
+                    <input
+                      value={passengerForm.lastName}
+                      onChange={(event) =>
+                        setPassengerForm((current) => ({
+                          ...current,
+                          lastName: event.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Date of birth
+                    <input
+                      type="date"
+                      value={passengerForm.dateOfBirth}
+                      onChange={(event) =>
+                        setPassengerForm((current) => ({
+                          ...current,
+                          dateOfBirth: event.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Passenger type
+                    <select
+                      value={passengerForm.passengerType}
+                      onChange={(event) =>
+                        setPassengerForm((current) => ({
+                          ...current,
+                          passengerType: event.target.value as TravelPackagePassengerType,
+                        }))
+                      }
+                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="adult">Adult</option>
+                      <option value="child">Child</option>
+                      <option value="infant">Infant under 2</option>
+                    </select>
+                  </label>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add passenger
+                  </button>
+                </form>
+              )}
               <div className="overflow-x-auto border border-slate-200">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Passenger</th>
+                      {groupFamilies.length > 0 && <th className="px-3 py-2">Family</th>}
                       <th className="px-3 py-2">Date of birth</th>
                       <th className="px-3 py-2">Type</th>
                       <th className="px-3 py-2">Passport received</th>
@@ -1540,11 +1707,28 @@ export default function PackageOperationsWorkspace({
                                 />
                               </div>
                             ) : (
-                              [passenger.first_name, passenger.last_name]
-                                .filter(Boolean)
-                                .join(' ') || 'Name pending'
+                              <button
+                                type="button"
+                                onClick={() => startPassengerEdit(passenger)}
+                                className="w-full rounded border border-transparent px-2 py-1 text-left font-bold transition hover:border-cyan-200 hover:bg-cyan-50"
+                                title="Click to edit passenger name"
+                              >
+                                {[passenger.first_name, passenger.last_name]
+                                  .filter(Boolean)
+                                  .join(' ') || 'Click to add name'}
+                              </button>
                             )}
                           </td>
+                          {groupFamilies.length > 0 && (
+                            <td className="min-w-36 px-3 py-2">
+                              <span className="rounded-full bg-cyan-50 px-2 py-1 text-xs font-black text-cyan-900">
+                                {passenger.quote_id
+                                  ? familyByQuoteId.get(passenger.quote_id)?.familyLabel ||
+                                    'Unallocated'
+                                  : 'Unallocated'}
+                              </span>
+                            </td>
+                          )}
                           <td className="min-w-36 px-3 py-2">
                             {editingThisPassenger ? (
                               <input
@@ -1559,7 +1743,14 @@ export default function PackageOperationsWorkspace({
                                 className="w-full border border-slate-300 px-2 py-1 text-xs"
                               />
                             ) : (
-                              dateInput(passenger.date_of_birth) || 'Not set'
+                              <button
+                                type="button"
+                                onClick={() => startPassengerEdit(passenger)}
+                                className="w-full rounded border border-transparent px-2 py-1 text-left transition hover:border-cyan-200 hover:bg-cyan-50"
+                                title="Click to edit date of birth"
+                              >
+                                {dateInput(passenger.date_of_birth) || 'Click to add DOB'}
+                              </button>
                             )}
                           </td>
                           <td className="min-w-32 px-3 py-2">
@@ -1731,6 +1922,44 @@ export default function PackageOperationsWorkspace({
 
           {activeTab === 'payments' && (
             <div className="space-y-5">
+              {groupFamilies.length > 0 && (
+                <div className="border-y-4 border-cyan-900 bg-cyan-50 p-4 sm:border-x">
+                  <p className="text-xs font-black uppercase text-cyan-900">
+                    Family payment ledger
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Payments remain inside this shared customer file but belong to one family
+                    account. Select a family before recording or editing its money movements.
+                  </p>
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {groupFamilies.map((family) => (
+                      <button
+                        key={family.quoteId}
+                        type="button"
+                        onClick={() => setSelectedPaymentFamilyQuoteId(family.quoteId)}
+                        className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-black transition ${
+                          selectedPaymentFamilyQuoteId === family.quoteId
+                            ? 'bg-cyan-900 text-white'
+                            : 'border border-cyan-200 bg-white text-cyan-900 hover:bg-cyan-100'
+                        }`}
+                      >
+                        {family.familyLabel}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentFamilyQuoteId('all')}
+                      className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-black transition ${
+                        selectedPaymentFamilyQuoteId === 'all'
+                          ? 'bg-slate-900 text-white'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      All families
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Net received</p>
@@ -1769,146 +1998,160 @@ export default function PackageOperationsWorkspace({
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Invoice balance</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">
+                    {selectedFamilyInvoice ? 'Invoice balance' : 'Quoted balance'}
+                  </p>
                   <p className="mt-1 text-lg font-black text-[#8b1e2d]">
-                    {formatMoney(invoice?.balance_due || 0, invoice?.currency || 'GBP')}
+                    {formatMoney(
+                      paymentBalance,
+                      selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
+                    )}
                   </p>
                 </div>
               </div>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void addPayment()
-                }}
-                className="grid gap-3 border border-slate-200 bg-slate-50 p-4 md:grid-cols-3 xl:grid-cols-4"
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Amount"
-                  value={paymentForm.amount}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({ ...current, amount: event.target.value }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                  required
-                />
-                {paymentPlan?.installments?.some((installment) => installment.status !== 'paid') ? (
+              {groupFamilies.length > 0 && !selectedPaymentFamily ? (
+                <p className="border border-dashed border-cyan-300 bg-cyan-50 p-4 text-center text-sm font-bold text-cyan-900">
+                  Choose a family above to record a payment. The All families view is read-only.
+                </p>
+              ) : (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void addPayment()
+                  }}
+                  className="grid gap-3 border border-slate-200 bg-slate-50 p-4 md:grid-cols-3 xl:grid-cols-4"
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Amount"
+                    value={paymentForm.amount}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({ ...current, amount: event.target.value }))
+                    }
+                    className="border border-slate-300 px-3 py-2 text-sm"
+                    required
+                  />
+                  {paymentPlan?.installments?.some(
+                    (installment) => installment.status !== 'paid',
+                  ) ? (
+                    <select
+                      value={paymentForm.installmentId}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          installmentId: event.target.value,
+                        }))
+                      }
+                      className="border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">No installment link</option>
+                      {paymentPlan.installments
+                        ?.filter((installment) => installment.status !== 'paid')
+                        .map((installment) => (
+                          <option key={installment.id} value={installment.id}>
+                            Installment #{installment.sequence_number} · {installment.due_on} ·{' '}
+                            {formatMoney(installment.amount, paymentPlan.currency)}
+                          </option>
+                        ))}
+                    </select>
+                  ) : null}
                   <select
-                    value={paymentForm.installmentId}
+                    value={paymentForm.paymentType}
                     onChange={(event) =>
                       setPaymentForm((current) => ({
                         ...current,
-                        installmentId: event.target.value,
+                        paymentType: event.target.value as TravelPackagePaymentType,
                       }))
                     }
                     className="border border-slate-300 px-3 py-2 text-sm"
                   >
-                    <option value="">No installment link</option>
-                    {paymentPlan.installments
-                      ?.filter((installment) => installment.status !== 'paid')
-                      .map((installment) => (
-                        <option key={installment.id} value={installment.id}>
-                          Installment #{installment.sequence_number} · {installment.due_on} ·{' '}
-                          {formatMoney(installment.amount, paymentPlan.currency)}
-                        </option>
-                      ))}
+                    {PAYMENT_TYPES.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
                   </select>
-                ) : null}
-                <select
-                  value={paymentForm.paymentType}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      paymentType: event.target.value as TravelPackagePaymentType,
-                    }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {PAYMENT_TYPES.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={paymentForm.paymentMethod}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      paymentMethod: event.target.value as TravelPackagePaymentMethod,
-                    }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {PAYMENT_METHODS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={paymentForm.paymentStatus}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      paymentStatus: event.target.value as TravelPackagePaymentStatus,
-                    }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="completed">Received</option>
-                  <option value="pending">Requested / pending</option>
-                  <option value="failed">Failed</option>
-                </select>
-                <input
-                  type="datetime-local"
-                  title="Payment due"
-                  value={paymentForm.dueAt}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({ ...current, dueAt: event.target.value }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                />
-                <input
-                  placeholder={
-                    paymentForm.paymentType === 'account_credit'
-                      ? 'Previous package / refund reference'
-                      : 'Receipt / bank reference'
-                  }
-                  required={paymentForm.paymentType === 'account_credit'}
-                  value={paymentForm.receiptReference}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      receiptReference: event.target.value,
-                    }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                />
-                <input
-                  placeholder="Payment note"
-                  value={paymentForm.notes}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({ ...current, notes: event.target.value }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={saving === 'payment'}
-                  className="inline-flex items-center justify-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
-                >
-                  <Plus className="h-4 w-4" />
-                  Record payment
-                </button>
-              </form>
+                  <select
+                    value={paymentForm.paymentMethod}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        paymentMethod: event.target.value as TravelPackagePaymentMethod,
+                      }))
+                    }
+                    className="border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {PAYMENT_METHODS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={paymentForm.paymentStatus}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        paymentStatus: event.target.value as TravelPackagePaymentStatus,
+                      }))
+                    }
+                    className="border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="completed">Received</option>
+                    <option value="pending">Requested / pending</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                  <input
+                    type="datetime-local"
+                    title="Payment due"
+                    value={paymentForm.dueAt}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({ ...current, dueAt: event.target.value }))
+                    }
+                    className="border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    placeholder={
+                      paymentForm.paymentType === 'account_credit'
+                        ? 'Previous package / refund reference'
+                        : 'Receipt / bank reference'
+                    }
+                    required={paymentForm.paymentType === 'account_credit'}
+                    value={paymentForm.receiptReference}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        receiptReference: event.target.value,
+                      }))
+                    }
+                    className="border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    placeholder="Payment note"
+                    value={paymentForm.notes}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    className="border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={saving === 'payment'}
+                    className="inline-flex items-center justify-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Record payment
+                  </button>
+                </form>
+              )}
               <div className="overflow-x-auto border border-slate-200">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Date</th>
+                      {groupFamilies.length > 0 && <th className="px-3 py-2">Family</th>}
                       <th className="px-3 py-2">Type</th>
                       <th className="px-3 py-2">Method</th>
                       <th className="px-3 py-2">Reference</th>
@@ -1919,8 +2162,11 @@ export default function PackageOperationsWorkspace({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {payments.map((payment) => {
+                    {visiblePayments.map((payment) => {
                       const editingThisPayment = editingPaymentId === payment.id
+                      const paymentFamily = payment.quote_id
+                        ? familyByQuoteId.get(payment.quote_id)
+                        : null
                       return (
                         <tr key={payment.id}>
                           <td className="min-w-48 px-3 py-2 text-xs text-slate-500">
@@ -1959,6 +2205,13 @@ export default function PackageOperationsWorkspace({
                               formatDateTime(payment.received_at || payment.created_at)
                             )}
                           </td>
+                          {groupFamilies.length > 0 && (
+                            <td className="min-w-36 px-3 py-2">
+                              <span className="rounded-full bg-cyan-50 px-2 py-1 text-xs font-black text-cyan-900">
+                                {paymentFamily?.familyLabel || 'Unallocated'}
+                              </span>
+                            </td>
+                          )}
                           <td className="min-w-36 px-3 py-2 font-bold">
                             {editingThisPayment ? (
                               <select
@@ -2135,7 +2388,7 @@ export default function PackageOperationsWorkspace({
                     })}
                   </tbody>
                 </table>
-                {payments.length === 0 && (
+                {visiblePayments.length === 0 && (
                   <p className="p-5 text-center text-sm text-slate-500">No payments recorded.</p>
                 )}
               </div>
@@ -2805,11 +3058,46 @@ export default function PackageOperationsWorkspace({
                   <h3 className="text-sm font-black text-slate-900">Itinerary Builder</h3>
                   <div className="mt-3 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
                     {(voucherForm.itinerary || []).map((item, index) => (
-                      <div key={index} className="space-y-2 border border-slate-200 bg-white p-3">
+                      <div
+                        key={index}
+                        onDragOver={(event) => {
+                          event.preventDefault()
+                          event.dataTransfer.dropEffect = 'move'
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault()
+                          if (draggedVoucherSegmentIndex !== null) {
+                            moveVoucherItineraryItem(draggedVoucherSegmentIndex, index)
+                          }
+                          setDraggedVoucherSegmentIndex(null)
+                        }}
+                        className={`space-y-2 border bg-white p-3 transition ${
+                          draggedVoucherSegmentIndex === index
+                            ? 'border-cyan-500 bg-cyan-50 opacity-70'
+                            : 'border-slate-200'
+                        }`}
+                      >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs font-black text-slate-700">
-                            Segment #{index + 1}: {item.type || 'Transport Segment'}
-                          </p>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <button
+                              type="button"
+                              draggable
+                              onDragStart={(event) => {
+                                setDraggedVoucherSegmentIndex(index)
+                                event.dataTransfer.effectAllowed = 'move'
+                                event.dataTransfer.setData('text/plain', String(index))
+                              }}
+                              onDragEnd={() => setDraggedVoucherSegmentIndex(null)}
+                              className="inline-flex h-8 w-8 shrink-0 cursor-grab items-center justify-center border border-slate-200 bg-slate-50 text-slate-500 active:cursor-grabbing"
+                              title="Drag to reorder segment"
+                              aria-label={`Reorder segment ${index + 1}`}
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </button>
+                            <p className="truncate text-xs font-black text-slate-700">
+                              Segment #{index + 1}: {item.type || 'Transport Segment'}
+                            </p>
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeVoucherItineraryItem(index)}

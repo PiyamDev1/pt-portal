@@ -12,7 +12,7 @@ import type {
 import { selectTravelPackagePaymentColumns } from './columns'
 
 const SCHEMA_HINT =
-  'Package payment tracking is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
+  'Package payment tracking is incomplete. Run the package workflow migrations, including scripts/migrations/20260827_create_group_customer_files.sql.'
 const TYPES = new Set<TravelPackagePaymentType>([
   'deposit',
   'payment',
@@ -91,6 +91,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const now = new Date().toISOString()
   const invoiceId = cleanText(body.invoiceId || body.invoice_id) || null
   const reservationId = cleanText(body.reservationId || body.reservation_id) || null
+  const quoteId = cleanText(body.quoteId || body.quote_id) || null
+  const groupMemberId = cleanText(body.groupMemberId || body.group_member_id) || null
+  if (Boolean(quoteId) !== Boolean(groupMemberId)) {
+    return apiError('Choose both a family quotation and its group member', 400)
+  }
+  if (quoteId && groupMemberId) {
+    const { data: packageRow, error: packageError } = await supabase
+      .from('travel_packages')
+      .select('group_id, customer_file_mode')
+      .eq('id', id)
+      .single()
+    if (packageError || !packageRow || packageRow.customer_file_mode !== 'group') {
+      return apiError('Family payments can only be assigned inside a group customer file', 400)
+    }
+    const { data: familyMember, error: familyError } = await supabase
+      .from('travel_package_group_members')
+      .select('id')
+      .eq('id', groupMemberId)
+      .eq('group_id', packageRow.group_id)
+      .eq('quote_id', quoteId)
+      .maybeSingle()
+    if (familyError || !familyMember) {
+      return apiError('The selected family does not belong to this group customer file', 400)
+    }
+  }
   const receiptReference = cleanText(body.receiptReference || body.receipt_reference)
   if (paymentType === 'account_credit' && !receiptReference) {
     return apiError('Enter the previous package or refund reference for this account credit', 400)
@@ -103,6 +128,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .from('travel_package_payments')
     .insert({
       package_id: id,
+      quote_id: quoteId,
+      group_member_id: groupMemberId,
       invoice_id: invoiceId,
       reservation_id: reservationId,
       amount,
@@ -152,6 +179,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
     {
       packageId: id,
+      quoteId,
       actorId: user.id,
       eventType: 'payment_recorded',
       eventSummary: `${paymentType} of ${cleanText(body.currency).toUpperCase() || 'GBP'} ${amount.toFixed(2)} recorded.`,

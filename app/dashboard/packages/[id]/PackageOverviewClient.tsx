@@ -178,6 +178,7 @@ export default function PackageOverviewClient({
   const [documentError, setDocumentError] = useState<string | null>(null)
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [showQuoteSnapshot, setShowQuoteSnapshot] = useState(false)
+  const [selectedSnapshotQuoteId, setSelectedSnapshotQuoteId] = useState('')
   const [showAccessVoucher, setShowAccessVoucher] = useState(false)
   const [showPackageGroupPanel, setShowPackageGroupPanel] = useState(false)
   const [showNewReservationForm, setShowNewReservationForm] = useState(false)
@@ -630,6 +631,10 @@ export default function PackageOverviewClient({
   const selectedInvoiceFamily = groupInvoiceFamilies.find(
     (family) => family.quoteId === selectedInvoiceQuoteId,
   )
+  const handleOperationsInvoiceChange = useCallback((updatedInvoice: TravelPackageInvoice) => {
+    setInvoice(updatedInvoice)
+    setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+  }, [])
   useEffect(() => {
     if (groupInvoiceFamilies.length === 0) {
       if (selectedInvoiceQuoteId) setSelectedInvoiceQuoteId('')
@@ -639,6 +644,18 @@ export default function PackageOverviewClient({
       setSelectedInvoiceQuoteId(groupInvoiceFamilies[0].quoteId)
     }
   }, [groupInvoiceFamilies, selectedInvoiceQuoteId])
+  const selectedSnapshotFamily =
+    groupInvoiceFamilies.find((family) => family.quoteId === selectedSnapshotQuoteId) ||
+    groupInvoiceFamilies[0]
+  useEffect(() => {
+    if (groupInvoiceFamilies.length === 0) {
+      if (selectedSnapshotQuoteId) setSelectedSnapshotQuoteId('')
+      return
+    }
+    if (!groupInvoiceFamilies.some((family) => family.quoteId === selectedSnapshotQuoteId)) {
+      setSelectedSnapshotQuoteId(groupInvoiceFamilies[0].quoteId)
+    }
+  }, [groupInvoiceFamilies, selectedSnapshotQuoteId])
   const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
   const selectedVisaPassengerCounts = useMemo<VisaPassengerCounts>(
@@ -746,6 +763,47 @@ export default function PackageOverviewClient({
   const quoteDateRange = `${formatDate(
     selectedPayload?.departureDate || packageFolder?.departure_date,
   )} to ${formatDate(selectedPayload?.returnDate || packageFolder?.return_date)}`
+  const snapshotCombination = normalizeSelectedCombination(
+    selectedSnapshotFamily?.selection.combination || selectedCombination,
+  )
+  const snapshotPayload = selectedSnapshotFamily?.payload || selectedPayload
+  const snapshotSelection = selectedSnapshotFamily?.selection || selectedSelection
+  const snapshotPassengerSummary = selectedSnapshotFamily?.passengerSummary || passengerSummary
+  const snapshotTitle = snapshotPayload?.title || quoteTitle
+  const snapshotCustomerName =
+    snapshotSelection?.selection.customerName ||
+    selectedSnapshotFamily?.customerName ||
+    snapshotPayload?.customerName ||
+    quoteCustomerName
+  const snapshotCustomerPhone =
+    snapshotSelection?.selection.customerPhone ||
+    snapshotPayload?.customerPhone ||
+    quoteCustomerPhone
+  const snapshotCustomerEmail =
+    snapshotSelection?.selection.customerEmail ||
+    snapshotPayload?.customerEmail ||
+    quoteCustomerEmail
+  const snapshotSelectionNote =
+    snapshotSelection?.selection.note || snapshotPayload?.notes || quoteSelectionNote
+  const snapshotDateRange = `${formatDate(
+    snapshotPayload?.departureDate || packageFolder?.departure_date,
+  )} to ${formatDate(snapshotPayload?.returnDate || packageFolder?.return_date)}`
+  const snapshotVisaPassengerCounts = useMemo<VisaPassengerCounts>(
+    () => ({
+      adults: Number(snapshotPayload?.adults ?? snapshotPassengerSummary?.adults ?? 0),
+      childrenPaying: Number(
+        snapshotPayload?.childrenPaying ?? snapshotPassengerSummary?.childrenPaying ?? 0,
+      ),
+      childrenFree: Number(
+        snapshotPayload?.childrenFree ?? snapshotPassengerSummary?.childrenFree ?? 0,
+      ),
+      infants: Number(snapshotPayload?.infants ?? snapshotPassengerSummary?.infants ?? 0),
+      servicePassengers: Number(
+        snapshotCombination?.servicePassengers ?? snapshotPassengerSummary?.servicePassengers ?? 0,
+      ),
+    }),
+    [snapshotCombination, snapshotPassengerSummary, snapshotPayload],
+  )
   const publicSummaryCurrency =
     typeof packageFolder?.current_public_summary?.currency === 'string'
       ? packageFolder.current_public_summary.currency
@@ -2325,10 +2383,7 @@ Please enter the access code and accept the data handling terms before downloadi
                   invoice={invoice}
                   employees={employees}
                   onPackageChange={setPackageFolder}
-                  onInvoiceChange={(updatedInvoice) => {
-                    setInvoice(updatedInvoice)
-                    setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
-                  }}
+                  onInvoiceChange={handleOperationsInvoiceChange}
                 />
               </section>
             </>
@@ -3062,17 +3117,23 @@ Please enter the access code and accept the data handling terms before downloadi
 
           {activePackageTab === 'overview' && (
             <PackageFinalQuoteSnapshot
-              selectedCombination={selectedCombination}
-              selectedPayload={selectedPayload}
-              selectedVisaPassengerCounts={selectedVisaPassengerCounts}
-              passengerSummary={passengerSummary}
-              quoteTitle={quoteTitle}
-              quoteCustomerName={quoteCustomerName}
-              quoteCustomerPhone={quoteCustomerPhone}
-              quoteCustomerEmail={quoteCustomerEmail}
-              quoteDateRange={quoteDateRange}
-              quoteSelectionNote={quoteSelectionNote}
-              onOpenSnapshot={() => setShowQuoteSnapshot(true)}
+              selectedCombination={snapshotCombination}
+              selectedPayload={snapshotPayload}
+              selectedVisaPassengerCounts={snapshotVisaPassengerCounts}
+              passengerSummary={snapshotPassengerSummary}
+              quoteTitle={snapshotTitle}
+              quoteCustomerName={snapshotCustomerName}
+              quoteCustomerPhone={snapshotCustomerPhone}
+              quoteCustomerEmail={snapshotCustomerEmail}
+              quoteDateRange={snapshotDateRange}
+              quoteSelectionNote={snapshotSelectionNote}
+              groupFamilies={groupInvoiceFamilies}
+              selectedGroupQuoteId={selectedSnapshotFamily?.quoteId}
+              onSelectGroupQuote={setSelectedSnapshotQuoteId}
+              onOpenSnapshot={(quoteId) => {
+                if (quoteId) setSelectedSnapshotQuoteId(quoteId)
+                setShowQuoteSnapshot(true)
+              }}
             />
           )}
 
@@ -4859,16 +4920,19 @@ Please enter the access code and accept the data handling terms before downloadi
         quoteCustomerLastName={quoteCustomerLastName}
         showQuoteSnapshot={showQuoteSnapshot}
         setShowQuoteSnapshot={setShowQuoteSnapshot}
-        selectedCombination={selectedCombination}
-        selectedPayload={selectedPayload}
-        selectedVisaPassengerCounts={selectedVisaPassengerCounts}
-        passengerSummary={passengerSummary}
-        quoteTitle={quoteTitle}
-        quoteDateRange={quoteDateRange}
-        quoteCustomerName={quoteCustomerName}
-        quoteCustomerPhone={quoteCustomerPhone}
-        quoteCustomerEmail={quoteCustomerEmail}
-        quoteSelectionNote={quoteSelectionNote}
+        selectedCombination={snapshotCombination}
+        selectedPayload={snapshotPayload}
+        selectedVisaPassengerCounts={snapshotVisaPassengerCounts}
+        passengerSummary={snapshotPassengerSummary}
+        quoteTitle={snapshotTitle}
+        quoteDateRange={snapshotDateRange}
+        quoteCustomerName={snapshotCustomerName}
+        quoteCustomerPhone={snapshotCustomerPhone}
+        quoteCustomerEmail={snapshotCustomerEmail}
+        quoteSelectionNote={snapshotSelectionNote}
+        groupQuoteFamilies={groupInvoiceFamilies}
+        selectedGroupQuoteId={selectedSnapshotFamily?.quoteId || ''}
+        onSelectGroupQuote={setSelectedSnapshotQuoteId}
         packageFolder={packageFolder}
         showInvoicePreview={showInvoicePreview}
         setShowInvoicePreview={setShowInvoicePreview}

@@ -912,6 +912,113 @@ describe('package quote calculator', () => {
     expect(refreshed.snapshot.quote.selected_at).toBe('2026-08-01T10:00:00.000Z')
   })
 
+  it('refreshes one family without dropping the other group quote snapshots', () => {
+    const familyOneSelection = resolvePackageSelection(payload, {
+      stayOptionIds: { makkah: 'mk-b', madinah: 'md-b' },
+      customerName: 'Family One',
+    })
+    const familyTwoPayload = normalizePackageQuotePayload({
+      ...payload,
+      title: 'Family Two Umrah',
+      customerName: 'Family Two',
+      adults: 1,
+      childrenPaying: 0,
+      childrenFree: 0,
+      transportOptions: [{ ...payload.transportOptions[0], price: 200 }],
+    })
+    const familyTwoSelection = resolvePackageSelection(familyTwoPayload, {
+      stayOptionIds: { makkah: 'mk-b', madinah: 'md-b' },
+      customerName: 'Family Two',
+    })
+    const familyOneQuote = {
+      id: 'quote-family-1',
+      title: payload.title,
+      package_type: 'umrah',
+      status: 'converted',
+      currency: 'GBP',
+      customer_name: 'Family One',
+      customer_phone: null,
+      customer_email: null,
+      payload,
+      share_token: 'family-one-token',
+      share_enabled: false,
+      shared_at: null,
+      expires_at: '2026-12-01T00:00:00.000Z',
+      selected_option: familyOneSelection,
+      selected_at: '2026-08-01T10:00:00.000Z',
+      selection_note: null,
+      converted_package_id: 'package-group-1',
+      converted_at: '2026-08-01T10:05:00.000Z',
+      created_by: 'agent-1',
+      created_at: '2026-08-01T09:00:00.000Z',
+      updated_at: null,
+    } satisfies TravelPackageQuote
+    const familyTwoQuote = {
+      ...familyOneQuote,
+      id: 'quote-family-2',
+      title: familyTwoPayload.title,
+      customer_name: 'Family Two',
+      payload: familyTwoPayload,
+      share_token: 'family-two-token',
+      selected_option: familyTwoSelection,
+    } satisfies TravelPackageQuote
+    const previousSnapshot = {
+      ...buildPackageSnapshot(familyOneQuote),
+      group: {
+        id: 'group-1',
+        reference: 'PTG-ABC123',
+        title: 'Two families',
+        families: [
+          {
+            memberId: 'member-1',
+            quoteId: familyOneQuote.id,
+            familyLabel: 'Family 1',
+            customerName: 'Family One',
+            passengerSummary: { totalPassengers: 4 },
+            selection: familyOneSelection,
+            payload,
+          },
+          {
+            memberId: 'member-2',
+            quoteId: familyTwoQuote.id,
+            familyLabel: 'Family 2',
+            customerName: 'Family Two',
+            passengerSummary: { totalPassengers: 1 },
+            selection: familyTwoSelection,
+            payload: familyTwoPayload,
+          },
+        ],
+      },
+    } as unknown as TravelPackageFolder['selected_quote_snapshot']
+    const correctedFamilyTwoPayload = normalizePackageQuotePayload({
+      ...familyTwoPayload,
+      transportOptions: [{ ...familyTwoPayload.transportOptions[0], price: 275 }],
+    })
+
+    const refreshed = rebuildConvertedPackageSnapshot(
+      {
+        ...familyTwoQuote,
+        payload: correctedFamilyTwoPayload,
+        selected_option: null,
+        selected_at: null,
+      },
+      previousSnapshot,
+    )
+
+    expect(refreshed.snapshot.group?.families).toHaveLength(2)
+    expect(refreshed.snapshot.quote?.id).toBe('quote-family-1')
+    expect(refreshed.snapshot.group?.families[0].selection.combination.totalPrice).toBe(
+      familyOneSelection.combination.totalPrice,
+    )
+    expect(refreshed.snapshot.group?.families[1].selection.combination.transportOption?.price).toBe(
+      275,
+    )
+    expect(refreshed.publicSummary.totalPrice).toBe(
+      familyOneSelection.combination.totalPrice +
+        refreshed.snapshot.group!.families[1].selection.combination.totalPrice,
+    )
+  })
+
   it('calculates per-person transport mode for every passenger', () => {
     const transportPayload = normalizePackageQuotePayload({
       ...payload,

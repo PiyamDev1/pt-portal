@@ -23,7 +23,10 @@ type PackageFinalQuoteSnapshotProps = {
   quoteCustomerEmail: string
   quoteDateRange: string
   quoteSelectionNote: string
-  onOpenSnapshot: () => void
+  groupFamilies?: Array<{ quoteId: string; familyLabel: string; customerName: string }>
+  selectedGroupQuoteId?: string
+  onSelectGroupQuote?: (quoteId: string) => void
+  onOpenSnapshot: (quoteId?: string) => void
 }
 
 export default function PackageFinalQuoteSnapshot({
@@ -37,6 +40,9 @@ export default function PackageFinalQuoteSnapshot({
   quoteCustomerEmail,
   quoteDateRange,
   quoteSelectionNote,
+  groupFamilies = [],
+  selectedGroupQuoteId,
+  onSelectGroupQuote,
   onOpenSnapshot,
 }: PackageFinalQuoteSnapshotProps) {
   return (
@@ -52,6 +58,37 @@ export default function PackageFinalQuoteSnapshot({
           </span>
           <h2 className="text-lg font-black text-slate-950">Final quote snapshot</h2>
         </div>
+        {groupFamilies.length > 0 && (
+          <div className="mb-4 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+            <p className="text-xs font-black uppercase text-cyan-900">Linked family quotations</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Select a family to inspect the exact quotation saved for that group member.
+            </p>
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {groupFamilies.map((family) => (
+                <button
+                  key={family.quoteId}
+                  type="button"
+                  onClick={() => onSelectGroupQuote?.(family.quoteId)}
+                  className={`min-h-11 shrink-0 rounded-lg px-4 text-left text-sm font-black transition ${
+                    selectedGroupQuoteId === family.quoteId
+                      ? 'bg-cyan-900 text-white'
+                      : 'border border-cyan-200 bg-white text-cyan-950 hover:bg-cyan-100'
+                  }`}
+                >
+                  <span className="block">{family.familyLabel}</span>
+                  <span
+                    className={`mt-0.5 block text-xs font-semibold ${
+                      selectedGroupQuoteId === family.quoteId ? 'text-cyan-100' : 'text-slate-500'
+                    }`}
+                  >
+                    {family.customerName || 'Customer details pending'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {selectedCombination ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -64,7 +101,7 @@ export default function PackageFinalQuoteSnapshot({
               </div>
               <button
                 type="button"
-                onClick={onOpenSnapshot}
+                onClick={() => onOpenSnapshot(selectedGroupQuoteId)}
                 className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
               >
                 <FileText className="h-4 w-4" />

@@ -146,6 +146,9 @@ type PackageOverviewDialogsProps = {
   quoteCustomerPhone: string
   quoteCustomerEmail: string
   quoteSelectionNote: string
+  groupQuoteFamilies: Array<{ quoteId: string; familyLabel: string; customerName: string }>
+  selectedGroupQuoteId: string
+  onSelectGroupQuote: (quoteId: string) => void
   packageFolder: TravelPackageFolder
   showInvoicePreview: boolean
   setShowInvoicePreview: Dispatch<SetStateAction<boolean>>
@@ -200,6 +203,9 @@ export default function PackageOverviewDialogs({
   quoteCustomerPhone,
   quoteCustomerEmail,
   quoteSelectionNote,
+  groupQuoteFamilies,
+  selectedGroupQuoteId,
+  onSelectGroupQuote,
   packageFolder,
   showInvoicePreview,
   setShowInvoicePreview,
@@ -357,6 +363,27 @@ export default function PackageOverviewDialogs({
           </div>
 
           <div className="space-y-5 p-5">
+            {groupQuoteFamilies.length > 0 && (
+              <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                <p className="text-xs font-black uppercase text-cyan-900">Family quotation</p>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {groupQuoteFamilies.map((family) => (
+                    <button
+                      key={family.quoteId}
+                      type="button"
+                      onClick={() => onSelectGroupQuote(family.quoteId)}
+                      className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-black transition ${
+                        selectedGroupQuoteId === family.quoteId
+                          ? 'bg-cyan-900 text-white'
+                          : 'border border-cyan-200 bg-white text-cyan-900 hover:bg-cyan-100'
+                      }`}
+                    >
+                      {family.familyLabel}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
