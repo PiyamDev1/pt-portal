@@ -5,10 +5,12 @@ import {
   isPackageQuoteExpired,
   normalizePackageExpiry,
   normalizePackageQuotePayload,
-  rebuildConvertedPackageSnapshot,
 } from '@/lib/packageQuote'
-import type { TravelPackageFolder, TravelPackageQuote } from '@/app/types/packages'
-import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import type { TravelPackageQuote } from '@/app/types/packages'
+import {
+  markPackageQuoteSyncFailed,
+  syncConvertedPackageFromQuotes,
+} from '@/lib/packageQuoteSyncServer'
 
 const SCHEMA_HINT =
   'Package quote schema is not installed yet. Run scripts/migrations/20260708_create_travel_package_quotes.sql in Supabase SQL editor.'
@@ -186,52 +188,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (body.payload !== undefined && updatedQuote.converted_package_id) {
     packageSynced = false
     const packageId = updatedQuote.converted_package_id
-    const { data: packageData, error: packageError } = await supabase
-      .from('travel_packages')
-      .select('id, selected_quote_snapshot')
-      .eq('id', packageId)
-      .maybeSingle()
-
-    if (packageError || !packageData) {
-      packageSyncMessage = 'Quote saved, but the converted package folder could not be found'
-    } else {
-      const previousSnapshot = (
-        packageData as Pick<TravelPackageFolder, 'id' | 'selected_quote_snapshot'>
-      ).selected_quote_snapshot
-      try {
-        const refreshed = rebuildConvertedPackageSnapshot(updatedQuote, previousSnapshot)
-        const { error: packageUpdateError } = await supabase
-          .from('travel_packages')
-          .update({
-            selected_quote_snapshot: refreshed.snapshot,
-            current_public_summary: refreshed.publicSummary,
-          })
-          .eq('id', packageId)
-
-        if (packageUpdateError) {
-          packageSyncMessage = `Quote saved, but the package folder could not be refreshed: ${packageUpdateError.message}`
-        } else {
-          packageSynced = true
-          packageSyncMessage = 'Converted package folder refreshed from the corrected quote'
-          await recordPackageAuditEvent(
-            supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
-            {
-              packageId,
-              quoteId: updatedQuote.id,
-              actorId: user.id,
-              eventType: 'package_quote_snapshot_refreshed',
-              eventSummary: 'Converted package snapshot refreshed after its source quote was edited.',
-              beforeData: previousSnapshot,
-              afterData: refreshed.snapshot,
-              metadata: { reservationsPreserved: true },
-            },
-          )
-        }
-      } catch (syncError) {
-        packageSyncMessage = `Quote saved, but the package folder needs a new final selection: ${
-          syncError instanceof Error ? syncError.message : 'selection could not be refreshed'
-        }`
-      }
+    try {
+      const syncResult = await syncConvertedPackageFromQuotes(supabase, {
+        packageId,
+        actorId: user.id,
+        triggerQuoteId: updatedQuote.id,
+        reason: 'Quotation and package operations reconciled after the source quote was edited.',
+      })
+      packageSynced = syncResult.status === 'synced'
+      packageSyncMessage =
+        syncResult.status === 'synced'
+          ? 'Converted package folder and operational figures updated from the corrected quote'
+          : `Package figures updated, with ${syncResult.conflicts.length} item${
+              syncResult.conflicts.length === 1 ? '' : 's'
+            } left for agent review`
+    } catch (syncError) {
+      await markPackageQuoteSyncFailed(supabase, packageId, syncError)
+      packageSyncMessage = `Quote saved, but the converted package could not be reconciled: ${
+        syncError instanceof Error ? syncError.message : 'package reconciliation failed'
+      }`
     }
   }
 

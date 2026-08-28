@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PackageQuotePayload, TravelPackageQuote } from '@/app/types/packages'
-import {
-  buildPackageSnapshot,
-  normalizePackageQuotePayload,
-  resolvePackageSelection,
-} from '@/lib/packageQuote'
+import { normalizePackageQuotePayload, resolvePackageSelection } from '@/lib/packageQuote'
 
 const payload: PackageQuotePayload = {
   title: 'Editable Quote',
@@ -58,6 +54,8 @@ const mocks = vi.hoisted(() => {
     auth: { getUser },
     from,
   }))
+  const syncConvertedPackageFromQuotes = vi.fn()
+  const markPackageQuoteSyncFailed = vi.fn()
 
   return {
     getUser,
@@ -73,11 +71,18 @@ const mocks = vi.hoisted(() => {
     auditInsert,
     from,
     getRouteSupabaseClient,
+    syncConvertedPackageFromQuotes,
+    markPackageQuoteSyncFailed,
   }
 })
 
 vi.mock('@/lib/api/serverSupabase', () => ({
   getRouteSupabaseClient: mocks.getRouteSupabaseClient,
+}))
+
+vi.mock('@/lib/packageQuoteSyncServer', () => ({
+  syncConvertedPackageFromQuotes: mocks.syncConvertedPackageFromQuotes,
+  markPackageQuoteSyncFailed: mocks.markPackageQuoteSyncFailed,
 }))
 
 import { PATCH } from '@/app/api/packages/[id]/route'
@@ -96,6 +101,10 @@ describe('PATCH /api/packages/[id]', () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
     mocks.packageUpdateEq.mockResolvedValue({ error: null })
     mocks.auditInsert.mockResolvedValue({ error: null })
+    mocks.syncConvertedPackageFromQuotes.mockResolvedValue({
+      status: 'synced',
+      conflicts: [],
+    })
     mocks.updateSingle.mockResolvedValue({
       data: {
         id: 'quote-1',
@@ -216,13 +225,6 @@ describe('PATCH /api/packages/[id]', () => {
       ],
     })
 
-    mocks.packageMaybeSingle.mockResolvedValue({
-      data: {
-        id: 'package-1',
-        selected_quote_snapshot: buildPackageSnapshot(originalQuote),
-      },
-      error: null,
-    })
     mocks.updateSingle.mockResolvedValue({
       data: {
         ...originalQuote,
@@ -242,31 +244,12 @@ describe('PATCH /api/packages/[id]', () => {
 
     expect(response.status).toBe(200)
     expect(responseBody.packageSynced).toBe(true)
-    expect(mocks.packageUpdate).toHaveBeenCalledWith(
+    expect(mocks.syncConvertedPackageFromQuotes).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        selected_quote_snapshot: expect.objectContaining({
-          selection: expect.objectContaining({
-            combination: expect.objectContaining({
-              transportOption: expect.objectContaining({
-                price: 420,
-                transportRoutes: [
-                  expect.objectContaining({
-                    routeName: 'Madinah Airport to Madinah Hotel',
-                    vehicleLabel: 'H1',
-                  }),
-                ],
-              }),
-            }),
-          }),
-        }),
-      }),
-    )
-    expect(mocks.packageUpdateEq).toHaveBeenCalledWith('id', 'package-1')
-    expect(mocks.auditInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        package_id: 'package-1',
-        quote_id: 'quote-1',
-        event_type: 'package_quote_snapshot_refreshed',
+        packageId: 'package-1',
+        triggerQuoteId: 'quote-1',
+        actorId: 'agent-1',
       }),
     )
   })

@@ -724,14 +724,20 @@ export function buildPackageSnapshot(quote: TravelPackageQuote) {
       created_at: quote.created_at,
     },
     payload,
-    selection: quote.selected_option,
+    selection: quote.selected_option || undefined,
   }
+}
+
+export type ConvertedPackageSnapshotRefresh = {
+  snapshot: TravelPackageFolder['selected_quote_snapshot']
+  selection: PackageResolvedSelection
+  publicSummary: Record<string, unknown>
 }
 
 export function rebuildConvertedPackageSnapshot(
   quote: TravelPackageQuote,
   previousSnapshot: TravelPackageFolder['selected_quote_snapshot'] | null | undefined,
-) {
+): ConvertedPackageSnapshotRefresh {
   const payload = normalizePackageQuotePayload(quote.payload)
   const groupFamily = previousSnapshot?.group?.families.find(
     (family) => family.quoteId === quote.id,
@@ -742,7 +748,9 @@ export function rebuildConvertedPackageSnapshot(
     throw new Error('The converted package has no final selection to refresh')
   }
 
-  const selection = resolvePackageSelection(payload, previousSelection.selection)
+  const selection = resolvePackageSelection(payload, previousSelection.selection, {
+    preserveAppliedOfferIds: previousSelection.combination.appliedOffers.map((offer) => offer.id),
+  })
   const snapshotQuote: TravelPackageQuote = {
     ...quote,
     selected_option: selection,
@@ -827,6 +835,35 @@ export function rebuildConvertedPackageSnapshot(
       currency: selection.combination.currency,
     },
   }
+}
+
+export function rebuildConvertedPackageSnapshotFromQuotes(
+  quotes: TravelPackageQuote[],
+  previousSnapshot: TravelPackageFolder['selected_quote_snapshot'] | null | undefined,
+): ConvertedPackageSnapshotRefresh {
+  if (quotes.length === 0) {
+    throw new Error('The converted package has no source quotations to refresh')
+  }
+
+  const leadQuoteId = previousSnapshot?.quote?.id
+  const orderedQuotes = [...quotes].sort((left, right) => {
+    if (left.id === leadQuoteId) return 1
+    if (right.id === leadQuoteId) return -1
+    return 0
+  })
+  let snapshot = previousSnapshot
+  let result: ConvertedPackageSnapshotRefresh | undefined
+
+  for (const quote of orderedQuotes) {
+    const refreshed = rebuildConvertedPackageSnapshot(quote, snapshot)
+    result = refreshed
+    snapshot = refreshed.snapshot
+  }
+
+  if (!result) {
+    throw new Error('The converted package snapshot could not be refreshed')
+  }
+  return result
 }
 
 function hasTieredFlightPricing(option: PackageComponentOption | null) {
@@ -1358,8 +1395,12 @@ function getVisaSpecialPassengerDiscounts(
     .filter((target): target is NonNullable<typeof target> => Boolean(target))
 }
 
-function getActiveOffers(payload: PackageQuotePayload) {
-  return payload.limitedTimeOffers.filter((offer) => isLimitedTimeOfferActive(offer))
+function getActiveOffers(payload: PackageQuotePayload, preservedOfferIds?: Set<string>) {
+  return payload.limitedTimeOffers.filter(
+    (offer) =>
+      isLimitedTimeOfferActive(offer) ||
+      (offer.active && offer.discountAmount > 0 && preservedOfferIds?.has(offer.id)),
+  )
 }
 
 function getPackageOptionSortPrice(option: PackageComponentOption) {
@@ -2347,6 +2388,7 @@ export function formatPackageQuoteForCopy(
 export function resolvePackageSelection(
   payloadInput: unknown,
   input: PackageSelectionInput,
+  options?: { preserveAppliedOfferIds?: Iterable<string> },
 ): PackageResolvedSelection {
   const payload = normalizePackageQuotePayload(payloadInput)
   const payingGuests = getPayingGuestCount(payload)
@@ -2437,7 +2479,10 @@ export function resolvePackageSelection(
     getLinkedFlightSelectionsTotal(payload, linkedFlightSelections) +
     getVisaOptionsTotal(payload.visaOptions, payload) +
     getOptionTotal(transportOption, servicePassengers)
-  const activeOffers = getActiveOffers(payload)
+  const activeOffers = getActiveOffers(
+    payload,
+    options?.preserveAppliedOfferIds ? new Set(options.preserveAppliedOfferIds) : undefined,
+  )
   const offerDiscountTotal = activeOffers.reduce(
     (sum, offer) => sum + getOfferDiscountTotal(offer, payload),
     0,

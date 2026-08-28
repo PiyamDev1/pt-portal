@@ -46,6 +46,8 @@ const mocks = vi.hoisted(() => {
   const update = vi.fn(() => ({ eq: updateEq }))
   const from = vi.fn(() => ({ select, update }))
   const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  const syncConvertedPackageFromQuotes = vi.fn()
+  const markPackageQuoteSyncFailed = vi.fn()
 
   return {
     quoteSingle,
@@ -54,11 +56,18 @@ const mocks = vi.hoisted(() => {
     update,
     from,
     getServiceSupabaseClient,
+    syncConvertedPackageFromQuotes,
+    markPackageQuoteSyncFailed,
   }
 })
 
 vi.mock('@/lib/api/serviceSupabase', () => ({
   getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
+
+vi.mock('@/lib/packageQuoteSyncServer', () => ({
+  syncConvertedPackageFromQuotes: mocks.syncConvertedPackageFromQuotes,
+  markPackageQuoteSyncFailed: mocks.markPackageQuoteSyncFailed,
 }))
 
 import { POST } from '@/app/api/packages/share/[token]/selection/route'
@@ -88,10 +97,15 @@ describe('POST /api/packages/share/[token]/selection', () => {
         id: 'quote-share',
         payload,
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        converted_package_id: null,
       },
       error: null,
     })
     mocks.updateEq.mockResolvedValue({ error: null })
+    mocks.syncConvertedPackageFromQuotes.mockResolvedValue({
+      status: 'synced',
+      conflicts: [],
+    })
   })
 
   it('stores customer-entered contact details from a shared quote selection', async () => {
@@ -150,6 +164,35 @@ describe('POST /api/packages/share/[token]/selection', () => {
       expect.objectContaining({
         customer_name: 'Linked Customer',
         selection_note: 'Save before switching family',
+      }),
+    )
+  })
+
+  it('reconciles a converted package after a customer changes its selection', async () => {
+    mocks.quoteSingle.mockResolvedValueOnce({
+      data: {
+        id: 'quote-share',
+        payload,
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        converted_package_id: 'package-1',
+      },
+      error: null,
+    })
+
+    const response = await POST(
+      makeRequest({
+        stayOptionIds: { makkah: 'hotel-a' },
+        termsAccepted: true,
+      }) as never,
+      { params: Promise.resolve({ token: 'share-token' }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.syncConvertedPackageFromQuotes).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        packageId: 'package-1',
+        triggerQuoteId: 'quote-share',
       }),
     )
   })

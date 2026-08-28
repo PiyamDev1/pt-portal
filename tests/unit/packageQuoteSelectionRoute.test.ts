@@ -42,6 +42,8 @@ const mocks = vi.hoisted(() => {
     auth: { getUser },
     from,
   }))
+  const syncConvertedPackageFromQuotes = vi.fn()
+  const markPackageQuoteSyncFailed = vi.fn()
 
   return {
     getUser,
@@ -52,11 +54,18 @@ const mocks = vi.hoisted(() => {
     update,
     from,
     getRouteSupabaseClient,
+    syncConvertedPackageFromQuotes,
+    markPackageQuoteSyncFailed,
   }
 })
 
 vi.mock('@/lib/api/serverSupabase', () => ({
   getRouteSupabaseClient: mocks.getRouteSupabaseClient,
+}))
+
+vi.mock('@/lib/packageQuoteSyncServer', () => ({
+  syncConvertedPackageFromQuotes: mocks.syncConvertedPackageFromQuotes,
+  markPackageQuoteSyncFailed: mocks.markPackageQuoteSyncFailed,
 }))
 
 import { POST } from '@/app/api/packages/[id]/selection/route'
@@ -74,10 +83,14 @@ describe('POST /api/packages/[id]/selection', () => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
     mocks.selectSingle.mockResolvedValue({
-      data: { id: 'quote-1', status: 'shared', payload },
+      data: { id: 'quote-1', status: 'shared', payload, converted_package_id: null },
       error: null,
     })
     mocks.updateEq.mockResolvedValue({ error: null })
+    mocks.syncConvertedPackageFromQuotes.mockResolvedValue({
+      status: 'synced',
+      conflicts: [],
+    })
   })
 
   it('requires an authenticated agent', async () => {
@@ -120,5 +133,34 @@ describe('POST /api/packages/[id]/selection', () => {
       }),
     )
     expect(mocks.updateEq).toHaveBeenCalledWith('id', 'quote-1')
+  })
+
+  it('reconciles an existing package folder after Sales Mode finalisation', async () => {
+    mocks.selectSingle.mockResolvedValueOnce({
+      data: {
+        id: 'quote-1',
+        status: 'converted',
+        payload,
+        converted_package_id: 'package-1',
+      },
+      error: null,
+    })
+
+    const response = await POST(
+      makeRequest({ stayOptionIds: { makkah: 'hotel-a' } }) as never,
+      { params: Promise.resolve({ id: 'quote-1' }) },
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.packageSynced).toBe(true)
+    expect(mocks.syncConvertedPackageFromQuotes).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        packageId: 'package-1',
+        actorId: 'agent-1',
+        triggerQuoteId: 'quote-1',
+      }),
+    )
   })
 })

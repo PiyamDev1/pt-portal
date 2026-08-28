@@ -8,6 +8,10 @@ import type { PackageSelectionInput } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { createPublicResolvedPackageSelection } from '@/lib/packagePublicQuote'
+import {
+  markPackageQuoteSyncFailed,
+  syncConvertedPackageFromQuotes,
+} from '@/lib/packageQuoteSyncServer'
 
 const PUBLIC_SELECTION_BODY_LIMIT_BYTES = 64 * 1024
 const MAX_SELECTION_GROUPS = 50
@@ -111,7 +115,7 @@ export async function POST(
   const supabase = getServiceSupabaseClient()
   const { data: quote, error } = await supabase
     .from('travel_package_quotes')
-    .select('id, payload, expires_at')
+    .select('id, payload, expires_at, converted_package_id')
     .eq('share_token', cleanToken)
     .eq('share_enabled', true)
     .neq('status', 'archived')
@@ -202,6 +206,21 @@ export async function POST(
       metadata: { source: 'customer', saveOnly },
     },
   )
+
+  const packageId = (quote as { converted_package_id?: string | null }).converted_package_id
+  if (packageId) {
+    try {
+      await syncConvertedPackageFromQuotes(supabase, {
+        packageId,
+        triggerQuoteId: quote.id,
+        reason: saveOnly
+          ? 'Quotation and package operations reconciled after a customer saved linked selections.'
+          : 'Quotation and package operations reconciled after customer finalisation.',
+      })
+    } catch (syncError) {
+      await markPackageQuoteSyncFailed(supabase, packageId, syncError)
+    }
+  }
 
   return apiOk({ selected: createPublicResolvedPackageSelection(resolved), saveOnly })
 }

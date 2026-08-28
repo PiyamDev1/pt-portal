@@ -532,7 +532,20 @@ export interface TravelPackageFolder {
     servicePassengers?: number
   }
   selected_quote_snapshot: {
-    quote?: TravelPackageQuote
+    quote?: Pick<
+      TravelPackageQuote,
+      | 'id'
+      | 'title'
+      | 'package_type'
+      | 'currency'
+      | 'customer_name'
+      | 'customer_phone'
+      | 'customer_email'
+      | 'share_token'
+      | 'selected_at'
+      | 'selection_note'
+      | 'created_at'
+    >
     selection?: PackageResolvedSelection
     payload?: PackageQuotePayload
     group?: {

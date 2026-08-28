@@ -4,6 +4,10 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { resolvePackageSelection } from '@/lib/packageQuote'
 import type { PackageSelectionInput, PackageResolvedSelection } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import {
+  markPackageQuoteSyncFailed,
+  syncConvertedPackageFromQuotes,
+} from '@/lib/packageQuoteSyncServer'
 
 function isPackageSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
@@ -24,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: quote, error } = await supabase
     .from('travel_package_quotes')
-    .select('id, status, payload')
+    .select('id, status, payload, converted_package_id')
     .eq('id', id)
     .single()
 
@@ -89,5 +93,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     },
   )
 
-  return apiOk({ selected: resolved })
+  const packageId = (quote as { converted_package_id?: string | null }).converted_package_id
+  let packageSynced: boolean | undefined
+  let packageSyncMessage: string | undefined
+  if (packageId) {
+    packageSynced = false
+    try {
+      const syncResult = await syncConvertedPackageFromQuotes(supabase, {
+        packageId,
+        actorId: user.id,
+        triggerQuoteId: id,
+        reason: 'Quotation and package operations reconciled after Sales Mode finalisation.',
+      })
+      packageSynced = syncResult.status === 'synced'
+      packageSyncMessage =
+        syncResult.status === 'synced'
+          ? 'Converted package folder updated from the final Sales Mode selection'
+          : `Package figures updated, with ${syncResult.conflicts.length} item${
+              syncResult.conflicts.length === 1 ? '' : 's'
+            } left for agent review`
+    } catch (syncError) {
+      await markPackageQuoteSyncFailed(supabase, packageId, syncError)
+      packageSyncMessage = `Selection saved, but the converted package could not be reconciled: ${
+        syncError instanceof Error ? syncError.message : 'package reconciliation failed'
+      }`
+    }
+  }
+
+  return apiOk({ selected: resolved, packageSynced, packageSyncMessage })
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   ArrowLeft,
+  AlertTriangle,
   BadgePoundSterling,
   CalendarDays,
   CheckCircle2,
@@ -225,6 +226,7 @@ export default function PackageOverviewClient({
   const [packageGroupSelectedId, setPackageGroupSelectedId] = useState('')
   const [packageGroupSearch, setPackageGroupSearch] = useState('')
   const [packageGroupTransportNote, setPackageGroupTransportNote] = useState('')
+  const [syncingQuote, setSyncingQuote] = useState(false)
 
   useEffect(() => {
     const loadPackageFolder = async () => {
@@ -654,6 +656,14 @@ export default function PackageOverviewClient({
   const selectedPayload = packageFolder?.selected_quote_snapshot?.payload
   const selectedSelection = packageFolder?.selected_quote_snapshot?.selection
   const selectedQuote = packageFolder?.selected_quote_snapshot?.quote
+  const quoteSync = packageFolder?.metadata?.quoteSync as
+    | {
+        status?: 'synced' | 'review_required' | 'failed'
+        syncedAt?: string
+        message?: string
+        conflicts?: Array<{ message?: string }>
+      }
+    | undefined
   const groupInvoiceFamilies = useMemo(
     () => packageFolder?.selected_quote_snapshot?.group?.families || [],
     [packageFolder?.selected_quote_snapshot?.group?.families],
@@ -665,6 +675,28 @@ export default function PackageOverviewClient({
     setInvoice(updatedInvoice)
     setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
   }, [])
+
+  const reconcilePackageQuote = async () => {
+    setSyncingQuote(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/quote-sync`,
+        { method: 'POST' },
+      )
+      const data = (await response.json().catch(() => null)) as {
+        error?: string
+        message?: string
+      } | null
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || 'Quotation reconciliation failed')
+      }
+      window.location.reload()
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : 'Quotation reconciliation failed')
+      setSyncingQuote(false)
+    }
+  }
   useEffect(() => {
     if (groupInvoiceFamilies.length === 0) {
       if (selectedInvoiceQuoteId) setSelectedInvoiceQuoteId('')
@@ -2375,13 +2407,28 @@ Please enter the access code and accept the data handling terms before downloadi
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             {selectedCombination && (
-              <button
-                type="button"
-                onClick={() => setShowQuoteSnapshot(true)}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
-              >
-                View Final Quotation
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowQuoteSnapshot(true)}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
+                >
+                  View Final Quotation
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void reconcilePackageQuote()}
+                  disabled={syncingQuote}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 text-sm font-black text-amber-950 transition hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {syncingQuote ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  Sync quotation changes
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -2401,6 +2448,59 @@ Please enter the access code and accept the data handling terms before downloadi
           </div>
         </div>
       </section>
+
+      {(quoteSync?.status === 'review_required' || quoteSync?.status === 'failed') && (
+        <section
+          className={`flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between ${
+            quoteSync.status === 'failed'
+              ? 'border-red-300 bg-red-50 text-red-950'
+              : 'border-amber-300 bg-amber-50 text-amber-950'
+          }`}
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <AlertTriangle
+              className={`mt-0.5 h-5 w-5 shrink-0 ${
+                quoteSync.status === 'failed' ? 'text-red-700' : 'text-amber-700'
+              }`}
+            />
+            <div>
+              <p className="text-sm font-black">
+                {quoteSync.status === 'failed'
+                  ? 'Quotation reconciliation failed'
+                  : 'Quotation changes need an agent review'}
+              </p>
+              <p
+                className={`mt-1 text-xs font-semibold leading-5 ${
+                  quoteSync.status === 'failed' ? 'text-red-800' : 'text-amber-800'
+                }`}
+              >
+                {quoteSync.status === 'failed'
+                  ? quoteSync.message ||
+                    'The package may still contain figures from an earlier quotation version.'
+                  : `Package-owned figures were refreshed. ${
+                      quoteSync.conflicts?.[0]?.message ||
+                      'A progressed reservation, payment request, or invoice was preserved.'
+                    }`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void reconcilePackageQuote()}
+            disabled={syncingQuote}
+            className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black text-white disabled:opacity-60 ${
+              quoteSync.status === 'failed' ? 'bg-red-900' : 'bg-amber-900'
+            }`}
+          >
+            {syncingQuote ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
+            Reconcile again
+          </button>
+        </section>
+      )}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <PackageStatusCard
