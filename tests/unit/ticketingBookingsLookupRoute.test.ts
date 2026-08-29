@@ -188,6 +188,7 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
             { passengerType: 'ADT', quantity: 2 },
             { passengerType: 'CHD', quantity: 1 },
           ],
+          passengers: [],
         },
       ],
     })

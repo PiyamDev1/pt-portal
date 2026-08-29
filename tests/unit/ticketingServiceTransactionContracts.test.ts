@@ -14,6 +14,10 @@ function validEntry() {
     paymentStatus: 'unpaid' as const,
     paidAt: null,
     currency: 'GBP' as const,
+    selectedPassengerIds: [
+      '40000000-0000-4000-8000-000000000001',
+      '40000000-0000-4000-8000-000000000002',
+    ],
     fares: [
       {
         passengerType: 'ADT' as const,

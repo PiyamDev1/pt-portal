@@ -316,18 +316,19 @@ IATA code, `owner` employee UUID, inclusive `departureFrom`/`departureTo` dates,
 cannot be reused after changing a filter. Repeated, unknown, malformed, or contradictory values are
 rejected rather than ignored.
 
-**Success:** `200` JSON with `items`, `hasMore`, and nullable `nextCursor`, ordered by latest booking
+**Success:** `200` JSON with `items`, complete eligible-ticket-owner `filterOptions`, `hasMore`, and
+nullable `nextCursor`, ordered by latest booking
 update and stable booking ID. Eligible rows are active Issued GBP root TKs with a normalized PNR,
 positive passenger count, and complete equal source/GBP supplier totals. Each item contains
 booking/root IDs and optimistic versions, PNR, airline, ticket owner, branch-local issue date,
 journey dates, passenger count, initial/current whole-PNR supplier fare, package-match status, and
-the latest immutable adjustment when one exists. The latest adjustment contains its lineage ID,
+the latest immutable adjustment and latest no-change check when they exist. The latest adjustment contains its lineage ID,
 sequence, original/new supplier fares, signed difference, acting employee ID, effective date, and
 creation time. Customer/contact fields, sale values, commission scope or amount, earnings, margin,
 markup, and profit are never returned.
 
 **Errors:** `400` for invalid filters or a cursor/filter mismatch; `401`/`403` for access failures;
-`429` when rate limited; `503` when capability `2026082401` is absent; `500` when the eligible queue
+`429` when rate limited; `503` when capability `2026082904` is absent; `500` when the eligible queue
 or latest-tail projection cannot be mapped safely.
 
 ### POST `/api/ticketing/fare-adjustments`
@@ -341,9 +342,9 @@ package scope, source-event, or audit fields are rejected.
 `expectedBookingVersion`, `expectedRootTransactionVersion`, nullable
 `expectedPreviousAdjustmentId`, positive two-decimal `newSupplierFareGbp` no greater than
 `99999999.99`, `effectiveDate`, nullable trimmed `notes` up to 1,000 characters, and
-`currency: "GBP"`. A 1–200 character `Idempotency-Key` header is required. This first slice records
+`currency: "GBP"`. A 1–200 character `Idempotency-Key` header is required. This route records
 one changed whole-PNR supplier fare; it does not allocate a partial-passenger adjustment, mutate the
-root TK, create an R-ER, support non-GBP settlement, or persist a same-fare observation. The date
+root TK, create an R-ER, or support non-GBP settlement. The date
 cannot predate the root ticket issue date or the current adjustment tail.
 
 **Success:** `201` for a new append or `200` for an identical replay. The response contains the
@@ -361,7 +362,161 @@ toward issued-TK targets, and the public response contains no commission or prof
 `ZERO_FARE_DIFFERENCE`, or a missing retry key; `401`/`403` for access failures; `404` when the
 ticket is unavailable; `409` with `VERSION_CONFLICT`, `LINEAGE_CONFLICT`,
 `IDEMPOTENCY_CONFLICT`, or `CORRECTION_REQUIRED`; `429` when rate limited; `503` when capability
-`2026082401` is absent; `500` for an invalid or failed atomic result.
+`2026082904` is absent; `500` for an invalid or failed atomic result.
+
+### POST `/api/ticketing/fare-checks`
+
+**Access:** The same shared Ticketing access boundary as Low Fare adjustments. The acting employee
+is derived from the verified session.
+
+**Input:** Strict JSON up to 16 KiB with booking/root optimistic versions, nullable current
+adjustment ID, effective date, and optional notes. An 8–200 character `Idempotency-Key` is required.
+
+**Success:** `201` for a new append or `200` for an identical retry. The append-only observation
+snapshots the current whole-PNR GBP supplier fare and current package scope, appears as “last
+checked” in the queue, and creates audit evidence. It does not change the active fare and does not
+create a Commission source event or target unit.
+
+**Errors:** `400` for malformed input/date; `401`/`403` for access failures; `404` for an unavailable
+ticket; `409` for stale versions, changed fare lineage, or idempotency-key reuse; `429` when rate
+limited; `503` until capability `2026082904` is installed; `500` for an invalid atomic result.
+
+### GET `/api/ticketing/refunds`
+
+**Access:** Agents list and create refunds for their own issued passenger tickets. Admin, Master
+Admin, and Super Admin can view the team register and save an audited override when the proposed
+settlement would create an avoidable loss or reduce the desired company result.
+
+**Input:** Optional bounded exact PNR/status filtering and opaque pagination cursor.
+
+**Success:** `200 private, no-store` with the authorised own/team refund register, current status,
+expected values, actual settlements, nullable final company result, and management context.
+
+**Errors:** `400` for invalid filters; `401`/`403` for access failures; `503` until capability
+`2026082903` is installed; `500` when the register cannot be loaded safely.
+
+### POST `/api/ticketing/refunds`
+
+**Access:** Agents save their own issued passenger refunds. Admin, Master Admin, and Super Admin
+may cover another owner and use the audited override boundary.
+
+**Input:** Strict JSON plus an idempotency key. It accepts the exact
+ADT/YTH/CHD/INF passenger slot, refund-versus-replacement choice, cancellation and supplier costs,
+temporarily manual retained-agent-commission input, desired markup, and either manual replacement
+costs or an exact existing ledger passenger.
+
+**Success:** `201` for a new snapshot or `200` for an identical retry. It saves the integer-penny
+formula inputs/results, current package scope, and loss-prevention assessment atomically.
+
+**Errors:** `400` for invalid values/selections; `401`/`403` for access failures; `404` for an
+unavailable passenger ticket; `409` for duplicate, stale, or override-required input; `429` when
+rate limited; `503` until capability `2026082903` is installed; `500` for atomic failure.
+
+### POST `/api/ticketing/refunds/[refundId]/events`
+
+**Access:** Admin, Master Admin, and Super Admin. Optimistic version and idempotency controls apply.
+
+**Input:** Strict event type/date, expected version, event-specific amount/reference/notes, required
+closure/void reason, and an 8–200 character idempotency key.
+
+**Success:** Appends customer settlement, airline recovery, other actual cost, recovery-final,
+closure, or void evidence. Actual company result remains `null` until recovery is final, then is
+derived from actual settlement/recovery/cost rows rather than the original estimate.
+
+**Errors:** `400` for invalid event combinations; `401`/`403` for access failures; `404` when the
+refund is unavailable; `409` for stale or duplicate input; `429` when rate limited; `503` until
+capability `2026082903` is installed; `500` for atomic failure.
+
+### GET `/api/ticketing/vouchers`
+
+**Access:** Active Ticketing staff see vouchers they own or are assigned to follow up. Admin,
+Master Admin, and Super Admin see the bounded team register. Manager access remains limited to
+owned/assigned voucher rows; Maintenance Admin has no Ticketing role bypass.
+
+**Input:** Optional strict exact `pnr`, exact voucher `status`, `limit` from `1`–`100` (default
+`50`), and an opaque keyset `cursor`. The cursor is bound to the normalized PNR/status filters.
+Repeated, unknown, malformed, or cross-filter values are rejected.
+
+**Success:** `200 private, no-store` with `items` ordered by claim-by date and stable voucher ID,
+plus nullable `nextCursor`. Each item contains the source booking/PNR/passenger ticket, airline,
+ticket owner, follow-up owner, issue/cancellation/claim dates, operational status, nullable
+airline-confirmed/remaining GBP value, reference, notes, version, and creation time. Initial value is
+`null`, not zero, until the airline confirms it. No customer contact, sale price, supplier cost,
+profit, or commission amount is returned.
+
+**Errors:** `400` for invalid filters or a cursor/filter mismatch; `401`/`403` for access failures;
+`503` until capability `2026082903` is installed; `500` when rows cannot be loaded or mapped safely.
+
+### POST `/api/ticketing/vouchers`
+
+**Access:** The responsible owner may create a voucher for their own issued root TK. Admin, Master
+Admin, and Super Admin may create it on behalf of another owner and assign another active follow-up
+employee. The database rechecks ownership and administrator status; the authenticated actor is
+never accepted from the request body.
+
+**Input:** Strict JSON no larger than 16 KiB containing `bookingId`, `passengerType`
+(`ADT`/`YTH`/`CHD`/`INF`), stable `passengerPosition`, `cancellationDate`, nullable
+`followUpEmployeeId`, nullable `claimByDate`, nullable airline/supplier reference up to 120
+characters, and nullable notes up to 2,000 characters. A retry-safe `Idempotency-Key` from 8–200
+characters is required. The database resolves the exact issued passenger allocation and requires
+its ticket number. The cancellation date cannot precede issue or be in the future. Claim-by
+defaults to issue date plus 11 calendar months; only an administrator may submit a different date.
+Monetary voucher value is deliberately not accepted.
+
+**Success:** `201 private, no-store` with voucher/booking ID, `unclaimed` status, effective claim-by
+date, and replay state. One transaction creates the unknown-value voucher, immutable creation event
+and audit evidence, and 90/30/7-day reminder claims. Only one voucher may exist per
+issued passenger ticket.
+
+**Errors:** `400` for malformed dates/selection/reference or missing retry key; `401`/`403` for
+access failures; `404` when the issued passenger ticket is unavailable; `409` when that passenger
+already has a voucher; `429` when rate limited; `503` until capability `2026082903` is installed;
+`500` for an unexpected atomic failure.
+
+### GET `/api/ticketing/vouchers/[voucherId]/events`
+
+**Access:** Owners/follow-up assignees may load history and submit a claim. Admin, Master Admin, and
+Super Admin append value confirmation, partial/full use, airline refund, expiry, closure, and
+deadline-correction events.
+
+**Input:** Voucher UUID path segment; no body.
+
+**Success:** `200 private, no-store` with immutable chronological lifecycle events and actor/link
+evidence.
+
+**Errors:** `401`/`403` for access failures; `404` when unavailable; `503` until capability
+`2026082903` is installed; `500` for an unsafe projection.
+
+### POST `/api/ticketing/vouchers/[voucherId]/events`
+
+**Access:** Owners/follow-up assignees may submit a claim. Only Admin, Master Admin, and Super Admin
+may append the remaining lifecycle event types.
+
+**Input:** Strict event type/date, expected version, event-specific amount, exact replacement
+passenger selection, reference/notes/reason, and an 8–200 character idempotency key.
+
+**Success:** Confirmed and remaining value are derived from immutable events. Reuse selects an
+exact replacement ledger passenger and is rejected unless its airline matches the voucher airline.
+Optimistic versions and 8–200 character idempotency keys prevent duplicate allocation.
+
+**Errors:** `400` for invalid event combinations; `401`/`403` for access failures; `404` when the
+voucher or replacement passenger is unavailable; `409` for stale, over-allocation, airline, or
+idempotency conflict; `429` when rate limited; `503` until capability `2026082903` is installed;
+`500` for atomic failure.
+
+### GET `/api/travel-packages/[id]/ticketing`
+
+**Access:** A signed-in staff user must first be able to read the package through its normal RLS
+policy. An unavailable package returns `404` before internal Ticketing data is queried.
+
+**Input:** Package UUID path segment; no query or body.
+
+**Success:** A bounded package-workspace projection of exact PNR-linked tickets, latest fare
+variance, refunds, and vouchers, including active linked-group matches. It does not mutate released
+package finances.
+
+**Errors:** `400` for an invalid UUID; `401` when signed out; `404` when the package is not visible;
+`503` until capability `2026082903` is installed; `500` if linked lifecycle data cannot be loaded.
 
 ### GET `/api/ticketing/airports`
 

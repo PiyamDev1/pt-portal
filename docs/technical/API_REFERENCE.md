@@ -250,11 +250,18 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 | `PATCH`        | `/api/ticketing/bookings/[bookingId]/transactions/[transactionId]` |
 | `GET`, `PUT`   | `/api/ticketing/bookings/[bookingId]/sectors`                      |
 | `GET`          | `/api/ticketing/airports`                                          |
+| `GET`, `POST`  | `/api/ticketing/vouchers`                                          |
+| `GET`, `POST`  | `/api/ticketing/vouchers/[voucherId]/events`                       |
+| `GET`, `POST`  | `/api/ticketing/fare-adjustments`                                  |
+| `POST`         | `/api/ticketing/fare-checks`                                       |
+| `GET`, `POST`  | `/api/ticketing/refunds`                                           |
+| `POST`         | `/api/ticketing/refunds/[refundId]/events`                         |
 | `GET`          | `/api/ticketing/flight-monitor`                                    |
 | `POST`         | `/api/ticketing/flight-monitor/[sectorId]/schedule-change`         |
 | `GET`, `PATCH` | `/api/admin/ticketing/flight-api`                                  |
 | `GET`          | `/api/cron/ticketing/flight-monitor`                               |
 | `GET`          | `/api/cron/ticketing/time-limits`                                  |
+| `GET`          | `/api/travel-packages/[id]/ticketing`                              |
 
 The My Sales Ledger endpoint verifies an active Ticketing department member or Ticketing oversight
 role; regular staff receive their own records and Admin/Master Admin/Super Admin receive the bounded
@@ -269,6 +276,17 @@ queue and perform the actual correction or archive. Archive is soft deletion, ac
 and requires a fresh authenticator or backup code before the admin-only database operation runs.
 The exact-PNR booking route and child-transaction routes preserve owner and source-event rules.
 Root-TK itinerary routes remain owner-only except for reasoned admin cover.
+
+Ticket Vouchers use an exact issued passenger type/position rather than exposing a database
+allocation ID to the browser. Owners see their own/follow-up register; administrators see the team
+register and may cover creation, follow-up assignment, or the default 11-month deadline. Initial
+airline-confirmed and remaining values stay unknown (`null`) until a later claim event confirms
+them. Their event route provides claim, value, allocation, refund, expiry, closure, and corrected
+deadline history; same-airline replacement use is enforced server-side. Refund routes persist the
+cancellation formula snapshot and replacement choice, then append actual customer settlement,
+airline recovery, and cost evidence until final P&L is known. Low Fare records both changed fares
+and append-only no-change checks, with complete owner filter options and no no-change Commission
+event. Exact PNR-linked ticket/refund/voucher status is also visible inside the package workspace.
 
 Flight Monitoring remains intentionally shared across agents but exposes only operational flight,
 passenger, contact, owner, schedule-case, and provider-observation context. AeroDataBox automation

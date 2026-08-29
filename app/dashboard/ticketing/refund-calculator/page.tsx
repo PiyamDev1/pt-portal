@@ -1,11 +1,18 @@
 import type { Metadata } from 'next'
-import { TicketingPlaceholder } from '../TicketingPlaceholder'
+import { TicketCancellationCalculator } from './TicketCancellationCalculator'
+import { RefundRegister } from './RefundRegister'
 
 export const metadata: Metadata = {
-  title: 'Refund Calculator - PT Portal',
-  description: 'Placeholder for the future ticket refund calculator',
+  title: 'Ticket Cancellation Calculator - PT Portal',
+  description:
+    'Preview ticket cancellation charges, customer refunds and safe replacement-ticket adjustments',
 }
 
 export default function RefundCalculatorPage() {
-  return <TicketingPlaceholder kind="refund" />
+  return (
+    <div className="space-y-8">
+      <TicketCancellationCalculator />
+      <RefundRegister />
+    </div>
+  )
 }

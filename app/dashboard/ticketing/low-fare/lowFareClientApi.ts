@@ -1,7 +1,10 @@
 import type {
   LowFareAdjustmentInput,
   LowFareAdjustmentResult,
+  LowFareCheckInput,
+  LowFareCheckResult,
   LowFareLatestAdjustment,
+  LowFareLatestCheck,
   LowFareQueueFilters,
   LowFareQueueItem,
   LowFareQueuePage,
@@ -58,9 +61,22 @@ function isLatestAdjustment(value: unknown): value is LowFareLatestAdjustment {
   )
 }
 
+function isLatestCheck(value: unknown): value is LowFareLatestCheck {
+  return (
+    isRecord(value) &&
+    typeof value.checkId === 'string' &&
+    isNullableString(value.currentAdjustmentId) &&
+    isMoney(value.observedFareGbp) &&
+    typeof value.effectiveDate === 'string' &&
+    typeof value.checkedByEmployeeId === 'string' &&
+    typeof value.createdAt === 'string'
+  )
+}
+
 function isQueueItem(value: unknown): value is LowFareQueueItem {
   if (!isRecord(value) || !isRecord(value.airline) || !isRecord(value.owner)) return false
   if (value.latestAdjustment !== null && !isLatestAdjustment(value.latestAdjustment)) return false
+  if (value.latestCheck !== null && !isLatestCheck(value.latestCheck)) return false
 
   return (
     typeof value.bookingId === 'string' &&
@@ -106,6 +122,22 @@ function isAdjustmentResult(value: unknown): value is LowFareAdjustmentResult {
   )
 }
 
+function isCheckResult(value: unknown): value is LowFareCheckResult {
+  return (
+    isRecord(value) &&
+    typeof value.checkId === 'string' &&
+    typeof value.bookingId === 'string' &&
+    isPositiveInteger(value.bookingVersion) &&
+    typeof value.rootTransactionId === 'string' &&
+    isPositiveInteger(value.rootTransactionVersion) &&
+    isMoney(value.observedFareGbp) &&
+    typeof value.effectiveDate === 'string' &&
+    typeof value.packageMatchStatus === 'string' &&
+    typeof value.createdAt === 'string' &&
+    typeof value.idempotentReplay === 'boolean'
+  )
+}
+
 export async function loadLowFareQueue(
   filters: LowFareQueueFilters,
   options: { cursor?: string; signal?: AbortSignal; limit?: number } = {},
@@ -140,6 +172,14 @@ export async function loadLowFareQueue(
     !isRecord(payload) ||
     !Array.isArray(payload.items) ||
     !payload.items.every(isQueueItem) ||
+    !isRecord(payload.filterOptions) ||
+    !Array.isArray(payload.filterOptions.owners) ||
+    !payload.filterOptions.owners.every(
+      (owner) =>
+        isRecord(owner) &&
+        typeof owner.employeeId === 'string' &&
+        typeof owner.fullName === 'string',
+    ) ||
     typeof payload.hasMore !== 'boolean' ||
     (payload.hasMore && (typeof payload.nextCursor !== 'string' || !payload.nextCursor)) ||
     (!payload.hasMore && payload.nextCursor !== null)
@@ -149,9 +189,38 @@ export async function loadLowFareQueue(
 
   return {
     items: payload.items,
+    filterOptions: { owners: payload.filterOptions.owners },
     hasMore: payload.hasMore,
     nextCursor: payload.hasMore ? (payload.nextCursor as string) : null,
   }
+}
+
+export async function createLowFareCheck(
+  input: LowFareCheckInput,
+  idempotencyKey: string,
+): Promise<LowFareCheckResult> {
+  const response = await fetch('/api/ticketing/fare-checks', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify(input),
+  })
+  const payload = (await response.json().catch(() => ({}))) as unknown
+
+  if (!response.ok) {
+    const error = isRecord(payload) ? (payload as ApiErrorPayload) : {}
+    throw new LowFareApiError(
+      error.error || 'Unable to record the fare check',
+      error.fieldErrors || {},
+      error.code,
+    )
+  }
+  if (!isCheckResult(payload)) {
+    throw new LowFareApiError('Low Fare returned an invalid fare-check result. Refresh the queue.')
+  }
+  return payload
 }
 
 export async function createLowFareAdjustment(

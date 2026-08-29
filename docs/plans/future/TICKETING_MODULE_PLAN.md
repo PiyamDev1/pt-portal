@@ -1,15 +1,17 @@
 # Ticketing Module Plan
 
-> **Partial implementation record and remaining roadmap.** This document replaces the March 2026
+> **Implemented first-release record and remaining roadmap.** This document replaces the March 2026
 > brainstorm. The database foundation, TK ledger/detail completion, issued DC/R-ER financial
 > service entry, shared whole-PNR GBP Low Fare queue, audited root-TK staff attribution, and
 > privileged admin-on-behalf TK completion are implemented. Root-TK itinerary entry, all-agent
 > Flight Monitoring, manual schedule changes, staff amendment/deletion requests, and the bounded
-> AeroDataBox monitoring integration are also implemented. Later workflows described here remain
-> proposals until their code, migrations, and tests are shipped.
+> AeroDataBox monitoring integration are also implemented. Persistent refund/recovery, full Ticket
+> Voucher lifecycle, package-ticket status, and append-only fare checks are implemented as well.
+> Commission policy/targets remain a separate deferred module; advanced service/currency workflows
+> described as future are not part of this Ticketing first-release boundary.
 
-- **Status:** Foundation, sales ledger, shared Low Fare, root-TK completion/attribution, itinerary entry, admin-controlled corrections/archive, and Flight Monitoring implemented
-- **Last updated:** August 28, 2026
+- **Status:** Ticketing first-release operational scope implemented; Commission/targets deferred
+- **Last updated:** August 29, 2026
 - **Owner:** PT-Portal Team
 
 ### Implementation checkpoint — August 23, 2026
@@ -74,12 +76,13 @@
   payment publish a separate `ticket_paid` fact. These variable-only events inherit server-derived
   package scope, leave policy/calculation to Commission, and never emit the generic target-counting
   `ticket_issued` event.
-- The implemented DC/R-ER entry is intentionally an aggregate issued financial service movement.
-  Exact passenger allocation, the changed itinerary, Held child services, and a component split
-  between fare difference and airline/change fee remain future workflows.
-- **Still future:** itinerary sectors, no-change fare-check observations, non-GBP/partial-passenger
-  fare adjustments, Ticket Vouchers, Sales Targets, team Flight Monitoring, Refunds & Claims, and
-  the native cancellation calculator.
+- The initial DC/R-ER entry was an aggregate issued financial service movement. Later capability
+  `2026082703` added exact affected passenger allocation. Changed child itinerary, Held child
+  services, and a component split between fare difference and airline/change fee remain advanced
+  future workflows.
+- The first-release features formerly listed here—root itinerary, team Flight Monitoring, Refunds
+  & Claims, vouchers, cancellation calculator, and no-change fare checks—are now implemented.
+  Non-GBP/partial-passenger Low Fare and Commission-owned Sales Targets remain deferred.
 
 ### Implementation checkpoint — August 24, 2026
 
@@ -194,6 +197,47 @@
   airline deadline has passed are marked for action immediately in the UI while the expiry cron
   catches up; the derived clock is branch-independent because the stored deadline is an absolute
   server timestamp.
+
+### Implementation checkpoint — August 29, 2026
+
+- Reconciled the roadmap against capability `2026082802`. The exact Held expiry and 24/6/2-hour
+  warning flow is implemented through a daily Hobby-compatible Vercel cron, atomic claim/finalise
+  RPCs, stale-claim recovery, and Mailgun delivery. Team-ledger bounded search, opaque pagination,
+  and Load more are also implemented; older future wording for those items is superseded below.
+- Added the native Ticket Cancellation Calculator preview using the clarified company formula and
+  integer-penny domain calculations. It shows the minimum net-zero charge, proposed charge,
+  customer refund, expected airline recovery, expected company result, and original margin. A
+  proposed negative refund is clamped to zero and requires Manager/Admin review.
+- The preview can look up an exact issued TK PNR through the existing owner/admin-scoped ledger,
+  exclude DC/R-ER rows, select an ADT/YTH/CHD/INF fare group and stable passenger slot/ticket
+  number, and prefill its per-ticket supplier cost and net sale price. Manual entry remains
+  available, and the user must review the prefill.
+- Retained agent commission remains a clearly labelled manual input until the Commission module can
+  provide the posted value server-side. Capability `2026082903` now persists the selected passenger,
+  complete formula snapshot, package scope, replacement choice, and administrator override evidence;
+  actual settlement/recovery events keep P&L pending until airline recovery is final.
+- The cancellation preview now asks whether the customer value will be refunded or adjusted against
+  a replacement ticket. Replacement costs can be entered manually or prefilled from a different
+  exact-PNR Held/Issued TK and passenger ticket in the authorised ledger. It shows the net-zero and
+  desired-markup prices, how much cancellation value can actually be applied, any extra customer
+  payment or remaining credit, and distinguishes a real company loss from a reduced desired result.
+  It warns that unconfirmed airline recovery is not available cash and that airline credit/vouchers
+  must remain with the same airline. This remains advice only and does not allocate a voucher.
+- Added, disposable-database tested, deployed, and live-verified the first Ticket Voucher capability
+  `2026082901`, then regenerated linked Supabase types. It creates one immutable unknown-value
+  voucher per completed issued passenger ticket, defaults claim-by to issue date plus 11 calendar
+  months, appends creation/audit evidence, and supports 90/30/7-day follow-up claims.
+  The responsible owner may create their own voucher; the database reserves on-behalf creation,
+  another follow-up owner, and claim-deadline overrides for Admin, Master Admin, and Super Admin.
+  Live verification confirmed ready capability, both empty voucher tables, service-only creation,
+  and no direct authenticated table read.
+- Added the protected Ticket Vouchers register and create screen. It uses exact-PNR issued-TK
+  lookup and stable ADT/YTH/CHD/INF passenger positions rather than exposing database allocation
+  IDs, requires a completed passenger ticket number, keeps airline value visibly unknown, provides
+  owner/follow-up scoping and bounded filter-bound pagination, and exposes team follow-up controls
+  only to administrators. Capability `2026082903` adds claim submission, value confirmation,
+  partial/full same-airline reuse, airline refund, expiry, closure, deadline correction, and event
+  history.
 
 ## 1. Summary
 
@@ -433,9 +477,10 @@ transactions:
 The implemented first DC/R-ER slice records only an Issued aggregate financial service movement.
 Every child points to the immutable root TK; each R-ER additionally supersedes the current issued
 replacement-chain tail. Booking and issue dates cannot predate that predecessor, including when
-multiple reissues happen on the same business date. Affected ADT/CHD/INF quantities cannot exceed
-the root mix. The child does not yet assert exact affected passenger identities or a changed
-itinerary, and it never mutates the root booking/transaction lifecycle or payment facts.
+multiple reissues happen on the same business date. Affected ADT/YTH/CHD/INF quantities cannot
+exceed the root mix and are allocated to exact stable passenger slots. The child does not yet store
+a changed child-service itinerary, and it never mutates the root booking/transaction lifecycle or
+payment facts.
 
 Operational states are Draft, Held, Issued, Expired, Cancelled, and Refunded/Part Refunded. Payment
 states are Unpaid, Part Paid, and Paid and remain independent of operational status.
@@ -551,6 +596,30 @@ The calculator should:
   package profitability.
 - For package tickets, emit the cancellation/reissue cost and package-match variables. The
   Commission module applies the package's fixed-per-passenger or profit-percentage policy.
+
+When the customer asks to use the cancellation value on another ticket, the preview must ask for a
+manual replacement cost or an exact existing Held/Issued TK and passenger ticket. Define:
+
+```text
+V = cancellation value available to the customer
+N = replacement supplier cost + replacement posted agent commission
+R = desired replacement company markup
+P = recorded replacement sale price
+
+minimum net-zero replacement price = N
+minimum safe replacement price     = N + R
+minimum extra customer payment     = max((N + R) - V, 0)
+credit applied at recorded price   = min(V, P)
+credit remaining                   = max(V - P, 0)
+actual replacement company result  = P - N
+```
+
+The UI must advise against proceeding below the net-zero price, identify the actual company loss,
+and require Manager/Admin review when the recorded price misses the requested company result. It
+must never count unused customer credit as company income. Cash recovery may be used on any
+replacement, but airline credit or voucher reuse must be valid for the passenger/travel dates and
+must use the same airline; persisted allocation and hard same-airline enforcement belong to the
+voucher event workflow.
 
 Unknown airline recovery is `null`, not zero. Until it is confirmed, the UI labels company P&L as
 pending rather than presenting a false final loss.
@@ -677,9 +746,10 @@ routes:
 - `GET/PUT /api/ticketing/bookings/{id}/sectors`
 - `GET /api/ticketing/airports`
 - `GET/POST /api/ticketing/fare-adjustments`
-- `POST /api/ticketing/refunds/preview` and `GET/POST /api/ticketing/refunds`
-- `GET/POST/PATCH /api/ticketing/vouchers` and
-  `/api/ticketing/vouchers/{id}/events`
+- `POST /api/ticketing/fare-checks`
+- `GET/POST /api/ticketing/refunds` and `POST /api/ticketing/refunds/{id}/events`
+- `GET/POST /api/ticketing/vouchers` and `GET/POST /api/ticketing/vouchers/{id}/events`
+- `GET /api/travel-packages/{id}/ticketing`
 - `GET /api/ticketing/flight-monitor`
 - `GET /api/ticketing/targets/progress` as a read-only projection from the Commission module
 - `GET/POST/PATCH /api/ticketing/airlines`
@@ -703,6 +773,27 @@ All routes must:
   values.
 - Customer contact, ticket number, fare, refund, voucher, and commission fields remain internal and
   are never returned by public package routes.
+
+### Implementation checkpoint — August 29, 2026
+
+- Deployed capabilities `2026082901`–`2026082904` to linked Supabase and regenerated database
+  types. The disposable PostgreSQL 16 suite passes the complete migration chain and idempotent
+  replay checks.
+- Added exact bidirectional package-PNR reconciliation. A ticket is classified as a package item
+  when its normalized PNR matches an active flight reservation, including a PNR added to the
+  package after the ticket; unrelated duplicate matches remain unresolved for administrator review.
+- Persisted one immutable cancellation-formula snapshot per selected passenger, including
+  refund-versus-replacement choice and loss-prevention result. Admin settlement/recovery/cost events
+  keep actual company P&L pending until airline recovery is final.
+- Completed voucher claim, value confirmation, partial/full same-airline reuse, airline refund,
+  expiry, closure, deadline correction, remaining-value derivation, and event history.
+- Added package-workspace visibility for exact PNR-linked tickets, fare variance, refunds, and
+  vouchers without changing package invoices or released reservation amounts.
+- Added append-only “No fare change” observations to the shared Low Fare queue, complete eligible
+  owner filter options, immutable audit evidence, and an explicit no-Commission-event guarantee.
+- AeroDataBox storage, cadence, budget, admin controls, and the daily Hobby-compatible cron are
+  implemented. Linked settings remain disabled until the provider key and cron secret are verified
+  in the production Vercel environment; zero active future issued sectors currently require a call.
 
 ## 5. Delivery plan
 
@@ -736,7 +827,7 @@ All routes must:
   differences, issued passenger-ticket metrics, and versioned Commission source-event emission.
 - Seed/configure active airlines and branch timezones.
 
-### Phase 2: Sales ledger and flight operations — partially implemented
+### Phase 2: Sales ledger and flight operations — complete for first release
 
 - **Implemented:** replace the ledger placeholder with keyboard-first Held/Issued TK quick entry,
   grouped ADT/YTH/CHD/INF supplier fares, gross unit sale prices, explicit unit discounts, own-record
@@ -787,36 +878,48 @@ All routes must:
 - **Implemented:** ledger filters and row indicators for incomplete TK details and Held records
   past their airline time limit.
 - **Implemented:** exact affected-passenger allocation for DC/R-ER service transactions.
+- **Implemented:** exact Held expiry plus catch-up-safe 24/6/2-hour and expiry email notifications,
+  atomic delivery claims, stale-claim recovery, and a daily Hobby-compatible cron.
+- **Implemented:** bounded Admin/Master Admin/Super Admin team-ledger search and opaque keyset
+  pagination with Load more; regular employees remain owner-scoped.
 - **Future:** add component fee/fare-difference costs, Held DC/R-ER, changed child-service itinerary
   allocation, and transaction-scoped admin/assistant attribution for DC/R-ER service completion.
-- Connect the 24/6/2-hour time-limit reminders and exact expiry processing.
-- Complete admin team-ledger pagination/search; audited admin-on-behalf root-TK completion is
-  implemented.
 
-### Phase 3: Targets and low fare — partially implemented
+### Phase 3: Low Fare complete; Commission-owned targets deferred
 
 - **Implemented:** shared GBP whole-PNR Low Fare Queue, immutable signed fare-difference source
   variables, acting-agent attribution, package snapshots, and no commission/profit presentation.
 - **Implemented:** agent entry-time assistant selection plus admin entry-time/later correction of
   responsible/assistant TK attribution, immutable attribution history, owner alignment, primary-only
   target variables, assistant zero target units, and issued source-event correction lineage.
-- **Future:** same-fare check observations, non-GBP and partial-passenger adjustments, and complete
-  owner-filter options.
-- Connect issued TK passenger-ticket events to Commission-owned weekly/monthly targets and show the
-  read-only non-financial progress card in Ticketing.
-- Verify that Ticketing emits every variable required by the separate Commission module plan.
+- **Implemented:** append-only same-fare observations and complete eligible-ticket-owner filter
+  options. No-change checks create audit evidence but no Commission event.
+- **Deferred boundary:** non-GBP and partial-passenger fare adjustments require actual GBP
+  settlement/allocation contracts. Weekly/monthly target configuration and progress remain in the
+  separately deferred Commission module, as requested.
 
-### Phase 4: Refunds, vouchers, and package views — future
+### Phase 4: Refunds, vouchers, and package views — complete for first release
 
-- Port the company cancellation calculator into a versioned, server-tested native calculation;
-  replace the refund placeholder with its preview/save workflow, the refund register, airline
-  recovery lifecycle, company P&L, and commission-preservation rules.
-- Add voucher creation, claim/reuse events, unknown-to-confirmed value workflow, expiry reminders,
-  and same-airline enforcement.
-- Surface ticket status, linked refunds, vouchers, and fare variances in the matched package view
-  without mutating released package financial records.
+- **Implemented:** native, versioned and tested cancellation preview using integer pennies and the
+  clarified net-zero/markup formula. The selected passenger/formula snapshot is persisted; retained
+  commission remains a temporary auditable manual input until the Commission module supplies it.
+- **Implemented:** exact-PNR issued-TK lookup plus ADT/YTH/CHD/INF fare-group and stable passenger
+  slot/ticket-number selection with per-ticket supplier/net-sale prefill, using the existing
+  server-enforced ledger and completion-detail scopes.
+- **Implemented:** refund-versus-replacement choice, manual replacement-cost entry or exact-PNR
+  Held/Issued TK passenger selection, and loss-prevention advice covering net-zero price, desired
+  result, extra customer payment, unused credit, and same-airline voucher/credit restrictions.
+- **Implemented:** owner/team refund register, package-scope snapshot, administrator loss override,
+  customer settlement, airline recovery, other-cost and recovery-final events, and actual company
+  result only after recovery becomes final.
+- **Implemented:** voucher creation/register, unknown initial value, issue-date-plus-11-month
+  deadline, administrator follow-up/deadline controls, and 90/30/7-day reminder claims.
+- **Implemented:** claim submission, airline confirmation, partial/full reuse and refund events,
+  remaining-value calculation, expiry/closure processing, and same-airline enforcement.
+- **Implemented:** ticket status, linked refunds, vouchers, and fare variances in the matched package
+  view without mutating released package financial records.
 
-### Phase 5: Hardening and rollout — future
+### Phase 5: Hardening and rollout — validated in repository; operational pilot remains
 
 - Run authorization, concurrency, accessibility, responsive layout, email deduplication, DST, and
   large-ledger performance testing.
@@ -855,6 +958,9 @@ All routes must:
 - The cancellation calculator produces net £0 when markup is zero, produces markup as expected
   final company profit, keeps reissue supplier cost separate, and reports rather than returns a
   negative customer refund.
+- Replacement advice never treats unused cancellation value as company income, identifies both a
+  below-cost loss and a desired-result shortfall, and prevents users from assuming airline
+  credit/vouchers can fund a different-airline booking.
 
 ### API and permission tests
 

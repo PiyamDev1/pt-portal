@@ -5,11 +5,11 @@ import { ArrowDownToLine, BadgePoundSterling, Eraser, RefreshCw, Search, Users }
 import { LowFareQueue } from './LowFareQueue'
 import { loadLowFareQueue, LowFareApiError } from './lowFareClientApi'
 import type {
-  LowFareAdjustmentResult,
   LowFareAirline,
   LowFareOwner,
   LowFareQueueFilters,
   LowFareQueueItem,
+  LowFareSaveResult,
 } from './types'
 
 const EMPTY_FILTERS: LowFareQueueFilters = {
@@ -51,22 +51,25 @@ export function LowFareClient() {
   const [knownOwners, setKnownOwners] = useState<Record<string, LowFareOwner>>({})
   const requestSequence = useRef(0)
 
-  const rememberFilterOptions = useCallback((nextItems: LowFareQueueItem[]) => {
-    setKnownAirlines((current) => {
-      const next = { ...current }
-      nextItems.forEach((item) => {
-        next[item.airline.iataCode] = item.airline
+  const rememberFilterOptions = useCallback(
+    (nextItems: LowFareQueueItem[], owners: LowFareOwner[]) => {
+      setKnownAirlines((current) => {
+        const next = { ...current }
+        nextItems.forEach((item) => {
+          next[item.airline.iataCode] = item.airline
+        })
+        return next
       })
-      return next
-    })
-    setKnownOwners((current) => {
-      const next = { ...current }
-      nextItems.forEach((item) => {
-        next[item.owner.employeeId] = item.owner
+      setKnownOwners((current) => {
+        const next = { ...current }
+        owners.forEach((owner) => {
+          next[owner.employeeId] = owner
+        })
+        return next
       })
-      return next
-    })
-  }, [])
+    },
+    [],
+  )
 
   const requestQueue = useCallback(
     async (
@@ -81,7 +84,7 @@ export function LowFareClient() {
       try {
         const page = await loadLowFareQueue(filters, { cursor: options.cursor, limit: 50 })
         if (requestId !== requestSequence.current) return
-        rememberFilterOptions(page.items)
+        rememberFilterOptions(page.items, page.filterOptions.owners)
         setItems((current) => {
           if (!options.append) return page.items
           const byBooking = new Map(current.map((item) => [item.bookingId, item]))
@@ -158,7 +161,7 @@ export function LowFareClient() {
     void requestQueue(EMPTY_FILTERS)
   }
 
-  const refreshAfterSave = async (_result: LowFareAdjustmentResult) => {
+  const refreshAfterSave = async (_result: LowFareSaveResult) => {
     setSelectedBookingId(null)
     await requestQueue(appliedFilters)
   }

@@ -57,6 +57,14 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 | `20260826_ticketing_runtime_readiness.sql`              | trusted fixed-schema pgcrypto bridge, verified runtime dependency status, preserved capability history, and Ticketing capability `2026082601`                                                                           |
 | `20260826_ticketing_sector_itinerary.sql`               | server-owned airport directory, airport-derived timezone/UTC sectors, retained root-TK itinerary revisions, audited administrator cover, guarded write context, and capability `2026082602`                             |
 | `20260827_ticketing_schedule_changes.sql`               | immutable manual schedule-change cases, shared marking, owner/admin resolution, guarded status transitions, itinerary-revision finalisation, and capability `2026082701`                                                |
+| `20260827_ticketing_time_limits.sql`                    | exact Held expiry, catch-up-safe 24/6/2-hour and expiry claims, stale-claim recovery, and capability `2026082702`                                                                                                       |
+| `20260827_ticketing_service_passenger_allocation.sql`   | exact stable passenger allocation for issued DC/R-ER services and capability `2026082703`                                                                                                                               |
+| `20260828_ticketing_youth_assistance_archive.sql`       | YTH fares, gross unit sale/discount, root-TK assistant facts with zero target units, audited archive, and capability `2026082801`                                                                                       |
+| `20260828_ticketing_admin_requests_suppliers_api.sql`   | amendment/archive requests, supplier snapshots, airport metadata, AeroDataBox settings/usage, admin correction controls, and capability `2026082802`                                                                    |
+| `20260829_ticketing_voucher_foundation.sql`             | immutable unknown-value passenger vouchers, eleven-month deadline, reminder claims, and capability `2026082901`                                                                                                         |
+| `20260829_ticketing_package_pnr_reconciliation.sql`     | bidirectional exact package-PNR reconciliation, late classification, ambiguity handling, and capability `2026082902`                                                                                                    |
+| `20260829_ticketing_refund_voucher_lifecycle.sql`       | saved refund formula/settlement/recovery evidence plus voucher claim/value/use/refund/closure events and capability `2026082903`                                                                                        |
+| `20260829_ticketing_fare_check_observations.sql`        | append-only no-change supplier-fare observations, complete Low Fare owner options, no Commission event, and capability `2026082904`                                                                                     |
 
 Apply unapplied files in filename order and track which migrations have already run. Every
 versioned Ticketing capability migration begins with a forward-version guard: the foundation supports a fresh
@@ -78,6 +86,11 @@ replacement boundary plus the read-only airport and sector projections.
 Capability `2026082701` adds immutable manual schedule cases, single-use status contexts, a
 read-only active-case projection, and owner/reasoned-administrator finalisation through itinerary
 replacement.
+Capabilities `2026082702`–`2026082802` add exact expiry processing, service-passenger allocation,
+YTH/pricing/assistance/archive controls, staff requests, suppliers, and budgeted flight API state.
+Capabilities `2026082901`–`2026082904` add vouchers, bidirectional package-PNR reconciliation,
+refund/voucher lifecycle evidence, and no-change fare observations. The linked project is verified
+ready at `2026082904`.
 A feature deployment may require an earlier bootstrap noted by its active guide—for example
 bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against
 production.
@@ -123,16 +136,18 @@ were refreshed from this linked schema.
 
 This capability supports TK Held/Issued quick entry, the authenticated agent's own ledger, partial
 TK detail completion, aggregate issued DC/R-ER financial service movements against an existing
-root TK, and shared whole-PNR GBP supplier-fare adjustments against eligible issued tickets. The
+root TK, shared whole-PNR GBP supplier-fare adjustments and no-change observations, persisted
+refund/recovery evidence, and voucher lifecycle events against eligible issued tickets. The
 service children carry affected ADT/CHD/INF quantities and full supplier/customer unit values,
 preserve immutable root facts, form an explicit R-ER supersession chain, and publish variables-only
 service/payment facts that do not count as issued-TK target events. Low Fare appends a separate
 linear supplier-fare history and target-safe positive/negative difference event without rewriting
 the root. Root TKs now support retained itinerary revisions, the shared future-flight projection,
 and manual flight-number/time change cases with owner/administrator resolution.
-The runtime does not yet capture exact affected passenger identities for DC/R-ER, an
-airline-fee/fare-difference component split, same-fare check observations, non-GBP fare adjustments,
-vouchers, targets, time-limit reminder/expiry processing, refunds, or the cancellation calculator.
+The runtime captures exact affected passenger identities for issued DC/R-ER children and processes
+Held-ticket time-limit claims. It does not yet capture an airline-fee/fare-difference component
+split, Held DC/R-ER children, changed child-service itinerary, non-GBP/partial-passenger Low Fare,
+or Commission-owned targets/policy.
 
 The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 

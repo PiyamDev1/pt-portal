@@ -28,6 +28,7 @@ const ITEM: LowFareQueueItem = {
   initialSupplierFareGbp: '420.00',
   currentSupplierFareGbp: '420.00',
   latestAdjustment: null,
+  latestCheck: null,
   packageMatchStatus: 'unmatched',
   updatedAt: '2026-08-24T10:00:00.000Z',
 }
@@ -50,7 +51,12 @@ const ADJUSTED_ITEM: LowFareQueueItem = {
 
 function queueResponse(items: LowFareQueueItem[] = [ITEM], hasMore = false) {
   return new Response(
-    JSON.stringify({ items, hasMore, nextCursor: hasMore ? 'next-page' : null }),
+    JSON.stringify({
+      items,
+      filterOptions: { owners: [ITEM.owner] },
+      hasMore,
+      nextCursor: hasMore ? 'next-page' : null,
+    }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   )
 }
@@ -70,6 +76,24 @@ function saveResponse() {
       newSupplierFareGbp: '380.00',
       differenceGbp: '40.00',
       passengerCount: 2,
+      effectiveDate: '2026-08-24',
+      packageMatchStatus: 'unmatched',
+      createdAt: '2026-08-24T12:00:00.000Z',
+      idempotentReplay: false,
+    }),
+    { status: 201, headers: { 'Content-Type': 'application/json' } },
+  )
+}
+
+function checkResponse() {
+  return new Response(
+    JSON.stringify({
+      checkId: '77777777-7777-4777-8777-777777777777',
+      bookingId: ITEM.bookingId,
+      bookingVersion: ITEM.bookingVersion,
+      rootTransactionId: ITEM.rootTransactionId,
+      rootTransactionVersion: ITEM.rootTransactionVersion,
+      observedFareGbp: '420.00',
       effectiveDate: '2026-08-24',
       packageMatchStatus: 'unmatched',
       createdAt: '2026-08-24T12:00:00.000Z',
@@ -181,8 +205,12 @@ describe('LowFareClient', () => {
     expect(toastMocks.error).not.toHaveBeenCalled()
   })
 
-  it('rejects a no-change observation instead of creating an adjustment', async () => {
-    const fetchMock = vi.fn(async () => queueResponse())
+  it('records a no-change observation without creating an adjustment', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(queueResponse())
+      .mockResolvedValueOnce(checkResponse())
+      .mockResolvedValueOnce(queueResponse())
     vi.stubGlobal('fetch', fetchMock)
 
     render(<LowFareClient />)
@@ -190,12 +218,22 @@ describe('LowFareClient', () => {
     expect(await screen.findByText('ABC123')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Record fare for ABC123' }))
     expect(screen.getByLabelText('New fare issue date').getAttribute('min')).toBe('2026-08-22')
-    fireEvent.change(screen.getByLabelText('New supplier fare for ABC123'), {
-      target: { value: '420.00' },
+    fireEvent.change(screen.getByLabelText('New fare issue date'), {
+      target: { value: '2026-08-24' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Record fare' }))
+    fireEvent.click(screen.getByRole('button', { name: 'No fare change' }))
 
-    expect(screen.getByText('Enter a fare different from the current supplier fare.')).toBeTruthy()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/ticketing/fare-checks')
+    const body = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(body).toEqual({
+      bookingId: ITEM.bookingId,
+      expectedBookingVersion: ITEM.bookingVersion,
+      expectedRootTransactionVersion: ITEM.rootTransactionVersion,
+      expectedPreviousAdjustmentId: null,
+      effectiveDate: '2026-08-24',
+      notes: null,
+    })
+    expect(toastMocks.success).toHaveBeenCalledWith('Fare checked — no change recorded')
   })
 })

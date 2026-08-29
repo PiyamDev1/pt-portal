@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TicketingDashboard } from '@/app/dashboard/ticketing/TicketingDashboard'
-import { TicketingPlaceholder } from '@/app/dashboard/ticketing/TicketingPlaceholder'
 
 describe('TicketingDashboard', () => {
   beforeEach(() => {
@@ -18,7 +17,7 @@ describe('TicketingDashboard', () => {
     )
   })
 
-  it('opens the operational sales ledger and Low Fare queue while keeping refunds pending', () => {
+  it('opens the calculator, operational sales ledger, Low Fare queue and Ticket Vouchers', () => {
     render(<TicketingDashboard />)
 
     expect(screen.getByRole('link', { name: /Refund Calculator/ }).getAttribute('href')).toBe(
@@ -30,9 +29,12 @@ describe('TicketingDashboard', () => {
     expect(screen.getByRole('link', { name: /Low Fare/ }).getAttribute('href')).toBe(
       '/dashboard/ticketing/low-fare',
     )
+    expect(screen.getByRole('link', { name: /Ticket Vouchers/ }).getAttribute('href')).toBe(
+      '/dashboard/ticketing/vouchers',
+    )
     expect(screen.queryByRole('link', { name: /Flight Monitoring/ })).toBeNull()
-    expect(screen.getAllByText('Available')).toHaveLength(2)
-    expect(screen.getAllByText('Coming soon')).toHaveLength(1)
+    expect(screen.getAllByText('Available')).toHaveLength(4)
+    expect(screen.queryByText('Coming soon')).toBeNull()
   })
 
   it('loads the all-agent Flight Monitoring mini-module', async () => {
@@ -47,12 +49,5 @@ describe('TicketingDashboard', () => {
         expect.anything(),
       ),
     )
-  })
-
-  it('keeps the refund destination explicitly non-operational', () => {
-    render(<TicketingPlaceholder kind="refund" />)
-
-    expect(screen.getByRole('heading', { name: 'Refund Calculator' })).toBeTruthy()
-    expect(screen.getByText(/No ticketing data is loaded, calculated or saved/)).toBeTruthy()
   })
 })

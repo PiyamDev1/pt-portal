@@ -50,12 +50,14 @@ const OWNER_COMPLETION_CONTEXT = {
   ownerEmployee: DETAIL.responsibleEmployee,
   isOnBehalf: false,
   onBehalfReasonRequired: false,
+  canManageRecords: false,
 }
 
 const ON_BEHALF_COMPLETION_CONTEXT = {
   ownerEmployee: DETAIL.responsibleEmployee,
   isOnBehalf: true,
   onBehalfReasonRequired: true,
+  canManageRecords: true,
 }
 
 function jsonResponse(value: unknown, status = 200) {

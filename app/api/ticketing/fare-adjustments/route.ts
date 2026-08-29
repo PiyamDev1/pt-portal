@@ -13,6 +13,7 @@ import {
   ticketingFareAdjustmentDateSchema,
   type TicketingAppendFareAdjustmentInput,
   type TicketingAppendFareAdjustmentResult,
+  type TicketingFareCheckLatest,
   type TicketingFareAdjustmentLatest,
   type TicketingFareAdjustmentQueueItem,
 } from '@/lib/ticketing/fareAdjustmentContracts'
@@ -154,6 +155,24 @@ type CurrentAdjustmentRow = {
   package_match_status: string
   commission_scope: string
   created_at: string
+}
+
+type CurrentFareCheckRow = {
+  id: string
+  booking_id: string
+  root_transaction_id: string
+  current_adjustment_id: string | null
+  checked_by_employee_id: string
+  currency: string
+  observed_fare_source: number | string
+  observed_fare_gbp: number | string
+  effective_on: string
+  created_at: string
+}
+
+type FilterOwnerRow = {
+  employee_id: string
+  full_name: string
 }
 
 type FareAdjustmentRpcResult = {
@@ -423,7 +442,40 @@ function latestAdjustment(
   return adjustment
 }
 
-function queueItem(row: BookingRow, adjustmentRow: CurrentAdjustmentRow | undefined) {
+function latestFareCheck(row: CurrentFareCheckRow, booking: BookingRow, root: RootTransactionRow) {
+  const observedSource = money(row.observed_fare_source, { allowZero: true })
+  const observedGbp = money(row.observed_fare_gbp, { allowZero: true })
+  if (
+    !isUuid(row.id) ||
+    row.booking_id !== booking.id ||
+    row.root_transaction_id !== root.id ||
+    !nullableUuid(row.current_adjustment_id) ||
+    !isUuid(row.checked_by_employee_id) ||
+    row.currency !== 'GBP' ||
+    observedSource === null ||
+    observedGbp === null ||
+    moneyCents(observedSource) !== moneyCents(observedGbp) ||
+    !ticketingFareAdjustmentDateSchema.safeParse(row.effective_on).success ||
+    !isTimestampWithTimezone(row.created_at)
+  ) {
+    return null
+  }
+  const check: TicketingFareCheckLatest = {
+    checkId: row.id,
+    currentAdjustmentId: row.current_adjustment_id,
+    observedFareGbp: observedGbp,
+    effectiveDate: row.effective_on,
+    checkedByEmployeeId: row.checked_by_employee_id,
+    createdAt: row.created_at,
+  }
+  return check
+}
+
+function queueItem(
+  row: BookingRow,
+  adjustmentRow: CurrentAdjustmentRow | undefined,
+  fareCheckRow: CurrentFareCheckRow | undefined,
+) {
   const airline = exactlyOneRelated(row.airlines)
   const owner = exactlyOneRelated(row.owner)
   const location = exactlyOneRelated(row.locations)
@@ -480,6 +532,16 @@ function queueItem(row: BookingRow, adjustmentRow: CurrentAdjustmentRow | undefi
 
   const latest = adjustmentRow ? latestAdjustment(adjustmentRow, row, root) : null
   if (adjustmentRow && !latest) return null
+  const check = fareCheckRow ? latestFareCheck(fareCheckRow, row, root) : null
+  if (fareCheckRow && !check) return null
+  const expectedCurrentFare = latest?.newSupplierFareGbp ?? initialSupplierFareGbp
+  if (
+    check &&
+    (check.currentAdjustmentId !== (latest?.adjustmentId ?? null) ||
+      moneyCents(check.observedFareGbp) !== moneyCents(expectedCurrentFare))
+  ) {
+    return null
+  }
 
   const item: TicketingFareAdjustmentQueueItem = {
     bookingId: row.id,
@@ -501,8 +563,9 @@ function queueItem(row: BookingRow, adjustmentRow: CurrentAdjustmentRow | undefi
     },
     issuedDate,
     initialSupplierFareGbp,
-    currentSupplierFareGbp: latest?.newSupplierFareGbp ?? initialSupplierFareGbp,
+    currentSupplierFareGbp: expectedCurrentFare,
     latestAdjustment: latest,
+    latestCheck: check,
     packageMatchStatus: snapshot.packageMatchStatus,
     updatedAt: row.updated_at,
   }
@@ -847,6 +910,7 @@ export async function GET(request: NextRequest) {
   const hasMore = rows.length > parsedQuery.limit
   const pageRows = rows.slice(0, parsedQuery.limit)
   let adjustmentRows: CurrentAdjustmentRow[] = []
+  let fareCheckRows: CurrentFareCheckRow[] = []
 
   if (pageRows.length > 0) {
     const currentResult = await supabase
@@ -882,6 +946,31 @@ export async function GET(request: NextRequest) {
       return privateError('Unable to load the latest fare adjustments right now.', 500)
     }
     adjustmentRows = (currentResult.data || []) as unknown as CurrentAdjustmentRow[]
+
+    const checkResult = await supabase
+      .from('ticket_fare_check_current')
+      .select(
+        `
+          id,
+          booking_id,
+          root_transaction_id,
+          current_adjustment_id,
+          checked_by_employee_id,
+          currency,
+          observed_fare_source,
+          observed_fare_gbp,
+          effective_on,
+          created_at
+        `,
+      )
+      .in(
+        'booking_id',
+        pageRows.map((row) => row.id),
+      )
+    if (checkResult.error) {
+      return privateError('Unable to load the latest fare checks right now.', 500)
+    }
+    fareCheckRows = (checkResult.data || []) as unknown as CurrentFareCheckRow[]
   }
 
   const pageIds = new Set(pageRows.map((row) => row.id))
@@ -893,14 +982,46 @@ export async function GET(request: NextRequest) {
     adjustmentByBookingId.set(adjustment.booking_id, adjustment)
   }
 
-  const items = pageRows.map((row) => queueItem(row, adjustmentByBookingId.get(row.id)))
+  const checkByBookingId = new Map<string, CurrentFareCheckRow>()
+  for (const check of fareCheckRows) {
+    if (!pageIds.has(check.booking_id) || checkByBookingId.has(check.booking_id)) {
+      return privateError('Unable to load the Low Fare queue safely.', 500)
+    }
+    checkByBookingId.set(check.booking_id, check)
+  }
+
+  const items = pageRows.map((row) =>
+    queueItem(row, adjustmentByBookingId.get(row.id), checkByBookingId.get(row.id)),
+  )
   if (items.some((item) => item === null)) {
     return privateError('Unable to load the Low Fare queue safely.', 500)
+  }
+
+  const ownerResult = await supabase
+    .from('ticket_low_fare_filter_owners')
+    .select('employee_id, full_name')
+    .order('full_name', { ascending: true })
+    .order('employee_id', { ascending: true })
+    .limit(5000)
+  if (ownerResult.error) return privateError('Unable to load Low Fare filter options.', 500)
+  const ownerRows = (ownerResult.data || []) as unknown as FilterOwnerRow[]
+  const owners = ownerRows.map((owner) => ({
+    employeeId: owner.employee_id,
+    fullName: owner.full_name,
+  }))
+  if (
+    owners.some(
+      (owner) => !isUuid(owner.employeeId) || typeof owner.fullName !== 'string' || !owner.fullName,
+    ) ||
+    new Set(owners.map((owner) => owner.employeeId)).size !== owners.length
+  ) {
+    return privateError('Unable to load Low Fare filter options safely.', 500)
   }
 
   return apiOk(
     {
       items,
+      filterOptions: { owners },
       hasMore,
       nextCursor:
         hasMore && pageRows.length > 0

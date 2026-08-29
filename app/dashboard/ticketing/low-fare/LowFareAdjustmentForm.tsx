@@ -1,10 +1,10 @@
 'use client'
 
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { Check, Eraser, Save } from 'lucide-react'
+import { Check, ClipboardCheck, Eraser, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { createLowFareAdjustment, LowFareApiError } from './lowFareClientApi'
-import type { LowFareAdjustmentResult, LowFareQueueItem } from './types'
+import { createLowFareAdjustment, createLowFareCheck, LowFareApiError } from './lowFareClientApi'
+import type { LowFareQueueItem, LowFareSaveResult } from './types'
 
 const MONEY_PATTERN = /^\d+(?:\.\d{1,2})?$/
 
@@ -45,7 +45,7 @@ export function LowFareAdjustmentForm({
 }: {
   item: LowFareQueueItem
   onCancel: () => void
-  onSaved: (result: LowFareAdjustmentResult) => Promise<void>
+  onSaved: (result: LowFareSaveResult) => Promise<void>
 }) {
   const minimumEffectiveDate =
     item.latestAdjustment?.effectiveDate && item.latestAdjustment.effectiveDate > item.issuedDate
@@ -72,17 +72,18 @@ export function LowFareAdjustmentForm({
     update()
   }
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const save = async (mode: 'adjustment' | 'check') => {
     if (isSaving) return
 
     const nextErrors: Record<string, string> = {}
-    if (!MONEY_PATTERN.test(newFare) || nextFarePence === null || nextFarePence <= 0) {
-      nextErrors.newSupplierFareGbp = 'Enter a GBP fare above £0 with up to 2 decimals.'
-    } else if (nextFarePence > 9_999_999_999) {
-      nextErrors.newSupplierFareGbp = 'Supplier fare is above the allowed limit.'
-    } else if (currentFarePence === nextFarePence) {
-      nextErrors.newSupplierFareGbp = 'Enter a fare different from the current supplier fare.'
+    if (mode === 'adjustment') {
+      if (!MONEY_PATTERN.test(newFare) || nextFarePence === null || nextFarePence <= 0) {
+        nextErrors.newSupplierFareGbp = 'Enter a GBP fare above £0 with up to 2 decimals.'
+      } else if (nextFarePence > 9_999_999_999) {
+        nextErrors.newSupplierFareGbp = 'Supplier fare is above the allowed limit.'
+      } else if (currentFarePence === nextFarePence) {
+        nextErrors.newSupplierFareGbp = 'Use “No fare change” when the supplier fare is unchanged.'
+      }
     }
     if (!effectiveDate) nextErrors.effectiveDate = 'Enter the new fare issue date.'
     else if (effectiveDate < minimumEffectiveDate) {
@@ -93,27 +94,38 @@ export function LowFareAdjustmentForm({
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
-    if (nextFarePence === null) return
+    if (mode === 'adjustment' && nextFarePence === null) return
 
     setIsSaving(true)
     try {
-      const result = await createLowFareAdjustment(
-        {
-          bookingId: item.bookingId,
-          expectedBookingVersion: item.bookingVersion,
-          expectedRootTransactionVersion: item.rootTransactionVersion,
-          expectedPreviousAdjustmentId: item.latestAdjustment?.adjustmentId || null,
-          newSupplierFareGbp: nextFarePence / 100,
-          effectiveDate,
-          notes: notes.trim() || null,
-          currency: 'GBP',
-        },
-        idempotencyKey.current,
-      )
-      const savedDifference = Number(result.differenceGbp)
-      toast.success(
-        savedDifference > 0 ? 'Lower supplier fare recorded' : 'Supplier fare increase recorded',
-      )
+      const common = {
+        bookingId: item.bookingId,
+        expectedBookingVersion: item.bookingVersion,
+        expectedRootTransactionVersion: item.rootTransactionVersion,
+        expectedPreviousAdjustmentId: item.latestAdjustment?.adjustmentId || null,
+        effectiveDate,
+        notes: notes.trim() || null,
+      }
+      const result =
+        mode === 'check'
+          ? await createLowFareCheck(common, idempotencyKey.current)
+          : await createLowFareAdjustment(
+              {
+                ...common,
+                newSupplierFareGbp: (nextFarePence as number) / 100,
+                currency: 'GBP',
+              },
+              idempotencyKey.current,
+            )
+      if ('differenceGbp' in result) {
+        toast.success(
+          Number(result.differenceGbp) > 0
+            ? 'Lower supplier fare recorded'
+            : 'Supplier fare increase recorded',
+        )
+      } else {
+        toast.success('Fare checked — no change recorded')
+      }
       void onSaved(result).catch(() => {
         toast.error('Fare saved, but the queue could not be refreshed. Refresh to see it.')
       })
@@ -127,6 +139,11 @@ export function LowFareAdjustmentForm({
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void save('adjustment')
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -237,6 +254,15 @@ export function LowFareAdjustmentForm({
           >
             <Eraser className="h-4 w-4" aria-hidden="true" />
             Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void save('check')}
+            disabled={isSaving}
+            className="ui-tap ui-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-black text-emerald-900 hover:bg-emerald-100 disabled:opacity-50 sm:flex-none"
+          >
+            <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+            No fare change
           </button>
           <button
             type="submit"

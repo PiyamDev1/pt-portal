@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const TICKET_FARE_ADJUSTMENT_CAPABILITY_VERSION = 2026082401
+export const TICKET_FARE_ADJUSTMENT_CAPABILITY_VERSION = 2026082904
 export const TICKET_FARE_ADJUSTMENT_MAX_FARE_GBP = 99_999_999.99
 export const TICKET_FARE_ADJUSTMENT_MAX_NOTES_LENGTH = 1_000
 
@@ -55,6 +55,41 @@ export type TicketingFareAdjustmentLatest = {
   createdAt: string
 }
 
+export const ticketingRecordFareCheckSchema = z
+  .object({
+    bookingId: z.string().uuid(),
+    expectedBookingVersion: z.number().int().positive().safe(),
+    expectedRootTransactionVersion: z.number().int().positive().safe(),
+    expectedPreviousAdjustmentId: z.string().uuid().nullable(),
+    effectiveDate: ticketingFareAdjustmentDateSchema,
+    notes: z.string().trim().min(1).max(TICKET_FARE_ADJUSTMENT_MAX_NOTES_LENGTH).nullable(),
+  })
+  .strict()
+
+export type TicketingRecordFareCheckInput = z.output<typeof ticketingRecordFareCheckSchema>
+
+export type TicketingFareCheckLatest = {
+  checkId: string
+  currentAdjustmentId: string | null
+  observedFareGbp: number
+  effectiveDate: string
+  checkedByEmployeeId: string
+  createdAt: string
+}
+
+export type TicketingRecordFareCheckResult = {
+  checkId: string
+  bookingId: string
+  bookingVersion: number
+  rootTransactionId: string
+  rootTransactionVersion: number
+  observedFareGbp: number
+  effectiveDate: string
+  packageMatchStatus: 'unmatched' | 'matched' | 'ambiguous' | 'manually_resolved'
+  createdAt: string
+  idempotentReplay: boolean
+}
+
 export type TicketingFareAdjustmentQueueItem = {
   bookingId: string
   bookingVersion: number
@@ -77,12 +112,16 @@ export type TicketingFareAdjustmentQueueItem = {
   initialSupplierFareGbp: number
   currentSupplierFareGbp: number
   latestAdjustment: TicketingFareAdjustmentLatest | null
+  latestCheck: TicketingFareCheckLatest | null
   packageMatchStatus: 'unmatched' | 'matched' | 'ambiguous' | 'manually_resolved'
   updatedAt: string
 }
 
 export type TicketingFareAdjustmentQueueResponse = {
   items: TicketingFareAdjustmentQueueItem[]
+  filterOptions: {
+    owners: Array<{ employeeId: string; fullName: string }>
+  }
   hasMore: boolean
   nextCursor: string | null
 }

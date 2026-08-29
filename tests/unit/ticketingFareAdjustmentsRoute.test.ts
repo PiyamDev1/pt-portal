@@ -26,11 +26,15 @@ const mocks = vi.hoisted(() => {
     append: { data: unknown; error: unknown }
     bookings: { data: unknown; error: unknown }
     currentAdjustments: { data: unknown; error: unknown }
+    currentFareChecks: { data: unknown; error: unknown }
+    filterOwners: { data: unknown; error: unknown }
   } = {
     capability: { data: null, error: null },
     append: { data: null, error: null },
     bookings: { data: null, error: null },
     currentAdjustments: { data: null, error: null },
+    currentFareChecks: { data: null, error: null },
+    filterOwners: { data: null, error: null },
   }
 
   function queryBuilder(result: () => { data: unknown; error: unknown }) {
@@ -59,9 +63,13 @@ const mocks = vi.hoisted(() => {
 
   const bookingQuery = queryBuilder(() => state.bookings)
   const currentAdjustmentQuery = queryBuilder(() => state.currentAdjustments)
+  const currentFareCheckQuery = queryBuilder(() => state.currentFareChecks)
+  const filterOwnerQuery = queryBuilder(() => state.filterOwners)
   const from = vi.fn((table: string) => {
     if (table === 'ticket_bookings') return bookingQuery
     if (table === 'ticket_fare_adjustment_current') return currentAdjustmentQuery
+    if (table === 'ticket_fare_check_current') return currentFareCheckQuery
+    if (table === 'ticket_low_fare_filter_owners') return filterOwnerQuery
     throw new Error(`Unexpected table: ${table}`)
   })
   const rpc = vi.fn(async (functionName: string) => {
@@ -77,6 +85,8 @@ const mocks = vi.hoisted(() => {
     state,
     bookingQuery,
     currentAdjustmentQuery,
+    currentFareCheckQuery,
+    filterOwnerQuery,
     from,
     rpc,
     getServiceSupabaseClient,
@@ -260,11 +270,16 @@ describe('/api/ticketing/fare-adjustments', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082401, requiredVersion: 2026082401 },
+      data: { ready: true, version: 2026082904, requiredVersion: 2026082904 },
       error: null,
     }
     mocks.state.bookings = { data: [bookingRow()], error: null }
     mocks.state.currentAdjustments = { data: [currentAdjustmentRow()], error: null }
+    mocks.state.currentFareChecks = { data: [], error: null }
+    mocks.state.filterOwners = {
+      data: [{ employee_id: OWNER_ID, full_name: 'Other Ticketing Agent' }],
+      error: null,
+    }
     mocks.state.append = { data: appendResult(), error: null }
   })
 
@@ -334,12 +349,14 @@ describe('/api/ticketing/fare-adjustments', () => {
             newSupplierFareGbp: 450,
             differenceGbp: 50,
           },
+          latestCheck: null,
         },
         {
           bookingId: SECOND_BOOKING_ID,
           initialSupplierFareGbp: 500,
           currentSupplierFareGbp: 500,
           latestAdjustment: null,
+          latestCheck: null,
         },
       ],
     })
@@ -427,7 +444,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     ).toBe(503)
 
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082401, requiredVersion: 2026082401 }],
+      data: [{ ready: true, version: 2026082904, requiredVersion: 2026082904 }],
       error: null,
     }
     expect(
@@ -435,7 +452,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     ).toBe(200)
 
     mocks.state.capability = {
-      data: { ready: true, version: 2026082401, requiredVersion: 2026082401 },
+      data: { ready: true, version: 2026082904, requiredVersion: 2026082904 },
       error: null,
     }
     mocks.state.bookings = { data: null, error: { message: 'query failed' } }
@@ -683,7 +700,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     expect((await POST(postRequest(validEntry()))).status).toBe(503)
 
     mocks.state.capability = {
-      data: { ready: true, version: 2026082401, requiredVersion: 2026082401 },
+      data: { ready: true, version: 2026082904, requiredVersion: 2026082904 },
       error: null,
     }
     mocks.state.append = {

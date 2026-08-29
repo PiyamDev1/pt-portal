@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Construction,
   PlaneTakeoff,
+  TicketX,
   ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -14,13 +15,13 @@ const TICKETING_MODULES = [
   {
     title: 'Refund Calculator',
     description:
-      'Calculate refundable fare components, airline penalties, service charges and the final customer refund.',
+      'Calculate a safe customer refund or apply its value to a replacement ticket without hiding company costs.',
     icon: Calculator,
     tone: 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50',
     iconTone: 'bg-amber-100 text-amber-800',
     href: '/dashboard/ticketing/refund-calculator',
-    available: false,
-    actionLabel: 'Open placeholder',
+    available: true,
+    actionLabel: 'Open calculator',
   },
   {
     title: 'My Sales Ledger',
@@ -42,6 +43,17 @@ const TICKETING_MODULES = [
     href: '/dashboard/ticketing/low-fare',
     available: true,
     actionLabel: 'Open Low Fare',
+  },
+  {
+    title: 'Ticket Vouchers',
+    description:
+      'Track cancelled passenger tickets until their airline claim, refund or same-airline reuse is completed.',
+    icon: TicketX,
+    tone: 'border-violet-200 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50',
+    iconTone: 'bg-violet-100 text-violet-800',
+    href: '/dashboard/ticketing/vouchers',
+    available: true,
+    actionLabel: 'Open vouchers',
   },
 ] as const
 
@@ -77,7 +89,7 @@ export function TicketingDashboard() {
             </h2>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-            2 tools available
+            4 tools available
           </span>
         </div>
 

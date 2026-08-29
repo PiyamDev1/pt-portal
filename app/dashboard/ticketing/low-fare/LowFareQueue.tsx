@@ -2,7 +2,7 @@
 
 import { CalendarDays, PackageCheck, PencilLine, Plane, Users } from 'lucide-react'
 import { LowFareAdjustmentForm } from './LowFareAdjustmentForm'
-import type { LowFareAdjustmentResult, LowFareMoney, LowFareQueueItem } from './types'
+import type { LowFareMoney, LowFareQueueItem, LowFareSaveResult } from './types'
 
 function formatGbp(value: LowFareMoney) {
   const amount = Number(value)
@@ -51,7 +51,7 @@ export function LowFareQueue({
   items: LowFareQueueItem[]
   selectedBookingId: string | null
   onSelect: (bookingId: string | null) => void
-  onSaved: (result: LowFareAdjustmentResult) => Promise<void>
+  onSaved: (result: LowFareSaveResult) => Promise<void>
 }) {
   if (items.length === 0) {
     return (
@@ -159,6 +159,11 @@ export function LowFareQueue({
                     </>
                   ) : (
                     <span className="text-xs font-semibold text-slate-400">Never adjusted</span>
+                  )}
+                  {item.latestCheck && (
+                    <p className="mt-1.5 text-[11px] font-bold text-emerald-700">
+                      No change checked {formatDate(item.latestCheck.effectiveDate)}
+                    </p>
                   )}
                 </div>
 

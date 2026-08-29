@@ -146,7 +146,9 @@ The smoke workflow intentionally fails when its required account/base secrets ar
 - issue-report cleanup daily at 03:00 UTC;
 - Pakistani passport draft cleanup daily at 03:30 UTC;
 - Frappe outbox daily at 04:00 UTC; and
-- Frappe timeclock attendance daily at 04:30 UTC.
+- Frappe timeclock attendance daily at 04:30 UTC;
+- Ticketing time-limit processing daily at 05:00 UTC; and
+- Ticketing AeroDataBox flight monitoring daily at 05:30 UTC.
 
 Every Vercel cron request must carry the bearer secret configured by Vercel. The separate document migration schedule is GitHub Actions, not Vercel. Its endpoint prefers `DOCUMENT_MIGRATION_CRON_TOKEN` and falls back to `CRON_SECRET` only when the dedicated token is not configured; configure the dedicated token for the workflow so the two automation boundaries remain independently rotatable.
 

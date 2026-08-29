@@ -68,6 +68,7 @@ import PackageInvoiceLinesEditor from './PackageInvoiceLinesEditor'
 import PackageOverviewDialogs from './PackageOverviewDialogs'
 import PackageFinalQuoteSnapshot from './PackageFinalQuoteSnapshot'
 import PackageGroupPanel from './PackageGroupPanel'
+import PackageTicketingPanel from './PackageTicketingPanel'
 import type {
   DocumentsResponse,
   InvoiceFormState,
@@ -2702,6 +2703,7 @@ Please enter the access code and accept the data handling terms before downloadi
                   onInvoiceChange={handleOperationsInvoiceChange}
                 />
               </section>
+              <PackageTicketingPanel packageId={packageId} />
             </>
           )}
 

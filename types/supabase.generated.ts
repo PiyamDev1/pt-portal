@@ -4,7 +4,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: '14.17'
+    PostgrestVersion: '14.5'
   }
   public: {
     Tables: {
@@ -4927,32 +4927,53 @@ export type Database = {
       }
       ticket_airports: {
         Row: {
+          airport_type: string | null
           city: string
           country_code: string
+          country_name: string | null
           created_at: string
           iata_code: string
+          icao_code: string | null
           is_active: boolean
+          latitude_deg: number | null
+          longitude_deg: number | null
           name: string
+          region_code: string | null
+          region_name: string | null
           timezone: string
           updated_at: string
         }
         Insert: {
+          airport_type?: string | null
           city: string
           country_code: string
+          country_name?: string | null
           created_at?: string
           iata_code: string
+          icao_code?: string | null
           is_active?: boolean
+          latitude_deg?: number | null
+          longitude_deg?: number | null
           name: string
+          region_code?: string | null
+          region_name?: string | null
           timezone: string
           updated_at?: string
         }
         Update: {
+          airport_type?: string | null
           city?: string
           country_code?: string
+          country_name?: string | null
           created_at?: string
           iata_code?: string
+          icao_code?: string | null
           is_active?: boolean
+          latitude_deg?: number | null
+          longitude_deg?: number | null
           name?: string
+          region_code?: string | null
+          region_name?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -5228,6 +5249,8 @@ export type Database = {
           payment_status: string
           pnr: string
           return_date: string | null
+          supplier_code: string
+          supplier_name: string
           time_limit_at: string | null
           time_limit_timezone: string | null
           updated_at: string
@@ -5253,6 +5276,8 @@ export type Database = {
           payment_status?: string
           pnr: string
           return_date?: string | null
+          supplier_code?: string
+          supplier_name?: string
           time_limit_at?: string | null
           time_limit_timezone?: string | null
           updated_at?: string
@@ -5278,6 +5303,8 @@ export type Database = {
           payment_status?: string
           pnr?: string
           return_date?: string | null
+          supplier_code?: string
+          supplier_name?: string
           time_limit_at?: string | null
           time_limit_timezone?: string | null
           updated_at?: string
@@ -5316,6 +5343,64 @@ export type Database = {
           {
             foreignKeyName: 'ticket_bookings_updated_by_fkey'
             columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_change_requests: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          request_notes: string | null
+          request_type: string
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          request_notes?: string | null
+          request_type: string
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          request_notes?: string | null
+          request_type?: string
+          requested_by?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_change_requests_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_change_requests_requested_by_fkey'
+            columns: ['requested_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_change_requests_reviewed_by_fkey'
+            columns: ['reviewed_by']
             isOneToOne: false
             referencedRelation: 'employees'
             referencedColumns: ['id']
@@ -5469,6 +5554,270 @@ export type Database = {
           },
         ]
       }
+      ticket_fare_checks: {
+        Row: {
+          booking_id: string
+          booking_version: number
+          checked_by_employee_id: string
+          commission_scope: string
+          created_at: string
+          currency: string
+          current_adjustment_id: string | null
+          effective_on: string
+          group_id: string | null
+          id: string
+          idempotency_key: string
+          notes: string | null
+          observed_fare_gbp: number
+          observed_fare_source: number
+          package_id: string | null
+          package_match_status: string
+          reservation_id: string | null
+          root_transaction_id: string
+          root_transaction_version: number
+        }
+        Insert: {
+          booking_id: string
+          booking_version: number
+          checked_by_employee_id: string
+          commission_scope: string
+          created_at?: string
+          currency?: string
+          current_adjustment_id?: string | null
+          effective_on: string
+          group_id?: string | null
+          id?: string
+          idempotency_key: string
+          notes?: string | null
+          observed_fare_gbp: number
+          observed_fare_source: number
+          package_id?: string | null
+          package_match_status: string
+          reservation_id?: string | null
+          root_transaction_id: string
+          root_transaction_version: number
+        }
+        Update: {
+          booking_id?: string
+          booking_version?: number
+          checked_by_employee_id?: string
+          commission_scope?: string
+          created_at?: string
+          currency?: string
+          current_adjustment_id?: string | null
+          effective_on?: string
+          group_id?: string | null
+          id?: string
+          idempotency_key?: string
+          notes?: string | null
+          observed_fare_gbp?: number
+          observed_fare_source?: number
+          package_id?: string | null
+          package_match_status?: string
+          reservation_id?: string | null
+          root_transaction_id?: string
+          root_transaction_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_fare_checks_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_checked_by_employee_id_fkey'
+            columns: ['checked_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_current_adjustment_id_fkey'
+            columns: ['current_adjustment_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustment_current'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_current_adjustment_id_fkey'
+            columns: ['current_adjustment_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustments'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_group_id_fkey'
+            columns: ['group_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_groups'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_package_id_fkey'
+            columns: ['package_id']
+            isOneToOne: false
+            referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_reservation_id_fkey'
+            columns: ['reservation_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_reservations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_root_transaction_id_fkey'
+            columns: ['root_transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_flight_api_sector_state: {
+        Row: {
+          last_check_status: string | null
+          last_checked_at: string | null
+          last_error: string | null
+          last_provider_schedule: Json | null
+          last_provider_status: string | null
+          last_weekly_checked_at: string | null
+          predeparture_checked_at: string | null
+          schedule_change_detected_at: string | null
+          sector_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_check_status?: string | null
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_provider_schedule?: Json | null
+          last_provider_status?: string | null
+          last_weekly_checked_at?: string | null
+          predeparture_checked_at?: string | null
+          schedule_change_detected_at?: string | null
+          sector_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_check_status?: string | null
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_provider_schedule?: Json | null
+          last_provider_status?: string | null
+          last_weekly_checked_at?: string | null
+          predeparture_checked_at?: string | null
+          schedule_change_detected_at?: string | null
+          sector_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_flight_api_sector_state_sector_id_fkey'
+            columns: ['sector_id']
+            isOneToOne: true
+            referencedRelation: 'ticket_itinerary_sectors'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_flight_api_settings: {
+        Row: {
+          enabled: boolean
+          max_checks_per_run: number
+          monthly_limit: number
+          predeparture_hours: number
+          provider: string
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+          weekly_interval_days: number
+        }
+        Insert: {
+          enabled?: boolean
+          max_checks_per_run?: number
+          monthly_limit?: number
+          predeparture_hours?: number
+          provider?: string
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          weekly_interval_days?: number
+        }
+        Update: {
+          enabled?: boolean
+          max_checks_per_run?: number
+          monthly_limit?: number
+          predeparture_hours?: number
+          provider?: string
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          weekly_interval_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_flight_api_settings_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_flight_api_usage: {
+        Row: {
+          check_kind: string
+          completed_at: string | null
+          endpoint: string
+          error_message: string | null
+          http_status: number | null
+          id: string
+          outcome: string
+          provider: string
+          requested_at: string
+          sector_id: string | null
+          units: number
+        }
+        Insert: {
+          check_kind: string
+          completed_at?: string | null
+          endpoint: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          outcome: string
+          provider?: string
+          requested_at?: string
+          sector_id?: string | null
+          units?: number
+        }
+        Update: {
+          check_kind?: string
+          completed_at?: string | null
+          endpoint?: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          outcome?: string
+          provider?: string
+          requested_at?: string
+          sector_id?: string | null
+          units?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_flight_api_usage_sector_id_fkey'
+            columns: ['sector_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_itinerary_sectors'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       ticket_idempotency_keys: {
         Row: {
           action_name: string
@@ -5506,6 +5855,42 @@ export type Database = {
             columns: ['actor_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_initial_pricing_contexts: {
+        Row: {
+          actor_employee_id: string
+          created_at: string
+          id: string
+          transaction_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          created_at?: string
+          id?: string
+          transaction_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          created_at?: string
+          id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_initial_pricing_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_initial_pricing_contexts_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
             referencedColumns: ['id']
           },
         ]
@@ -5789,8 +6174,6 @@ export type Database = {
       ticket_legacy_migration_map: {
         Row: {
           booking_id: string | null
-          claim_token: string | null
-          claimed_at: string | null
           created_at: string
           legacy_payload: Json
           legacy_ticket_ledger_id: string
@@ -5802,8 +6185,6 @@ export type Database = {
         }
         Insert: {
           booking_id?: string | null
-          claim_token?: string | null
-          claimed_at?: string | null
           created_at?: string
           legacy_payload: Json
           legacy_ticket_ledger_id: string
@@ -5815,8 +6196,6 @@ export type Database = {
         }
         Update: {
           booking_id?: string | null
-          claim_token?: string | null
-          claimed_at?: string | null
           created_at?: string
           legacy_payload?: Json
           legacy_ticket_ledger_id?: string
@@ -5860,6 +6239,8 @@ export type Database = {
       ticket_notification_events: {
         Row: {
           booking_id: string | null
+          claim_token: string | null
+          claimed_at: string | null
           created_at: string
           delivered_at: string | null
           delivery_status: string
@@ -5874,6 +6255,8 @@ export type Database = {
         }
         Insert: {
           booking_id?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_status?: string
@@ -5888,6 +6271,8 @@ export type Database = {
         }
         Update: {
           booking_id?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_status?: string
@@ -6016,6 +6401,10 @@ export type Database = {
           supplier_total_gbp: number | null
           supplier_total_source: number | null
           transaction_id: string
+          unit_discount_gbp: number
+          unit_discount_source: number
+          unit_gross_sale_price_gbp: number | null
+          unit_gross_sale_price_source: number | null
           unit_sale_price_gbp: number | null
           unit_sale_price_source: number | null
           unit_supplier_cost_gbp: number | null
@@ -6033,6 +6422,10 @@ export type Database = {
           supplier_total_gbp?: number | null
           supplier_total_source?: number | null
           transaction_id: string
+          unit_discount_gbp?: number
+          unit_discount_source?: number
+          unit_gross_sale_price_gbp?: number | null
+          unit_gross_sale_price_source?: number | null
           unit_sale_price_gbp?: number | null
           unit_sale_price_source?: number | null
           unit_supplier_cost_gbp?: number | null
@@ -6050,6 +6443,10 @@ export type Database = {
           supplier_total_gbp?: number | null
           supplier_total_source?: number | null
           transaction_id?: string
+          unit_discount_gbp?: number
+          unit_discount_source?: number
+          unit_gross_sale_price_gbp?: number | null
+          unit_gross_sale_price_source?: number | null
           unit_sale_price_gbp?: number | null
           unit_sale_price_source?: number | null
           unit_supplier_cost_gbp?: number | null
@@ -6113,6 +6510,371 @@ export type Database = {
             columns: ['created_by']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_refund_events: {
+        Row: {
+          actor_employee_id: string
+          amount_gbp: number | null
+          created_at: string
+          event_data: Json
+          event_date: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          notes: string | null
+          reference: string | null
+          refund_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          amount_gbp?: number | null
+          created_at?: string
+          event_data?: Json
+          event_date: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          notes?: string | null
+          reference?: string | null
+          refund_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          amount_gbp?: number | null
+          created_at?: string
+          event_data?: Json
+          event_date?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          notes?: string | null
+          reference?: string | null
+          refund_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_refund_events_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refund_events_refund_id_fkey'
+            columns: ['refund_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_refunds'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_refund_write_contexts: {
+        Row: {
+          actor_employee_id: string
+          created_at: string
+          id: string
+          refund_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          created_at?: string
+          id: string
+          refund_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          created_at?: string
+          id?: string
+          refund_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_refund_write_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refund_write_contexts_refund_id_fkey'
+            columns: ['refund_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_refunds'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_refunds: {
+        Row: {
+          actual_company_result_gbp: number | null
+          airline_cancellation_fee_gbp: number
+          airline_id: string
+          airline_recovered_gbp: number
+          airline_recovery_final: boolean
+          booking_id: string
+          cancellation_credit_applied_gbp: number | null
+          closed_at: string | null
+          commission_scope: string
+          created_at: string
+          created_by_employee_id: string
+          customer_credit_remaining_gbp: number | null
+          customer_settled_gbp: number
+          desired_company_markup_gbp: number
+          expected_airline_recovery_gbp: number
+          expected_company_result_gbp: number
+          formula_version: string
+          id: string
+          idempotency_key: string
+          notes: string | null
+          original_sale_price_gbp: number
+          original_supplier_cost_gbp: number
+          other_actual_costs_gbp: number
+          override_reason: string | null
+          owner_employee_id: string
+          package_group_id: string | null
+          package_id: string | null
+          package_link_id: string | null
+          package_match_status: string
+          package_reservation_id: string | null
+          package_type_snapshot: string | null
+          passenger_id: string
+          passenger_name: string | null
+          passenger_type: string
+          pnr: string
+          proposed_cancellation_charge_gbp: number
+          proposed_customer_refund_gbp: number
+          replacement_agent_commission_gbp: number | null
+          replacement_booking_id: string | null
+          replacement_company_result_gbp: number | null
+          replacement_desired_markup_gbp: number | null
+          replacement_extra_payment_gbp: number | null
+          replacement_net_zero_price_gbp: number | null
+          replacement_safe_price_gbp: number | null
+          replacement_sale_price_gbp: number | null
+          replacement_source: string | null
+          replacement_supplier_cost_gbp: number | null
+          replacement_transaction_passenger_id: string | null
+          retained_agent_commission_gbp: number
+          settlement_mode: string
+          status: string
+          supplier_cancellation_charge_gbp: number
+          ticket_number: string
+          transaction_id: string
+          transaction_passenger_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          actual_company_result_gbp?: number | null
+          airline_cancellation_fee_gbp: number
+          airline_id: string
+          airline_recovered_gbp?: number
+          airline_recovery_final?: boolean
+          booking_id: string
+          cancellation_credit_applied_gbp?: number | null
+          closed_at?: string | null
+          commission_scope: string
+          created_at?: string
+          created_by_employee_id: string
+          customer_credit_remaining_gbp?: number | null
+          customer_settled_gbp?: number
+          desired_company_markup_gbp: number
+          expected_airline_recovery_gbp: number
+          expected_company_result_gbp: number
+          formula_version: string
+          id?: string
+          idempotency_key: string
+          notes?: string | null
+          original_sale_price_gbp: number
+          original_supplier_cost_gbp: number
+          other_actual_costs_gbp?: number
+          override_reason?: string | null
+          owner_employee_id: string
+          package_group_id?: string | null
+          package_id?: string | null
+          package_link_id?: string | null
+          package_match_status: string
+          package_reservation_id?: string | null
+          package_type_snapshot?: string | null
+          passenger_id: string
+          passenger_name?: string | null
+          passenger_type: string
+          pnr: string
+          proposed_cancellation_charge_gbp: number
+          proposed_customer_refund_gbp: number
+          replacement_agent_commission_gbp?: number | null
+          replacement_booking_id?: string | null
+          replacement_company_result_gbp?: number | null
+          replacement_desired_markup_gbp?: number | null
+          replacement_extra_payment_gbp?: number | null
+          replacement_net_zero_price_gbp?: number | null
+          replacement_safe_price_gbp?: number | null
+          replacement_sale_price_gbp?: number | null
+          replacement_source?: string | null
+          replacement_supplier_cost_gbp?: number | null
+          replacement_transaction_passenger_id?: string | null
+          retained_agent_commission_gbp: number
+          settlement_mode: string
+          status?: string
+          supplier_cancellation_charge_gbp: number
+          ticket_number: string
+          transaction_id: string
+          transaction_passenger_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          actual_company_result_gbp?: number | null
+          airline_cancellation_fee_gbp?: number
+          airline_id?: string
+          airline_recovered_gbp?: number
+          airline_recovery_final?: boolean
+          booking_id?: string
+          cancellation_credit_applied_gbp?: number | null
+          closed_at?: string | null
+          commission_scope?: string
+          created_at?: string
+          created_by_employee_id?: string
+          customer_credit_remaining_gbp?: number | null
+          customer_settled_gbp?: number
+          desired_company_markup_gbp?: number
+          expected_airline_recovery_gbp?: number
+          expected_company_result_gbp?: number
+          formula_version?: string
+          id?: string
+          idempotency_key?: string
+          notes?: string | null
+          original_sale_price_gbp?: number
+          original_supplier_cost_gbp?: number
+          other_actual_costs_gbp?: number
+          override_reason?: string | null
+          owner_employee_id?: string
+          package_group_id?: string | null
+          package_id?: string | null
+          package_link_id?: string | null
+          package_match_status?: string
+          package_reservation_id?: string | null
+          package_type_snapshot?: string | null
+          passenger_id?: string
+          passenger_name?: string | null
+          passenger_type?: string
+          pnr?: string
+          proposed_cancellation_charge_gbp?: number
+          proposed_customer_refund_gbp?: number
+          replacement_agent_commission_gbp?: number | null
+          replacement_booking_id?: string | null
+          replacement_company_result_gbp?: number | null
+          replacement_desired_markup_gbp?: number | null
+          replacement_extra_payment_gbp?: number | null
+          replacement_net_zero_price_gbp?: number | null
+          replacement_safe_price_gbp?: number | null
+          replacement_sale_price_gbp?: number | null
+          replacement_source?: string | null
+          replacement_supplier_cost_gbp?: number | null
+          replacement_transaction_passenger_id?: string | null
+          retained_agent_commission_gbp?: number
+          settlement_mode?: string
+          status?: string
+          supplier_cancellation_charge_gbp?: number
+          ticket_number?: string
+          transaction_id?: string
+          transaction_passenger_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_refunds_airline_id_fkey'
+            columns: ['airline_id']
+            isOneToOne: false
+            referencedRelation: 'airlines'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_created_by_employee_id_fkey'
+            columns: ['created_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_package_group_id_fkey'
+            columns: ['package_group_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_groups'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_package_id_fkey'
+            columns: ['package_id']
+            isOneToOne: false
+            referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_package_link_id_fkey'
+            columns: ['package_link_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_package_links'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_package_reservation_id_fkey'
+            columns: ['package_reservation_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_reservations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_passenger_id_fkey'
+            columns: ['passenger_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_passengers'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_replacement_booking_id_fkey'
+            columns: ['replacement_booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_replacement_transaction_passenger_id_fkey'
+            columns: ['replacement_transaction_passenger_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transaction_passengers'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_transaction_passenger_id_fkey'
+            columns: ['transaction_passenger_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transaction_passengers'
             referencedColumns: ['id']
           },
         ]
@@ -6410,6 +7172,267 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'ticket_transactions'
             referencedColumns: ['id', 'booking_id']
+          },
+        ]
+      }
+      ticket_voucher_events: {
+        Row: {
+          actor_employee_id: string
+          amount_gbp: number | null
+          created_at: string
+          event_data: Json
+          event_date: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          linked_booking_id: string | null
+          linked_transaction_passenger_id: string | null
+          notes: string | null
+          refund_id: string | null
+          voucher_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          amount_gbp?: number | null
+          created_at?: string
+          event_data?: Json
+          event_date: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          linked_booking_id?: string | null
+          linked_transaction_passenger_id?: string | null
+          notes?: string | null
+          refund_id?: string | null
+          voucher_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          amount_gbp?: number | null
+          created_at?: string
+          event_data?: Json
+          event_date?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          linked_booking_id?: string | null
+          linked_transaction_passenger_id?: string | null
+          notes?: string | null
+          refund_id?: string | null
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_voucher_events_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_voucher_events_linked_booking_id_fkey'
+            columns: ['linked_booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_voucher_events_linked_transaction_passenger_id_fkey'
+            columns: ['linked_transaction_passenger_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transaction_passengers'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_voucher_events_refund_id_fkey'
+            columns: ['refund_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_refunds'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_voucher_events_voucher_id_fkey'
+            columns: ['voucher_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_vouchers'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_voucher_write_contexts: {
+        Row: {
+          actor_employee_id: string
+          created_at: string
+          id: string
+          voucher_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          created_at?: string
+          id: string
+          voucher_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          created_at?: string
+          id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_voucher_write_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_voucher_write_contexts_voucher_id_fkey'
+            columns: ['voucher_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_vouchers'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_vouchers: {
+        Row: {
+          airline_id: string
+          airline_reference: string | null
+          booking_id: string
+          cancellation_date: string
+          claim_by_date: string
+          confirmed_value_gbp: number | null
+          created_at: string
+          created_by_employee_id: string
+          follow_up_employee_id: string
+          id: string
+          idempotency_key: string
+          issue_date: string
+          notes: string | null
+          owner_employee_id: string
+          passenger_id: string
+          passenger_name: string | null
+          passenger_type: string
+          pnr: string
+          remaining_value_gbp: number | null
+          status: string
+          ticket_number: string
+          transaction_id: string
+          transaction_passenger_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          airline_id: string
+          airline_reference?: string | null
+          booking_id: string
+          cancellation_date: string
+          claim_by_date: string
+          confirmed_value_gbp?: number | null
+          created_at?: string
+          created_by_employee_id: string
+          follow_up_employee_id: string
+          id?: string
+          idempotency_key: string
+          issue_date: string
+          notes?: string | null
+          owner_employee_id: string
+          passenger_id: string
+          passenger_name?: string | null
+          passenger_type: string
+          pnr: string
+          remaining_value_gbp?: number | null
+          status?: string
+          ticket_number: string
+          transaction_id: string
+          transaction_passenger_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          airline_id?: string
+          airline_reference?: string | null
+          booking_id?: string
+          cancellation_date?: string
+          claim_by_date?: string
+          confirmed_value_gbp?: number | null
+          created_at?: string
+          created_by_employee_id?: string
+          follow_up_employee_id?: string
+          id?: string
+          idempotency_key?: string
+          issue_date?: string
+          notes?: string | null
+          owner_employee_id?: string
+          passenger_id?: string
+          passenger_name?: string | null
+          passenger_type?: string
+          pnr?: string
+          remaining_value_gbp?: number | null
+          status?: string
+          ticket_number?: string
+          transaction_id?: string
+          transaction_passenger_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_vouchers_airline_id_fkey'
+            columns: ['airline_id']
+            isOneToOne: false
+            referencedRelation: 'airlines'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_created_by_employee_id_fkey'
+            columns: ['created_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_follow_up_employee_id_fkey'
+            columns: ['follow_up_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_passenger_id_fkey'
+            columns: ['passenger_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_passengers'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_vouchers_transaction_passenger_id_fkey'
+            columns: ['transaction_passenger_id']
+            isOneToOne: true
+            referencedRelation: 'ticket_transaction_passengers'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -10119,14 +11142,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
-            columns: ['marked_by_employee_id']
+            columns: ['reviewed_by_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
             referencedColumns: ['id']
           },
           {
             foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
-            columns: ['reviewed_by_employee_id']
+            columns: ['marked_by_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
             referencedColumns: ['id']
@@ -10277,6 +11300,102 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'ticket_transactions'
             referencedColumns: ['id', 'booking_id']
+          },
+        ]
+      }
+      ticket_fare_check_current: {
+        Row: {
+          booking_id: string | null
+          booking_version: number | null
+          checked_by_employee_id: string | null
+          commission_scope: string | null
+          created_at: string | null
+          currency: string | null
+          current_adjustment_id: string | null
+          effective_on: string | null
+          group_id: string | null
+          id: string | null
+          idempotency_key: string | null
+          notes: string | null
+          observed_fare_gbp: number | null
+          observed_fare_source: number | null
+          package_id: string | null
+          package_match_status: string | null
+          reservation_id: string | null
+          root_transaction_id: string | null
+          root_transaction_version: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_fare_checks_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_checked_by_employee_id_fkey'
+            columns: ['checked_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_current_adjustment_id_fkey'
+            columns: ['current_adjustment_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustment_current'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_current_adjustment_id_fkey'
+            columns: ['current_adjustment_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_fare_adjustments'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_group_id_fkey'
+            columns: ['group_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_groups'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_package_id_fkey'
+            columns: ['package_id']
+            isOneToOne: false
+            referencedRelation: 'travel_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_reservation_id_fkey'
+            columns: ['reservation_id']
+            isOneToOne: false
+            referencedRelation: 'travel_package_reservations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_fare_checks_root_transaction_id_fkey'
+            columns: ['root_transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_low_fare_filter_owners: {
+        Row: {
+          employee_id: string | null
+          full_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_bookings_owner_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -10451,6 +11570,21 @@ export type Database = {
         }[]
       }
       revoke_my_session: { Args: { session_id: string }; Returns: undefined }
+      ticketing_actor_is_admin_2026082802: {
+        Args: { p_employee_id: string }
+        Returns: boolean
+      }
+      ticketing_admin_correct_sale_prices: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_expected_booking_version: number
+          p_expected_transaction_version: number
+          p_fare_sales: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
       ticketing_append_fare_adjustment: {
         Args: {
           p_actor_employee_id: string
@@ -10460,7 +11594,31 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_append_refund_event_2026082903: {
+        Args: {
+          p_actor_employee_id: string
+          p_amount_gbp: number
+          p_event_date: string
+          p_event_type: string
+          p_expected_version: number
+          p_idempotency_key: string
+          p_notes: string
+          p_override_reason: string
+          p_reference: string
+          p_refund_id: string
+        }
+        Returns: Json
+      }
       ticketing_append_service_transaction: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_append_service_transaction_allocated: {
         Args: {
           p_actor_employee_id: string
           p_booking_id: string
@@ -10477,6 +11635,50 @@ export type Database = {
           p_idempotency_key: string
         }
         Returns: Json
+      }
+      ticketing_append_voucher_event_2026082903: {
+        Args: {
+          p_actor_employee_id: string
+          p_airline_reference: string
+          p_amount_gbp: number
+          p_event_date: string
+          p_event_type: string
+          p_expected_version: number
+          p_idempotency_key: string
+          p_linked_booking_id: string
+          p_linked_passenger_position: number
+          p_linked_passenger_type: string
+          p_notes: string
+          p_reason: string
+          p_refund_id: string
+          p_voucher_id: string
+        }
+        Returns: Json
+      }
+      ticketing_archive_booking: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
+      ticketing_claim_time_limit_notifications: {
+        Args: { batch_size?: number; requested_at?: string }
+        Returns: {
+          booking_id: string
+          claim_token: string
+          customer_name: string
+          notification_id: string
+          pnr: string
+          recipient_email: string
+          recipient_employee_id: string
+          recipient_name: string
+          scheduled_for: string
+          threshold_key: string
+          time_limit_at: string
+          time_limit_timezone: string
+        }[]
       }
       ticketing_complete_tk_details: {
         Args: {
@@ -10523,9 +11725,61 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_create_quick_tk_priced: {
+        Args: {
+          p_actor_employee_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_create_quick_tk_supplied: {
+        Args: {
+          p_actor_employee_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_create_voucher_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_airline_reference: string
+          p_booking_id: string
+          p_cancellation_date: string
+          p_claim_by_date: string
+          p_follow_up_employee_id: string
+          p_idempotency_key: string
+          p_notes: string
+          p_passenger_position: number
+          p_passenger_type: string
+        }
+        Returns: Json
+      }
       ticketing_enrich_service_business_dates_2026082304: {
         Args: { p_booking_id: string; p_response: Json }
         Returns: Json
+      }
+      ticketing_finish_time_limit_notification: {
+        Args: {
+          claim_token_value: string
+          delivery_status_value: string
+          error_message_value?: string
+          notification_id_value: string
+        }
+        Returns: boolean
+      }
+      ticketing_import_airline_reference_2026082802: {
+        Args: { p_rows: Json }
+        Returns: number
+      }
+      ticketing_import_airport_reference_2026082802: {
+        Args: { p_rows: Json }
+        Returns: number
+      }
+      ticketing_initial_pricing_context_matches_2026082801: {
+        Args: { p_transaction_id: string }
+        Returns: boolean
       }
       ticketing_mark_service_transaction_paid: {
         Args: {
@@ -10555,6 +11809,48 @@ export type Database = {
         }
         Returns: boolean
       }
+      ticketing_reconcile_package_booking_2026082902: {
+        Args: { p_booking_id: string }
+        Returns: Json
+      }
+      ticketing_record_fare_check_2026082904: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_effective_on: string
+          p_expected_booking_version: number
+          p_expected_previous_adjustment_id: string
+          p_expected_root_transaction_version: number
+          p_idempotency_key: string
+          p_notes: string
+        }
+        Returns: Json
+      }
+      ticketing_record_refund_2026082903: {
+        Args: {
+          p_actor_employee_id: string
+          p_airline_cancellation_fee_gbp: number
+          p_booking_id: string
+          p_desired_company_markup_gbp: number
+          p_formula_version: string
+          p_idempotency_key: string
+          p_manual_replacement_sale_price_gbp: number
+          p_manual_replacement_supplier_cost_gbp: number
+          p_notes: string
+          p_override_reason: string
+          p_passenger_position: number
+          p_passenger_type: string
+          p_replacement_agent_commission_gbp: number
+          p_replacement_booking_id: string
+          p_replacement_desired_markup_gbp: number
+          p_replacement_passenger_position: number
+          p_replacement_passenger_type: string
+          p_retained_agent_commission_gbp: number
+          p_settlement_mode: string
+          p_supplier_cancellation_charge_gbp: number
+        }
+        Returns: Json
+      }
       ticketing_replace_root_tk_itinerary: {
         Args: {
           p_actor_employee_id: string
@@ -10563,6 +11859,23 @@ export type Database = {
           p_idempotency_key: string
           p_on_behalf_reason: string
           p_sectors: Json
+        }
+        Returns: Json
+      }
+      ticketing_request_booking_change: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_request_notes?: string
+          p_request_type: string
+        }
+        Returns: Json
+      }
+      ticketing_review_booking_change: {
+        Args: {
+          p_actor_employee_id: string
+          p_request_id: string
+          p_status: string
         }
         Returns: Json
       }

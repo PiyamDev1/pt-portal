@@ -35,6 +35,14 @@ youth_assistance_archive_migration="scripts/migrations/20260828_ticketing_youth_
 youth_assistance_archive_assertions="tests/integration/ticketing_youth_assistance_archive.sql"
 admin_requests_suppliers_api_migration="scripts/migrations/20260828_ticketing_admin_requests_suppliers_api.sql"
 admin_requests_suppliers_api_assertions="tests/integration/ticketing_admin_requests_suppliers_api.sql"
+voucher_foundation_migration="scripts/migrations/20260829_ticketing_voucher_foundation.sql"
+voucher_foundation_assertions="tests/integration/ticketing_voucher_foundation.sql"
+package_pnr_reconciliation_migration="scripts/migrations/20260829_ticketing_package_pnr_reconciliation.sql"
+package_pnr_reconciliation_assertions="tests/integration/ticketing_package_pnr_reconciliation.sql"
+refund_voucher_lifecycle_migration="scripts/migrations/20260829_ticketing_refund_voucher_lifecycle.sql"
+refund_voucher_lifecycle_assertions="tests/integration/ticketing_refund_voucher_lifecycle.sql"
+fare_check_observations_migration="scripts/migrations/20260829_ticketing_fare_check_observations.sql"
+fare_check_observations_assertions="tests/integration/ticketing_fare_check_observations.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2372,6 +2380,50 @@ if [[ "$(ticketing_schema_fingerprint)" != "$admin_requests_first_fingerprint" ]
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_requests_suppliers_api_assertions"
 
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$voucher_foundation_migration"
+voucher_foundation_first_fingerprint="$(ticketing_schema_fingerprint)"
+voucher_foundation_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$voucher_foundation_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$voucher_foundation_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$voucher_foundation_first_applied_at" ]]; then
+  echo "Idempotent voucher-foundation migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$voucher_foundation_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$package_pnr_reconciliation_migration"
+package_pnr_first_fingerprint="$(ticketing_schema_fingerprint)"
+package_pnr_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$package_pnr_reconciliation_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$package_pnr_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$package_pnr_first_applied_at" ]]; then
+  echo "Idempotent package-PNR reconciliation migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$package_pnr_reconciliation_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$refund_voucher_lifecycle_migration"
+refund_voucher_lifecycle_first_fingerprint="$(ticketing_schema_fingerprint)"
+refund_voucher_lifecycle_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$refund_voucher_lifecycle_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$refund_voucher_lifecycle_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$refund_voucher_lifecycle_first_applied_at" ]]; then
+  echo "Idempotent refund/voucher lifecycle migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$refund_voucher_lifecycle_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$fare_check_observations_migration"
+fare_check_first_fingerprint="$(ticketing_schema_fingerprint)"
+fare_check_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$fare_check_observations_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$fare_check_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$fare_check_first_applied_at" ]]; then
+  echo "Idempotent fare-check observation migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$fare_check_observations_assertions"
+
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"
 if [[ "$(ticketing_schema_fingerprint)" != "$post_schedule_fingerprint" ]]; then
@@ -2394,4 +2446,4 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, and manual schedule-change migration integration checks passed."
+echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, schedule-change, voucher, package-PNR reconciliation, refund/voucher lifecycle, and no-change fare-check migration integration checks passed."

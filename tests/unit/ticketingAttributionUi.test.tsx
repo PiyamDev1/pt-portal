@@ -56,6 +56,7 @@ function fillQuickTicket() {
   fireEvent.change(screen.getByLabelText('PNR'), { target: { value: 'abc123' } })
   fireEvent.change(screen.getByLabelText('Airline'), { target: { value: 'TK' } })
   fireEvent.change(screen.getByLabelText('ADT unit fare cost'), { target: { value: '450' } })
+  fireEvent.change(screen.getByLabelText('ADT unit sale price'), { target: { value: '550' } })
 }
 
 describe('Ticketing attribution UI', () => {
@@ -65,7 +66,7 @@ describe('Ticketing attribution UI', () => {
     toastMocks.error.mockReset()
   })
 
-  it('keeps attribution controls hidden from non-admin ticket entry', () => {
+  it('locks the responsible agent but allows non-admin staff to record assistance', () => {
     render(
       <TicketQuickEntryForm
         airlines={AIRLINES}
@@ -79,8 +80,8 @@ describe('Ticketing attribution UI', () => {
       />,
     )
 
-    expect(screen.queryByLabelText('Responsible agent')).toBeNull()
-    expect(screen.queryByLabelText('Add assistant')).toBeNull()
+    expect((screen.getByLabelText('Responsible agent') as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Add assistant') as HTMLSelectElement).disabled).toBe(false)
     expect(screen.queryByLabelText('Attribution reason')).toBeNull()
   })
 
