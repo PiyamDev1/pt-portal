@@ -3,19 +3,8 @@ import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireStaffSession, type StaffSession } from '@/lib/auth/staffSession'
 
 export type CommissionAccessResult =
-  | ({ authorized: true; response?: never; canManageGrants: boolean } & StaffSession)
+  | ({ authorized: true; response?: never } & StaffSession)
   | { authorized: false; response: NextResponse }
-
-function normalizedRole(value: unknown) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-}
-
-export function canManageCommissionAccessGrants(role: unknown) {
-  return ['master admin', 'super admin'].includes(normalizedRole(role))
-}
 
 export async function requireCommissionPolicyAccess(): Promise<CommissionAccessResult> {
   const access = await requireStaffSession()
@@ -41,8 +30,5 @@ export async function requireCommissionPolicyAccess(): Promise<CommissionAccessR
     }
   }
 
-  return {
-    ...access,
-    canManageGrants: canManageCommissionAccessGrants(access.employee.role),
-  }
+  return access
 }

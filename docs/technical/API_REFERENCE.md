@@ -315,8 +315,8 @@ Ticketing responses never expose calculated commission, earnings, margin, or pro
 | `GET`, `POST` | `/api/commissions/access-grants`                                     |
 | `DELETE`      | `/api/commissions/access-grants/[id]`                                |
 
-The staff routes require Admin Commission authority or a narrow active HR grant and database
-capability `2026082902`. Master/Super Admin alone manage those grants. All money remains private,
+The staff routes require Admin Commission authority or active HR department membership and database
+capability `2026082903`. Master/Super Admin manage HR membership in Staff Management. All money remains private,
 non-payable shadow evidence. Policy/assignment/preview/process/retry mutations are strict and
 idempotent; the bounded worker parks business problems as typed exceptions. See the
 [Commission API](../api/COMMISSIONS.md).
@@ -391,7 +391,7 @@ Admin route names include legacy verbs and are not a promise of REST semantics. 
 | `GET`   | `/api/cron/ticketing/flight-monitor`                 | Daily 05:30 UTC           |
 | `GET`   | `/api/cron/commissions/process`                      | Daily 05:45 UTC           |
 
-All eight routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Commission additionally requires an active authorised `COMMISSION_CRON_ACTOR_EMPLOYEE_ID` for calculation/audit attribution. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
+All eight routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Commission scheduled work is attributed to the audited system worker, not an employee. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
 
 ## Updating this reference
 

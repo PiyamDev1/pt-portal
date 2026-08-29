@@ -152,6 +152,14 @@ export default function StaffTab({
   }, [initialDepts])
 
   const isSuperAdmin = userRole === 'Master Admin'
+  const canManageHrMembership = ['Master Admin', 'Super Admin'].includes(userRole)
+  const isHrDepartment = (department: Department) =>
+    ['hr', 'humanresource', 'humanresources'].includes(
+      department.name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ''),
+    )
 
   const departmentIdsForEmployee = (employee: Employee) =>
     employee.department_ids?.length
@@ -408,16 +416,28 @@ export default function StaffTab({
 
     let membershipError: { message?: string } | null = null
     if (!error) {
-      const { error: deleteError } = await supabase
-        .from('employee_departments')
-        .delete()
-        .eq('employee_id', editingEmployee.id)
+      const originalEmployee = employees.find((employee) => employee.id === editingEmployee.id)
+      const originalDepartmentIds = originalEmployee
+        ? departmentIdsForEmployee(originalEmployee)
+        : []
+      const departmentIdsToDelete = originalDepartmentIds.filter(
+        (departmentId) => !selectedDepartmentIds.includes(departmentId),
+      )
+      const departmentIdsToInsert = selectedDepartmentIds.filter(
+        (departmentId) => !originalDepartmentIds.includes(departmentId),
+      )
 
-      if (deleteError) {
+      if (departmentIdsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('employee_departments')
+          .delete()
+          .eq('employee_id', editingEmployee.id)
+          .in('department_id', departmentIdsToDelete)
         membershipError = deleteError
-      } else if (selectedDepartmentIds.length > 0) {
+      }
+      if (!membershipError && departmentIdsToInsert.length > 0) {
         const { error: insertError } = await supabase.from('employee_departments').insert(
-          selectedDepartmentIds.map((departmentId) => ({
+          departmentIdsToInsert.map((departmentId) => ({
             employee_id: editingEmployee.id,
             department_id: departmentId,
           })),
@@ -472,12 +492,21 @@ export default function StaffTab({
           </button>
         </div>
 
+        <div className="border-b border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+          Active staff assigned to the HR department receive Commission policy access. Only Master
+          Admin or Super Admin can add or remove HR membership.
+        </div>
+
         {showAddForm && (
           <StaffAddEmployeeForm
             loading={loading}
             newEmployee={newEmployee}
             initialRoles={initialRoles}
-            initialDepts={initialDepts}
+            initialDepts={
+              canManageHrMembership
+                ? initialDepts
+                : initialDepts.filter((department) => !isHrDepartment(department))
+            }
             initialLocations={initialLocations}
             onSubmit={handleAddEmployee}
             onChange={(updates) => setNewEmployee((prev) => ({ ...prev, ...updates }))}
@@ -558,6 +587,7 @@ export default function StaffTab({
                                 department.id,
                               )}
                               onChange={() => toggleEditingDepartment(department.id)}
+                              disabled={isHrDepartment(department) && !canManageHrMembership}
                               className="h-3.5 w-3.5 rounded border-slate-300"
                             />
                             {department.name}

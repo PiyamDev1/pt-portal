@@ -1,13 +1,12 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle,
   BadgePoundSterling,
   Calculator,
   FileClock,
   Gauge,
-  KeyRound,
   LoaderCircle,
   Play,
   RefreshCw,
@@ -18,15 +17,7 @@ import {
 
 type JsonRecord = Record<string, any>
 type MutationRunner = (work: () => Promise<unknown>, success: string) => Promise<void>
-type Tab =
-  | 'overview'
-  | 'policies'
-  | 'assignments'
-  | 'preview'
-  | 'shadow'
-  | 'bonus'
-  | 'exceptions'
-  | 'access'
+type Tab = 'overview' | 'policies' | 'assignments' | 'preview' | 'shadow' | 'bonus' | 'exceptions'
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof Gauge }> = [
   { id: 'overview', label: 'Overview', icon: Gauge },
@@ -36,7 +27,6 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof Gauge }> = [
   { id: 'shadow', label: 'Shadow entries', icon: FileClock },
   { id: 'bonus', label: 'Bonus periods', icon: BadgePoundSterling },
   { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle },
-  { id: 'access', label: 'Access', icon: KeyRound },
 ]
 
 const inputClass =
@@ -90,12 +80,10 @@ export default function CommissionConsole() {
   const [shadowEntries, setShadowEntries] = useState<JsonRecord[]>([])
   const [bonusPeriods, setBonusPeriods] = useState<JsonRecord[]>([])
   const [exceptions, setExceptions] = useState<JsonRecord[]>([])
-  const [grants, setGrants] = useState<JsonRecord[]>([])
   const [options, setOptions] = useState<JsonRecord>({
     employees: [],
     locations: [],
     activePolicyVersions: [],
-    canManageGrants: false,
   })
 
   const load = useCallback(async () => {
@@ -118,12 +106,6 @@ export default function CommissionConsole() {
       setBonusPeriods(results[4].items || [])
       setExceptions(results[5].items || [])
       setOptions(results[6])
-      if (results[6].canManageGrants) {
-        const grantData = await fetchJson('/api/commissions/access-grants')
-        setGrants(grantData.items || [])
-      } else {
-        setGrants([])
-      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load Commission data.')
     } finally {
@@ -199,24 +181,22 @@ export default function CommissionConsole() {
       </div>
 
       <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
-        {tabs
-          .filter((tab) => tab.id !== 'access' || options.canManageGrants)
-          .map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm transition ${
-                  activeTab === tab.id
-                    ? 'border-cyan-400 bg-cyan-400/10 text-cyan-200'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-600'
-                }`}
-              >
-                <Icon className="h-4 w-4" /> {tab.label}
-              </button>
-            )
-          })}
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm transition ${
+                activeTab === tab.id
+                  ? 'border-cyan-400 bg-cyan-400/10 text-cyan-200'
+                  : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-600'
+              }`}
+            >
+              <Icon className="h-4 w-4" /> {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       {error && <Message tone="error">{error}</Message>}
@@ -244,14 +224,6 @@ export default function CommissionConsole() {
           {activeTab === 'bonus' && <BonusPeriods items={bonusPeriods} />}
           {activeTab === 'exceptions' && (
             <Exceptions items={exceptions} working={working} runMutation={runMutation} />
-          )}
-          {activeTab === 'access' && options.canManageGrants && (
-            <Access
-              items={grants}
-              employees={options.employees || []}
-              working={working}
-              runMutation={runMutation}
-            />
           )}
         </>
       )}
@@ -1058,103 +1030,6 @@ function Exceptions({
         ),
       ])}
     />
-  )
-}
-
-function Access({
-  items,
-  employees,
-  working,
-  runMutation,
-}: {
-  items: JsonRecord[]
-  employees: JsonRecord[]
-  working: boolean
-  runMutation: MutationRunner
-}) {
-  const [employeeId, setEmployeeId] = useState('')
-  const active = useMemo(() => items.filter((item) => !item.revokedAt), [items])
-  return (
-    <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-      <form
-        className="self-start space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void runMutation(
-            () =>
-              fetchJson('/api/commissions/access-grants', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Idempotency-Key': requestKey('grant'),
-                },
-                body: JSON.stringify({ employeeId }),
-              }),
-            'Narrow Commission policy access granted.',
-          )
-        }}
-      >
-        <div>
-          <h2 className="text-lg font-semibold">Grant HR policy access</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            This grants Commission setup and preview only, not general administrator access.
-          </p>
-        </div>
-        <Field label="Employee">
-          <select
-            className={inputClass}
-            value={employeeId}
-            onChange={(event) => setEmployeeId(event.target.value)}
-            required
-          >
-            <option value="">Select employee</option>
-            {employees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <button className={buttonClass} disabled={working}>
-          Grant access
-        </button>
-      </form>
-      <div className="space-y-3">
-        {active.length === 0 ? (
-          <Empty text="No active HR Commission access grants." />
-        ) : (
-          active.map((grant) => (
-            <div
-              key={grant.id}
-              className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
-            >
-              <div>
-                <p className="font-semibold">{grant.employeeName}</p>
-                <p className="mt-1 text-sm text-slate-400">
-                  {grant.employeeEmail} · granted by {grant.grantedByName}
-                </p>
-              </div>
-              <button
-                className="rounded-lg border border-rose-500/40 px-3 py-2 text-sm text-rose-200 hover:bg-rose-500/10"
-                disabled={working}
-                onClick={() =>
-                  void runMutation(
-                    () =>
-                      fetchJson(`/api/commissions/access-grants/${grant.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Idempotency-Key': requestKey('revoke') },
-                      }),
-                    'Commission policy access revoked.',
-                  )
-                }
-              >
-                Revoke
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
   )
 }
 

@@ -1,7 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const ACTOR_ID = '40000000-0000-4000-8000-000000000001'
-const originalActor = process.env.COMMISSION_CRON_ACTOR_EMPLOYEE_ID
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   requireCronAuthorization: vi.fn(),
@@ -21,12 +18,11 @@ import { GET as processCommissions } from '@/app/api/cron/commissions/process/ro
 describe('Commission scheduled shadow processor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.COMMISSION_CRON_ACTOR_EMPLOYEE_ID = ACTOR_ID
     mocks.requireCronAuthorization.mockReturnValue(null)
     mocks.getServiceSupabaseClient.mockReturnValue({ rpc: mocks.rpc })
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'commission_schema_status') {
-        return { data: { ready: true, version: 2026082902, mode: 'shadow' }, error: null }
+        return { data: { ready: true, version: 2026082903, mode: 'shadow' }, error: null }
       }
       if (name === 'commission_process_shadow_2026082902') {
         return {
@@ -38,12 +34,7 @@ describe('Commission scheduled shadow processor', () => {
     })
   })
 
-  afterAll(() => {
-    if (originalActor === undefined) delete process.env.COMMISSION_CRON_ACTOR_EMPLOYEE_ID
-    else process.env.COMMISSION_CRON_ACTOR_EMPLOYEE_ID = originalActor
-  })
-
-  it('runs one bounded daily batch with a configured audit actor', async () => {
+  it('runs one bounded daily batch as the audited system worker', async () => {
     const response = await processCommissions(
       new Request('http://localhost/api/cron/commissions/process'),
     )
@@ -55,24 +46,15 @@ describe('Commission scheduled shadow processor', () => {
       nonPayable: true,
     })
     expect(mocks.rpc).toHaveBeenCalledWith('commission_process_shadow_2026082902', {
-      p_actor_employee_id: ACTOR_ID,
+      p_actor_employee_id: null,
       p_limit: 200,
       p_request_key: expect.stringMatching(/^commission-cron:\d{4}-\d{2}-\d{2}$/),
     })
   })
 
-  it('fails closed without a valid configured employee UUID', async () => {
-    process.env.COMMISSION_CRON_ACTOR_EMPLOYEE_ID = 'not-an-employee-id'
-    const response = await processCommissions(
-      new Request('http://localhost/api/cron/commissions/process'),
-    )
-    expect(response.status).toBe(503)
-    expect(mocks.rpc).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when processor capability 2902 is unavailable', async () => {
+  it('fails closed when department/system capability 2903 is unavailable', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: { ready: true, version: 2026082901, mode: 'shadow' },
+      data: { ready: true, version: 2026082902, mode: 'shadow' },
       error: null,
     })
     const response = await processCommissions(

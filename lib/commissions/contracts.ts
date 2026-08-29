@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const COMMISSION_CAPABILITY_VERSION = 2026082902
+export const COMMISSION_CAPABILITY_VERSION = 2026082903
 
 export const commissionSourceModules = ['ticketing', 'packages'] as const
 export const commissionServiceCodes = [
@@ -173,8 +173,6 @@ export const createCommissionAssignmentSchema = z
       })
     }
   })
-
-export const createCommissionAccessGrantSchema = z.object({ employeeId: uuidSchema }).strict()
 
 export const commissionProcessSchema = z
   .object({ limit: z.number().int().min(1).max(200).default(50) })

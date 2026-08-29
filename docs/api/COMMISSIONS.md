@@ -2,7 +2,7 @@
 
 Commission is an internal Admin/HR financial-control surface. Every staff route derives the actor
 from the active staff session, requires Admin Commission authority or a live
-`manage_commission_policies` grant, enforces database capability `2026082902`, and returns
+HR department membership, enforces database capability `2026082903`, and returns
 `Cache-Control: private, no-store`. All calculated values in this release are non-payable shadow
 evidence and are not exposed to agents or managers.
 
@@ -16,7 +16,7 @@ evidence and are not exposed to agents or managers.
 count; active shadow-entry count and total; incomplete bonus-period count; and the latest run
 summary.
 
-**Errors:** `401`/`403` for staff or Commission-access failure; `503` when capability `2026082902`
+**Errors:** `401`/`403` for staff or Commission-access failure; `503` when capability `2026082903`
 is absent; `500` when the private overview cannot be loaded.
 
 ### GET `/api/commissions/setup-options`
@@ -25,8 +25,8 @@ is absent; `500` when the private overview cannot be loaded.
 
 **Input:** No body or query parameters.
 
-**Success:** `200` with bounded active employee options, locations, active policy-version labels,
-and `canManageGrants`. Employee email is returned only inside this restricted setup surface.
+**Success:** `200` with bounded active employee options, locations, and active policy-version
+labels. Employee email is returned only inside this restricted setup surface.
 
 **Errors:** `401`/`403` for access failure; `503` when Commission is unavailable; `500` when setup
 options or policy labels cannot be loaded.
@@ -214,48 +214,40 @@ capability; `500` for an unexpected processing failure.
 
 ### GET `/api/commissions/access-grants`
 
-**Access:** Master Admin and Super Admin only, after normal Commission access verification.
+**Access:** Authenticated Commission Admin/HR staff; retained only as a compatibility endpoint.
 
-**Input:** No body or query parameters; response is bounded to 200 grant records.
+**Input:** Ignored.
 
-**Success:** `200` with employee identity/active state, fixed capability, grantor, grant time, and
-revocation time. This is policy-management access only and does not grant a general administrator
-role.
+**Success:** None. Returns `410 Gone` because access is managed by HR department allocation in
+Staff Management. Historical grant rows remain immutable audit evidence but grant no authority.
 
-**Errors:** `401`/`403` for session, Commission, or grant-management failure; `503` for missing
-capability; `500` when grants or employee labels cannot be loaded.
+**Errors:** `401`/`403` for access failure; otherwise `410`.
 
 ### POST `/api/commissions/access-grants`
 
-**Access:** Master Admin and Super Admin only.
+**Access:** Authenticated Commission Admin/HR staff; retained only as a compatibility endpoint.
 
-**Input:** Valid `Idempotency-Key` and strict JSON `{ employeeId }`; capability names, grantor, and
-actor fields are server-controlled.
+**Input:** Ignored.
 
-**Success:** `201` with the audited active `manage_commission_policies` grant. Identical retries are
-idempotent.
+**Success:** None. Returns `410 Gone`; Master/Super Admin assigns HR in Staff Management instead.
 
-**Errors:** `400` for invalid employee/key; `401`/`403` for access failure; `404` for a missing or
-inactive employee; `409` for a conflicting active grant; `503` for missing capability; `500` for an
-unexpected database failure.
+**Errors:** `401`/`403` for access failure; otherwise `410`.
 
 ### DELETE `/api/commissions/access-grants/[id]`
 
-**Access:** Master Admin and Super Admin only.
+**Access:** Authenticated Commission Admin/HR staff; retained only as a compatibility endpoint.
 
-**Input:** UUID grant ID and valid `Idempotency-Key`; no body fields.
+**Input:** Ignored.
 
-**Success:** `200` with the audited revocation result. Historical grant evidence is retained rather
-than deleted.
+**Success:** None. Returns `410 Gone`; removing HR in Staff Management removes Commission access.
 
-**Errors:** `400` for invalid ID/key; `401`/`403` for access failure; `404` for a missing active
-grant; `503` for missing capability; `500` for an unexpected database failure.
+**Errors:** `401`/`403` for access failure; otherwise `410`.
 
 ### GET `/api/cron/commissions/process`
 
 **Access:** Exact `Authorization: Bearer <CRON_SECRET>` through the shared fail-closed cron guard.
-`COMMISSION_CRON_ACTOR_EMPLOYEE_ID` must identify an active Admin/HR employee with Commission
-authority; the UUID is recorded as the calculation/audit actor.
+The scheduled worker uses the service-only processor boundary and records `actor_type: system` with
+no employee actor.
 
 **Input:** No body or query parameters. The daily UTC date forms the idempotency key; the batch is
 fixed at 200.
@@ -263,5 +255,5 @@ fixed at 200.
 **Success:** `200` with the same non-payable run/count DTO as manual processing. Same-day delivery
 retries replay the audited result instead of duplicating entries.
 
-**Errors:** `401` for an invalid bearer; `503` when cron/actor/capability configuration is missing;
-`403` if the configured actor is no longer authorised; `500` for an unexpected processing failure.
+**Errors:** `401` for an invalid bearer; `503` when cron/capability configuration is missing; `500`
+for an unexpected processing failure.

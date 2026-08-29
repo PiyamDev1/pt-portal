@@ -304,6 +304,24 @@ describe('/api/admin/add-employee route', () => {
     expect(mocks.createUser).not.toHaveBeenCalled()
   })
 
+  it('allows only Master or Super Admin to assign the HR department', async () => {
+    const access = await mocks.requireAdminSession()
+    mocks.requireAdminSession.mockResolvedValue({
+      ...access,
+      employee: { ...access.employee, role: 'Admin' },
+    })
+    mocks.departmentsIn.mockResolvedValue({
+      data: [{ id: DEPARTMENT_ID, name: 'Human Resources' }],
+      error: null,
+    })
+
+    const response = await POST(postRequest(validBody))
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error).toBe('Only a Master Admin can assign the HR department.')
+    expect(mocks.createUser).not.toHaveBeenCalled()
+  })
+
   it('normalizes identity fields, validates references, and preserves the success contract', async () => {
     const response = await POST(
       postRequest({

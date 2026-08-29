@@ -59,7 +59,6 @@ export async function GET() {
           rules?.find((rule) => rule.id === version.rule_id)?.rule_name || 'Unknown policy',
         versionNumber: version.version_number,
       })),
-      canManageGrants: access.canManageGrants,
     },
     COMMISSION_PRIVATE_RESPONSE,
   )

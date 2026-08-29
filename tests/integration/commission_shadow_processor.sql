@@ -50,6 +50,37 @@ values
   )
 on conflict (id) do nothing;
 
+do $department_access$
+declare
+  hr_department_id uuid;
+begin
+  if (public.commission_schema_status() ->> 'version')::bigint <> 2026082903 then
+    raise exception 'Commission HR/system capability 2026082903 is not ready';
+  end if;
+  select id into hr_department_id
+  from public.departments
+  where regexp_replace(lower(btrim(name)), '[^a-z0-9]+', '', 'g')
+    in ('hr', 'humanresource', 'humanresources')
+  order by id
+  limit 1;
+  if hr_department_id is null then raise exception 'HR department was not seeded'; end if;
+  if public.commission_actor_can_manage_2026082901(
+    '40000000-0000-0000-0000-000000000003'
+  ) then raise exception 'Non-HR employee unexpectedly received Commission access'; end if;
+  insert into public.employee_departments (employee_id, department_id)
+  values ('40000000-0000-0000-0000-000000000003', hr_department_id);
+  if not public.commission_actor_can_manage_2026082901(
+    '40000000-0000-0000-0000-000000000003'
+  ) then raise exception 'Active HR member did not receive Commission access'; end if;
+  delete from public.employee_departments
+  where employee_id = '40000000-0000-0000-0000-000000000003'
+    and department_id = hr_department_id;
+  if public.commission_actor_can_manage_2026082901(
+    '40000000-0000-0000-0000-000000000003'
+  ) then raise exception 'Removed HR member retained Commission access'; end if;
+end
+$department_access$;
+
 do $policy_setup$
 declare policy_result jsonb;
 declare version_result jsonb;
@@ -590,5 +621,38 @@ begin
   ) then raise exception 'Authenticated received direct Commission processor access'; end if;
 end
 $least_privilege$;
+
+do $system_processing$
+declare
+  result jsonb;
+  run_id uuid;
+begin
+  result := public.commission_process_shadow_2026082902(
+    null, 20, 'processor-system-run-0001'
+  );
+  run_id := (result ->> 'runId')::uuid;
+  if run_id is null then raise exception 'System processor did not create a run'; end if;
+  if not exists (
+    select 1
+    from public.commission_calculation_runs
+    where id = run_id and triggered_by is null and status = 'completed'
+  ) then raise exception 'Scheduled run was attributed to an employee'; end if;
+  if not exists (
+    select 1
+    from public.commission_audit_events
+    where entity_id = run_id
+      and action = 'shadow.processed'
+      and actor_employee_id is null
+      and actor_type = 'system'
+      and request_key = 'processor-system-run-0001'
+  ) then raise exception 'Scheduled run did not record the system audit actor'; end if;
+  result := public.commission_process_shadow_2026082902(
+    null, 20, 'processor-system-run-0001'
+  );
+  if result ->> 'idempotentReplay' <> 'true' then
+    raise exception 'System processor request was not idempotent: %', result;
+  end if;
+end
+$system_processing$;
 
 select 'commission shadow processor assertions passed' as result;

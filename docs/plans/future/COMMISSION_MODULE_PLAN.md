@@ -12,11 +12,12 @@
 - **First delivery:** Policy setup and admin/HR-only shadow calculations; no payable entries
 
 Implementation checkpoint on August 29, 2026: the linked database reports Commission capability
-`2026082902` ready in `shadow` mode. The policy/version/assignment/access foundation, bounded
+`2026082903` ready in `shadow` mode. The policy/version/assignment foundation, bounded
 processor, typed exceptions and retry path, Admin/HR console, and daily cron route are implemented.
 Existing source events remain pending and no shadow money has been calculated yet: authorised HR
-must configure and assign active employee policies before replay. Scheduled replay additionally
-requires a valid `COMMISSION_CRON_ACTOR_EMPLOYEE_ID` in the deployed environment.
+must configure and assign active employee policies before replay. Active HR department membership
+in Staff Management is the HR access source. Scheduled runs use an explicit system audit actor and
+do not impersonate or require the UUID of an employee.
 
 ## 1. Purpose and delivery decision
 
@@ -70,18 +71,19 @@ entries.
 
 ### 3.1 Access capabilities
 
-PT-Portal currently has no dedicated HR commission permission. Add an audited
-`manage_commission_policies` access grant instead of depending on a hard-coded HR role or department
-name.
+Commission HR access follows the existing many-to-many Staff Management department allocation.
+The canonical department names `HR`, `Human Resource`, and `Human Resources` are normalised to the
+same access boundary.
 
 - Admin, Master Admin, and Super Admin may configure and preview policies company-wide.
-- Master Admin and Super Admin may grant/revoke `manage_commission_policies` for nominated HR staff.
-- An authorised HR user receives the same policy/assignment/preview tools required to perform that
+- An active employee assigned to HR receives the policy/assignment/preview tools required for that
   responsibility, but no unrelated administrator privileges.
+- Master Admin and Super Admin are the only browser users allowed to add or remove HR department
+  membership. Removing HR membership removes Commission access immediately.
 - Managers cannot create, edit, activate, or assign pay rules.
 - Maintenance Admin receives no Commission access by default.
-- Every grant, revocation, policy activation, assignment, preview, and reprocessing request is
-  audited with actor and timestamp.
+- Policy activation, assignment, preview, and manual reprocessing requests are audited with the
+  employee actor and timestamp. Scheduled processing is audited as `system`.
 
 ### 3.2 First-delivery UI
 
@@ -97,7 +99,7 @@ Replace the `/dashboard/commissions` placeholder with an internal console contai
 - Bonus periods: gross contributed profit, ordinary commission cost, qualifying profit, target,
   achieved state, reward, and incomplete-input count.
 - Exceptions: filter, inspect, and retry held source facts.
-- Access: Master/Super Admin management of HR policy grants.
+- Access is managed in Staff Management by assigning or removing the HR department.
 
 The first delivery does not expose shadow money to agents or managers. Future live visibility is:
 
@@ -462,8 +464,8 @@ After one full shadow month reconciles:
 The generated schema already contains legacy `commission_rules`, `commission_rate_components`,
 `commission_tiers`, and `employee_commission_assignments`, plus the implemented
 `commission_source_events` and `commission_source_event_states` boundary. The legacy rule tables are
-too narrow for service-specific effective versions, signed entries, bonus aggregation, and access
-grants.
+too narrow for service-specific effective versions, signed entries, bonus aggregation, and
+department-derived HR access.
 
 Before DDL, verify the linked database objects, policies, grants, functions, triggers, row counts,
 and drift. Preserve any production rows. If the expected legacy tables remain empty, evolve them
@@ -479,7 +481,7 @@ Expected capabilities:
 | `commission_policy_components`    | Typed component configuration and ordering                  |
 | `commission_tiers`                | Marginal threshold bands tied to policy versions            |
 | `employee_commission_assignments` | Per-service/role/location effective assignments             |
-| `commission_access_grants`        | Audited HR policy-management capability                     |
+| `commission_access_grants`        | Retained legacy grant audit; no longer an authority source  |
 | `commission_source_events`        | Existing immutable producer facts                           |
 | `commission_source_event_states`  | Existing claim/retry/held processing state                  |
 | `commission_calculation_runs`     | Preview/shadow/live run metadata and policy snapshot        |
@@ -507,8 +509,7 @@ routes call service-only transactional functions after server-side session/permi
 - `GET /api/commissions/exceptions`
 - `POST /api/commissions/exceptions/{exceptionId}/retry`
 - `POST /api/commissions/process`
-- `GET/POST /api/commissions/access-grants`
-- `DELETE /api/commissions/access-grants/{grantId}`
+- Legacy access-grant handlers return `410`; Staff Management owns HR access.
 - `GET /api/cron/commissions/process`
 
 All list endpoints use bounded filter-bound keyset pagination and return semantic DTOs. Mutation
@@ -543,8 +544,8 @@ Implementation starts with all of the following:
 ### Phase 1: Shadow foundation and policy setup
 
 - Complete live discovery and reconcile legacy commission tables.
-- Add access grants, policy versions/components, per-service assignments, signed shadow entries,
-  period results, exceptions, audit, and processing functions.
+- Add department-derived HR access, policy versions/components, per-service assignments, signed
+  shadow entries, period results, exceptions, audit, and processing functions.
 - Implement typed fixed/percentage/zero/signed/tier/assistant/package/bonus components.
 - Replace the placeholder with the Admin/HR policy, preview, shadow, bonus-period, and exception
   console.
@@ -599,8 +600,8 @@ Implementation starts with all of the following:
 
 ### 12.2 Authorization/UI/API tests
 
-- Admin/Master/Super Admin and granted HR staff can manage policies as documented.
-- Only Master/Super Admin can manage HR Commission access grants.
+- Admin/Master/Super Admin and active HR department staff can manage policies as documented.
+- Only Master/Super Admin can change HR department membership through browser workflows.
 - Manager, Maintenance Admin, and ordinary employees cannot access shadow money or mutations.
 - Every mutation and retry writes an audit event.
 - Preview writes no source state, entry, period, or balance.
@@ -622,7 +623,7 @@ npx vitest run --maxWorkers=4
 npx next build --webpack
 ```
 
-Add disposable PostgreSQL coverage for migrations, access grants, policy matching, component math,
+Add disposable PostgreSQL coverage for migrations, HR department access, policy matching, component math,
 worker concurrency, source corrections, monthly tiers, bonus aggregation, and shadow supersession.
 Add route/component coverage for the Admin/HR console and a browser smoke flow from policy creation
 through historical shadow reconciliation.
@@ -636,7 +637,8 @@ exchange rate, public leaderboard, or hard deletion.
 It is successful when:
 
 - Any employee's ordinary and bonus structure can be configured without source-module code changes.
-- HR can be granted narrowly scoped policy-management access without becoming a portal admin.
+- HR receives narrowly scoped policy-management access through Staff Management department
+  allocation without becoming a portal admin.
 - Ticketing facts process deterministically into explainable, signed, non-payable shadow entries.
 - Recipient and profit owner remain distinct through primary, assistance, and Low Fare cases.
 - Monthly qualifying profit subtracts every ordinary commission cost attached to the employee's own

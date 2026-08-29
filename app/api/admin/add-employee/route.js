@@ -232,7 +232,7 @@ export async function POST(request) {
     const { email, firstName, lastName, role_id, department_ids, location_id } = body
 
     const roleQuery = admin.from('roles').select('id, name').eq('id', role_id).maybeSingle()
-    const departmentsQuery = admin.from('departments').select('id').in('id', department_ids)
+    const departmentsQuery = admin.from('departments').select('id, name').in('id', department_ids)
     const locationQuery = location_id
       ? admin.from('locations').select('id, name, branch_code').eq('id', location_id).maybeSingle()
       : Promise.resolve({ data: null, error: null })
@@ -257,6 +257,17 @@ export async function POST(request) {
     if (location_id && !locationResult.data) return fail('Invalid location ID.', 400)
 
     const privilegedRoles = new Set(['master admin', 'super admin'])
+    const assignsHrDepartment = (departmentResult.data || []).some((department) =>
+      ['hr', 'humanresource', 'humanresources'].includes(
+        String(department.name || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, ''),
+      ),
+    )
+    if (assignsHrDepartment && !privilegedRoles.has(access.employee.role.trim().toLowerCase())) {
+      return fail('Only a Master Admin can assign the HR department.', 403)
+    }
     if (
       privilegedRoles.has(
         String(roleResult.data.name || '')

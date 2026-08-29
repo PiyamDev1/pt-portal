@@ -1392,7 +1392,8 @@ export type Database = {
       commission_audit_events: {
         Row: {
           action: string
-          actor_employee_id: string
+          actor_employee_id: string | null
+          actor_type: string
           after_state: Json | null
           before_state: Json | null
           created_at: string
@@ -1404,7 +1405,8 @@ export type Database = {
         }
         Insert: {
           action: string
-          actor_employee_id: string
+          actor_employee_id?: string | null
+          actor_type?: string
           after_state?: Json | null
           before_state?: Json | null
           created_at?: string
@@ -1416,7 +1418,8 @@ export type Database = {
         }
         Update: {
           action?: string
-          actor_employee_id?: string
+          actor_employee_id?: string | null
+          actor_type?: string
           after_state?: Json | null
           before_state?: Json | null
           created_at?: string

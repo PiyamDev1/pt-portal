@@ -40,11 +40,10 @@ describe('Commission policy mutation routes', () => {
       authorized: true,
       user: { id: ACTOR_ID },
       employee: { id: ACTOR_ID, role: 'Admin' },
-      canManageGrants: false,
     })
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'commission_schema_status') {
-        return { data: { ready: true, version: 2026082902, mode: 'shadow' }, error: null }
+        return { data: { ready: true, version: 2026082903, mode: 'shadow' }, error: null }
       }
       if (name === 'commission_create_policy_2026082901') {
         return {

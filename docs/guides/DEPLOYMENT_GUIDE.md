@@ -151,7 +151,7 @@ The smoke workflow intentionally fails when its required account/base secrets ar
 - Ticketing AeroDataBox flight monitoring daily at 05:30 UTC; and
 - Commission non-payable shadow processing daily at 05:45 UTC.
 
-Every Vercel cron request must carry the bearer secret configured by Vercel. Commission processing additionally requires `COMMISSION_CRON_ACTOR_EMPLOYEE_ID` to identify an active authorised Admin/HR audit actor. The separate document migration schedule is GitHub Actions, not Vercel. Its endpoint prefers `DOCUMENT_MIGRATION_CRON_TOKEN` and falls back to `CRON_SECRET` only when the dedicated token is not configured; configure the dedicated token for the workflow so the two automation boundaries remain independently rotatable.
+Every Vercel cron request must carry the bearer secret configured by Vercel. Commission scheduled processing records a system audit actor and requires no employee-specific environment variable. The separate document migration schedule is GitHub Actions, not Vercel. Its endpoint prefers `DOCUMENT_MIGRATION_CRON_TOKEN` and falls back to `CRON_SECRET` only when the dedicated token is not configured; configure the dedicated token for the workflow so the two automation boundaries remain independently rotatable.
 
 ## Post-deploy checks
 
