@@ -1,76 +1,34 @@
-/**
- * Commissions Dashboard Page
- *
- * Displays commission tracking and analytics for sales operations:
- * - View sales and earnings information
- * - Track commission statements
- * - Filter by date range and sales type
- * - Export commission reports
- *
- * Server component that:
- * - Verifies user authentication and authorization
- * - Fetches commission data from database
- * - Renders role-based commission information
- *
- * @module app/dashboard/commissions/page
- */
-import PageHeader from '@/app/components/PageHeader.client'
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import PageHeader from '@/app/components/PageHeader.client'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import CommissionConsole from './CommissionConsole'
 
 export const metadata = {
-  title: 'Commissions - PT Portal',
-  description: 'Track earnings and sales commissions',
+  title: 'Commission Shadow Console - PT Portal',
+  description: 'Configure and reconcile non-payable Commission shadow calculations',
 }
 
 export default async function CommissionsPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
+  const access = await requireStaffSession()
+  if (!access.authorized) redirect('/login')
+
+  const { data: canManage, error } = await getServiceSupabaseClient().rpc(
+    'commission_actor_can_manage_2026082901',
+    { p_employee_id: access.employee.id },
   )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
-
-  const location = { name: 'Headquarters', branch_code: 'HQ' }
+  if (error || canManage !== true) redirect('/dashboard')
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-950 text-white">
         <PageHeader
-          employeeName={session?.user?.user_metadata?.full_name}
-          role="Employee"
-          location={location}
-          userId={session?.user?.id}
+          employeeName={access.employee.fullName}
+          role={access.employee.role}
+          userId={access.user.id}
         />
-
-        <main className="container mx-auto px-4 py-8">
-          <div className="bg-slate-800 rounded-lg p-8 text-center">
-            <p className="text-2xl font-bold mb-2">📊 Commissions Dashboard</p>
-            <p className="text-slate-300">
-              This feature is coming soon. Check back later for commission tracking and analytics.
-            </p>
-          </div>
-        </main>
+        <CommissionConsole />
       </div>
     </DashboardClientWrapper>
   )

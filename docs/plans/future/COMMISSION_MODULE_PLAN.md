@@ -1,315 +1,418 @@
 # Commission Module Integration Plan
 
-> **Implementation proposal.** This is the authoritative plan for commission structures,
-> calculation, statements, and staff sales targets. Source modules such as Ticketing and Packages
-> provide facts and variables; they do not contain commission formulas.
+> **Decision-complete implementation plan.** This is the authoritative boundary for commission
+> policies, ordinary commission calculations, employee-attributed sales-profit bonuses, shadow
+> reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
+> source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Decision-complete integration note
-- **Last updated:** August 24, 2026
+- **Status:** Ready for phased implementation
+- **Last updated:** August 29, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
+- **First delivery:** Policy setup and admin/HR-only shadow calculations; no payable entries
 
-## 1. Purpose and ownership
+## 1. Purpose and delivery decision
 
-The Commission module is the only PT-Portal module allowed to define commission structures,
-calculate earnings/debits, create statements, carry balances, or display commission outcomes.
+The Commission module is the only PT-Portal module allowed to define pay rules, calculate employee
+credits or debits, evaluate monthly sales-profit bonuses, create statements, carry balances, or
+display commission outcomes.
 
-Ticketing, Packages, and future sales modules emit immutable business facts. The Commission module
-then applies the effective policy assigned to the employee and source event. This prevents rates or
-special cases from being duplicated across ledgers and allows every agent to have a different
-structure without changing source-module code.
+Every employee may have materially different effective-dated rules. Source modules therefore emit
+strict variables and stable identities without selecting a rate or calculating money. Commission
+matches the employee, service, recipient role, location, and business date to an immutable policy
+version.
 
-The Commission module also owns weekly/monthly ticket targets. Ticketing may display a read-only,
-non-financial progress card, but target values, periods, counting rules, and corrections are managed
-here.
+The first usable delivery is deliberately a **shadow foundation**:
+
+- Authorised Admin/HR users configure, preview, version, and assign policies.
+- Existing and new Ticketing source events calculate into signed, non-payable shadow entries.
+- Monthly employee-attributed profit and sales-bonus results are reconciled internally.
+- Missing policies, inputs, or unsupported source states remain visible exceptions.
+- Agents do not receive statements, balances, payouts, or target cards in this delivery.
+
+Shadow results are never promoted into payable history. After a complete month reconciles, the live
+release recalculates from the same immutable facts and policy versions into separately posted
+entries.
 
 ## 2. Non-negotiable boundaries
 
-- Never hard-code an employee's rate in Ticketing, Packages, API routes, UI components, or migration
-  seed data.
-- Never store a calculated commission/profit value in the Ticketing sales ledger.
-- Never add commission, earnings, margin, or company-profit columns/totals to Ticketing ledger or
-  Low Fare views.
-- Source modules emit variables and stable source identities only. The Commission module owns
-  eligibility, formulas, calculation, reversals, statements, and visibility.
-- An employee without an applicable policy produces a visible `needs_policy` exception. Do not use
-  a silent fallback or assume zero; zero commission must be an explicit rule.
-- Every policy and target assignment is effective-dated. A future change must not recalculate a
-  locked historical statement or completed target period.
-- Posted entries are append-only. Corrections use void/offset/replacement entries linked to the
-  original source event and policy snapshot.
-- The primary responsible employee and each assistant are different recipient roles. Assistance may
-  earn an independently configured amount, but it never contributes issued-ticket target units or
-  advances a primary-sale tier counter.
-- Calculations and statement totals use PostgreSQL `numeric` values and actual settled GBP source
-  variables, not JavaScript floating point or inferred exchange rates.
+- Never hard-code an employee rate or bonus target in Ticketing, Packages, UI components, source
+  migrations, or seed data.
+- Never store calculated employee commission, bonus, earnings, or company profit in Ticketing
+  tables or present it in Ticketing ledger/Low Fare views.
+- Never accept arbitrary executable formulas. Policies compose reviewed, typed calculation
+  components over approved variables.
+- An employee without an applicable policy produces `needs_policy`; zero commission requires an
+  explicit zero component.
+- Every policy version, assignment, location override, and bonus rule is effective-dated.
+- A policy version becomes immutable when activated. Draft previews store the exact draft snapshot
+  and content hash used, but do not prevent further draft editing; changes to an active version
+  require a cloned draft.
+- Source events and posted entries are append-only. Corrections use supersession, offsets, and
+  replacements linked to the prior facts and calculations.
+- Primary responsible employees, Low Fare actors, and assistants are distinct roles. Assistance and
+  Low Fare may earn independently without advancing primary ticket-count tiers or issued-ticket
+  targets.
+- Calculations use PostgreSQL `numeric` and actual GBP variables. JavaScript floating point,
+  inferred exchange rates, and currency-ambiguous package metadata are never financial authority.
+- Missing financial inputs create exceptions; they are not treated as zero.
+- Payment state does not gate the initial ticket commission policy. A valid Issued fact earns the
+  applicable ordinary issuance component immediately.
 
-## 3. Roles and presentation
+## 3. Access and presentation
 
-### Agent view
+### 3.1 Access capabilities
 
-Agents can open `/dashboard/commissions` to see only their own:
+PT-Portal currently has no dedicated HR commission permission. Add an audited
+`manage_commission_policies` access grant instead of depending on a hard-coded HR role or department
+name.
 
-- Weekly and monthly sales-target progress.
-- Pending/unresolved source events that need operational completion.
-- Commission entries grouped by source/service and period.
-- Opening balance, credits, debits, closing balance, carry-forward, and statement payment status.
-- A calculation explanation identifying the policy/version and source record without exposing
-  another employee's policy or company-wide profit.
+- Admin, Master Admin, and Super Admin may configure and preview policies company-wide.
+- Master Admin and Super Admin may grant/revoke `manage_commission_policies` for nominated HR staff.
+- An authorised HR user receives the same policy/assignment/preview tools required to perform that
+  responsibility, but no unrelated administrator privileges.
+- Managers cannot create, edit, activate, or assign pay rules.
+- Maintenance Admin receives no Commission access by default.
+- Every grant, revocation, policy activation, assignment, preview, and reprocessing request is
+  audited with actor and timestamp.
 
-Ticketing remains commission-free. Links from a Commission entry may open the permitted source
-record, but source ledger rows do not render the earning.
+### 3.2 First-delivery UI
 
-### Manager/Admin view
+Replace the `/dashboard/commissions` placeholder with an internal console containing:
 
-Manager, Admin, Master Admin, and Super Admin can:
+- Overview: pending events, processed events, exceptions, and shadow totals.
+- Policies: draft/version/activate typed policies.
+- Assignments: effective-dated employee/service/recipient/location assignments.
+- Preview: test a draft against synthetic or authorised historical variables without writing an
+  entry.
+- Shadow entries: signed results with source, recipient, profit owner, policy version, explanation,
+  and supersession state.
+- Bonus periods: gross contributed profit, ordinary commission cost, qualifying profit, target,
+  achieved state, reward, and incomplete-input count.
+- Exceptions: filter, inspect, and retry held source facts.
+- Access: Master/Super Admin management of HR policy grants.
 
-- Configure and version policies/components.
-- Assign policies and targets to individual employees or reviewed groups.
-- Review `needs_policy`, ambiguous package scope, missing GBP variables, and other exceptions.
-- Preview a policy against historical source variables without posting changes.
-- Approve/lock monthly statements, record payment, and carry negative balances.
-- Add audited manual adjustments with a required reason and supporting source reference.
-- Review team target progress and completed periods.
+The first delivery does not expose shadow money to agents or managers. Future live visibility is:
 
-Maintenance Admin receives no finance access by default.
+- Employee: own entries, sales-bonus progress, statements, and balances.
+- Manager: read-only results for their direct/indirect reporting subtree.
+- Admin/authorised finance roles: company-wide review and statement operations.
 
-## 4. Source-event variable contract
+The Commission dashboard navigation must eventually include eligible employees; the current
+role-only dashboard tile does not satisfy the future own-agent view.
+
+## 4. Source-event and attribution contract
 
 ### 4.1 Common envelope
 
-Every contributing module emits an idempotent, versioned event containing:
+Keep the implemented `commission_source_events` ingestion boundary and strict versioned envelope:
 
-| Variable              | Meaning                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| `source_module`       | Stable producer such as `ticketing` or `packages`            |
-| `source_event_id`     | Producer-owned immutable UUID                                |
-| `source_record_id`    | Booking, transaction, fare adjustment, refund, or package ID |
-| `event_type`          | Stable business event code                                   |
-| `event_version`       | Increasing version for corrections to the same source fact   |
-| `supersedes_event_id` | Prior source event when this is a correction/reversal        |
-| `employee_id`         | Primary responsible employee for the source fact             |
-| `owner_employee_id`   | Operational ticket owner; equal to primary after attribution |
-| `location_id`         | Branch/location context                                      |
-| `occurred_at`         | UTC source-event timestamp                                   |
-| `effective_on`        | Business date used for policy and statement selection        |
-| `source_path`         | Internal source-record link, never a public URL              |
-| `variables`           | Strict versioned payload for the event type                  |
-| `idempotency_key`     | Unique retry-safe producer key                               |
+| Field                 | Meaning                                                    |
+| --------------------- | ---------------------------------------------------------- |
+| `source_module`       | Producer such as `ticketing` or `packages`                 |
+| `source_event_id`     | Producer-owned immutable UUID                              |
+| `source_fact_key`     | Stable identity for successive versions of one fact        |
+| `source_record_id`    | Producer record UUID                                       |
+| `event_type`          | Stable business event code                                 |
+| `contract_version`    | Source-variable contract version                           |
+| `event_version`       | Increasing correction version                              |
+| `supersedes_event_id` | Producer source-event UUID being corrected, or JSON `null` |
+| `employee_id`         | Event recipient/actor according to the event contract      |
+| `owner_employee_id`   | Primary operational/profit owner when different            |
+| `location_id`         | Source branch/location                                     |
+| `occurred_at`         | UTC fact creation timestamp                                |
+| `effective_on`        | Business date for the event                                |
+| `source_path`         | Internal authorised source link                            |
+| `variables`           | Strict payload for `event_type` and `contract_version`     |
+| `idempotency_key`     | Retry-safe producer identity                               |
 
-The database ingestion envelope uses these exact `snake_case` keys. Every key is present on every
-append; `supersedes_event_id`, `owner_employee_id`, and `location_id` use JSON `null` when absent.
-For a correction, `supersedes_event_id` is the producer-owned `source_event_id` of the prior event;
-the ingestion function resolves the internal database row without exposing that implementation ID.
+Unknown contract versions, conflicting idempotency replays, invalid lineage, inactive recipients,
+and incomplete attribution fail into typed exceptions rather than partial calculations.
 
-The Commission module rejects unknown event versions, missing required variables, duplicate
-idempotency keys with different payloads, inactive employees, or events whose employee attribution
-cannot be resolved.
+### 4.2 Calculation identities
 
-### 4.2 Ticketing variables
+A calculated entry must store both identities:
 
-Ticketing emits separate event types for TK, DC, R-ER, low-fare adjustment, higher-fare adjustment,
-refund, cancellation, package-match correction, and erroneous-issuance correction.
+- `recipient_employee_id`: employee receiving the credit/debit.
+- `profit_owner_employee_id`: primary employee whose originating sale owns the contributed profit.
 
-Relevant variables include:
+It also stores a stable `source_case_key` that groups a root sale and its later assistance, Low Fare,
+higher-fare, refund, and correction facts. This prevents a Low Fare finder or assistant from being
+mistaken for the seller whose monthly profit is being measured.
 
-- Service type and operational/payment states.
-- Issued, paid, cancelled, and refunded dates.
-- Issued or affected passenger-ticket count; this is never inferred from PNR count.
-- Source currency and actual GBP customer receipt/sale value.
-- Source currency and actual GBP supplier ticket cost.
-- Original/new fares and signed GBP fare difference.
-- Immutable acting/entered-by employee, primary responsible employee, and assistant employee IDs.
-- `issued_ticket_target_units` for the primary and explicit zero target units for assistants.
-- PNR, airline ID, transaction lineage, and refund/source references.
-- Package/reservation/group IDs, package type, and resolved commission scope.
-- Refund/cancellation values needed to preserve or adjust the original earning.
+### 4.3 Ticketing facts
 
-Ticketing emits a state change even when it does not know whether it is commissionable. The
-Commission module evaluates the employee policy and package scope.
+The implemented Ticketing boundary already publishes root TK issuance/sale/payment facts,
+DC/R-ER service events, Low/higher fare adjustments, primary/assistant attribution, actual GBP
+values, passenger counts, package scope, and correction lineage.
 
-Ticketing capability `2026082402` supplies `primary_responsible_employee_id`,
-`assistant_employee_ids`, `acting_employee_id`, `issued_ticket_target_units`, and
-`assistant_target_units` for the root TK issuance. The event envelope belongs to the primary employee. The Commission
-processor must fan out any configured assistant entries from the assistant IDs without adding those
-events to the assistant's target or primary-tier basis. A source-event correction replaces the
-recipient set and target ownership through normal event-version lineage. DC/R-ER events must not
-inherit this root-TK assistant list; a later transaction-scoped Ticketing attribution contract will
-be required before those services can record independent assistants.
+Commission applies these rules:
 
-Ticketing capability `2026082401` implements the first Low Fare producer contract. A positive
-whole-PNR GBP difference (`original_fare_gbp - new_fare_gbp`) emits
-`ticket_low_fare_adjusted`; a negative difference emits `ticket_higher_fare_adjusted`. The common
-envelope attributes the event to the authenticated acting employee and their branch while retaining
-the original ticket owner and booking branch in the source variables. Equal source/GBP
-original/new/difference pairs, passenger-ticket count, adjustment lineage, airline/PNR, root
-service/operational/payment lifecycle, and server-snapshotted package scope are included;
-`issued_ticket_target_units` is zero. A same-fare observation emits no adjustment event in this
-slice. Ticketing still emits no calculated commission amount.
+- Root TK issuance and its assistant components use the root issue date.
+- DC/R-ER ordinary entries use their service issue date.
+- Low/higher fare ordinary entries use the adjustment date and the acting employee's effective
+  policy.
+- The profit effect of a Low/higher fare adjustment remains attached to the root sale owner and root
+  sale bonus period.
+- `ticket_paid` remains an operational fact and does not gate the initial issuance commission.
+- Root assistance uses each assistant's own effective assistant policy.
+- Current root attribution supplies assistants only for TK. DC/R-ER assistance remains unsupported
+  until Ticketing emits transaction-scoped assistant facts.
+- Package-scoped Ticketing facts do not also receive ordinary Ticketing commission unless a future
+  policy explicitly enables dual treatment.
 
-### 4.3 Package variables
+Refund/cancellation Commission variables remain unavailable until the Ticketing refund workflow
+publishes an authoritative source event. The processor must hold unsupported events rather than
+inventing refund treatment.
 
-Packages emits:
+### 4.4 Package facts and interim metadata
 
-- Package ID/type and responsible sales employee.
-- Passenger count used by a fixed-per-passenger package policy.
-- Actual settled GBP revenue, cost, refunds, ticket variances, discounts, and final package profit.
-- Package lifecycle/earned date and version.
-- Links to source ticket changes, cancellations, reissues, or refunds that altered profitability.
+Future Packages source events must provide:
 
-Ticket-related package events use package scope. They do not also earn a ticketing commission unless
-an explicit future policy is designed to do so.
+- Package/reservation/group identity and type.
+- Primary sales responsible employee and any separately attributed recipients.
+- Passenger count for fixed-per-passenger rules.
+- Actual settled GBP revenue, costs, supplier commissions, discounts, refunds, ticket variances,
+  and final profit before employee commission.
+- Earned date, package lifecycle/version, location, and correction lineage.
 
-### 4.4 Interim package commission capture
+The existing `provisionalAgentCommissions` package metadata remains audit evidence only. It may be
+currency-ambiguous, calculated with browser numbers, edited manually, or already settled outside
+Commission. It must never generate an automatic shadow or payable entry.
 
-Until the Commission module processor, policy assignments, and statements are complete, Package
-folders may capture **provisional agent commission deductions** in package metadata. This is an
-operational estimate only; it is not a posted Commission entry, approved statement, payroll fact,
-or permanent policy definition.
+A later reconciliation queue will let an authorised reviewer:
 
-Each provisional line records:
-
-- `employees.id` for the recipient
-- package role: ticketing agent, assisting agent, main dealer, or other
-- manual earning basis: per issued ticket, fixed assistance amount, or explicit no commission
-- ticket quantity and per-ticket amount when applicable
-- whether the calculated amount should be subtracted from the package profit estimate
-- an internal explanation
-
-The interim package profit display is:
-
-```text
-provisional package profit =
-  sold price
-  - discounts
-  - booked cost
-  + supplier commission
-  - selected provisional agent commission deductions
-```
-
-Required example supported by this interim capture:
-
-| Employee | Package role    | Interim basis     | Treatment                                      |
-| -------- | --------------- | ----------------- | ---------------------------------------------- |
-| Agent 1  | Ticketing agent | Per issued ticket | Five issued tickets earn ticket commission     |
-| Agent 2  | Assisting agent | Fixed amount      | Full agreed fixed assistance commission        |
-| Agent 3  | Main dealer     | No commission     | No commission; remains responsible for package |
-
-When the Commission module is completed, it must ingest or reconcile these provisional records,
-replace manual rates with effective-dated policy results, prevent duplicate payment, and retain the
-original package metadata as audit evidence. Package pages must then display the Commission
-module's posted result instead of recalculating the amount locally.
+1. Resolve the package/reservation currency and actual GBP value.
+2. Match the employee and package role.
+3. Mark the provisional line as unpaid, already paid, replaced, or invalid.
+4. Compare it with the effective policy result.
+5. Post only through the live Commission workflow while retaining the original metadata evidence.
 
 ## 5. Policy model
 
-### 5.1 Policy assignment
+### 5.1 Per-service assignments
 
-- Each employee may have different effective-dated assignments by product/service and location.
-- Assignments have `effective_from` and optional `effective_to`; overlapping applicable assignments
-  are rejected unless an explicit priority/override is configured.
-- Policy versions become immutable after they are used by a posted entry.
-- A policy may explicitly produce zero for a service while remaining valid.
-- A Manager/Admin may schedule a future policy without changing current or historical periods.
+Policy matching uses:
 
-### 5.2 Supported components
+```text
+employee + source module + service + recipient role + business date + source location
+```
 
-The first release supports composable components:
+- Assignments have `effective_from` and optional `effective_to`.
+- Assignment services include at least TK primary, TK assistance, DC, R-ER, Low Fare, higher fare,
+  Package sale, and monthly sales bonus.
+- An employee-wide assignment applies at every location unless one exact location-specific
+  assignment covers that source date.
+- An exact location assignment wins over the employee-wide assignment.
+- Overlaps at the same specificity are rejected; there is no numeric priority or silent winner.
+- Bulk assignment previews and confirms individual effective-dated rows.
+- Policies containing monthly count tiers or sales-bonus aggregation may start/end only on the
+  first day of a calendar month.
 
-- Fixed amount per issued passenger-ticket.
-- Fixed amount per affected DC/R-ER passenger-ticket.
-- Fixed amount per transaction/booking.
-- Independent fixed or percentage assistance component whose count basis is the assisted fact and
-  whose primary-sale tier/target basis is always zero.
-- Percentage of positive low-fare saving.
-- Configurable treatment of a negative fare difference, including full signed debit and negative
-  carry-forward.
-- Fixed package amount.
-- Fixed package amount per passenger.
-- Percentage of final package profit.
-- Optional tiers based on a defined count or GBP basis.
-- Explicit zero component for a service.
+### 5.2 Typed components
 
-Each component declares its input variable, sign/rounding rule, combination order, minimum/maximum
-if used, and recipient. A missing input creates an exception rather than being treated as zero.
+The engine supports these reviewed component types:
 
-Tier counters must declare their eligible recipient role. The first Ticketing policies count only
-primary issued sales: an assistant entry can pay its own fixed/percentage component but cannot move
-the assistant from one primary-sales tier to another.
+- Fixed GBP amount per issued/affected passenger-ticket.
+- Fixed GBP amount per transaction/event.
+- Percentage of an approved positive or signed GBP variable.
+- Independent fixed or percentage assistant component.
+- Explicit zero for a supported service.
+- Signed debit treatment for adverse movements.
+- Marginal ticket-count tiers.
+- Fixed package amount or fixed amount per passenger.
+- Percentage of authoritative final package profit.
+- Monthly threshold-gated sales bonus.
+- Optional component minimum, maximum, and policy-level floor/cap.
 
-### 5.3 Eligibility and event timing
+Each component declares its source variable, recipient role, eligibility state, sign behaviour,
+rounding rule, and combination order. Components sum in their declared order; caps/floors apply only
+where the policy explicitly configures them.
 
-- The policy, not Ticketing, defines whether an event requires Issued, Paid, both, or another
-  lifecycle condition before posting.
-- The initial ticket-policy default is Issued + Paid because that is the agreed operating rule, but
-  it remains a Commission policy condition rather than Ticketing logic.
-- Refund policies preserve the original ticket earning by default. The refund event remains linked
-  so a future authorised policy can change that behaviour without altering Ticketing.
-- Package-scope events wait for the package earned/final-profit condition defined by the package
-  policy.
-- An unresolved package match or missing GBP settlement holds calculation in an exception queue.
+Rates use `numeric` precision. Source money and final entries round to GBP pennies using PostgreSQL
+round-half-away-from-zero semantics. Percentage rates retain sufficient precision until the final
+component result is rounded.
 
-### 5.4 Illustrative Agent 1 configuration
+### 5.3 Ordinary earning and marginal tiers
 
-This is an example assignment, not a global default or seed:
+- Issued root TK earns its configured fixed/tier component without waiting for payment.
+- A missing customer sale value does not block a fixed-per-ticket component, but it holds any
+  profit-dependent component.
+- Tier counters reset by calendar month in the source branch timezone.
+- Tiers are marginal: tickets 1-30 keep their first rate; ticket 31 onward receives the next rate.
+- Only primary issued units count. Assistance, Low Fare, DC, R-ER, refund, voucher, and payment
+  events contribute zero to the default primary TK tier count.
+- Within a period, issued units order by the immutable `issued_at` source variable and stable source
+  identity so replay produces the same tier allocation.
+- A correction may re-rank an open/shadow period and append superseding shadow entries.
 
-| Service           | Component                                                                     |
-| ----------------- | ----------------------------------------------------------------------------- |
-| TK                | £5 per issued passenger-ticket after the configured Issued + Paid condition   |
-| DC                | £5 per affected passenger-ticket after the configured Issued + Paid condition |
-| R-ER              | Explicit £0; a future policy version may change it                            |
-| Positive low fare | 10% of the GBP saving                                                         |
-| Higher fare       | Full signed GBP increase debited and eligible for negative carry-forward      |
-| Refund            | Preserve the original ticket earning                                          |
-| Package scope     | Do not apply ticket components; use the assigned package policy               |
+### 5.4 Monthly employee sales-profit bonus
 
-Acceptance example: three passengers issued as TK produce £15. A later DC affecting all three
-produces another £15. R-ER produces £0 under this version.
+The sales bonus is a separate aggregate component managed for the employee by authorised Admin/HR
+staff. It is not a Ticketing target and is never displayed in the Ticketing dashboard.
 
-### 5.5 Illustrative tier and profit configurations
+```ts
+type SalesBonusRule = {
+  period: 'calendar_month'
+  thresholdGbp: string
+  eligibleServices: string[]
+  reward:
+    | { type: 'fixed_gbp'; amountGbp: string }
+    | { type: 'percentage_of_qualifying_profit'; rate: string }
+}
+```
 
-These are separate employee policy examples, not shared defaults:
+- The period is a calendar month in the originating sale's branch timezone.
+- The target, eligible services, and reward are employee-specific and effective-dated.
+- The employee receives nothing below the target.
+- A fixed reward pays once when the target is met.
+- A percentage reward applies to the full qualifying contributed profit after the threshold is
+  met. Example: a £1,000 threshold at 10% pays £0 at £999, £100 at £1,000, and £150 at £1,500.
+- The bonus entry itself is excluded from its own qualifying basis, preventing recursion.
+- Missing sale-profit inputs keep the period `incomplete`; they never count as zero or produce a
+  premature bonus.
 
-| Example | Primary ticket components                                                                  |
-| ------- | ------------------------------------------------------------------------------------------ |
-| Agent A | £5 for each of primary tickets 1–30 in the policy period; £10 from ticket 31 onward        |
-| Agent B | £5 for primary tickets 1–30; £10 for 31–60; £15 from ticket 61 onward                      |
-| Agent C | £5 per primary ticket plus 10% for each completed £1,000 profit band under a defined basis |
+For each eligible primary sale:
 
-The Agent C profit basis must be defined precisely before implementation—period, eligible source
-modules, gross versus net profit, treatment of refunds/packages, band rounding, and statement lock.
-Ticketing provides facts only and must not calculate that profit component. For all examples, an
-assistant payment is evaluated independently and adds zero to the tier count.
+```text
+gross contributed profit
+  = actual GBP customer sale value
+  - actual GBP supplier cost
+  + signed Low Fare/higher-fare supplier adjustments
+  + other authoritative signed profit movements
 
-## 6. Ticket targets
+ordinary commission cost
+  = sum of all non-bonus signed Commission entries attached to that sale
+    across the primary seller, assistants, and Low Fare actors
 
-### 6.1 Configuration
+qualifying contributed profit
+  = sum(gross contributed profit) - sum(ordinary commission cost)
+```
 
-- Manager/Admin sets independent weekly and monthly targets per employee.
-- The default metric is `issued_tk_passenger_ticket_count`.
-- Weekly periods run Monday-Sunday and monthly periods use calendar months in the employee's branch
-  timezone unless the assignment explicitly selects another supported period definition.
-- Target assignments are effective-dated and may be scheduled in advance.
-- Bulk assignment is allowed only through preview/confirmation and writes individual audited rows.
+A positive commission credit is a company cost and reduces qualifying profit. A negative employee
+debit reduces company commission cost, so subtracting that signed debit increases the retained
+contribution. Refund/package movements join the formula only after their producer supplies
+authoritative signed GBP facts.
 
-### 6.2 Counting rules
+#### Low Fare and assistance attribution
 
-- Count each TK passenger-ticket exactly once when Ticketing first emits a valid Issued state.
-- One PNR with three issued passengers adds three.
-- Only the primary responsible employee receives those units. The authenticated entry actor gets
-  none unless they are also primary; every assistant gets zero from the assisted booking.
-- Payment does not change target count.
-- DC, R-ER, low-fare, refund, cancellation, and voucher events do not count toward the default ticket
-  target.
-- Package-linked TK passenger-tickets count unless a target assignment explicitly excludes them.
-- A later cancellation/refund does not remove genuine issuance credit.
-- An audited erroneous-issuance correction reverses the count.
-- An audited attribution correction transfers the versioned source fact from the former primary to
-  the corrected primary; it never credits the assistant list or leaves a duplicate count.
-- Duplicate/retried source events never increment progress twice.
+- The primary responsible employee owns the sale's contributed profit.
+- A positive Low Fare saving increases that primary seller's gross contribution.
+- The Low Fare actor earns under their own effective Low Fare policy.
+- That Low Fare earning reduces the originating primary sale's qualifying contribution.
+- Each assistant earns under their own effective assistant policy.
+- Assistant earnings reduce the originating primary sale's qualifying contribution.
+- Low Fare and assistance earnings do not create sales-profit progress for the finder/assistant.
+- If the primary seller is also the Low Fare actor, both the saving and commission naturally affect
+  the same employee period.
 
-### 6.3 Progress contract
+Required example:
 
-Commission exposes a read-only progress DTO to Ticketing:
+```text
+50 tickets x £25 gross profit                    £1,250
+50 tickets x £5 primary ticket commission         -£250
+                                                   -----
+qualifying contributed profit                    £1,000
+configured target                                £1,000
+configured fixed sales bonus                       £100
+```
+
+Required extended example:
+
+```text
+gross primary ticket profit                      £1,250
+primary ticket commission                         -£250
+assistant commission                               -£50
+Low Fare saving                                    +£100
+Low Fare finder commission                          -£10
+                                                   -----
+qualifying contributed profit                    £1,040
+£1,000 target reached                               yes
+configured fixed sales bonus                       £100
+```
+
+### 5.5 Corrections and locked periods
+
+During shadow mode, any source correction or policy replay appends a new calculation revision and
+recomputes the affected monthly result. Prior shadow evidence remains traceable.
+
+In the future live release:
+
+- Open periods recalculate through offset/replacement entries.
+- Locked statements and bonus results are not rewritten.
+- A late correction calculates the signed difference from the historical locked result and posts it
+  into the next open statement, linked to the original sale/month/policy snapshot.
+- An attribution correction transfers the sale contribution and all attached commission costs to
+  the corrected primary employee without crediting the entry actor or assistants.
+
+## 6. Shadow processing and exception lifecycle
+
+### 6.1 Processing model
+
+Commission processing must not make Ticketing writes fail because an employee lacks a policy.
+
+1. Ticketing/Packages append their source event atomically with the authoritative source change.
+2. The existing source-event state starts `pending`.
+3. A Commission worker claims bounded batches with `FOR UPDATE SKIP LOCKED`.
+4. The worker validates contract/version/lineage and resolves policy assignments.
+5. It writes an immutable calculation run and signed shadow entry revisions.
+6. Aggregate bonus periods recompute after ordinary entries for the affected source case settle.
+7. Expected business problems become held typed exceptions; transient failures retry with bounded
+   backoff.
+
+The first delivery uses a daily scheduled worker plus an authorised `Process now` operation. New
+source writes never synchronously depend on the complete calculation engine.
+
+All existing supported source history is processed. There is no arbitrary launch cutoff; old facts
+without policies or inputs become visible exceptions for reconciliation.
+
+### 6.2 Required exception codes
+
+- `needs_policy`
+- `ambiguous_assignment`
+- `unsupported_contract_version`
+- `missing_required_variable`
+- `inactive_recipient`
+- `invalid_source_lineage`
+- `unresolved_package_scope`
+- `package_source_not_authoritative`
+- `bonus_period_incomplete`
+- `calculation_failed`
+
+Policy activation or corrected source input requeues matching held events. An authorised user may
+retry an exception but cannot manually mark a financial result successful.
+
+### 6.3 Preview contract
+
+Preview uses the same policy resolver and calculator as shadow processing but writes no source
+state, entry, bonus period, or balance. It returns:
+
+- Matched assignment and policy version.
+- Validated input variables.
+- Component-by-component calculation and rounding.
+- Recipient and profit owner.
+- Tier/bonus-period context where applicable.
+- Signed total or typed exception.
+
+Historical preview requires the caller to have access to that employee/source record. Synthetic
+preview contains no customer data and is always labelled non-authoritative.
+
+## 7. Ticket-count targets remain separate
+
+The monthly GBP sales-bonus target is not the non-financial Ticketing sales target.
+
+Future target delivery remains Commission-owned:
+
+- Independent weekly and monthly issued-TK passenger-ticket targets per employee.
+- Default weekly Monday-Sunday and calendar-month periods in branch timezone.
+- Primary TK issuance counts once; payment adds nothing.
+- Assistants receive zero units.
+- DC, R-ER, Low Fare, refund, cancellation, and voucher events do not count.
+- Package-linked TK issuance counts unless an explicit target assignment excludes it.
+- Genuine later cancellation/refund keeps issuance credit; erroneous issuance reverses it.
+- Attribution correction transfers units through source-event lineage.
+
+The future read-only Ticketing DTO remains:
 
 ```ts
 type TicketTargetProgress = {
@@ -326,170 +429,179 @@ type TicketTargetProgress = {
 }
 ```
 
-Ticketing displays only these non-financial values. Commission may also show historical periods and
-team progress to authorised users.
+It contains no commission, sales bonus, or profit values.
 
-## 7. Statements and balances
+## 8. Statements and balances are a later release
 
-- Commission entries are signed GBP values linked to one source event and one immutable policy
-  version.
+After one full shadow month reconciles:
+
+- Posted Commission entries are signed GBP values linked to one source event/case, recipient,
+  profit owner, and immutable policy/component snapshot.
 - Positive credits and negative debits share one running employee balance.
-- A higher-fare debit may reduce the balance below zero; the unpaid negative amount carries into the
-  next statement.
-- Calendar-month statements snapshot opening balance, included entries, credits, debits, closing
+- Monthly statements snapshot opening balance, entries, credits, debits, sales bonus, closing
   balance, approved amount, payment state, approver, and timestamps.
-- Approval/lock freezes membership and calculations. Later corrections post an offset in the next
-  open period rather than rewriting the locked statement.
-- Payment recording is an audited state change; payroll/Frappe transfer is outside the first
+- Approval locks membership/calculations; later corrections post into the next open statement.
+- Negative balances carry forward. A non-positive closing payable amount pays £0 while retaining the
+  signed carry-forward.
+- Payment recording is audited. Payroll/Frappe transfer is outside the initial live statement
   release.
+- Manual adjustments require an authorised actor, reason, source reference, and signed GBP amount;
+  they never edit a source-calculated entry.
 
-## 8. Data and API design
+## 9. Data and API design
 
-### 8.1 Existing Supabase baseline
+### 9.1 Existing baseline and migration strategy
 
-The generated snapshot already describes `commission_rules`, `commission_rate_components`,
-`commission_tiers`, and `employee_commission_assignments`. The current `/dashboard/commissions`
-route is a placeholder. These facts must be verified against the live linked Supabase project before
-choosing ALTER/backfill/replacement migrations.
+The generated schema already contains legacy `commission_rules`, `commission_rate_components`,
+`commission_tiers`, and `employee_commission_assignments`, plus the implemented
+`commission_source_events` and `commission_source_event_states` boundary. The legacy rule tables are
+too narrow for service-specific effective versions, signed entries, bonus aggregation, and access
+grants.
 
-The August 24 Ticketing verification found those rule/component/tier/assignment tables and the
-Ticketing-owned `commission_source_events` boundary empty. Ticketing capability `2026082402` can
-now publish signed Low Fare/higher-fare variables and root-TK primary/assistant attribution facts
-atomically. This producer boundary still implies no Commission processor, policy assignment,
-calculated entry, statement, payout, or target-progress UI.
+Before DDL, verify the linked database objects, policies, grants, functions, triggers, row counts,
+and drift. Preserve any production rows. If the expected legacy tables remain empty, evolve them
+through a clean versioned migration; if rows exist, migrate each legacy rule into an explicit v1
+policy version and produce a backfill report.
 
-Expected resulting capabilities:
+Expected capabilities:
 
-| Table/capability                    | Responsibility                                              |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `commission_policy_versions`        | Immutable policy metadata and conditions                    |
-| Existing rule/component/tier tables | Reviewed calculation components, extended where safe        |
-| `employee_commission_assignments`   | Effective-dated employee/service policy assignment          |
-| `commission_source_events`          | Versioned idempotent facts from source modules              |
-| `commission_entries`                | Signed calculated result and full input/rule snapshot       |
-| `commission_statements`             | Monthly balances, approval, lock, and payment               |
-| `commission_statement_entries`      | Immutable statement membership                              |
-| `sales_target_assignments`          | Effective-dated employee metric/period targets              |
-| `sales_target_periods`              | Progress and closed-period snapshot                         |
-| `commission_audit_events`           | Policy, assignment, adjustment, statement, and target audit |
+| Table/capability                  | Responsibility                                              |
+| --------------------------------- | ----------------------------------------------------------- |
+| `commission_rules`                | Stable named policy identity                                |
+| `commission_policy_versions`      | Immutable draft/active/retired policy versions              |
+| `commission_policy_components`    | Typed component configuration and ordering                  |
+| `commission_tiers`                | Marginal threshold bands tied to policy versions            |
+| `employee_commission_assignments` | Per-service/role/location effective assignments             |
+| `commission_access_grants`        | Audited HR policy-management capability                     |
+| `commission_source_events`        | Existing immutable producer facts                           |
+| `commission_source_event_states`  | Existing claim/retry/held processing state                  |
+| `commission_calculation_runs`     | Preview/shadow/live run metadata and policy snapshot        |
+| `commission_entries`              | Signed shadow/live revisions with recipient/profit owner    |
+| `commission_period_results`       | Monthly profit/threshold/reward calculation snapshots       |
+| `commission_exceptions`           | Typed held facts and resolution/retry evidence              |
+| `commission_audit_events`         | Access, policy, assignment, processing, and statement audit |
+| Future statement/target tables    | Live balances, statements, membership, and ticket targets   |
 
-Prefer extending usable current tables over parallel duplicates. Preserve existing rows and create
-an explicit migration/backfill report if current production data exists.
+Use strict constraints for component kinds, recipient roles, service codes, policy states, entry
+modes, and exception states. Browser roles receive no direct table mutation grants; authorised API
+routes call service-only transactional functions after server-side session/permission checks.
 
-### 8.2 APIs
+### 9.2 First-delivery APIs
 
-Agent endpoints:
-
-- `GET /api/commissions/me`
-- `GET /api/commissions/me/entries`
-- `GET /api/commissions/me/statements`
-- `GET /api/commissions/me/targets`
-
-Manager/Admin endpoints:
-
-- `GET/POST/PATCH /api/commissions/policies`
-- `GET/POST/PATCH /api/commissions/assignments`
-- `GET/POST/PATCH /api/commissions/statements`
-- `GET/POST/PATCH /api/commissions/targets`
-- `GET/POST /api/commissions/adjustments`
+- `GET/POST /api/commissions/policies`
+- `GET/PATCH /api/commissions/policies/{policyId}` for stable metadata only
+- `GET/POST /api/commissions/policies/{policyId}/versions`
+- `POST /api/commissions/policies/{policyId}/versions/{versionId}/activate`
+- `GET/POST /api/commissions/assignments`
+- `PATCH /api/commissions/assignments/{assignmentId}`
+- `POST /api/commissions/preview`
+- `GET /api/commissions/shadow-entries`
+- `GET /api/commissions/bonus-periods`
 - `GET /api/commissions/exceptions`
+- `POST /api/commissions/exceptions/{exceptionId}/retry`
+- `POST /api/commissions/process`
+- `GET/POST /api/commissions/access-grants`
+- `DELETE /api/commissions/access-grants/{grantId}`
+- `POST /api/cron/commissions/process`
 
-Source ingestion is not a browser endpoint. Ticketing/Packages transactional PostgreSQL functions
-append `commission_source_events` in the same transaction as the authoritative source change. A
-retry-safe processor calculates or refreshes the resulting entry.
+All list endpoints use bounded filter-bound keyset pagination and return semantic DTOs. Mutation
+routes validate strict request schemas, derive actor identity from `requireStaffSession`, enforce
+the Commission capability server-side, use idempotency keys, and return no customer PII that the
+caller is not authorised to see.
 
-The cancellation calculator uses a server-only Commission resolver to obtain the retained
-commission variable for its selected source ticket. It never accepts the amount from the browser
-and never adds the amount to Ticketing ledger presentation.
+Source ingestion is never a browser endpoint.
 
-## 9. Phase 0: Mandatory environment and database discovery
+Future agent/statement/target endpoints are added only with their delivery phase; do not publish
+empty or misleading contracts in the shadow release.
 
-Implementation starts with all of the following; none may be skipped:
+## 10. Mandatory environment and database discovery
 
-1. Connect to the intended linked Supabase project using configured credentials without printing
-   secrets, tokens, connection strings, or customer rows.
-2. Inspect live commission/ticket/package/employee/location tables, columns, enums, constraints,
-   indexes, row-level-security policies, grants, functions, triggers, and existing row counts.
-3. Compare live schema with `scripts/migrations/`, `types/supabase.generated.ts`, and
-   `types/supabase.ts`; document drift and choose a data-preserving migration path.
-4. Verify/install repository dependencies, Supabase CLI, PostgreSQL client/test tooling, Playwright
-   browser support, and any diagnostic program/add-on required to complete implementation and
-   verification.
-5. If network, permissions, or environment restrictions block an installation or live diagnostic,
-   request approval and report the blocker. Do not silently skip the check or replace live schema
-   verification with assumptions.
-6. Add dependencies through the package manager, review the lockfile, and document any required
-   external/runtime tool. Do not rely on undocumented global software.
-7. Implement reviewed, idempotent migrations; test on disposable PostgreSQL/staging, apply through
-   the intended Supabase deployment workflow, then run `npm run types:supabase` and review the
-   generated diff.
+Implementation starts with all of the following:
 
-Never run migration tests against production or a database containing data that may be destroyed.
-Never put Supabase secrets or customer/employee financial data in source, logs, chat, or plan files.
+1. Confirm the intended linked Supabase project without printing credentials or customer/employee
+   financial rows.
+2. Inspect live commission, Ticketing, Packages, employees, locations, RLS, grants, enums,
+   constraints, functions, triggers, indexes, and aggregate row counts.
+3. Compare live schema with migrations and generated types; record drift and the preservation plan.
+4. Verify repository dependencies, Supabase CLI, PostgreSQL disposable-test tooling, and browser
+   test support.
+5. Test idempotent migrations on disposable PostgreSQL/staging before the linked deployment.
+6. Apply through the intended Supabase migration workflow, regenerate linked types, and review the
+   complete generated diff.
+7. Never run destructive migration tests against production or expose secrets/financial data in
+   source, logs, chat, or documentation.
 
-## 10. Delivery phases
+## 11. Delivery phases
 
-### Phase 1: Verified schema and source contract
+### Phase 1: Shadow foundation and policy setup
 
-- Complete Phase 0 and reconcile existing commission tables.
-- Add policy versions, effective-dated assignments, source events, exception handling, audit, and
-  transactional producer functions.
-- Publish strict event-variable contracts shared with Ticketing and Packages.
+- Complete live discovery and reconcile legacy commission tables.
+- Add access grants, policy versions/components, per-service assignments, signed shadow entries,
+  period results, exceptions, audit, and processing functions.
+- Implement typed fixed/percentage/zero/signed/tier/assistant/package/bonus components.
+- Replace the placeholder with the Admin/HR policy, preview, shadow, bonus-period, and exception
+  console.
+- Replay all supported Ticketing history and reconcile at least one full calendar month.
+- Keep every result explicitly non-payable and hidden from employees/managers.
 
-### Phase 2: Policy engine and Agent 1 validation
+### Phase 2: Live entries, statements, and agent experience
 
-- Implement deterministic component evaluation, eligibility, rule snapshots, idempotency, and
-  correction lineage.
-- Configure Agent 1 through normal Manager/Admin UI/API and prove the £5 TK/DC, £0 R-ER, 10%
-  low-fare, refund preservation, and package-scope cases.
-- Configure the distinct Agent A/B/C tier examples and an independent assistance component; prove
-  assisted events do not advance either targets or primary-sale tier counters.
-- Add dry-run policy preview that never posts or changes history.
+- Recalculate approved policies into separate posted entries; never promote shadow rows.
+- Add own-agent entries, bonus progress, monthly statements, signed balances, locks, offsets, and
+  payment recording.
+- Enable manager subtree read-only visibility and company-wide authorised review.
+- Pilot a small employee group and reconcile source facts, ordinary entries, bonus result, statement,
+  and payment evidence.
 
-### Phase 3: Targets and agent experience
+### Phase 3: Non-financial Ticketing targets
 
-- Add weekly/monthly target assignment, issued-ticket aggregation, correction handling, progress
-  DTO, and Ticketing progress-card integration.
-- Replace the current Commission placeholder with own-agent entries/statements/targets and
-  role-scoped management views.
+- Add weekly/monthly issued-ticket target assignments and correction-safe period aggregation.
+- Publish the non-financial progress DTO and add the Ticketing target card.
+- Keep sales-bonus GBP progress inside Commission only.
 
-### Phase 4: Statements and rollout
+### Phase 4: Packages and refunds
 
-- Add monthly review, lock, payment, offsets, and negative carry-forward.
-- Pilot with a small group whose individual policies are entered and reviewed.
-- Reconcile one complete target week/month and one statement back to immutable source events before
-  enabling all staff.
+- Add authoritative settled-GBP Package and Ticketing refund/cancellation producers.
+- Enable configured Package components only after producer validation.
+- Add provisional package metadata reconciliation and duplicate-payment prevention.
+- Add refund/late-correction impacts through signed offsets without rewriting locked statements.
 
-## 11. Test and acceptance plan
+## 12. Test and acceptance plan
 
-### Database/domain tests
+### 12.1 Domain/database tests
 
-- Live-schema discovery is recorded and migrations preserve any current rule/assignment rows.
-- Policy assignment rejects unintended overlap and selects the correct effective version by date.
-- Missing policy/input creates an exception; explicit zero creates a valid £0 result.
-- Source-event retries are idempotent, conflicting duplicate keys fail, and corrections preserve
-  lineage.
-- Primary/assistant attribution fans out the configured recipient entries once; changing primary or
-  assistants supersedes the prior result, transfers target ownership, and never advances an
-  assistant's primary tier.
-- Agent 1's three TK passengers calculate £15; three-person DC calculates another £15; R-ER is £0;
-  positive low fare is 10%; higher fare uses the configured debit; refund preserves the original.
-- Package ticket events use package rules, with fixed passenger/package and percentage-profit cases.
-- Statement lock prevents mutation; later correction offsets in the next period; negative balance
-  carries correctly.
-- Target counting uses issued TK passenger count, includes package TK by default, ignores payment
-  and non-TK events, retains real cancellations/refunds, and reverses erroneous issuance once.
+- Policy version immutability, activation, location override, overlap rejection, and effective-date
+  selection.
+- Missing policy/input creates a typed exception; explicit zero creates a valid £0 result.
+- Idempotent source retries and worker retries produce one active calculation result.
+- Source correction/attribution lineage appends superseding results without duplication.
+- Monthly marginal tiers apply higher rates only after each threshold.
+- Assistants use their own policies and receive zero primary tier/target/bonus units.
+- Fixed issuance commission calculates before Paid and before unrelated profit variables complete.
+- Profit-dependent components remain incomplete until actual GBP inputs exist.
+- The £1,250 minus £250 example reaches £1,000 and awards a £100 fixed bonus.
+- £999.99 earns no threshold bonus.
+- At a £1,000 threshold, a 10% reward pays £100 at £1,000 and £150 at £1,500.
+- £50 assistant cost moves a £1,000 qualifying result to £950 and removes the bonus.
+- A £100 Low Fare saving and £10 finder commission increase the originating seller's qualifying
+  contribution by a net £90 while giving the finder no bonus progress.
+- Low Fare by the primary seller does not double-count either saving or commission.
+- A higher-fare loss and signed debit produce the configured retained-company result.
+- Package metadata alone never creates an entry.
+- Parallel workers claim each source event once and recover stale claims safely.
 
-### Authorization/UI tests
+### 12.2 Authorization/UI/API tests
 
-- Agents can view only their own Commission data and target history.
-- Manager/Admin can configure policies/targets and close statements; Maintenance Admin cannot.
-- Ticketing pages and APIs expose no calculated commission/profit fields.
-- Ticketing target cards expose only the documented non-financial DTO.
-- Source links respect the destination module's ownership/access rules.
-- Every policy/assignment/adjustment/statement/target mutation writes an audit event.
+- Admin/Master/Super Admin and granted HR staff can manage policies as documented.
+- Only Master/Super Admin can manage HR Commission access grants.
+- Manager, Maintenance Admin, and ordinary employees cannot access shadow money or mutations.
+- Every mutation and retry writes an audit event.
+- Preview writes no source state, entry, period, or balance.
+- Policy forms expose only typed components/approved variables.
+- Pagination cursors are bound to filters and employee access scope.
+- Ticketing pages/APIs continue to expose no calculated commission, bonus, or profit values.
 
-### Required repository checks
+### 12.3 Required validation
 
 ```bash
 npm run types:supabase
@@ -503,31 +615,26 @@ npx vitest run --maxWorkers=4
 npx next build --webpack
 ```
 
-Add disposable PostgreSQL integration tests for migrations, event idempotency, calculation
-transactions, statement locking, and target concurrency. Add component/route tests for every role
-boundary and a Playwright smoke flow from issued ticket to target progress and Commission entry.
+Add disposable PostgreSQL coverage for migrations, access grants, policy matching, component math,
+worker concurrency, source corrections, monthly tiers, bonus aggregation, and shadow supersession.
+Add route/component coverage for the Admin/HR console and a browser smoke flow from policy creation
+through historical shadow reconciliation.
 
-## 12. First-release boundaries
+## 13. First-delivery boundaries and success criteria
 
-- No commission/rate editor inside Ticketing or Packages.
-- No calculated commission/profit display in the Ticketing ledger/dashboard.
-- No silent default policy for an unassigned employee.
-- No automatic exchange-rate lookup.
-- No payroll/Frappe payout transfer.
-- No public leaderboard or disclosure of another agent's earnings/policy.
-- No hard deletion or retroactive mutation of posted/locked history.
+The shadow foundation includes no payable entry, statement, balance, payment, payroll transfer,
+agent money view, Manager money view, Ticketing target card, automatic Package posting, automatic
+exchange rate, public leaderboard, or hard deletion.
 
-## 13. Success criteria
+It is successful when:
 
-- Any agent's structure can be configured without changing Ticketing or Packages code.
-- Ticketing and Packages emit complete, idempotent variables but no calculated earnings.
-- The Ticketing ledger contains no commission/profit presentation.
-- Agent 1 and materially different policies can coexist through effective-dated assignments.
-- Weekly/monthly targets count issued passenger-tickets exactly once and motivate agents without
-  exposing money in Ticketing.
-- Agent-specific tiers and independent assistant components coexist without placing a commission
-  formula in Ticketing or allowing assistance to inflate targets/tier counts.
-- Every statement amount and target count traces to source events, policy/target versions, and audit
-  history.
-- Implementation begins from verified live Supabase truth with all required tooling installed and
-  every required validation executed.
+- Any employee's ordinary and bonus structure can be configured without source-module code changes.
+- HR can be granted narrowly scoped policy-management access without becoming a portal admin.
+- Ticketing facts process deterministically into explainable, signed, non-payable shadow entries.
+- Recipient and profit owner remain distinct through primary, assistance, and Low Fare cases.
+- Monthly qualifying profit subtracts every ordinary commission cost attached to the employee's own
+  sales and never includes the bonus being tested.
+- Fixed and percentage bonus rewards both remain zero below their configured threshold.
+- Every supported historical fact is processed or appears in a typed exception queue.
+- One complete month reconciles from source event to policy component, shadow entry, qualifying
+  profit, and bonus result before live statements are authorised.

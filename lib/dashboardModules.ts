@@ -163,7 +163,7 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     desc: 'Sales earnings and staff commission view',
     href: '/dashboard/commissions',
     group: 'finance',
-    allowedRoles: ['Admin', 'Master Admin', 'Super Admin', 'Manager'],
+    allowedRoles: ['Admin', 'Master Admin', 'Super Admin'],
     accent: 'from-[#3a3a3a] to-[#1f2937] text-white',
     iconTone: 'from-[#3a3a3a] via-[#111827] to-black text-white shadow-black/25',
     tileTone: 'from-zinc-50 via-white to-zinc-200',

@@ -25,6 +25,7 @@ import {
   DASHBOARD_MODULES,
   type DashboardModule,
 } from '@/lib/dashboardModules'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
 function MobileDashboard({
@@ -198,8 +199,15 @@ export default async function Dashboard() {
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
+  const { data: canManageCommission } = await getServiceSupabaseClient().rpc(
+    'commission_actor_can_manage_2026082901',
+    { p_employee_id: session.user.id },
+  )
   const visibleModules = DASHBOARD_MODULES.filter(
-    (moduleItem) => !moduleItem.allowedRoles || moduleItem.allowedRoles.includes(role?.name || ''),
+    (moduleItem) =>
+      (moduleItem.id === 'commissions' && canManageCommission === true) ||
+      (moduleItem.id !== 'commissions' &&
+        (!moduleItem.allowedRoles || moduleItem.allowedRoles.includes(role?.name || ''))),
   )
 
   return (
