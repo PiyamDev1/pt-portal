@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   AlertTriangle,
+  BadgePercent,
   CalendarClock,
   Check,
   ExternalLink,
@@ -156,6 +157,10 @@ export default function PackageOperationsWorkspace({
     receivedAt: '',
     receiptReference: '',
     notes: '',
+  })
+  const [discountAdjustmentForm, setDiscountAdjustmentForm] = useState({
+    amount: '',
+    reason: '',
   })
   const [planForm, setPlanForm] = useState({
     totalAmount: '',
@@ -317,6 +322,7 @@ export default function PackageOperationsWorkspace({
   )
   const selectedFamilyInvoice =
     selectedPaymentFamily && invoice?.quote_id === selectedPaymentFamily.quoteId ? invoice : null
+  const activePaymentInvoice = groupFamilies.length > 0 ? selectedFamilyInvoice : invoice
   const reservationSaleTotal = (quoteId?: string) =>
     reservations
       .filter((reservation) => !quoteId || reservation.quote_id === quoteId)
@@ -697,6 +703,67 @@ export default function PackageOperationsWorkspace({
       toast.success('Payment recorded and invoice balance updated')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to record payment')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const addDiscountAdjustment = async () => {
+    if (!activePaymentInvoice) {
+      toast.error('Create this family invoice before adjusting its discount.')
+      return
+    }
+    const adjustment = Math.round(Number(discountAdjustmentForm.amount) * 100) / 100
+    const reason = discountAdjustmentForm.reason.trim()
+    if (!Number.isFinite(adjustment) || Math.abs(adjustment) < 0.01) {
+      toast.error('Enter a non-zero discount adjustment.')
+      return
+    }
+    if (!reason) {
+      toast.error('Enter a reason for the discount adjustment.')
+      return
+    }
+    const revisedDiscount =
+      Math.round((Number(activePaymentInvoice.discount_total || 0) + adjustment) * 100) / 100
+    if (revisedDiscount < 0) {
+      toast.error('This adjustment would make the invoice discount negative.')
+      return
+    }
+    if (revisedDiscount > Number(activePaymentInvoice.subtotal_sold || 0)) {
+      toast.error('The total discount cannot exceed the invoice subtotal.')
+      return
+    }
+
+    setSaving('discount-adjustment')
+    try {
+      const response = await fetch(`/api/travel-packages/${packageFolder.id}/invoice/lines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceId: activePaymentInvoice.id,
+          lineType: 'discount',
+          description:
+            adjustment > 0 ? `Discount adjustment - ${reason}` : `Discount reduction - ${reason}`,
+          quantity: 1,
+          unitSoldPrice: 0,
+          unitBookedCost: 0,
+          discountAmount: adjustment,
+          customerVisible: true,
+          sortOrder: 9000,
+        }),
+      })
+      const data = (await response.json()) as {
+        invoice?: TravelPackageInvoice | null
+        error?: string
+      }
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.error || 'Failed to adjust invoice discount')
+      }
+      onInvoiceChange?.(data.invoice)
+      setDiscountAdjustmentForm({ amount: '', reason: '' })
+      toast.success('Discount adjusted and invoice balance recalculated')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to adjust invoice discount')
     } finally {
       setSaving(null)
     }
@@ -1990,7 +2057,7 @@ export default function PackageOperationsWorkspace({
                   </div>
                 </div>
               )}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Full amount</p>
                   <p className="mt-1 text-lg font-black">
@@ -2034,6 +2101,17 @@ export default function PackageOperationsWorkspace({
                       paymentSummary.refunds,
                       invoice?.currency || paymentSummary.currency,
                     )}
+                  </p>
+                </div>
+                <div className="border border-slate-200 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Invoice discount</p>
+                  <p className="mt-1 text-lg font-black text-emerald-700">
+                    {activePaymentInvoice
+                      ? formatMoney(
+                          activePaymentInvoice.discount_total,
+                          activePaymentInvoice.currency,
+                        )
+                      : '-'}
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
@@ -2189,6 +2267,94 @@ export default function PackageOperationsWorkspace({
                     Record payment
                   </button>
                 </form>
+              )}
+              {(groupFamilies.length === 0 || selectedPaymentFamily) && (
+                <section className="border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <BadgePercent className="mt-0.5 h-5 w-5 shrink-0 text-emerald-800" />
+                    <div>
+                      <h3 className="text-sm font-black text-emerald-950">Discount adjustment</h3>
+                      <p className="mt-1 text-xs text-emerald-900">
+                        Recorded as a separate auditable invoice line and excluded from money
+                        received.
+                      </p>
+                    </div>
+                  </div>
+                  {activePaymentInvoice ? (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void addDiscountAdjustment()
+                      }}
+                      className="mt-3 grid gap-3 md:grid-cols-[minmax(0,180px)_minmax(240px,1fr)_auto]"
+                    >
+                      <label className="text-xs font-bold text-emerald-950">
+                        Adjustment (+/-)
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 50 or -25"
+                          value={discountAdjustmentForm.amount}
+                          onChange={(event) =>
+                            setDiscountAdjustmentForm((current) => ({
+                              ...current,
+                              amount: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-emerald-300 bg-white px-3 py-2 text-sm"
+                          required
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-emerald-950">
+                        Reason
+                        <input
+                          value={discountAdjustmentForm.reason}
+                          onChange={(event) =>
+                            setDiscountAdjustmentForm((current) => ({
+                              ...current,
+                              reason: event.target.value,
+                            }))
+                          }
+                          placeholder="Reason shown on the invoice"
+                          className="mt-1 w-full border border-emerald-300 bg-white px-3 py-2 text-sm"
+                          required
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={saving === 'discount-adjustment'}
+                        className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 bg-emerald-800 px-4 py-2 text-xs font-black text-white disabled:bg-emerald-300"
+                      >
+                        {saving === 'discount-adjustment' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        Apply discount
+                      </button>
+                      <p className="text-xs font-semibold text-emerald-900 md:col-span-3">
+                        Current discount:{' '}
+                        {formatMoney(
+                          activePaymentInvoice.discount_total,
+                          activePaymentInvoice.currency,
+                        )}
+                        {' · '}Revised discount:{' '}
+                        {formatMoney(
+                          Math.max(
+                            0,
+                            Number(activePaymentInvoice.discount_total || 0) +
+                              (Number(discountAdjustmentForm.amount) || 0),
+                          ),
+                          activePaymentInvoice.currency,
+                        )}
+                      </p>
+                    </form>
+                  ) : (
+                    <p className="mt-3 border border-dashed border-emerald-300 bg-white p-3 text-sm font-semibold text-emerald-900">
+                      Create this family invoice first, then its discount can be adjusted here.
+                    </p>
+                  )}
+                </section>
               )}
               <div className="overflow-x-auto border border-slate-200">
                 <table className="min-w-full text-left text-sm">

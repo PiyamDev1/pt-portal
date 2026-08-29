@@ -149,6 +149,32 @@ describe('transport vouchers', () => {
     expect(html).toMatch(/\.qr\s*{[^}]*width:\s*30mm;[^}]*height:\s*30mm/s)
   })
 
+  it('moves itinerary segments after the first three onto a duplex continuation sheet', () => {
+    const html = renderTransportVoucherHtml(
+      {
+        package_reference: 'PT-LONG01',
+        customer_name: 'Long Itinerary',
+        passenger_summary: { totalPassengers: 5 },
+      } as TravelPackageFolder,
+      normalizeTransportVoucherData({
+        itinerary: Array.from({ length: 6 }, (_, index) => ({
+          type: `Transfer ${index + 1}`,
+          description: `Route ${index + 1}`,
+          date: `2026-09-${String(index + 1).padStart(2, '0')}`,
+          time: '10:00',
+        })),
+      }),
+    )
+
+    expect(html).toContain('Additional transport movements continue on the next printed page.')
+    expect(html).toContain('class="print-sheet continuation-sheet"')
+    expect(html).toContain('ITINERARY CONTINUED')
+    expect(html).toContain('Page 2 of 2')
+    expect(html).toContain('4. Transfer 4')
+    expect(html).toContain('6. Transfer 6')
+    expect(html).toMatch(/\.continuation-sheet\s*{[^}]*page-break-before:\s*always/s)
+  })
+
   it('renders a standalone access voucher for individual printing', () => {
     const html = renderStandaloneAccessVoucherHtml(
       {

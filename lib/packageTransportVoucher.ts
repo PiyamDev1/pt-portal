@@ -541,21 +541,21 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .footer {
     border-top: 1px solid #e5e7eb;
-    padding-top: 2.2mm;
+    padding-top: 1.6mm;
     margin-top: auto;
-    font-size: 9.6px;
+    font-size: 9px;
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.8mm;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr);
+    gap: 2mm;
   }
   .footer p { margin: 0; }
   .footer .value {
-    font-size: 10.5px;
+    font-size: 9.8px;
     color: #111827;
   }
   .footer .contact-line {
-    margin-top: .8mm;
-    font-size: 9.4px;
+    margin-top: .5mm;
+    font-size: 8.8px;
     font-weight: 800;
     color: #334155;
   }
@@ -563,7 +563,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     background: #800000;
     color: #fff;
     padding: 3.8mm;
-    height: 56mm;
+    height: 51mm;
     flex-shrink: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 31mm;
@@ -652,6 +652,55 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     border-left: 3px solid #800000;
     white-space: pre-wrap;
     font-size: 8px;
+  }
+  .continuation-note {
+    margin: 1.8mm 0 0;
+    padding: 1.4mm 2mm;
+    border: 1px solid #f5c2c2;
+    border-radius: 4px;
+    background: #fff7f7;
+    color: #800000;
+    font-size: 8.5px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .continuation-sheet {
+    break-before: page;
+    page-break-before: always;
+  }
+  .continuation-voucher {
+    grid-column: 1;
+  }
+  .continuation-voucher .main {
+    flex: 1;
+  }
+  .continuation-heading {
+    margin-top: 3mm;
+    padding-bottom: 2.5mm;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .continuation-heading h2 {
+    margin: 0;
+    color: #800000;
+    font-size: 15px;
+    font-weight: 900;
+  }
+  .continuation-heading p {
+    margin: .8mm 0 0;
+    color: #475569;
+    font-size: 9px;
+    font-weight: 800;
+  }
+  .continuation-voucher .itinerary {
+    margin-top: 3.5mm;
+  }
+  .continuation-blank {
+    grid-column: 3;
+    width: 98mm;
+    height: 215.6mm;
+    border: 1px dashed #e2e8f0;
+    border-left: 0;
+    background: #fff;
   }
   @media print {
     html,
@@ -1316,19 +1365,30 @@ export function renderTransportVoucherHtml(
     if (time) return formatTimeOnly('2000-01-01', time)
     return 'Timing to be confirmed'
   }
-  const itineraryHtml = itinerary.length
-    ? itinerary
-        .map((item, index) => {
-          const assignment = routeAssignments[index]
-          const segmentType = item.type || assignment?.type || 'Transport Segment'
-          const segmentRoute =
-            item.description || assignment?.routeName || 'Details to be confirmed'
-          const segmentVehicle =
-            assignment?.vehicleType || (vehicle !== 'Mixed vehicles' ? vehicle : '')
-          return `<div class="timeline-item"><div class="timeline-marker"><span>${escapeHtml(routeBadge(segmentType, segmentRoute))}</span></div><div class="timeline-card"><div class="timeline-row"><strong>${index + 1}. ${escapeHtml(segmentType)}</strong><span>${escapeHtml(formatSegmentSchedule(item.date || assignment?.date || '', item.time || assignment?.time || ''))}</span></div><p class="route">${escapeHtml(segmentRoute)}</p>${segmentVehicle ? `<p class="segment-meta">Vehicle: ${escapeHtml(segmentVehicle)}</p>` : ''}</div></div>`
-        })
-        .join('')
-    : '<div class="timeline-item"><div class="timeline-marker"><span>TRN</span></div><div class="timeline-card"><div class="timeline-row"><strong>1. Transport Segment</strong><span>Timing to be confirmed</span></div><p class="route">Details to be confirmed</p></div></div>'
+  const renderItineraryItems = (
+    items: TravelPackageTransportVoucherData['itinerary'],
+    offset = 0,
+  ) =>
+    items?.length
+      ? items
+          .map((item, localIndex) => {
+            const index = offset + localIndex
+            const assignment = routeAssignments[index]
+            const segmentType = item.type || assignment?.type || 'Transport Segment'
+            const segmentRoute =
+              item.description || assignment?.routeName || 'Details to be confirmed'
+            const segmentVehicle =
+              assignment?.vehicleType || (vehicle !== 'Mixed vehicles' ? vehicle : '')
+            return `<div class="timeline-item"><div class="timeline-marker"><span>${escapeHtml(routeBadge(segmentType, segmentRoute))}</span></div><div class="timeline-card"><div class="timeline-row"><strong>${index + 1}. ${escapeHtml(segmentType)}</strong><span>${escapeHtml(formatSegmentSchedule(item.date || assignment?.date || '', item.time || assignment?.time || ''))}</span></div><p class="route">${escapeHtml(segmentRoute)}</p>${segmentVehicle ? `<p class="segment-meta">Vehicle: ${escapeHtml(segmentVehicle)}</p>` : ''}</div></div>`
+          })
+          .join('')
+      : '<div class="timeline-item"><div class="timeline-marker"><span>TRN</span></div><div class="timeline-card"><div class="timeline-row"><strong>1. Transport Segment</strong><span>Timing to be confirmed</span></div><p class="route">Details to be confirmed</p></div></div>'
+  const primaryItinerary = itinerary.slice(0, 3)
+  const continuationItineraries = Array.from(
+    { length: Math.ceil(Math.max(0, itinerary.length - primaryItinerary.length) / 7) },
+    (_, pageIndex) => itinerary.slice(3 + pageIndex * 7, 3 + (pageIndex + 1) * 7),
+  )
+  const itineraryHtml = renderItineraryItems(primaryItinerary)
   const qrText = [
     'GROUND TRANSPORT',
     `REF: ${packageFolder.package_reference}`,
@@ -1355,6 +1415,25 @@ export function renderTransportVoucherHtml(
     data.accessVoucherQrCodeDataUrl || '',
     logoSrc,
   )
+  const continuationSheetsHtml = continuationItineraries
+    .map((items, pageIndex) => {
+      const offset = 3 + pageIndex * 7
+      const pageNumber = pageIndex + 2
+      const totalPages = continuationItineraries.length + 1
+      return `<div class="print-sheet continuation-sheet"><main class="voucher continuation-voucher"><section class="main">
+        <header class="header">
+          <div class="brand"><img class="brand-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
+          <div class="title"><h1>GROUND TRANSPORT</h1><p>ITINERARY CONTINUED</p></div>
+        </header>
+        <div class="continuation-heading"><h2>${escapeHtml(packageFolder.customer_name || 'Customer')}</h2><p>${escapeHtml(packageFolder.package_reference)} · Page ${pageNumber} of ${totalPages}</p></div>
+        <div class="itinerary"><p class="label">Itinerary continued</p><div class="itinerary-list">${renderItineraryItems(items, offset)}</div></div>
+        <div class="footer">
+          <div><p class="value">Transport provider: ${escapeHtml(providerName)}</p>${transportContactParts.length ? `<p class="contact-line">${escapeHtml(transportContactParts.join(' | '))}</p>` : '<p class="contact-line">Contact details to be confirmed</p>'}</div>
+          <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com<br>+447400828212</p></div>
+        </div>
+      </section></main><div class="cut-divider" aria-hidden="true"></div><div class="continuation-blank" aria-hidden="true"></div></div>`
+    })
+    .join('')
 
   return `<!doctype html>
 <html lang="en">
@@ -1382,7 +1461,7 @@ export function renderTransportVoucherHtml(
 	        <div><p class="label">Landing</p><p class="value">${escapeHtml(formatVoucherDateTime(data.landingDate || dateOnly(data.arrivalAt), data.landingTime || timeOnly(data.arrivalAt)))}</p></div>
 	      </div>
 	    </div>
-	    <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div></div>
+	    <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div>${continuationItineraries.length ? '<p class="continuation-note">Additional transport movements continue on the next printed page.</p>' : ''}</div>
     <div class="footer">
       <div><p class="value">Transport provider: ${escapeHtml(providerName)}</p>${transportContactParts.length ? `<p class="contact-line">${escapeHtml(transportContactParts.join(' | '))}</p>` : '<p class="contact-line">Contact details to be confirmed</p>'}</div>
       <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com | +447400828212</p></div>
@@ -1404,5 +1483,5 @@ export function renderTransportVoucherHtml(
 	      <div class="qr">${qrContent}</div>
 	    </div>
 	  </aside>
-	</main><div class="cut-divider" aria-hidden="true"></div>${accessVoucherHtml}</div></body></html>`
+	</main><div class="cut-divider" aria-hidden="true"></div>${accessVoucherHtml}</div>${continuationSheetsHtml}</body></html>`
 }
