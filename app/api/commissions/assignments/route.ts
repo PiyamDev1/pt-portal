@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireCommissionPolicyAccess } from '@/lib/commissions/apiAuth'
 import {
@@ -90,12 +91,15 @@ export async function POST(request: NextRequest) {
   }
   const requestKey = readIdempotencyKey(request)
   if (!requestKey) return commissionError('A valid Idempotency-Key header is required.', 400)
-  const parsed = createCommissionAssignmentSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return commissionError(parsed.error.issues[0]?.message || 'Invalid assignment.', 400)
+  const { data: assignment, error: bodyError } = await parseBodyWithSchema(
+    request,
+    createCommissionAssignmentSchema,
+    { maxBytes: 4 * 1024 },
+  )
+  if (bodyError || !assignment) {
+    return commissionError(bodyError || 'Invalid assignment.', 400)
   }
 
-  const assignment = parsed.data
   const { data, error } = await getServiceSupabaseClient().rpc(
     'commission_create_assignment_2026082901',
     {

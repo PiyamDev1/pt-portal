@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   commissionComponentSchema,
+  commissionProcessSchema,
+  commissionRetrySchema,
   commissionPreviewSchema,
   createCommissionAssignmentSchema,
   createCommissionPolicyVersionSchema,
@@ -111,5 +113,13 @@ describe('Commission contracts', () => {
         variables: {},
       }).success,
     ).toBe(false)
+  })
+
+  it('bounds processing batches and keeps retries free of override fields', () => {
+    expect(commissionProcessSchema.safeParse({}).data).toEqual({ limit: 50 })
+    expect(commissionProcessSchema.safeParse({ limit: 200 }).success).toBe(true)
+    expect(commissionProcessSchema.safeParse({ limit: 201 }).success).toBe(false)
+    expect(commissionRetrySchema.safeParse({}).success).toBe(true)
+    expect(commissionRetrySchema.safeParse({ force: true }).success).toBe(false)
   })
 })

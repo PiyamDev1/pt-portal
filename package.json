@@ -35,6 +35,7 @@
     "test:unit:watch": "vitest",
     "test:db:ticketing": "bash scripts/ci/test-ticketing-migration.sh",
     "test:db:commission": "bash scripts/ci/test-commission-migration.sh",
+    "test:db:commission-processor": "bash scripts/ci/test-commission-processor.sh",
     "test:db:lms": "bash scripts/ci/test-lms-migration.sh",
     "test:db:security": "bash scripts/ci/test-security-migration.sh"
   },

@@ -1337,6 +1337,628 @@ export type Database = {
           },
         ]
       }
+      commission_access_grants: {
+        Row: {
+          capability: string
+          employee_id: string
+          granted_at: string
+          granted_by: string
+          id: string
+          revoked_at: string | null
+          revoked_by: string | null
+        }
+        Insert: {
+          capability: string
+          employee_id: string
+          granted_at?: string
+          granted_by: string
+          id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Update: {
+          capability?: string
+          employee_id?: string
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_access_grants_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_access_grants_granted_by_fkey'
+            columns: ['granted_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_access_grants_revoked_by_fkey'
+            columns: ['revoked_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_audit_events: {
+        Row: {
+          action: string
+          actor_employee_id: string
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          reason: string | null
+          request_key: string | null
+        }
+        Insert: {
+          action: string
+          actor_employee_id: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          reason?: string | null
+          request_key?: string | null
+        }
+        Update: {
+          action?: string
+          actor_employee_id?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          reason?: string | null
+          request_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_audit_events_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_calculation_runs: {
+        Row: {
+          completed_at: string | null
+          entry_count: number
+          error_summary: string | null
+          exception_count: number
+          id: string
+          run_mode: string
+          run_type: string
+          source_event_count: number
+          started_at: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          entry_count?: number
+          error_summary?: string | null
+          exception_count?: number
+          id?: string
+          run_mode?: string
+          run_type: string
+          source_event_count?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          entry_count?: number
+          error_summary?: string | null
+          exception_count?: number
+          id?: string
+          run_mode?: string
+          run_type?: string
+          source_event_count?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_calculation_runs_triggered_by_fkey'
+            columns: ['triggered_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_entries: {
+        Row: {
+          amount_gbp: number
+          basis_snapshot: Json
+          component_id: string
+          created_at: string
+          earning_on: string
+          entry_kind: string
+          entry_mode: string
+          explanation: Json
+          id: string
+          idempotency_key: string
+          location_id: string | null
+          period_end: string
+          period_start: string
+          policy_version_id: string
+          profit_owner_employee_id: string
+          recipient_employee_id: string
+          revision: number
+          run_id: string
+          source_case_key: string
+          source_event_id: string | null
+          supersedes_entry_id: string | null
+        }
+        Insert: {
+          amount_gbp: number
+          basis_snapshot: Json
+          component_id: string
+          created_at?: string
+          earning_on: string
+          entry_kind?: string
+          entry_mode?: string
+          explanation: Json
+          id?: string
+          idempotency_key: string
+          location_id?: string | null
+          period_end: string
+          period_start: string
+          policy_version_id: string
+          profit_owner_employee_id: string
+          recipient_employee_id: string
+          revision?: number
+          run_id: string
+          source_case_key: string
+          source_event_id?: string | null
+          supersedes_entry_id?: string | null
+        }
+        Update: {
+          amount_gbp?: number
+          basis_snapshot?: Json
+          component_id?: string
+          created_at?: string
+          earning_on?: string
+          entry_kind?: string
+          entry_mode?: string
+          explanation?: Json
+          id?: string
+          idempotency_key?: string
+          location_id?: string | null
+          period_end?: string
+          period_start?: string
+          policy_version_id?: string
+          profit_owner_employee_id?: string
+          recipient_employee_id?: string
+          revision?: number
+          run_id?: string
+          source_case_key?: string
+          source_event_id?: string | null
+          supersedes_entry_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_entries_component_id_fkey'
+            columns: ['component_id']
+            isOneToOne: false
+            referencedRelation: 'commission_policy_components'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_policy_version_id_fkey'
+            columns: ['policy_version_id']
+            isOneToOne: false
+            referencedRelation: 'commission_policy_versions'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_profit_owner_employee_id_fkey'
+            columns: ['profit_owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_recipient_employee_id_fkey'
+            columns: ['recipient_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_run_id_fkey'
+            columns: ['run_id']
+            isOneToOne: false
+            referencedRelation: 'commission_calculation_runs'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_source_event_id_fkey'
+            columns: ['source_event_id']
+            isOneToOne: false
+            referencedRelation: 'commission_source_events'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_supersedes_entry_id_fkey'
+            columns: ['supersedes_entry_id']
+            isOneToOne: false
+            referencedRelation: 'commission_entries'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_exceptions: {
+        Row: {
+          created_at: string
+          details: Json
+          employee_id: string | null
+          exception_code: string
+          id: string
+          last_retried_at: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          retry_count: number
+          run_id: string | null
+          source_event_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          employee_id?: string | null
+          exception_code: string
+          id?: string
+          last_retried_at?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          retry_count?: number
+          run_id?: string | null
+          source_event_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          employee_id?: string | null
+          exception_code?: string
+          id?: string
+          last_retried_at?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          retry_count?: number
+          run_id?: string | null
+          source_event_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_exceptions_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_exceptions_resolved_by_fkey'
+            columns: ['resolved_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_exceptions_run_id_fkey'
+            columns: ['run_id']
+            isOneToOne: false
+            referencedRelation: 'commission_calculation_runs'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_exceptions_source_event_id_fkey'
+            columns: ['source_event_id']
+            isOneToOne: false
+            referencedRelation: 'commission_source_events'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_period_results: {
+        Row: {
+          achieved: boolean
+          bonus_component_id: string
+          calculation_snapshot: Json
+          created_at: string
+          employee_id: string
+          gross_contributed_profit_gbp: number
+          id: string
+          incomplete_input_count: number
+          location_id: string | null
+          ordinary_commission_cost_gbp: number
+          period_end: string
+          period_start: string
+          qualifying_profit_gbp: number
+          result_mode: string
+          revision: number
+          reward_gbp: number
+          run_id: string
+          supersedes_result_id: string | null
+          threshold_gbp: number
+        }
+        Insert: {
+          achieved: boolean
+          bonus_component_id: string
+          calculation_snapshot: Json
+          created_at?: string
+          employee_id: string
+          gross_contributed_profit_gbp: number
+          id?: string
+          incomplete_input_count?: number
+          location_id?: string | null
+          ordinary_commission_cost_gbp: number
+          period_end: string
+          period_start: string
+          qualifying_profit_gbp: number
+          result_mode?: string
+          revision?: number
+          reward_gbp: number
+          run_id: string
+          supersedes_result_id?: string | null
+          threshold_gbp: number
+        }
+        Update: {
+          achieved?: boolean
+          bonus_component_id?: string
+          calculation_snapshot?: Json
+          created_at?: string
+          employee_id?: string
+          gross_contributed_profit_gbp?: number
+          id?: string
+          incomplete_input_count?: number
+          location_id?: string | null
+          ordinary_commission_cost_gbp?: number
+          period_end?: string
+          period_start?: string
+          qualifying_profit_gbp?: number
+          result_mode?: string
+          revision?: number
+          reward_gbp?: number
+          run_id?: string
+          supersedes_result_id?: string | null
+          threshold_gbp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_period_results_bonus_component_id_fkey'
+            columns: ['bonus_component_id']
+            isOneToOne: false
+            referencedRelation: 'commission_policy_components'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_period_results_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_period_results_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_period_results_run_id_fkey'
+            columns: ['run_id']
+            isOneToOne: false
+            referencedRelation: 'commission_calculation_runs'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_period_results_supersedes_result_id_fkey'
+            columns: ['supersedes_result_id']
+            isOneToOne: false
+            referencedRelation: 'commission_period_results'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_policy_components: {
+        Row: {
+          component_type: string
+          config: Json
+          created_at: string
+          eligible_services: Json
+          id: string
+          maximum_amount_gbp: number | null
+          minimum_amount_gbp: number | null
+          policy_version_id: string
+          rate_value: number | null
+          recipient_role: string
+          reward_kind: string | null
+          reward_value: number | null
+          sequence: number
+          source_variable: string | null
+          threshold_gbp: number | null
+        }
+        Insert: {
+          component_type: string
+          config?: Json
+          created_at?: string
+          eligible_services?: Json
+          id?: string
+          maximum_amount_gbp?: number | null
+          minimum_amount_gbp?: number | null
+          policy_version_id: string
+          rate_value?: number | null
+          recipient_role: string
+          reward_kind?: string | null
+          reward_value?: number | null
+          sequence: number
+          source_variable?: string | null
+          threshold_gbp?: number | null
+        }
+        Update: {
+          component_type?: string
+          config?: Json
+          created_at?: string
+          eligible_services?: Json
+          id?: string
+          maximum_amount_gbp?: number | null
+          minimum_amount_gbp?: number | null
+          policy_version_id?: string
+          rate_value?: number | null
+          recipient_role?: string
+          reward_kind?: string | null
+          reward_value?: number | null
+          sequence?: number
+          source_variable?: string | null
+          threshold_gbp?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_policy_components_policy_version_id_fkey'
+            columns: ['policy_version_id']
+            isOneToOne: false
+            referencedRelation: 'commission_policy_versions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_policy_tiers: {
+        Row: {
+          component_id: string
+          created_at: string
+          id: string
+          min_unit: number
+          rate_gbp: number
+        }
+        Insert: {
+          component_id: string
+          created_at?: string
+          id?: string
+          min_unit: number
+          rate_gbp: number
+        }
+        Update: {
+          component_id?: string
+          created_at?: string
+          id?: string
+          min_unit?: number
+          rate_gbp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_policy_tiers_component_id_fkey'
+            columns: ['component_id']
+            isOneToOne: false
+            referencedRelation: 'commission_policy_components'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_policy_versions: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          content_hash: string | null
+          created_at: string
+          created_by: string
+          id: string
+          retired_at: string | null
+          retired_by: string | null
+          rule_id: string
+          status: string
+          version_number: number
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          content_hash?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          rule_id: string
+          status?: string
+          version_number: number
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          content_hash?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          rule_id?: string
+          status?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_policy_versions_activated_by_fkey'
+            columns: ['activated_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_policy_versions_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_policy_versions_retired_by_fkey'
+            columns: ['retired_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_policy_versions_rule_id_fkey'
+            columns: ['rule_id']
+            isOneToOne: false
+            referencedRelation: 'commission_rules'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       commission_rate_components: {
         Row: {
           created_at: string
@@ -1375,32 +1997,49 @@ export type Database = {
       commission_rules: {
         Row: {
           applies_to_tier: boolean
-          calculation_basis: Database['public']['Enums']['calculation_basis_type']
+          calculation_basis: Database['public']['Enums']['calculation_basis_type'] | null
           created_at: string
+          created_by: string | null
+          description: string | null
           id: string
           is_active: boolean
-          product_type: Database['public']['Enums']['product_type_category']
+          product_type: Database['public']['Enums']['product_type_category'] | null
           rule_name: string
+          updated_at: string
         }
         Insert: {
           applies_to_tier?: boolean
-          calculation_basis: Database['public']['Enums']['calculation_basis_type']
+          calculation_basis?: Database['public']['Enums']['calculation_basis_type'] | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
-          product_type: Database['public']['Enums']['product_type_category']
+          product_type?: Database['public']['Enums']['product_type_category'] | null
           rule_name: string
+          updated_at?: string
         }
         Update: {
           applies_to_tier?: boolean
-          calculation_basis?: Database['public']['Enums']['calculation_basis_type']
+          calculation_basis?: Database['public']['Enums']['calculation_basis_type'] | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
-          product_type?: Database['public']['Enums']['product_type_category']
+          product_type?: Database['public']['Enums']['product_type_category'] | null
           rule_name?: string
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'commission_rules_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
       }
       commission_source_event_states: {
         Row: {
@@ -1892,31 +2531,76 @@ export type Database = {
       employee_commission_assignments: {
         Row: {
           created_at: string
+          created_by: string
+          effective_to: string | null
           employee_id: string
           id: string
+          location_id: string | null
+          policy_version_id: string
+          recipient_role: string
           rule_id: string
+          service_code: string
+          source_module: string
           start_date: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
+          created_by: string
+          effective_to?: string | null
           employee_id: string
           id?: string
+          location_id?: string | null
+          policy_version_id: string
+          recipient_role: string
           rule_id: string
+          service_code: string
+          source_module: string
           start_date: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
+          created_by?: string
+          effective_to?: string | null
           employee_id?: string
           id?: string
+          location_id?: string | null
+          policy_version_id?: string
+          recipient_role?: string
           rule_id?: string
+          service_code?: string
+          source_module?: string
           start_date?: string
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: 'employee_commission_assignments_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'employee_commission_assignments_employee_id_fkey'
             columns: ['employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_commission_assignments_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_commission_assignments_policy_version_id_fkey'
+            columns: ['policy_version_id']
+            isOneToOne: false
+            referencedRelation: 'commission_policy_versions'
             referencedColumns: ['id']
           },
           {
@@ -11414,6 +12098,170 @@ export type Database = {
           remaining: number
           retry_after_seconds: number
         }[]
+      }
+      commission_activate_policy_version_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_request_key: string
+          p_rule_id: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      commission_actor_can_manage_2026082901: {
+        Args: { p_employee_id: string }
+        Returns: boolean
+      }
+      commission_actor_can_manage_grants_2026082901: {
+        Args: { p_employee_id: string }
+        Returns: boolean
+      }
+      commission_actor_is_admin_2026082901: {
+        Args: { p_employee_id: string }
+        Returns: boolean
+      }
+      commission_calculate_component_2026082901: {
+        Args: {
+          p_basis_value: number
+          p_component_type: string
+          p_maximum_gbp?: number
+          p_minimum_gbp?: number
+          p_rate_value: number
+          p_units: number
+        }
+        Returns: number
+      }
+      commission_calculate_sales_bonus_2026082901: {
+        Args: {
+          p_incomplete_input_count?: number
+          p_qualifying_profit_gbp: number
+          p_reward_kind: string
+          p_reward_value: number
+          p_threshold_gbp: number
+        }
+        Returns: Json
+      }
+      commission_component_amount_2026082902: {
+        Args: {
+          p_component_id: string
+          p_prior_units?: number
+          p_units: number
+          p_variables: Json
+        }
+        Returns: number
+      }
+      commission_create_assignment_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_effective_from: string
+          p_effective_to: string
+          p_employee_id: string
+          p_location_id: string
+          p_policy_version_id: string
+          p_recipient_role: string
+          p_request_key: string
+          p_service_code: string
+          p_source_module: string
+        }
+        Returns: Json
+      }
+      commission_create_policy_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_description: string
+          p_request_key: string
+          p_rule_name: string
+        }
+        Returns: Json
+      }
+      commission_create_policy_version_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_components: Json
+          p_request_key: string
+          p_rule_id: string
+        }
+        Returns: Json
+      }
+      commission_grant_access_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_employee_id: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      commission_preview_component_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_component: Json
+          p_request_key: string
+          p_variables: Json
+        }
+        Returns: Json
+      }
+      commission_process_shadow_2026082902: {
+        Args: {
+          p_actor_employee_id: string
+          p_limit?: number
+          p_request_key?: string
+        }
+        Returns: Json
+      }
+      commission_recompute_bonus_2026082902: {
+        Args: {
+          p_employee_id: string
+          p_location_id: string
+          p_period_start: string
+          p_run_id: string
+        }
+        Returns: number
+      }
+      commission_record_exception_2026082902: {
+        Args: {
+          p_details: Json
+          p_employee_id: string
+          p_exception_code: string
+          p_run_id: string
+          p_source_event_id: string
+        }
+        Returns: undefined
+      }
+      commission_resolve_assignment_2026082901: {
+        Args: {
+          p_effective_on: string
+          p_employee_id: string
+          p_location_id: string
+          p_recipient_role: string
+          p_service_code: string
+          p_source_module: string
+        }
+        Returns: string
+      }
+      commission_retry_exception_2026082902: {
+        Args: {
+          p_actor_employee_id: string
+          p_exception_id: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      commission_revoke_access_2026082901: {
+        Args: {
+          p_actor_employee_id: string
+          p_grant_id: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      commission_schema_status: { Args: never; Returns: Json }
+      commission_sha256_2026082901: {
+        Args: { p_value: string }
+        Returns: string
+      }
+      commission_shadow_overview_2026082901: {
+        Args: { p_actor_employee_id: string }
+        Returns: Json
       }
       digest: { Args: { p_data: string; p_type: string }; Returns: string }
       exec_sql: { Args: { sql: string }; Returns: Json[] }

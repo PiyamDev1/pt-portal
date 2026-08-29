@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireCommissionPolicyAccess } from '@/lib/commissions/apiAuth'
 import {
@@ -105,19 +106,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!params.success) return commissionError('Invalid Commission policy.', 400)
   const requestKey = readIdempotencyKey(request)
   if (!requestKey) return commissionError('A valid Idempotency-Key header is required.', 400)
-  const parsed = createCommissionPolicyVersionSchema.safeParse(
-    await request.json().catch(() => null),
+  const { data: input, error: bodyError } = await parseBodyWithSchema(
+    request,
+    createCommissionPolicyVersionSchema,
+    { maxBytes: 64 * 1024 },
   )
-  if (!parsed.success) {
-    return commissionError(parsed.error.issues[0]?.message || 'Invalid policy version.', 400)
-  }
+  if (bodyError || !input) return commissionError(bodyError || 'Invalid policy version.', 400)
 
   const { data, error } = await getServiceSupabaseClient().rpc(
     'commission_create_policy_version_2026082901',
     {
       p_actor_employee_id: access.employee.id,
       p_rule_id: params.data.policyId,
-      p_components: parsed.data.components,
+      p_components: input.components,
       p_request_key: requestKey,
     },
   )

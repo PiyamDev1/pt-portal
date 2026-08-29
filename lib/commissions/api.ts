@@ -31,6 +31,9 @@ export function publicCommissionDatabaseError(error: { code?: string; message?: 
   if (error.code === 'P0002')
     return { message: 'The requested Commission record was not found.', status: 404 }
   if (error.code === '42501') return { message: 'Forbidden', status: 403 }
+  if (error.code === '55000') {
+    return { message: 'That Commission record is not currently retryable.', status: 409 }
+  }
   if (error.code === '22023' || error.code === '23514') {
     return { message: 'The Commission configuration is invalid.', status: 400 }
   }

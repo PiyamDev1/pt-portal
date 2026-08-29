@@ -5,11 +5,18 @@
 > reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Ready for phased implementation
+- **Status:** Phase 1 shadow capability deployed; policy setup and month reconciliation pending
 - **Last updated:** August 29, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
 - **First delivery:** Policy setup and admin/HR-only shadow calculations; no payable entries
+
+Implementation checkpoint on August 29, 2026: the linked database reports Commission capability
+`2026082902` ready in `shadow` mode. The policy/version/assignment/access foundation, bounded
+processor, typed exceptions and retry path, Admin/HR console, and daily cron route are implemented.
+Existing source events remain pending and no shadow money has been calculated yet: authorised HR
+must configure and assign active employee policies before replay. Scheduled replay additionally
+requires a valid `COMMISSION_CRON_ACTOR_EMPLOYEE_ID` in the deployed environment.
 
 ## 1. Purpose and delivery decision
 
@@ -502,7 +509,7 @@ routes call service-only transactional functions after server-side session/permi
 - `POST /api/commissions/process`
 - `GET/POST /api/commissions/access-grants`
 - `DELETE /api/commissions/access-grants/{grantId}`
-- `POST /api/cron/commissions/process`
+- `GET /api/cron/commissions/process`
 
 All list endpoints use bounded filter-bound keyset pagination and return semantic DTOs. Mutation
 routes validate strict request schemas, derive actor identity from `requireStaffSession`, enforce

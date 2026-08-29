@@ -9,6 +9,7 @@ import {
   Gauge,
   KeyRound,
   LoaderCircle,
+  Play,
   RefreshCw,
   Settings2,
   ShieldCheck,
@@ -166,13 +167,35 @@ export default function CommissionConsole() {
             from agents and managers and cannot be transferred to payroll.
           </p>
         </div>
-        <button
-          className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium hover:border-slate-500"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+        <div className="flex gap-2 self-start">
+          <button
+            className={buttonClass}
+            onClick={() =>
+              void runMutation(
+                () =>
+                  fetchJson('/api/commissions/process', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Idempotency-Key': requestKey('process'),
+                    },
+                    body: JSON.stringify({ limit: 100 }),
+                  }),
+                'Commission source events processed in non-payable shadow mode.',
+              )
+            }
+            disabled={working || loading}
+          >
+            <Play className="mr-2 h-4 w-4" /> Process now
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium hover:border-slate-500"
+            onClick={() => void load()}
+            disabled={loading || working}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
@@ -219,7 +242,9 @@ export default function CommissionConsole() {
           {activeTab === 'preview' && <Preview working={working} setWorking={setWorking} />}
           {activeTab === 'shadow' && <ShadowEntries items={shadowEntries} />}
           {activeTab === 'bonus' && <BonusPeriods items={bonusPeriods} />}
-          {activeTab === 'exceptions' && <Exceptions items={exceptions} />}
+          {activeTab === 'exceptions' && (
+            <Exceptions items={exceptions} working={working} runMutation={runMutation} />
+          )}
           {activeTab === 'access' && options.canManageGrants && (
             <Access
               items={grants}
@@ -309,37 +334,45 @@ function Policies({
 
   const createVersion = (event: FormEvent) => {
     event.preventDefault()
-    const components =
-      template === 'primary_bonus'
-        ? [
-            {
-              componentType: 'fixed_per_unit',
-              sourceVariable: 'passenger_ticket_count',
-              recipientRole: 'primary',
-              rateValue: rate,
-              eligibleServices: [],
-              config: {},
-            },
-            {
-              componentType: 'sales_profit_bonus',
-              recipientRole: 'sales_bonus',
-              thresholdGbp: threshold,
-              rewardKind,
-              rewardValue: reward,
-              eligibleServices: ['tk_primary'],
-              config: { period: 'calendar_month' },
-            },
-          ]
-        : [
-            {
-              componentType: template === 'low_fare' ? 'fixed_per_event' : 'fixed_per_unit',
-              ...(template === 'assistant' ? { sourceVariable: 'passenger_ticket_count' } : {}),
-              recipientRole: template === 'low_fare' ? 'low_fare_actor' : 'assistant',
-              rateValue: rate,
-              eligibleServices: [],
-              config: {},
-            },
-          ]
+    let components: JsonRecord[]
+    if (template === 'primary_bonus') {
+      components = [
+        {
+          componentType: 'fixed_per_unit',
+          sourceVariable: 'passenger_ticket_count',
+          recipientRole: 'primary',
+          rateValue: rate,
+          eligibleServices: [],
+          config: {},
+        },
+        {
+          componentType: 'sales_profit_bonus',
+          recipientRole: 'sales_bonus',
+          thresholdGbp: threshold,
+          rewardKind,
+          rewardValue: reward,
+          eligibleServices: ['tk_primary'],
+          config: { period: 'calendar_month' },
+        },
+      ]
+    } else {
+      const perUnit = ['assistant', 'primary_unit'].includes(template)
+      components = [
+        {
+          componentType: perUnit ? 'fixed_per_unit' : 'fixed_per_event',
+          ...(perUnit ? { sourceVariable: 'passenger_ticket_count' } : {}),
+          recipientRole:
+            template === 'low_fare'
+              ? 'low_fare_actor'
+              : template === 'assistant'
+                ? 'assistant'
+                : 'primary',
+          rateValue: rate,
+          eligibleServices: [],
+          config: {},
+        },
+      ]
+    }
     void runMutation(
       () =>
         fetchJson(`/api/commissions/policies/${selectedPolicyId}/versions`, {
@@ -424,8 +457,10 @@ function Policies({
               onChange={(event) => setTemplate(event.target.value)}
             >
               <option value="primary_bonus">Primary TK + monthly sales bonus</option>
+              <option value="primary_unit">Primary service per passenger-ticket</option>
+              <option value="primary_event">Primary service per event</option>
               <option value="assistant">Assistance per passenger-ticket</option>
-              <option value="low_fare">Low Fare finder per event</option>
+              <option value="low_fare">Low/higher Fare actor per event</option>
             </select>
           </Field>
           <Field label={template === 'primary_bonus' ? 'TK rate per ticket (£)' : 'Rate (£)'}>
@@ -977,10 +1012,18 @@ function BonusPeriods({ items }: { items: JsonRecord[] }) {
   )
 }
 
-function Exceptions({ items }: { items: JsonRecord[] }) {
+function Exceptions({
+  items,
+  working,
+  runMutation,
+}: {
+  items: JsonRecord[]
+  working: boolean
+  runMutation: MutationRunner
+}) {
   return (
     <DataTable
-      headers={['Created', 'Employee', 'Code', 'Retries', 'Details']}
+      headers={['Created', 'Employee', 'Code', 'Retries', 'Details', 'Action']}
       empty="No open Commission exceptions."
       rows={items.map((item) => [
         dateLabel(String(item.createdAt).slice(0, 10)),
@@ -988,6 +1031,31 @@ function Exceptions({ items }: { items: JsonRecord[] }) {
         String(item.code).replace(/_/g, ' '),
         item.retryCount,
         JSON.stringify(item.details),
+        item.sourceEventId ? (
+          <button
+            key={item.id}
+            className="rounded-lg border border-cyan-500/40 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
+            disabled={working}
+            onClick={() =>
+              void runMutation(
+                () =>
+                  fetchJson(`/api/commissions/exceptions/${item.id}/retry`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Idempotency-Key': requestKey('retry'),
+                    },
+                    body: '{}',
+                  }),
+                'Exception queued for an audited retry. Run the shadow processor when ready.',
+              )
+            }
+          >
+            Retry
+          </button>
+        ) : (
+          'Not retryable'
+        ),
       ])}
     />
   )
@@ -1096,7 +1164,7 @@ function DataTable({
   empty,
 }: {
   headers: string[]
-  rows: unknown[][]
+  rows: React.ReactNode[][]
   empty: string
 }) {
   return (
@@ -1120,7 +1188,7 @@ function DataTable({
                     key={index}
                     className={`px-4 py-3 ${index === 0 ? 'font-medium text-white' : 'text-slate-300'}`}
                   >
-                    {String(cell ?? '')}
+                    {cell ?? ''}
                   </td>
                 ))}
               </tr>

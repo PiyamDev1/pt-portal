@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ACTOR_ID = '40000000-0000-4000-8000-000000000001'
 const POLICY_ID = '50000000-0000-4000-8000-000000000001'
+const EXCEPTION_ID = '60000000-0000-4000-8000-000000000001'
 
 const mocks = vi.hoisted(() => ({
   requireCommissionPolicyAccess: vi.fn(),
@@ -19,6 +20,8 @@ vi.mock('@/lib/api/serviceSupabase', () => ({
 
 import { POST as createPolicy } from '@/app/api/commissions/policies/route'
 import { POST as preview } from '@/app/api/commissions/preview/route'
+import { POST as processShadow } from '@/app/api/commissions/process/route'
+import { POST as retryException } from '@/app/api/commissions/exceptions/[id]/retry/route'
 
 function request(path: string, body: unknown, key: string | null = 'commission-request-0001') {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -41,7 +44,7 @@ describe('Commission policy mutation routes', () => {
     })
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'commission_schema_status') {
-        return { data: { ready: true, version: 2026082901, mode: 'shadow' }, error: null }
+        return { data: { ready: true, version: 2026082902, mode: 'shadow' }, error: null }
       }
       if (name === 'commission_create_policy_2026082901') {
         return {
@@ -57,6 +60,15 @@ describe('Commission policy mutation routes', () => {
           },
           error: null,
         }
+      }
+      if (name === 'commission_process_shadow_2026082902') {
+        return {
+          data: { processedEvents: 3, heldEvents: 0, nonPayable: true },
+          error: null,
+        }
+      }
+      if (name === 'commission_retry_exception_2026082902') {
+        return { data: { id: EXCEPTION_ID, queued: true }, error: null }
       }
       throw new Error(`Unexpected RPC: ${name}`)
     })
@@ -146,5 +158,47 @@ describe('Commission policy mutation routes', () => {
       p_variables: body.variables,
       p_request_key: 'commission-request-0001',
     })
+  })
+
+  it('runs a bounded non-payable shadow batch through the service-only RPC', async () => {
+    const response = await processShadow(request('/api/commissions/process', { limit: 100 }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      processedEvents: 3,
+      heldEvents: 0,
+      nonPayable: true,
+    })
+    expect(mocks.rpc).toHaveBeenCalledWith('commission_process_shadow_2026082902', {
+      p_actor_employee_id: ACTOR_ID,
+      p_limit: 100,
+      p_request_key: 'commission-request-0001',
+    })
+
+    expect((await processShadow(request('/api/commissions/process', { limit: 201 }))).status).toBe(
+      400,
+    )
+  })
+
+  it('queues an audited retry for a strict exception request', async () => {
+    const response = await retryException(
+      request(`/api/commissions/exceptions/${EXCEPTION_ID}/retry`, {}),
+      { params: Promise.resolve({ id: EXCEPTION_ID }) },
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ id: EXCEPTION_ID, queued: true })
+    expect(mocks.rpc).toHaveBeenCalledWith('commission_retry_exception_2026082902', {
+      p_actor_employee_id: ACTOR_ID,
+      p_exception_id: EXCEPTION_ID,
+      p_request_key: 'commission-request-0001',
+    })
+
+    expect(
+      (
+        await retryException(
+          request(`/api/commissions/exceptions/${EXCEPTION_ID}/retry`, { reason: 'override' }),
+          { params: Promise.resolve({ id: EXCEPTION_ID }) },
+        )
+      ).status,
+    ).toBe(400)
   })
 })

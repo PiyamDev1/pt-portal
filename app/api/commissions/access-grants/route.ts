@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireCommissionPolicyAccess } from '@/lib/commissions/apiAuth'
 import {
@@ -75,14 +76,18 @@ export async function POST(request: NextRequest) {
   }
   const requestKey = readIdempotencyKey(request)
   if (!requestKey) return commissionError('A valid Idempotency-Key header is required.', 400)
-  const parsed = createCommissionAccessGrantSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) return commissionError('Invalid Commission access grant.', 400)
+  const { data: input, error: bodyError } = await parseBodyWithSchema(
+    request,
+    createCommissionAccessGrantSchema,
+    { maxBytes: 1024 },
+  )
+  if (bodyError || !input) return commissionError('Invalid Commission access grant.', 400)
 
   const { data, error } = await getServiceSupabaseClient().rpc(
     'commission_grant_access_2026082901',
     {
       p_actor_employee_id: access.employee.id,
-      p_employee_id: parsed.data.employeeId,
+      p_employee_id: input.employeeId,
       p_request_key: requestKey,
     },
   )

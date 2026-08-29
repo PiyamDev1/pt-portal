@@ -296,6 +296,31 @@ the admin settings endpoint may enable or tune it; the API key stays in the serv
 Ticketing responses never expose calculated commission, earnings, margin, or profit. See the
 [Ticketing API](../api/TICKETING.md).
 
+## Commission policy and shadow processing
+
+| Methods       | Route                                                                |
+| ------------- | -------------------------------------------------------------------- |
+| `GET`         | `/api/commissions/overview`                                          |
+| `GET`         | `/api/commissions/setup-options`                                     |
+| `GET`, `POST` | `/api/commissions/policies`                                          |
+| `GET`, `POST` | `/api/commissions/policies/[policyId]/versions`                      |
+| `POST`        | `/api/commissions/policies/[policyId]/versions/[versionId]/activate` |
+| `GET`, `POST` | `/api/commissions/assignments`                                       |
+| `POST`        | `/api/commissions/preview`                                           |
+| `GET`         | `/api/commissions/shadow-entries`                                    |
+| `GET`         | `/api/commissions/bonus-periods`                                     |
+| `GET`         | `/api/commissions/exceptions`                                        |
+| `POST`        | `/api/commissions/exceptions/[id]/retry`                             |
+| `POST`        | `/api/commissions/process`                                           |
+| `GET`, `POST` | `/api/commissions/access-grants`                                     |
+| `DELETE`      | `/api/commissions/access-grants/[id]`                                |
+
+The staff routes require Admin Commission authority or a narrow active HR grant and database
+capability `2026082902`. Master/Super Admin alone manage those grants. All money remains private,
+non-payable shadow evidence. Policy/assignment/preview/process/retry mutations are strict and
+idempotent; the bounded worker parks business problems as typed exceptions. See the
+[Commission API](../api/COMMISSIONS.md).
+
 ## Frappe, HR, training, and dashboard services
 
 | Methods       | Route                                              |
@@ -362,8 +387,11 @@ Admin route names include legacy verbs and are not a promise of REST semantics. 
 | `GET`   | `/api/cron/passports/pak/drafts-cleanup`             | Daily 03:30 UTC           |
 | `GET`   | `/api/cron/integrations/frappe/outbox`               | Daily 04:00 UTC           |
 | `GET`   | `/api/cron/integrations/frappe/timeclock-attendance` | Daily 04:30 UTC           |
+| `GET`   | `/api/cron/ticketing/time-limits`                    | Daily 05:00 UTC           |
+| `GET`   | `/api/cron/ticketing/flight-monitor`                 | Daily 05:30 UTC           |
+| `GET`   | `/api/cron/commissions/process`                      | Daily 05:45 UTC           |
 
-All five routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
+All eight routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Commission additionally requires an active authorised `COMMISSION_CRON_ACTOR_EMPLOYEE_ID` for calculation/audit attribution. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
 
 ## Updating this reference
 

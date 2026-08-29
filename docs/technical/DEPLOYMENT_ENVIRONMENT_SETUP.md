@@ -23,7 +23,7 @@ Storage credentials must point at private S3-compatible buckets. The R2 endpoint
 
 ## Scheduled work
 
-Every Vercel cron route requires an exact `Authorization: Bearer <CRON_SECRET>` header. Missing server configuration returns `503`; invalid or absent credentials return `401`. The `x-vercel-cron` header alone is ignored. Booking-attendance links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then the legacy `NEXT_PUBLIC_APP_URL` fallback. The document fallback migration runs from a separate GitHub workflow and prefers `DOCUMENT_MIGRATION_CRON_TOKEN`, falling back to `CRON_SECRET` only when that dedicated token is absent.
+Every Vercel cron route requires an exact `Authorization: Bearer <CRON_SECRET>` header. Missing server configuration returns `503`; invalid or absent credentials return `401`. The `x-vercel-cron` header alone is ignored. Commission shadow processing also requires `COMMISSION_CRON_ACTOR_EMPLOYEE_ID`, set to an active Admin/HR employee who is authorised to manage Commission policies; that employee is recorded as the audit actor. Booking-attendance links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then the legacy `NEXT_PUBLIC_APP_URL` fallback. The document fallback migration runs from a separate GitHub workflow and prefers `DOCUMENT_MIGRATION_CRON_TOKEN`, falling back to `CRON_SECRET` only when that dedicated token is absent.
 
 Database backup configuration lives entirely in the backup workflow secrets and should use a dedicated S3-compatible bucket/credentials with retention access.
 

@@ -10,36 +10,28 @@ import {
   publicCommissionDatabaseError,
   readIdempotencyKey,
 } from '@/lib/commissions/api'
-import {
-  activateCommissionPolicyVersionSchema,
-  commissionVersionParamSchema,
-} from '@/lib/commissions/contracts'
+import { commissionProcessSchema } from '@/lib/commissions/contracts'
 
-type RouteContext = { params: Promise<{ policyId: string; versionId: string }> }
-
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(request: NextRequest) {
   const access = await requireCommissionPolicyAccess()
   if (!access.authorized) return access.response
   if (!(await hasCommissionCapability())) {
-    return commissionError('Commission shadow mode is not installed on this database.', 503)
+    return commissionError('Commission shadow processing is not installed on this database.', 503)
   }
-  const params = commissionVersionParamSchema.safeParse(await context.params)
-  if (!params.success) return commissionError('Invalid Commission policy version.', 400)
   const requestKey = readIdempotencyKey(request)
   if (!requestKey) return commissionError('A valid Idempotency-Key header is required.', 400)
   const { data: input, error: bodyError } = await parseBodyWithSchema(
     request,
-    activateCommissionPolicyVersionSchema,
-    { maxBytes: 256 },
+    commissionProcessSchema,
+    { maxBytes: 1024 },
   )
-  if (bodyError || !input) return commissionError('The activation body must be empty.', 400)
+  if (bodyError || !input) return commissionError('Invalid Commission processing request.', 400)
 
   const { data, error } = await getServiceSupabaseClient().rpc(
-    'commission_activate_policy_version_2026082901',
+    'commission_process_shadow_2026082902',
     {
       p_actor_employee_id: access.employee.id,
-      p_rule_id: params.data.policyId,
-      p_version_id: params.data.versionId,
+      p_limit: input.limit,
       p_request_key: requestKey,
     },
   )
