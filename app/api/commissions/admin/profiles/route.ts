@@ -1,8 +1,9 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { parseBodyWithSchema } from '@/lib/api/request'
-import { COMMISSION_PRIVATE_RESPONSE } from '@/lib/commissions/api'
+import { COMMISSION_PRIVATE_RESPONSE, hasCommissionCapability } from '@/lib/commissions/api'
 import {
+  COMMISSION_PROFILE_CAPABILITY_VERSION,
   commissionProfileSchema,
   profileNeedsWholeMonths,
   toStoredCommissionProfile,
@@ -29,6 +30,14 @@ function databaseStatus(error: unknown) {
 export async function POST(request: Request) {
   const access = await requireCommissionManager()
   if (!access.authorized) return access.response
+  if (!(await hasCommissionCapability(COMMISSION_PROFILE_CAPABILITY_VERSION))) {
+    return apiError(
+      'Agent-specific ticket-assistance scope is not installed on this database',
+      503,
+      {},
+      COMMISSION_PRIVATE_RESPONSE,
+    )
+  }
 
   const {
     data: profile,
@@ -55,6 +64,32 @@ export async function POST(request: Request) {
       {},
       COMMISSION_PRIVATE_RESPONSE,
     )
+  }
+
+  if (profile.assistanceScope.mode === 'specific_agents') {
+    const { data: selectedAgents, error: selectedAgentsError } = await access.supabase
+      .from('employees')
+      .select('id, is_active')
+      .in('id', profile.assistanceScope.employeeIds)
+    if (selectedAgentsError) {
+      return apiError(
+        'Unable to validate selected primary agents',
+        500,
+        {},
+        COMMISSION_PRIVATE_RESPONSE,
+      )
+    }
+    if (
+      selectedAgents.length !== profile.assistanceScope.employeeIds.length ||
+      selectedAgents.some((employee) => !employee.is_active)
+    ) {
+      return apiError(
+        'Ticket Assistance can target only active employees',
+        400,
+        {},
+        COMMISSION_PRIVATE_RESPONSE,
+      )
+    }
   }
 
   const token = requestToken(request)

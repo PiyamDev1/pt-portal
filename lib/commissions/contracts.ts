@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const COMMISSION_CAPABILITY_VERSION = 2026082903
+export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026082905
 
 export const commissionSourceModules = ['ticketing', 'packages'] as const
 export const commissionServiceCodes = [
@@ -275,7 +276,7 @@ export const COMMISSION_SERVICE_LABELS: Record<
   dc: 'Date changes',
   r_er: 'Reissues',
   low_fare: 'Low-fare savings',
-  higher_fare: 'Higher-fare adjustments',
+  higher_fare: 'Supplier fare increase adjustments',
   package_sale: 'Package sales',
   sales_bonus: 'Monthly profit bonus',
 }
@@ -289,6 +290,15 @@ export const COMMISSION_RATE_KINDS = [
 ] as const
 
 export type CommissionRateKind = (typeof COMMISSION_RATE_KINDS)[number]
+
+export const commissionAssistanceScopeSchema = z
+  .object({
+    mode: z.enum(['all', 'specific_agents']).default('all'),
+    employeeIds: z.array(uuidSchema).max(100).default([]),
+  })
+  .strict()
+
+export type CommissionAssistanceScope = z.infer<typeof commissionAssistanceScopeSchema>
 
 const profileTierSchema = z
   .object({
@@ -365,7 +375,7 @@ export const commissionProfileSchema = z
         ),
         higherFare: commissionRateSchema.refine(
           (rate) => rate.kind === 'none' || rate.kind === 'percentage',
-          'Higher-fare treatment must be a percentage debit or zero',
+          'A supplier fare increase adjustment must be a percentage debit or zero',
         ),
         packageSale: commissionRateSchema.refine(
           (rate) => rate.kind !== 'tiered',
@@ -373,6 +383,10 @@ export const commissionProfileSchema = z
         ),
       })
       .strict(),
+    assistanceScope: commissionAssistanceScopeSchema.default({
+      mode: 'all',
+      employeeIds: [],
+    }),
     monthlyBonus: z
       .object({
         enabled: z.boolean(),
@@ -388,6 +402,37 @@ export const commissionProfileSchema = z
       .strict(),
   })
   .strict()
+  .superRefine((profile, context) => {
+    const { mode, employeeIds } = profile.assistanceScope
+    if (new Set(employeeIds).size !== employeeIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'employeeIds'],
+        message: 'Each primary agent can be selected only once',
+      })
+    }
+    if (mode === 'all' && employeeIds.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'employeeIds'],
+        message: 'All-agent assistance cannot also contain a selected-agent list',
+      })
+    }
+    if (mode === 'specific_agents' && employeeIds.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'employeeIds'],
+        message: 'Select at least one primary agent for ticket assistance',
+      })
+    }
+    if (employeeIds.includes(profile.employeeId)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'employeeIds'],
+        message: 'The assistant cannot select themselves as the primary agent',
+      })
+    }
+  })
 
 export type CommissionProfileInput = z.infer<typeof commissionProfileSchema>
 export type CommissionRate = z.infer<typeof commissionRateSchema>
@@ -423,7 +468,7 @@ export type CommissionServicePolicyInput = {
 }
 
 export type StoredCommissionProfileConfiguration = {
-  uiVersion: 1
+  uiVersion: 2
   services: CommissionServicePolicyInput[]
   draft: CommissionProfileInput
 }
@@ -476,12 +521,16 @@ const PROFILE_SERVICE_METADATA: Record<
 function componentForProfileRate(
   serviceCode: CommissionProfileServiceCode,
   rate: CommissionRate,
+  assistanceScope: CommissionAssistanceScope,
 ): CommissionPolicyComponentInput {
   const metadata = PROFILE_SERVICE_METADATA[serviceCode]
   const common = {
     recipientRole: metadata.recipientRole,
     eligibleServices: [serviceCode],
-    config: { serviceCode },
+    config: {
+      serviceCode,
+      ...(serviceCode === 'tk_assistance' ? { assistanceScope } : {}),
+    },
   }
 
   if (rate.kind === 'none') {
@@ -553,7 +602,7 @@ export function toStoredCommissionProfile(
       sourceModule: metadata.sourceModule,
       serviceCode,
       recipientRole: metadata.recipientRole,
-      components: [componentForProfileRate(serviceCode, rate)],
+      components: [componentForProfileRate(serviceCode, rate, input.assistanceScope)],
     }
   })
 
@@ -576,7 +625,7 @@ export function toStoredCommissionProfile(
     })
   }
 
-  return { uiVersion: 1, services, draft: input }
+  return { uiVersion: 2, services, draft: input }
 }
 
 export function createDefaultCommissionProfile(employeeId = ''): CommissionProfileInput {
@@ -586,11 +635,11 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
 
   return {
     employeeId,
-    label: 'New commission agreement',
+    label: 'New commission plan',
     effectiveFrom,
     locationId: null,
     copiedFromProfileId: null,
-    changeReason: 'Initial employee commission agreement',
+    changeReason: 'Initial employee commission plan',
     services: {
       tkPrimary: { ...zeroRate },
       tkAssistance: { ...zeroRate },
@@ -600,6 +649,7 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
       higherFare: { ...zeroRate },
       packageSale: { ...zeroRate },
     },
+    assistanceScope: { mode: 'all', employeeIds: [] },
     monthlyBonus: {
       enabled: false,
       thresholdGbp: 0,

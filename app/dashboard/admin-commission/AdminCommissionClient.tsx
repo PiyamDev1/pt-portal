@@ -11,6 +11,8 @@ import {
   CircleDollarSign,
   Clock3,
   Copy,
+  CircleHelp,
+  Edit3,
   FileClock,
   History,
   Info,
@@ -156,6 +158,7 @@ function RateEditor({
   allowedKinds,
   onChange,
   packageRate = false,
+  noneLabel = 'No commission',
 }: {
   title: string
   description: string
@@ -163,6 +166,7 @@ function RateEditor({
   allowedKinds: CommissionRateKind[]
   onChange: (rate: CommissionRate) => void
   packageRate?: boolean
+  noneLabel?: string
 }) {
   const setKind = (kind: CommissionRateKind) => {
     onChange({
@@ -194,7 +198,7 @@ function RateEditor({
           >
             {COMMISSION_RATE_KINDS.filter((kind) => allowedKinds.includes(kind)).map((kind) => (
               <option key={kind} value={kind}>
-                {KIND_LABELS[kind]}
+                {kind === 'none' ? noneLabel : KIND_LABELS[kind]}
               </option>
             ))}
           </select>
@@ -294,9 +298,113 @@ function RateEditor({
       {packageRate && (
         <p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-amber-700">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Stored in the agreement now; package earnings remain held until the authoritative
+          Stored in the commission plan now; package earnings remain held until the authoritative
           package-profit feed is enabled.
         </p>
+      )}
+    </fieldset>
+  )
+}
+
+function AssistanceScopeEditor({
+  draft,
+  employees,
+  onChange,
+}: {
+  draft: CommissionProfileInput
+  employees: CommissionAdminEmployee[]
+  onChange: (scope: CommissionProfileInput['assistanceScope']) => void
+}) {
+  const candidates = employees.filter((employee) => employee.id !== draft.employeeId)
+  const specific = draft.assistanceScope.mode === 'specific_agents'
+
+  return (
+    <fieldset className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+      <legend className="sr-only">Ticket Assistance primary-agent scope</legend>
+      <p className="text-sm font-black text-blue-950">
+        Who can this employee assist for commission?
+      </p>
+      <p className="mt-1 text-xs leading-5 text-blue-800">
+        The rate belongs to this employee. The scope decides which primary agent&apos;s ticket can
+        trigger it.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label
+          className={`cursor-pointer rounded-xl border p-3 text-sm ${!specific ? 'border-blue-500 bg-white text-blue-950' : 'border-blue-200 text-blue-800'}`}
+        >
+          <input
+            type="radio"
+            name="assistance-scope"
+            checked={!specific}
+            onChange={() => onChange({ mode: 'all', employeeIds: [] })}
+            className="mr-2 accent-blue-700"
+          />
+          <span className="font-black">All primary agents</span>
+          <span className="mt-1 block pl-5 text-xs font-normal leading-4">
+            Pay this assistance rate whenever they are recorded as an assistant.
+          </span>
+        </label>
+        <label
+          className={`cursor-pointer rounded-xl border p-3 text-sm ${specific ? 'border-blue-500 bg-white text-blue-950' : 'border-blue-200 text-blue-800'}`}
+        >
+          <input
+            type="radio"
+            name="assistance-scope"
+            checked={specific}
+            onChange={() => onChange({ mode: 'specific_agents', employeeIds: [] })}
+            className="mr-2 accent-blue-700"
+          />
+          <span className="font-black">Selected primary agents</span>
+          <span className="mt-1 block pl-5 text-xs font-normal leading-4">
+            Pay only when assisting one of the people selected below.
+          </span>
+        </label>
+      </div>
+      {specific && (
+        <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-black uppercase tracking-wide text-blue-900">
+              Primary agents
+            </p>
+            <span className="text-[11px] font-bold text-blue-600">
+              {draft.assistanceScope.employeeIds.length} selected
+            </span>
+          </div>
+          <div className="mt-2 max-h-44 space-y-1 overflow-y-auto pr-1">
+            {candidates.map((employee) => {
+              const checked = draft.assistanceScope.employeeIds.includes(employee.id)
+              return (
+                <label
+                  key={employee.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-blue-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      onChange({
+                        mode: 'specific_agents',
+                        employeeIds: checked
+                          ? draft.assistanceScope.employeeIds.filter((id) => id !== employee.id)
+                          : [...draft.assistanceScope.employeeIds, employee.id],
+                      })
+                    }
+                    className="h-4 w-4 rounded border-slate-300 accent-blue-700"
+                  />
+                  <span className="font-bold">{employee.fullName}</span>
+                  <span className="ml-auto text-[11px] text-slate-400">
+                    {employee.location?.name || employee.role}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+          {draft.assistanceScope.employeeIds.length === 0 && (
+            <p className="mt-2 text-xs font-bold text-amber-700">
+              Select at least one primary agent before saving.
+            </p>
+          )}
+        </div>
       )}
     </fieldset>
   )
@@ -312,6 +420,7 @@ function AgreementEditor({
   onTemplate,
   onClose,
   onSubmit,
+  intent,
 }: {
   draft: CommissionProfileInput
   setDraft: (draft: CommissionProfileInput) => void
@@ -322,6 +431,7 @@ function AgreementEditor({
   onTemplate: (profileId: string) => void
   onClose: () => void
   onSubmit: (event: FormEvent) => void
+  intent: 'create' | 'edit' | 'copy'
 }) {
   const employeeNames = new Map(employees.map((item) => [item.id, item.fullName]))
   const templates = profiles.filter((profile) => profile.configuration)
@@ -343,20 +453,25 @@ function AgreementEditor({
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 py-5 backdrop-blur sm:rounded-t-[1.75rem] sm:px-7">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1e2d]">
-              Employee agreement
+              Employee commission plan
             </p>
             <h2 id="agreement-title" className="mt-1 text-2xl font-black text-slate-950">
-              Set commission for {employee.fullName}
+              {intent === 'edit'
+                ? `Edit commission plan for ${employee.fullName}`
+                : intent === 'copy'
+                  ? `Copy a commission plan for ${employee.fullName}`
+                  : `Create commission plan for ${employee.fullName}`}
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Saving creates a new immutable version. Existing history is never edited.
+              Saving creates a new effective-dated version. The current plan and history remain
+              unchanged until that date.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
-            aria-label="Close agreement editor"
+            aria-label="Close commission plan editor"
           >
             <X className="h-5 w-5" />
           </button>
@@ -367,13 +482,13 @@ function AgreementEditor({
             <div className="flex items-start gap-3">
               <Copy className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
               <div className="min-w-0 flex-1">
-                <label className="text-sm font-black text-blue-950">Starting point</label>
+                <label className="text-sm font-black text-blue-950">Copy values from</label>
                 <select
                   value={draft.copiedFromProfileId || ''}
                   onChange={(event) => onTemplate(event.target.value)}
                   className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
                 >
-                  <option value="">Blank agreement</option>
+                  <option value="">Blank commission plan</option>
                   {templates.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {employeeNames.get(profile.employeeId) || 'Staff'} · {profile.label} ·{' '}
@@ -391,7 +506,7 @@ function AgreementEditor({
 
           <section className="grid gap-4 rounded-[1.4rem] border border-slate-200 bg-white p-5 sm:grid-cols-2">
             <label className="text-xs font-bold text-slate-600 sm:col-span-2">
-              Agreement name
+              Commission plan name
               <input
                 value={draft.label}
                 onChange={(event) => setDraft({ ...draft, label: event.target.value })}
@@ -429,7 +544,7 @@ function AgreementEditor({
               </select>
             </label>
             <label className="text-xs font-bold text-slate-600 sm:col-span-2">
-              Reason for this agreement
+              Reason for this commission plan
               <textarea
                 value={draft.changeReason}
                 onChange={(event) => setDraft({ ...draft, changeReason: event.target.value })}
@@ -438,7 +553,7 @@ function AgreementEditor({
                 maxLength={500}
                 rows={3}
                 className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-                placeholder="Why is this agreement being created or changed?"
+                placeholder="Why is this commission plan being created or changed?"
               />
             </label>
           </section>
@@ -458,13 +573,22 @@ function AgreementEditor({
                 allowedKinds={['none', 'per_unit', 'per_event', 'percentage', 'tiered']}
                 onChange={(rate) => updateService('tkPrimary', rate)}
               />
-              <RateEditor
-                title="Ticket assistance"
-                description="Commission paid when this employee assists another agent."
-                rate={draft.services.tkAssistance}
-                allowedKinds={['none', 'per_unit', 'per_event']}
-                onChange={(rate) => updateService('tkAssistance', rate)}
-              />
+              <div className="space-y-3">
+                <RateEditor
+                  title="Ticket assistance"
+                  description="Commission paid to this employee when they are recorded as assisting a primary agent."
+                  rate={draft.services.tkAssistance}
+                  allowedKinds={['none', 'per_unit', 'per_event']}
+                  onChange={(rate) => updateService('tkAssistance', rate)}
+                />
+                {draft.services.tkAssistance.kind !== 'none' && (
+                  <AssistanceScopeEditor
+                    draft={draft}
+                    employees={employees}
+                    onChange={(assistanceScope) => setDraft({ ...draft, assistanceScope })}
+                  />
+                )}
+              </div>
               <RateEditor
                 title="Date changes"
                 description="Commission on completed date-change work."
@@ -487,12 +611,31 @@ function AgreementEditor({
                 onChange={(rate) => updateService('lowFare', rate)}
               />
               <RateEditor
-                title="Higher-fare adjustment"
-                description="Signed debit treatment when the final fare increases."
+                title="Supplier fare increase adjustment"
+                description="Optional debit when an agent records a replacement supplier fare that is higher than the original."
                 rate={draft.services.higherFare}
                 allowedKinds={['none', 'percentage']}
                 onChange={(rate) => updateService('higherFare', rate)}
+                noneLabel="No adjustment"
               />
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 lg:col-span-2">
+                <div className="flex items-start gap-3">
+                  <CircleHelp className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                  <div>
+                    <p className="text-sm font-black text-amber-950">
+                      What is a supplier fare increase adjustment?
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-amber-900">
+                      It is not an extra sale or an automatic penalty. Ticketing compares the
+                      original supplier fare with a later replacement fare. If the original was GBP
+                      500 and the replacement is GBP 540, the signed difference is -GBP 40. A 10%
+                      rule creates a -GBP 4 shadow adjustment for the agent who recorded that fare
+                      change. Choose <strong>No adjustment</strong> if your business does not debit
+                      staff for supplier fare increases.
+                    </p>
+                  </div>
+                </div>
+              </div>
               <div className="lg:col-span-2">
                 <RateEditor
                   title="Package sales"
@@ -653,7 +796,7 @@ function AgreementEditor({
             ) : (
               <ShieldCheck className="h-4 w-4" />
             )}
-            Save independent agreement
+            Save commission plan version
           </button>
         </div>
       </form>
@@ -661,7 +804,13 @@ function AgreementEditor({
   )
 }
 
-function ProfileSummary({ profile }: { profile: CommissionAdminProfile }) {
+function ProfileSummary({
+  profile,
+  employees,
+}: {
+  profile: CommissionAdminProfile
+  employees: CommissionAdminEmployee[]
+}) {
   const config = profile.configuration
   if (!config)
     return (
@@ -675,7 +824,7 @@ function ProfileSummary({ profile }: { profile: CommissionAdminProfile }) {
     ['Date changes', config.services.dateChange],
     ['Reissues', config.services.reissue],
     ['Low-fare savings', config.services.lowFare],
-    ['Higher-fare adjustment', config.services.higherFare],
+    ['Supplier fare increase adjustment', config.services.higherFare],
     ['Package sales', config.services.packageSale, true],
   ]
   return (
@@ -691,6 +840,21 @@ function ProfileSummary({ profile }: { profile: CommissionAdminProfile }) {
           </span>
         </div>
       ))}
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 py-3 text-sm sm:col-span-2">
+        <span className="text-slate-500">Ticket assistance applies to</span>
+        <span className="max-w-md text-right font-black text-slate-800">
+          {config.services.tkAssistance.kind === 'none'
+            ? 'Not applicable'
+            : config.assistanceScope.mode === 'all'
+              ? 'All primary agents'
+              : config.assistanceScope.employeeIds
+                  .map(
+                    (id) =>
+                      employees.find((employee) => employee.id === id)?.fullName || 'Former staff',
+                  )
+                  .join(', ')}
+        </span>
+      </div>
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
         <span className="text-slate-500">Monthly bonus</span>
         <span className="text-right font-black text-slate-800">
@@ -712,6 +876,7 @@ export default function AdminCommissionClient({
   const [selectedId, setSelectedId] = useState(initialData.employees[0]?.id || '')
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<CommissionProfileInput | null>(null)
+  const [editorIntent, setEditorIntent] = useState<'create' | 'edit' | 'copy'>('create')
   const [working, setWorking] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
@@ -749,17 +914,29 @@ export default function AdminCommissionClient({
     }
   }
 
-  const startAgreement = (source: CommissionAdminProfile | null = currentProfile) => {
+  const startAgreement = (
+    source: CommissionAdminProfile | null = currentProfile,
+    intent: 'create' | 'edit' | 'copy' = source?.id === currentProfile?.id ? 'edit' : 'copy',
+  ) => {
     if (!selectedEmployee) return
     const next = source?.configuration
       ? clone(source.configuration)
       : createDefaultCommissionProfile(selectedEmployee.id)
     next.employeeId = selectedEmployee.id
     next.copiedFromProfileId = source?.id || null
+    if (next.assistanceScope.mode === 'specific_agents') {
+      next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
+        (employeeId) => employeeId !== selectedEmployee.id,
+      )
+      if (next.assistanceScope.employeeIds.length === 0) {
+        next.assistanceScope = { mode: 'all', employeeIds: [] }
+      }
+    }
     next.locationId = null
     next.effectiveFrom = currentProfile ? nextMonthStart() : next.effectiveFrom
     next.label = source ? `${source.label} update` : next.label
-    next.changeReason = source ? '' : 'Initial employee commission agreement'
+    next.changeReason = source ? '' : 'Initial employee commission plan'
+    setEditorIntent(source ? intent : 'create')
     setDraft(next)
     setError('')
     setNotice('')
@@ -773,10 +950,18 @@ export default function AdminCommissionClient({
       : createDefaultCommissionProfile(selectedEmployee.id)
     next.employeeId = selectedEmployee.id
     next.copiedFromProfileId = template?.id || null
+    if (next.assistanceScope.mode === 'specific_agents') {
+      next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
+        (employeeId) => employeeId !== selectedEmployee.id,
+      )
+      if (next.assistanceScope.employeeIds.length === 0) {
+        next.assistanceScope = { mode: 'all', employeeIds: [] }
+      }
+    }
     next.locationId = draft.locationId
     next.effectiveFrom = draft.effectiveFrom
     next.changeReason = draft.changeReason
-    next.label = template ? `${template.label} copy` : 'New commission agreement'
+    next.label = template ? `${template.label} copy` : 'New commission plan'
     setDraft(next)
   }
 
@@ -794,9 +979,9 @@ export default function AdminCommissionClient({
       })
       await refresh()
       setDraft(null)
-      setNotice('The employee agreement was saved as an independent, immutable version.')
+      setNotice('The commission plan was saved as a new effective-dated version.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save agreement')
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save commission plan')
     } finally {
       setWorking(false)
     }
@@ -853,9 +1038,9 @@ export default function AdminCommissionClient({
       await refresh()
       setCancelProfile(null)
       setCancelReason('')
-      setNotice('The scheduled agreement was cancelled and the preceding agreement was restored.')
+      setNotice('The scheduled plan was cancelled and the preceding plan was restored.')
     } catch (cancelError) {
-      setError(cancelError instanceof Error ? cancelError.message : 'Unable to cancel agreement')
+      setError(cancelError instanceof Error ? cancelError.message : 'Unable to cancel plan')
     } finally {
       setWorking(false)
     }
@@ -879,8 +1064,8 @@ export default function AdminCommissionClient({
               Commission belongs to the employee.
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-red-50/80">
-              Create a complete agreement around one person, copy a proven setup when useful, and
-              make later changes without affecting anyone else.
+              Create or edit one employee&apos;s plan, copy a proven setup when useful, and make
+              later changes without affecting anyone else.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -910,10 +1095,10 @@ export default function AdminCommissionClient({
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
-            <p className="text-sm font-black">Employee agreement upgrade required</p>
+            <p className="text-sm font-black">Employee commission-plan upgrade required</p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
               The shadow engine is available, but database version {data.schemaVersion || 'unknown'}{' '}
-              does not yet include employee-owned profiles. Agreement changes are disabled until the
+              does not yet include employee-owned profiles. Plan changes are disabled until the
               additive migration is installed.
             </p>
           </div>
@@ -948,7 +1133,7 @@ export default function AdminCommissionClient({
         <OverviewCard
           label="Configured staff"
           value={`${data.employees.filter((item) => item.currentProfileId).length} / ${data.employees.length}`}
-          note="Active employees with a current agreement"
+          note="Active employees with a current commission plan"
           icon={UserRoundCheck}
           tone="red"
         />
@@ -968,7 +1153,7 @@ export default function AdminCommissionClient({
         <OverviewCard
           label="Held events"
           value={String(data.overview.heldEvents)}
-          note="Waiting for data or a valid agreement"
+          note="Waiting for data or a valid commission plan"
           icon={FileClock}
         />
         <OverviewCard
@@ -987,7 +1172,9 @@ export default function AdminCommissionClient({
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                   Team
                 </p>
-                <h2 className="mt-1 text-lg font-black text-slate-950">Employee agreements</h2>
+                <h2 className="mt-1 text-lg font-black text-slate-950">
+                  Employee commission plans
+                </h2>
               </div>
               <button
                 onClick={() => {
@@ -1068,7 +1255,7 @@ export default function AdminCommissionClient({
         <div className="space-y-5">
           {!selectedEmployee ? (
             <div className="flex h-full min-h-96 items-center justify-center rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-              Select an employee to manage their agreement.
+              Select an employee to manage their commission plan.
             </div>
           ) : (
             <>
@@ -1085,7 +1272,7 @@ export default function AdminCommissionClient({
                     </div>
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
-                        Employee agreement
+                        Employee commission plan
                       </p>
                       <h2 className="mt-1 text-2xl font-black text-slate-950">
                         {selectedEmployee.fullName}
@@ -1101,13 +1288,13 @@ export default function AdminCommissionClient({
                     disabled={!data.schemaReady || Boolean(scheduledProfile)}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    <Plus className="h-4 w-4" />{' '}
-                    {currentProfile ? 'Schedule an update' : 'Create agreement'}
+                    {currentProfile ? <Edit3 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{' '}
+                    {currentProfile ? 'Edit commission plan' : 'Create commission plan'}
                   </button>
                 </div>
                 {scheduledProfile && (
                   <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold text-blue-800">
-                    Cancel the existing scheduled agreement before scheduling a different update.
+                    Cancel the existing scheduled plan before scheduling a different update.
                   </p>
                 )}
               </article>
@@ -1134,17 +1321,19 @@ export default function AdminCommissionClient({
                       disabled={Boolean(scheduledProfile)}
                       className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-40"
                     >
-                      <Copy className="h-3.5 w-3.5" /> Use as next version
+                      <Edit3 className="h-3.5 w-3.5" /> Edit plan
                     </button>
                   </div>
                   <div className="mt-5">
-                    <ProfileSummary profile={currentProfile} />
+                    <ProfileSummary profile={currentProfile} employees={data.employees} />
                   </div>
                 </article>
               ) : (
                 <article className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-sm">
                   <BadgePoundSterling className="mx-auto h-8 w-8 text-slate-300" />
-                  <h3 className="mt-4 text-lg font-black text-slate-900">No current agreement</h3>
+                  <h3 className="mt-4 text-lg font-black text-slate-900">
+                    No current commission plan
+                  </h3>
                   <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
                     Create one complete setup for this employee. Explicit zero rates are stored for
                     services they do not earn from, preventing ambiguous missing-policy errors.
@@ -1154,7 +1343,7 @@ export default function AdminCommissionClient({
                     disabled={!data.schemaReady}
                     className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
                   >
-                    <Sparkles className="h-4 w-4" /> Create first agreement
+                    <Sparkles className="h-4 w-4" /> Create first commission plan
                   </button>
                 </article>
               )}
@@ -1194,14 +1383,16 @@ export default function AdminCommissionClient({
                 <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
                   <History className="h-5 w-5 text-[#8b1e2d]" />
                   <div>
-                    <h3 className="text-base font-black text-slate-950">Agreement history</h3>
+                    <h3 className="text-base font-black text-slate-950">Commission plan history</h3>
                     <p className="text-xs text-slate-500">
                       Every saved version remains independently auditable.
                     </p>
                   </div>
                 </div>
                 {selectedProfiles.length === 0 ? (
-                  <p className="px-6 py-8 text-sm text-slate-500">No agreement history yet.</p>
+                  <p className="px-6 py-8 text-sm text-slate-500">
+                    No commission plan history yet.
+                  </p>
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {selectedProfiles.map((profile) => (
@@ -1234,7 +1425,7 @@ export default function AdminCommissionClient({
                         </div>
                         {profile.configuration && (
                           <button
-                            onClick={() => startAgreement(profile)}
+                            onClick={() => startAgreement(profile, 'copy')}
                             disabled={Boolean(scheduledProfile)}
                             className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-[#8b1e2d] hover:bg-red-50 disabled:opacity-30"
                           >
@@ -1254,7 +1445,7 @@ export default function AdminCommissionClient({
                     <div>
                       <h3 className="text-base font-black text-amber-950">Needs attention</h3>
                       <p className="text-xs text-amber-800">
-                        Retry after an agreement or missing source detail has been corrected.
+                        Retry after a commission plan or missing source detail has been corrected.
                       </p>
                     </div>
                   </div>
@@ -1323,6 +1514,7 @@ export default function AdminCommissionClient({
           onTemplate={applyTemplate}
           onClose={() => setDraft(null)}
           onSubmit={saveAgreement}
+          intent={editorIntent}
         />
       )}
 
@@ -1340,11 +1532,11 @@ export default function AdminCommissionClient({
               </span>
               <div>
                 <h2 id="cancel-profile-title" className="text-lg font-black text-slate-950">
-                  Cancel scheduled agreement?
+                  Cancel scheduled commission plan?
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  {cancelProfile.label} will never become active. The agreement before it will be
-                  restored automatically.
+                  {cancelProfile.label} will never become active. The commission plan before it will
+                  be restored automatically.
                 </p>
               </div>
             </div>
@@ -1366,14 +1558,14 @@ export default function AdminCommissionClient({
                 disabled={working}
                 className="rounded-xl px-4 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-100"
               >
-                Keep agreement
+                Keep commission plan
               </button>
               <button
                 onClick={() => void confirmCancellation()}
                 disabled={working || cancelReason.trim().length < 8}
                 className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-40"
               >
-                {working && <Loader2 className="h-4 w-4 animate-spin" />} Cancel scheduled agreement
+                {working && <Loader2 className="h-4 w-4 animate-spin" />} Cancel scheduled plan
               </button>
             </div>
           </div>

@@ -323,7 +323,7 @@ Ticketing responses never expose calculated commission, earnings, margin, or pro
 
 The self route resolves the caller's employee identity server-side and returns only that employee's
 agreement and non-payable preview. Management routes require Admin Commission authority or active HR
-department membership. Employee-owned agreement mutations require capability `2026082904`; advanced
+department membership. Employee-owned agreement mutations require capability `2026082905`; advanced
 engine routes require `2026082903`. Master/Super Admin manage HR membership in Staff Management.
 Policy/profile/assignment/preview/process/retry mutations are strict and idempotent; the bounded
 worker parks business problems as typed exceptions. See the

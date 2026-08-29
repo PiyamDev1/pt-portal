@@ -150,16 +150,16 @@ function EmptyState({
       </div>
       <h2 className="mt-5 text-xl font-black text-slate-950">
         {scheduledProfile
-          ? 'Your commission agreement is scheduled'
+          ? 'Your commission plan is scheduled'
           : schemaReady
-            ? 'Your commission agreement is being prepared'
+            ? 'Your commission plan is being prepared'
             : 'Commission setup is being upgraded'}
       </h2>
       <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
         {scheduledProfile
           ? `${scheduledProfile.label} starts ${formatDate(scheduledProfile.effectiveFrom)}. Calculated activity will appear here after it becomes effective.`
           : schemaReady
-            ? 'There is no active agreement on your account yet. Once an administrator schedules one, its rates and calculated activity will appear here.'
+            ? 'There is no active commission plan on your account yet. Once an administrator schedules one, its rates and calculated activity will appear here.'
             : 'The new employee commission workspace is not available in the database yet. No figures are being presented as payable during the upgrade.'}
       </p>
     </div>
@@ -198,8 +198,8 @@ export default function MyCommissionsView({
               Your earnings, clearly explained.
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-red-50/80">
-              Hi {firstName}. See what contributed to your commission and the agreement used to
-              calculate it.
+              Hi {firstName}. See what contributed to your commission and the plan used to calculate
+              it.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-xs text-red-50">
@@ -243,7 +243,7 @@ export default function MyCommissionsView({
             <StatCard
               label="Deductions"
               value={money.format(analytics.currentMonth.debitsGbp)}
-              note="Higher-fare or correction debits"
+              note="Supplier fare increase or correction adjustments"
               icon={ArrowDownRight}
               tone="white"
             />
@@ -320,7 +320,7 @@ export default function MyCommissionsView({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
-                    Your agreement
+                    Your commission plan
                   </p>
                   <h2 className="mt-1 text-xl font-black text-slate-950">{data.profile.label}</h2>
                 </div>
@@ -339,7 +339,7 @@ export default function MyCommissionsView({
                       ['Date changes', profile.services.dateChange],
                       ['Reissues', profile.services.reissue],
                       ['Low-fare savings', profile.services.lowFare],
-                      ['Higher-fare treatment', profile.services.higherFare],
+                      ['Supplier fare increase adjustment', profile.services.higherFare],
                       ['Package sales', profile.services.packageSale, true],
                     ] as Array<[string, CommissionRate, boolean?]>
                   ).map(([label, rate, packageRate]) => (
@@ -353,6 +353,16 @@ export default function MyCommissionsView({
                       </span>
                     </div>
                   ))}
+                  {profile.services.tkAssistance.kind !== 'none' && (
+                    <div className="flex items-center justify-between gap-4 py-3 text-sm">
+                      <span className="text-slate-500">Ticket assistance scope</span>
+                      <span className="text-right font-black text-slate-800">
+                        {profile.assistanceScope.mode === 'all'
+                          ? 'All primary agents'
+                          : `${profile.assistanceScope.employeeIds.length} selected primary agent${profile.assistanceScope.employeeIds.length === 1 ? '' : 's'}`}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-4 py-3 text-sm">
                     <span className="text-slate-500">Monthly profit bonus</span>
                     <span className="text-right font-black text-slate-800">
@@ -364,7 +374,7 @@ export default function MyCommissionsView({
                 </div>
               ) : (
                 <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-                  The detailed agreement is not available in this version.
+                  The detailed commission plan is not available in this version.
                 </p>
               )}
               {data.scheduledProfile && (
@@ -372,7 +382,7 @@ export default function MyCommissionsView({
                   <div className="flex gap-3">
                     <Sparkles className="h-5 w-5 shrink-0 text-blue-600" />
                     <div>
-                      <p className="text-sm font-black">A new agreement is scheduled</p>
+                      <p className="text-sm font-black">A new commission plan is scheduled</p>
                       <p className="mt-1 text-xs text-blue-800">
                         {data.scheduledProfile.label} starts{' '}
                         {formatDate(data.scheduledProfile.effectiveFrom)}.

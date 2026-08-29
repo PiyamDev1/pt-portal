@@ -1,15 +1,19 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowRight,
   BadgePoundSterling,
   Calculator,
+  CircleCheck,
   FileClock,
   Gauge,
   LoaderCircle,
   Play,
   RefreshCw,
+  Search,
   Settings2,
   ShieldCheck,
   Users,
@@ -20,14 +24,25 @@ type MutationRunner = (work: () => Promise<unknown>, success: string) => Promise
 type Tab = 'overview' | 'policies' | 'assignments' | 'preview' | 'shadow' | 'bonus' | 'exceptions'
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof Gauge }> = [
-  { id: 'overview', label: 'Overview', icon: Gauge },
-  { id: 'policies', label: 'Policies', icon: Settings2 },
-  { id: 'assignments', label: 'Assignments', icon: Users },
-  { id: 'preview', label: 'Preview', icon: Calculator },
-  { id: 'shadow', label: 'Shadow entries', icon: FileClock },
-  { id: 'bonus', label: 'Bonus periods', icon: BadgePoundSterling },
-  { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle },
+  { id: 'overview', label: 'Reconcile', icon: Gauge },
+  { id: 'shadow', label: 'Calculated results', icon: FileClock },
+  { id: 'exceptions', label: 'Action queue', icon: AlertTriangle },
+  { id: 'bonus', label: 'Monthly bonus', icon: BadgePoundSterling },
+  { id: 'preview', label: 'Formula preview', icon: Calculator },
+  { id: 'policies', label: 'Policy lab', icon: Settings2 },
+  { id: 'assignments', label: 'Manual assignments', icon: Users },
 ]
+
+const serviceLabels: Record<string, string> = {
+  tk_primary: 'Ticket sales',
+  tk_assistance: 'Ticket assistance',
+  dc: 'Date change',
+  r_er: 'Reissue',
+  low_fare: 'Low-fare saving',
+  higher_fare: 'Supplier fare increase adjustment',
+  package_sale: 'Package sale',
+  sales_bonus: 'Monthly sales bonus',
+}
 
 const inputClass =
   'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-400'
@@ -142,11 +157,12 @@ export default function CommissionConsole() {
             <ShieldCheck className="h-4 w-4" /> Internal financial control
           </div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Commission shadow console
+            Commission reconciliation
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Configure employee policies and reconcile non-payable results. Shadow figures are hidden
-            from agents and managers and cannot be transferred to payroll.
+            Reconcile company-wide preview calculations before payroll adoption. Employees can see
+            only their own non-payable preview in My commissions; this workspace remains restricted
+            to Admin and HR.
           </p>
         </div>
         <div className="flex gap-2 self-start">
@@ -207,7 +223,7 @@ export default function CommissionConsole() {
         </div>
       ) : (
         <>
-          {activeTab === 'overview' && <Overview overview={overview} />}
+          {activeTab === 'overview' && <Overview overview={overview} onNavigate={setActiveTab} />}
           {activeTab === 'policies' && (
             <Policies items={policies} working={working} runMutation={runMutation} />
           )}
@@ -239,7 +255,17 @@ function Message({ tone, children }: { tone: 'error' | 'success'; children: Reac
   return <div className={`mb-5 rounded-lg border px-4 py-3 text-sm ${color}`}>{children}</div>
 }
 
-function Overview({ overview }: { overview: JsonRecord }) {
+function Overview({
+  overview,
+  onNavigate,
+}: {
+  overview: JsonRecord
+  onNavigate: (tab: Tab) => void
+}) {
+  const held = Number(overview.heldEvents || 0)
+  const exceptions = Number(overview.openExceptions || 0)
+  const pending = Number(overview.pendingEvents || 0)
+  const needsAttention = held > 0 || exceptions > 0
   const cards = [
     ['Pending source events', overview.pendingEvents || 0],
     ['Processed source events', overview.processedEvents || 0],
@@ -250,21 +276,85 @@ function Overview({ overview }: { overview: JsonRecord }) {
     ['Incomplete bonus periods', overview.incompleteBonusPeriods || 0],
   ]
   return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {cards.map(([label, value]) => (
-        <div key={String(label)} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{label}</p>
-          <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+    <section className="space-y-4">
+      <div
+        className={`flex flex-col justify-between gap-4 rounded-xl border p-5 sm:flex-row sm:items-center ${
+          needsAttention
+            ? 'border-amber-500/35 bg-amber-500/10'
+            : 'border-emerald-500/35 bg-emerald-500/10'
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          {needsAttention ? (
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+          ) : (
+            <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+          )}
+          <div>
+            <p
+              className={`font-semibold ${needsAttention ? 'text-amber-100' : 'text-emerald-100'}`}
+            >
+              {needsAttention
+                ? 'Reconciliation needs attention'
+                : 'No unresolved calculation issues'}
+            </p>
+            <p
+              className={`mt-1 text-sm ${needsAttention ? 'text-amber-200/75' : 'text-emerald-200/75'}`}
+            >
+              {needsAttention
+                ? `${held} held event${held === 1 ? '' : 's'} and ${exceptions} open exception${exceptions === 1 ? '' : 's'} need review.`
+                : pending
+                  ? `${pending} source event${pending === 1 ? '' : 's'} can be processed.`
+                  : 'Processed preview results have no open exception.'}
+            </p>
+          </div>
         </div>
-      ))}
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 sm:col-span-2 xl:col-span-4">
-        <p className="font-semibold text-amber-100">Shadow mode is non-payable</p>
-        <p className="mt-1 text-sm text-amber-200/75">
-          Configure policies, process source history, and reconcile a full month here. No result
-          creates an employee balance or payroll payment.
+        {needsAttention && (
+          <button
+            type="button"
+            onClick={() => onNavigate('exceptions')}
+            className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-amber-400/40 px-3 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/10"
+          >
+            Open action queue <ArrowRight className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map(([label, value]) => (
+          <div key={String(label)} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <p className="text-sm text-slate-400">{label}</p>
+            <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-5">
+        <p className="font-semibold text-cyan-100">Preview only — never sent to payroll</p>
+        <p className="mt-1 text-sm text-cyan-200/75">
+          Use this area to process source history, resolve held items, and reconcile a complete
+          month. Nothing here creates a payable employee balance.
         </p>
       </div>
     </section>
+  )
+}
+
+function LowLevelToolNotice() {
+  return (
+    <div className="mb-5 flex flex-col justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center">
+      <div>
+        <p className="text-sm font-semibold text-amber-100">Advanced diagnostic tool</p>
+        <p className="mt-1 text-xs leading-5 text-amber-200/75">
+          Normally create or edit an employee-owned plan in Admin commission. Use this tool only for
+          engine diagnostics and reconciliation.
+        </p>
+      </div>
+      <Link
+        href="/dashboard/admin-commission"
+        className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-amber-100"
+      >
+        Open Admin commission <ArrowRight className="h-4 w-4" />
+      </Link>
+    </div>
   )
 }
 
@@ -374,172 +464,175 @@ function Policies({
     )
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-      <div className="space-y-5">
-        <form
-          onSubmit={createPolicy}
-          className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
-        >
-          <h2 className="text-lg font-semibold">Create policy identity</h2>
-          <Field label="Policy name">
-            <input
-              className={inputClass}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Description">
-            <textarea
-              className={inputClass}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={3}
-            />
-          </Field>
-          <button className={buttonClass} disabled={working}>
-            Create policy
-          </button>
-        </form>
+    <>
+      <LowLevelToolNotice />
+      <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
+        <div className="space-y-5">
+          <form
+            onSubmit={createPolicy}
+            className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
+          >
+            <h2 className="text-lg font-semibold">Create policy identity</h2>
+            <Field label="Policy name">
+              <input
+                className={inputClass}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Description">
+              <textarea
+                className={inputClass}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+              />
+            </Field>
+            <button className={buttonClass} disabled={working}>
+              Create policy
+            </button>
+          </form>
 
-        <form
-          onSubmit={createVersion}
-          className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
-        >
-          <h2 className="text-lg font-semibold">Add typed version</h2>
-          <Field label="Policy">
-            <select
-              className={inputClass}
-              value={selectedPolicyId}
-              onChange={(event) => setPolicyId(event.target.value)}
-              required
-            >
-              <option value="">Select policy</option>
-              {items.map((policy) => (
-                <option key={policy.id} value={policy.id}>
-                  {policy.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Typed template">
-            <select
-              className={inputClass}
-              value={template}
-              onChange={(event) => setTemplate(event.target.value)}
-            >
-              <option value="primary_bonus">Primary TK + monthly sales bonus</option>
-              <option value="primary_unit">Primary service per passenger-ticket</option>
-              <option value="primary_event">Primary service per event</option>
-              <option value="assistant">Assistance per passenger-ticket</option>
-              <option value="low_fare">Low/higher Fare actor per event</option>
-            </select>
-          </Field>
-          <Field label={template === 'primary_bonus' ? 'TK rate per ticket (£)' : 'Rate (£)'}>
-            <input
-              className={inputClass}
-              inputMode="decimal"
-              value={rate}
-              onChange={(event) => setRate(event.target.value)}
-              required
-            />
-          </Field>
-          {template === 'primary_bonus' && (
-            <>
-              <Field label="Monthly qualifying-profit target (£)">
-                <input
-                  className={inputClass}
-                  value={threshold}
-                  onChange={(event) => setThreshold(event.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Bonus reward type">
-                <select
-                  className={inputClass}
-                  value={rewardKind}
-                  onChange={(event) => setRewardKind(event.target.value)}
-                >
-                  <option value="fixed_gbp">Fixed GBP reward</option>
-                  <option value="percentage_of_qualifying_profit">
-                    Percentage of qualifying profit
+          <form
+            onSubmit={createVersion}
+            className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
+          >
+            <h2 className="text-lg font-semibold">Add typed version</h2>
+            <Field label="Policy">
+              <select
+                className={inputClass}
+                value={selectedPolicyId}
+                onChange={(event) => setPolicyId(event.target.value)}
+                required
+              >
+                <option value="">Select policy</option>
+                {items.map((policy) => (
+                  <option key={policy.id} value={policy.id}>
+                    {policy.name}
                   </option>
-                </select>
-              </Field>
-              <Field label={rewardKind === 'fixed_gbp' ? 'Fixed bonus (£)' : 'Bonus rate (%)'}>
-                <input
-                  className={inputClass}
-                  value={reward}
-                  onChange={(event) => setReward(event.target.value)}
-                  required
-                />
-              </Field>
-            </>
-          )}
-          <button className={buttonClass} disabled={working || !selectedPolicyId}>
-            Create draft version
-          </button>
-        </form>
-      </div>
+                ))}
+              </select>
+            </Field>
+            <Field label="Typed template">
+              <select
+                className={inputClass}
+                value={template}
+                onChange={(event) => setTemplate(event.target.value)}
+              >
+                <option value="primary_bonus">Primary TK + monthly sales bonus</option>
+                <option value="primary_unit">Primary service per passenger-ticket</option>
+                <option value="primary_event">Primary service per event</option>
+                <option value="assistant">Assistance per passenger-ticket</option>
+                <option value="low_fare">Low/higher Fare actor per event</option>
+              </select>
+            </Field>
+            <Field label={template === 'primary_bonus' ? 'TK rate per ticket (£)' : 'Rate (£)'}>
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                value={rate}
+                onChange={(event) => setRate(event.target.value)}
+                required
+              />
+            </Field>
+            {template === 'primary_bonus' && (
+              <>
+                <Field label="Monthly qualifying-profit target (£)">
+                  <input
+                    className={inputClass}
+                    value={threshold}
+                    onChange={(event) => setThreshold(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Bonus reward type">
+                  <select
+                    className={inputClass}
+                    value={rewardKind}
+                    onChange={(event) => setRewardKind(event.target.value)}
+                  >
+                    <option value="fixed_gbp">Fixed GBP reward</option>
+                    <option value="percentage_of_qualifying_profit">
+                      Percentage of qualifying profit
+                    </option>
+                  </select>
+                </Field>
+                <Field label={rewardKind === 'fixed_gbp' ? 'Fixed bonus (£)' : 'Bonus rate (%)'}>
+                  <input
+                    className={inputClass}
+                    value={reward}
+                    onChange={(event) => setReward(event.target.value)}
+                    required
+                  />
+                </Field>
+              </>
+            )}
+            <button className={buttonClass} disabled={working || !selectedPolicyId}>
+              Create draft version
+            </button>
+          </form>
+        </div>
 
-      <div className="space-y-3">
-        {items.length === 0 ? (
-          <Empty text="No Commission policies have been created." />
-        ) : (
-          items.map((policy) => (
-            <article
-              key={policy.id}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-5"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">{policy.name}</h3>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {policy.description || 'No description'}
-                  </p>
+        <div className="space-y-3">
+          {items.length === 0 ? (
+            <Empty text="No Commission policies have been created." />
+          ) : (
+            items.map((policy) => (
+              <article
+                key={policy.id}
+                className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">{policy.name}</h3>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {policy.description || 'No description'}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                    {policy.versions.length} version(s)
+                  </span>
                 </div>
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                  {policy.versions.length} version(s)
-                </span>
-              </div>
-              <div className="mt-4 space-y-2">
-                {policy.versions.length === 0 ? (
-                  <p className="text-sm text-slate-500">No versions yet.</p>
-                ) : (
-                  policy.versions.map((version: JsonRecord) => (
-                    <div
-                      key={version.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-4 py-3"
-                    >
-                      <div>
-                        <span className="font-medium">Version {version.versionNumber}</span>
-                        <span className="ml-3 rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
-                          {version.status}
-                        </span>
-                        {version.contentHash && (
-                          <p className="mt-1 font-mono text-[11px] text-slate-500">
-                            {version.contentHash.slice(0, 18)}…
-                          </p>
+                <div className="mt-4 space-y-2">
+                  {policy.versions.length === 0 ? (
+                    <p className="text-sm text-slate-500">No versions yet.</p>
+                  ) : (
+                    policy.versions.map((version: JsonRecord) => (
+                      <div
+                        key={version.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-4 py-3"
+                      >
+                        <div>
+                          <span className="font-medium">Version {version.versionNumber}</span>
+                          <span className="ml-3 rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
+                            {version.status}
+                          </span>
+                          {version.contentHash && (
+                            <p className="mt-1 font-mono text-[11px] text-slate-500">
+                              {version.contentHash.slice(0, 18)}…
+                            </p>
+                          )}
+                        </div>
+                        {version.status === 'draft' && (
+                          <button
+                            className={buttonClass}
+                            disabled={working}
+                            onClick={() => void activate(policy, version)}
+                          >
+                            Activate
+                          </button>
                         )}
                       </div>
-                      {version.status === 'draft' && (
-                        <button
-                          className={buttonClass}
-                          disabled={working}
-                          onClick={() => void activate(policy, version)}
-                        >
-                          Activate
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </article>
-          ))
-        )}
+                    ))
+                  )}
+                </div>
+              </article>
+            ))
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -588,130 +681,133 @@ function Assignments({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-      <form
-        onSubmit={submit}
-        className="self-start space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
-      >
-        <h2 className="text-lg font-semibold">Assign active policy</h2>
-        <Field label="Employee">
-          <select
-            className={inputClass}
-            value={employeeId}
-            onChange={(event) => setEmployeeId(event.target.value)}
-            required
-          >
-            <option value="">Select employee</option>
-            {(options.employees || []).map((employee: JsonRecord) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Active policy version">
-          <select
-            className={inputClass}
-            value={versionId}
-            onChange={(event) => setVersionId(event.target.value)}
-            required
-          >
-            <option value="">Select policy version</option>
-            {(options.activePolicyVersions || []).map((version: JsonRecord) => (
-              <option key={version.id} value={version.id}>
-                {version.policyName} · v{version.versionNumber}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Service">
+    <>
+      <LowLevelToolNotice />
+      <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
+        <form
+          onSubmit={submit}
+          className="self-start space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
+        >
+          <h2 className="text-lg font-semibold">Assign active policy</h2>
+          <Field label="Employee">
             <select
               className={inputClass}
-              value={serviceCode}
-              onChange={(event) => setServiceCode(event.target.value)}
+              value={employeeId}
+              onChange={(event) => setEmployeeId(event.target.value)}
+              required
             >
-              {[
-                'tk_primary',
-                'tk_assistance',
-                'dc',
-                'r_er',
-                'low_fare',
-                'higher_fare',
-                'package_sale',
-                'sales_bonus',
-              ].map((code) => (
-                <option key={code} value={code}>
-                  {code.replace(/_/g, ' ')}
+              <option value="">Select employee</option>
+              {(options.employees || []).map((employee: JsonRecord) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.name}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Recipient">
+          <Field label="Active policy version">
             <select
               className={inputClass}
-              value={recipientRole}
-              onChange={(event) => setRecipientRole(event.target.value)}
+              value={versionId}
+              onChange={(event) => setVersionId(event.target.value)}
+              required
             >
-              {['primary', 'assistant', 'low_fare_actor', 'package_sales', 'sales_bonus'].map(
-                (role) => (
-                  <option key={role} value={role}>
-                    {role.replace(/_/g, ' ')}
-                  </option>
-                ),
-              )}
+              <option value="">Select policy version</option>
+              {(options.activePolicyVersions || []).map((version: JsonRecord) => (
+                <option key={version.id} value={version.id}>
+                  {version.policyName} · v{version.versionNumber}
+                </option>
+              ))}
             </select>
           </Field>
-        </div>
-        <Field label="Location override">
-          <select
-            className={inputClass}
-            value={locationId}
-            onChange={(event) => setLocationId(event.target.value)}
-          >
-            <option value="">All locations</option>
-            {(options.locations || []).map((location: JsonRecord) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Effective from">
-            <input
-              type="date"
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Service">
+              <select
+                className={inputClass}
+                value={serviceCode}
+                onChange={(event) => setServiceCode(event.target.value)}
+              >
+                {[
+                  'tk_primary',
+                  'tk_assistance',
+                  'dc',
+                  'r_er',
+                  'low_fare',
+                  'higher_fare',
+                  'package_sale',
+                  'sales_bonus',
+                ].map((code) => (
+                  <option key={code} value={code}>
+                    {code.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Recipient">
+              <select
+                className={inputClass}
+                value={recipientRole}
+                onChange={(event) => setRecipientRole(event.target.value)}
+              >
+                {['primary', 'assistant', 'low_fare_actor', 'package_sales', 'sales_bonus'].map(
+                  (role) => (
+                    <option key={role} value={role}>
+                      {role.replace(/_/g, ' ')}
+                    </option>
+                  ),
+                )}
+              </select>
+            </Field>
+          </div>
+          <Field label="Location override">
+            <select
               className={inputClass}
-              value={effectiveFrom}
-              onChange={(event) => setEffectiveFrom(event.target.value)}
-              required
-            />
+              value={locationId}
+              onChange={(event) => setLocationId(event.target.value)}
+            >
+              <option value="">All locations</option>
+              {(options.locations || []).map((location: JsonRecord) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Effective to">
-            <input
-              type="date"
-              className={inputClass}
-              value={effectiveTo}
-              onChange={(event) => setEffectiveTo(event.target.value)}
-            />
-          </Field>
-        </div>
-        <button className={buttonClass} disabled={working}>
-          Create assignment
-        </button>
-      </form>
-      <DataTable
-        headers={['Employee', 'Policy', 'Service / recipient', 'Location', 'Effective dates']}
-        empty="No effective-dated assignments yet."
-        rows={items.map((item) => [
-          item.employeeName,
-          item.policyName,
-          `${item.serviceCode} · ${item.recipientRole}`,
-          item.locationName,
-          `${dateLabel(item.effectiveFrom)} – ${dateLabel(item.effectiveTo)}`,
-        ])}
-      />
-    </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Effective from">
+              <input
+                type="date"
+                className={inputClass}
+                value={effectiveFrom}
+                onChange={(event) => setEffectiveFrom(event.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Effective to">
+              <input
+                type="date"
+                className={inputClass}
+                value={effectiveTo}
+                onChange={(event) => setEffectiveTo(event.target.value)}
+              />
+            </Field>
+          </div>
+          <button className={buttonClass} disabled={working}>
+            Create assignment
+          </button>
+        </form>
+        <DataTable
+          headers={['Employee', 'Policy', 'Service / recipient', 'Location', 'Effective dates']}
+          empty="No effective-dated assignments yet."
+          rows={items.map((item) => [
+            item.employeeName,
+            item.policyName,
+            `${item.serviceCode} · ${item.recipientRole}`,
+            item.locationName,
+            `${dateLabel(item.effectiveFrom)} – ${dateLabel(item.effectiveTo)}`,
+          ])}
+        />
+      </div>
+    </>
   )
 }
 
@@ -938,19 +1034,73 @@ function Formula({
 }
 
 function ShadowEntries({ items }: { items: JsonRecord[] }) {
+  const [search, setSearch] = useState('')
+  const query = search.trim().toLowerCase()
+  const filtered = items.filter((item) => {
+    const serviceCode = String(item.serviceCode || item.explanation?.serviceCode || '')
+    return (
+      !query ||
+      `${item.recipientName} ${item.profitOwnerName} ${serviceLabels[serviceCode] || serviceCode} ${item.entryKind}`
+        .toLowerCase()
+        .includes(query)
+    )
+  })
+
   return (
-    <DataTable
-      headers={['Recipient', 'Profit owner', 'Earning date', 'Kind', 'Amount', 'Revision']}
-      empty="No shadow entries have been calculated yet."
-      rows={items.map((item) => [
-        item.recipientName,
-        item.profitOwnerName,
-        dateLabel(item.earningOn),
-        item.entryKind,
-        money(item.amountGbp),
-        `v${item.revision}`,
-      ])}
-    />
+    <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="font-semibold text-white">Calculated preview results</h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Each row shows who receives the calculation and which primary agent owned the sale.
+          </p>
+        </div>
+        <label className="relative block sm:w-80">
+          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+          <span className="sr-only">Search calculated results</span>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search staff or service"
+            className={`${inputClass} pl-9`}
+          />
+        </label>
+      </div>
+      <DataTable
+        headers={[
+          'Recipient',
+          'Service',
+          'Primary sale owner',
+          'Earning date',
+          'Amount',
+          'Scope / state',
+        ]}
+        empty={
+          query
+            ? 'No calculated results match that search.'
+            : 'No preview results have been calculated yet.'
+        }
+        rows={filtered.map((item) => {
+          const serviceCode = String(item.serviceCode || item.explanation?.serviceCode || '')
+          const scope =
+            serviceCode === 'tk_assistance'
+              ? item.assistanceScopeMode === 'specific_agents'
+                ? item.assistanceScopeMatched
+                  ? 'Selected agent matched'
+                  : 'Outside selected scope'
+                : 'All primary agents'
+              : String(item.entryKind).replace(/_/g, ' ')
+          return [
+            item.recipientName,
+            serviceLabels[serviceCode] || serviceCode.replace(/_/g, ' ') || 'Commission',
+            item.profitOwnerName,
+            dateLabel(item.earningOn),
+            money(item.amountGbp),
+            `${scope} · v${item.revision}`,
+          ]
+        })}
+      />
+    </div>
   )
 }
 
@@ -993,43 +1143,150 @@ function Exceptions({
   working: boolean
   runMutation: MutationRunner
 }) {
+  const [search, setSearch] = useState('')
+  const query = search.trim().toLowerCase()
+  const guidance: Record<string, { title: string; next: string }> = {
+    needs_policy: {
+      title: 'Agent needs a commission plan',
+      next: 'Create or edit the agent plan, then retry this item.',
+    },
+    ambiguous_assignment: {
+      title: 'More than one plan matched',
+      next: 'Review overlapping dates or branch scope, then retry.',
+    },
+    unsupported_contract_version: {
+      title: 'Source record uses an unsupported format',
+      next: 'Review the source integration before retrying.',
+    },
+    missing_required_variable: {
+      title: 'Required source value is missing',
+      next: 'Complete the ticket or package data, then retry.',
+    },
+    inactive_recipient: {
+      title: 'Commission recipient is inactive',
+      next: 'Confirm the staff attribution or employment status before retrying.',
+    },
+    invalid_source_lineage: {
+      title: 'Source history could not be verified',
+      next: 'Review the linked ticketing history before retrying.',
+    },
+    unresolved_package_scope: {
+      title: 'Package responsibility is unresolved',
+      next: 'Assign the responsible package salesperson, then retry.',
+    },
+    package_source_not_authoritative: {
+      title: 'Package source is not authoritative',
+      next: 'Reconcile the package sale source before retrying.',
+    },
+    bonus_period_incomplete: {
+      title: 'Monthly bonus inputs are incomplete',
+      next: 'Resolve held source events for the month, then recalculate.',
+    },
+    calculation_failed: {
+      title: 'Calculation could not be completed',
+      next: 'Review the source details and policy configuration before retrying.',
+    },
+  }
+  const filtered = items.filter((item) => {
+    const details = item.details && typeof item.details === 'object' ? item.details : {}
+    const copy = `${item.employeeName || ''} ${item.code || ''} ${details.serviceCode || ''} ${details.reason || ''}`
+    return !query || copy.toLowerCase().includes(query)
+  })
+
   return (
-    <DataTable
-      headers={['Created', 'Employee', 'Code', 'Retries', 'Details', 'Action']}
-      empty="No open Commission exceptions."
-      rows={items.map((item) => [
-        dateLabel(String(item.createdAt).slice(0, 10)),
-        item.employeeName || 'Unassigned',
-        String(item.code).replace(/_/g, ' '),
-        item.retryCount,
-        JSON.stringify(item.details),
-        item.sourceEventId ? (
-          <button
-            key={item.id}
-            className="rounded-lg border border-cyan-500/40 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
-            disabled={working}
-            onClick={() =>
-              void runMutation(
-                () =>
-                  fetchJson(`/api/commissions/exceptions/${item.id}/retry`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Idempotency-Key': requestKey('retry'),
-                    },
-                    body: '{}',
-                  }),
-                'Exception queued for an audited retry. Run the shadow processor when ready.',
-              )
+    <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="font-semibold text-white">Items needing action</h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Correct the underlying plan or source record first. Retry keeps an audit trail.
+          </p>
+        </div>
+        <label className="relative block sm:w-80">
+          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+          <span className="sr-only">Search action queue</span>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search staff, issue or service"
+            className={`${inputClass} pl-9`}
+          />
+        </label>
+      </div>
+      {filtered.length === 0 ? (
+        <Empty
+          text={query ? 'No action items match that search.' : 'No open Commission exceptions.'}
+        />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {filtered.map((item) => {
+            const details = item.details && typeof item.details === 'object' ? item.details : {}
+            const help = guidance[String(item.code)] || {
+              title: String(item.code || 'Commission issue').replace(/_/g, ' '),
+              next: 'Review the source details before retrying.',
             }
-          >
-            Retry
-          </button>
-        ) : (
-          'Not retryable'
-        ),
-      ])}
-    />
+            const serviceCode = typeof details.serviceCode === 'string' ? details.serviceCode : ''
+            return (
+              <article
+                key={item.id}
+                className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="rounded-lg bg-amber-500/15 p-2 text-amber-300">
+                    <AlertTriangle className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white">{help.title}</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      {item.employeeName || 'No employee resolved'}
+                      {serviceCode
+                        ? ` · ${serviceLabels[serviceCode] || serviceCode.replace(/_/g, ' ')}`
+                        : ''}
+                    </p>
+                    <p className="mt-3 text-xs leading-5 text-slate-400">{help.next}</p>
+                    {typeof details.reason === 'string' && (
+                      <p className="mt-2 rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
+                        {details.reason}
+                      </p>
+                    )}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
+                      <span className="text-[11px] text-slate-500">
+                        {dateLabel(String(item.createdAt).slice(0, 10))} · {item.retryCount || 0}{' '}
+                        previous retries
+                      </span>
+                      {item.sourceEventId ? (
+                        <button
+                          className="rounded-lg border border-cyan-500/40 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
+                          disabled={working}
+                          onClick={() =>
+                            void runMutation(
+                              () =>
+                                fetchJson(`/api/commissions/exceptions/${item.id}/retry`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Idempotency-Key': requestKey('retry'),
+                                  },
+                                  body: '{}',
+                                }),
+                              'Exception queued for an audited retry. Run the shadow processor when ready.',
+                            )
+                          }
+                        >
+                          Retry calculation
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-500">Manual review required</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

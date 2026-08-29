@@ -10,6 +10,7 @@ import {
   type CommissionEntryForAnalytics,
 } from '@/lib/commissions/analytics'
 import {
+  COMMISSION_PROFILE_CAPABILITY_VERSION,
   commissionProfileSchema,
   COMMISSION_SERVICE_LABELS,
   type CommissionProfileInput,
@@ -467,7 +468,7 @@ export async function loadCommissionAdminData(
   const overview = jsonObject(overviewResult.data)
   const lastRun = runsResult.data?.[0]
   return {
-    schemaReady: schemaVersion >= 2026082904,
+    schemaReady: schemaVersion >= COMMISSION_PROFILE_CAPABILITY_VERSION,
     schemaVersion,
     mode: String(schemaStatus.mode || 'shadow'),
     employees,

@@ -17,9 +17,9 @@ export function readIdempotencyKey(request: NextRequest) {
   return value && /^[A-Za-z0-9][A-Za-z0-9:._-]{7,199}$/.test(value) ? value : null
 }
 
-export async function hasCommissionCapability() {
+export async function hasCommissionCapability(minimumVersion = COMMISSION_CAPABILITY_VERSION) {
   const { data, error } = await getServiceSupabaseClient().rpc('commission_schema_status')
-  return !error && hasCommissionSchemaCapability(data, COMMISSION_CAPABILITY_VERSION)
+  return !error && hasCommissionSchemaCapability(data, minimumVersion)
 }
 
 export function publicCommissionDatabaseError(error: { code?: string; message?: string } | null) {

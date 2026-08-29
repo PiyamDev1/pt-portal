@@ -86,33 +86,93 @@ export async function GET(request: NextRequest) {
     : { data: [], error: null }
   if (employeeError) return commissionError('Unable to resolve Commission employee labels.', 500)
 
+  const componentIds = [
+    ...new Set(pageRows.map((row) => row.component_id).filter((id): id is string => !!id)),
+  ]
+  const { data: components, error: componentError } = componentIds.length
+    ? await service.from('commission_policy_components').select('id, config').in('id', componentIds)
+    : { data: [], error: null }
+  if (componentError) return commissionError('Unable to resolve Commission component details.', 500)
+
+  const componentConfig = new Map(
+    (components || []).map((component) => [
+      component.id,
+      component.config && typeof component.config === 'object' && !Array.isArray(component.config)
+        ? component.config
+        : {},
+    ]),
+  )
+
   return apiOk(
     {
-      items: pageRows.map((row) => ({
-        id: row.id,
-        entryKind: row.entry_kind,
-        sourceEventId: row.source_event_id,
-        sourceCaseKey: row.source_case_key,
-        recipientEmployeeId: row.recipient_employee_id,
-        recipientName:
-          employees?.find((employee) => employee.id === row.recipient_employee_id)?.full_name ||
-          'Unknown employee',
-        profitOwnerEmployeeId: row.profit_owner_employee_id,
-        profitOwnerName:
-          employees?.find((employee) => employee.id === row.profit_owner_employee_id)?.full_name ||
-          'Unknown employee',
-        locationId: row.location_id,
-        policyVersionId: row.policy_version_id,
-        componentId: row.component_id,
-        earningOn: row.earning_on,
-        periodStart: row.period_start,
-        periodEnd: row.period_end,
-        amountGbp: row.amount_gbp,
-        explanation: row.explanation,
-        revision: row.revision,
-        supersedesEntryId: row.supersedes_entry_id,
-        createdAt: row.created_at,
-      })),
+      items: pageRows.map((row) => {
+        const explanation =
+          row.explanation && typeof row.explanation === 'object' && !Array.isArray(row.explanation)
+            ? row.explanation
+            : {}
+        const config = componentConfig.get(row.component_id) || {}
+        const assistanceScope =
+          'assistanceScope' in config &&
+          config.assistanceScope &&
+          typeof config.assistanceScope === 'object' &&
+          !Array.isArray(config.assistanceScope)
+            ? config.assistanceScope
+            : null
+        const serviceCode =
+          'serviceCode' in explanation && typeof explanation.serviceCode === 'string'
+            ? explanation.serviceCode
+            : 'serviceCode' in config && typeof config.serviceCode === 'string'
+              ? config.serviceCode
+              : null
+        const scopeMode =
+          serviceCode === 'tk_assistance' && assistanceScope?.mode === 'specific_agents'
+            ? 'specific_agents'
+            : serviceCode === 'tk_assistance'
+              ? 'all'
+              : null
+        const scopedEmployeeIds =
+          assistanceScope &&
+          'employeeIds' in assistanceScope &&
+          Array.isArray(assistanceScope.employeeIds)
+            ? assistanceScope.employeeIds.filter(
+                (id: unknown): id is string => typeof id === 'string',
+              )
+            : []
+
+        return {
+          id: row.id,
+          entryKind: row.entry_kind,
+          serviceCode,
+          sourceEventId: row.source_event_id,
+          sourceCaseKey: row.source_case_key,
+          recipientEmployeeId: row.recipient_employee_id,
+          recipientName:
+            employees?.find((employee) => employee.id === row.recipient_employee_id)?.full_name ||
+            'Unknown employee',
+          profitOwnerEmployeeId: row.profit_owner_employee_id,
+          profitOwnerName:
+            employees?.find((employee) => employee.id === row.profit_owner_employee_id)
+              ?.full_name || 'Unknown employee',
+          assistanceScopeMode: scopeMode,
+          assistanceScopeMatched:
+            scopeMode === 'specific_agents'
+              ? scopedEmployeeIds.includes(row.profit_owner_employee_id)
+              : scopeMode === 'all'
+                ? true
+                : null,
+          locationId: row.location_id,
+          policyVersionId: row.policy_version_id,
+          componentId: row.component_id,
+          earningOn: row.earning_on,
+          periodStart: row.period_start,
+          periodEnd: row.period_end,
+          amountGbp: row.amount_gbp,
+          explanation: row.explanation,
+          revision: row.revision,
+          supersedesEntryId: row.supersedes_entry_id,
+          createdAt: row.created_at,
+        }
+      }),
       nextCursor:
         (rows || []).length > parsed.data.limit && pageRows.length
           ? encodeCommissionCursor(pageRows[pageRows.length - 1], filters)

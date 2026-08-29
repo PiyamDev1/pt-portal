@@ -1,6 +1,8 @@
 # Commission Module Integration Plan
 
-> **Decision-complete implementation plan.** This is the authoritative boundary for commission
+> **Living implementation record.** This captures the current commission architecture and safety
+> boundaries; it is not a fixed product goal. New requirements and live evidence take precedence.
+> Commission remains the only module that may calculate employee pay outcomes, while
 > policies, ordinary commission calculations, employee-attributed sales-profit bonuses, shadow
 > reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
@@ -14,9 +16,10 @@
   payable entries
 
 Implementation checkpoint on August 29, 2026: the linked database reports Commission capability
-`2026082904` ready in `shadow` mode. The deployed additive migration provides employee-owned
+`2026082905` ready in `shadow` mode. The additive migrations provide employee-owned
 agreement snapshots, copy-on-create reuse, atomic per-service policies and assignments,
-effective-dated replacement, and cancellation of future changes. The calculation engine, typed
+effective-dated replacement, cancellation of future changes, and all-or-selected primary-agent
+scope for Ticket Assistance. The calculation engine, typed
 exceptions, Admin/HR reconciliation console, and daily cron route remain the same audited shadow
 foundation. Active HR department membership in Staff Management is the HR access source.
 Scheduled runs use an explicit system audit actor and do not impersonate an employee. A complete
@@ -70,6 +73,9 @@ entries.
 - Primary responsible employees, Low Fare actors, and assistants are distinct roles. Assistance and
   Low Fare may earn independently without advancing primary ticket-count tiers or issued-ticket
   targets.
+- Ticket Assistance belongs to the assistant's employee-owned plan. It can apply when assisting any
+  primary agent or only an explicit list of primary agents; changing that list creates a new
+  effective-dated plan version and never alters another employee's plan.
 - Calculations use PostgreSQL `numeric` and actual GBP variables. JavaScript floating point,
   inferred exchange rates, and currency-ambiguous package metadata are never financial authority.
 - Missing financial inputs create exceptions; they are not treated as zero.
@@ -101,7 +107,8 @@ Commission has two deliberate front doors:
 - `/dashboard/admin-commission` is the normal Admin/HR workspace. It selects an employee first,
   shows their current/scheduled/history state, and saves a complete agreement atomically. An
   administrator may start from an explicit-zero blank agreement, the employee's current agreement,
-  or a one-time copy of another agreement. Small edits remain local to the target employee.
+  or a one-time copy of another agreement. **Edit commission plan** loads the current values and
+  saves a new effective-dated immutable version. Small edits remain local to the target employee.
 - `/dashboard/my-commissions` is available to every active employee and exposes only that
   employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and recent
   calculated entries.
@@ -109,18 +116,19 @@ Commission has two deliberate front doors:
   shadow-entry, bonus-period, exception, and reconciliation tools.
 - `/dashboard/commissions` remains only as a role-aware compatibility redirect.
 
-The advanced engine contains:
+The advanced reconciliation workspace contains:
 
-- Overview: pending events, processed events, exceptions, and shadow totals.
-- Policies: draft/version/activate typed policies.
-- Assignments: effective-dated employee/service/recipient/location assignments.
-- Preview: test a draft against synthetic or authorised historical variables without writing an
+- Reconcile: readiness guidance, pending/processed/held events, exceptions, and preview totals.
+- Calculated results: searchable recipient, service, primary sale owner, amount, revision, and
+  Ticket Assistance scope result.
+- Action queue: human-readable issue guidance and audited retries after the underlying cause is
+  corrected.
+- Monthly bonus: contributed profit, commission cost, qualifying result, target, reward, and
+  incomplete-input state.
+- Formula preview: test a draft against synthetic or authorised historical variables without writing an
   entry.
-- Shadow entries: signed results with source, recipient, profit owner, policy version, explanation,
-  and supersession state.
-- Bonus periods: gross contributed profit, ordinary commission cost, qualifying profit, target,
-  achieved state, reward, and incomplete-input count.
-- Exceptions: filter, inspect, and retry held source facts.
+- Policy lab and Manual assignments: retained as explicitly advanced diagnostic tools; normal
+  employee setup belongs in Admin commission.
 - Access is managed in Staff Management by assigning or removing the HR department.
 
 Shadow money is exposed to its employee only as an unmistakable non-payable calculation preview.
@@ -187,7 +195,9 @@ Commission applies these rules:
 - The profit effect of a Low/higher fare adjustment remains attached to the root sale owner and root
   sale bonus period.
 - `ticket_paid` remains an operational fact and does not gate the initial issuance commission.
-- Root assistance uses each assistant's own effective assistant policy.
+- Root assistance uses each assistant's own effective assistant policy. That plan may apply to all
+  primary agents or an explicit selected-agent list; an out-of-scope assistance fact produces a
+  transparent zero preview result.
 - Current root attribution supplies assistants only for TK. DC/R-ER assistance remains unsupported
   until Ticketing emits transaction-scoped assistant facts.
 - Package-scoped Ticketing facts do not also receive ordinary Ticketing commission unless a future
@@ -337,6 +347,21 @@ authoritative signed GBP facts.
 - Low Fare and assistance earnings do not create sales-profit progress for the finder/assistant.
 - If the primary seller is also the Low Fare actor, both the saving and commission naturally affect
   the same employee period.
+
+#### Supplier fare increase adjustment
+
+This optional rule is the negative side of the same verified supplier-fare comparison used for Low
+Fare. It is not a customer sale, an automatic penalty, or a percentage of the customer price.
+
+```text
+difference = original supplier fare - replacement supplier fare
+GBP 500 - GBP 540 = -GBP 40
+10% configured adjustment = -GBP 4 for the acting employee
+```
+
+Selecting **No adjustment** stores an explicit zero component. A configured percentage applies to
+the signed difference, so a supplier decrease remains the separate positive Low Fare case and a
+supplier increase produces a negative preview adjustment.
 
 Required example:
 

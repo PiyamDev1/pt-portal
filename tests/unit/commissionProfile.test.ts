@@ -24,6 +24,8 @@ describe('employee commission profile contract', () => {
       'package_sale',
     ])
     expect(stored.services.every((service) => service.components.length === 1)).toBe(true)
+    expect(profile.assistanceScope).toEqual({ mode: 'all', employeeIds: [] })
+    expect(stored.uiVersion).toBe(2)
     expect(
       stored.services.every(
         (service) =>
@@ -75,6 +77,50 @@ describe('employee commission profile contract', () => {
     profile.services.tkAssistance = { kind: 'percentage', value: 10, tiers: [] }
 
     expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+  })
+
+  it('stores an independent selected-agent scope for Ticket Assistance', () => {
+    const primaryAgentId = '22222222-2222-4222-8222-222222222222'
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.services.tkAssistance = { kind: 'per_unit', value: 4, tiers: [] }
+    profile.assistanceScope = { mode: 'specific_agents', employeeIds: [primaryAgentId] }
+
+    const parsed = commissionProfileSchema.parse(profile)
+    const assistance = toStoredCommissionProfile(parsed).services.find(
+      (service) => service.serviceCode === 'tk_assistance',
+    )
+
+    expect(assistance?.components[0]).toMatchObject({
+      componentType: 'fixed_per_unit',
+      rateValue: 4,
+      config: {
+        serviceCode: 'tk_assistance',
+        assistanceScope: { mode: 'specific_agents', employeeIds: [primaryAgentId] },
+      },
+    })
+  })
+
+  it('rejects empty, duplicate, or self-referencing selected-agent scopes', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.assistanceScope = { mode: 'specific_agents', employeeIds: [] }
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+
+    profile.assistanceScope.employeeIds = [EMPLOYEE_ID]
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+
+    const other = '22222222-2222-4222-8222-222222222222'
+    profile.assistanceScope.employeeIds = [other, other]
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+  })
+
+  it('upgrades stored version-one drafts to all-agent assistance', () => {
+    const legacy = createDefaultCommissionProfile(EMPLOYEE_ID) as Record<string, unknown>
+    delete legacy.assistanceScope
+
+    expect(commissionProfileSchema.parse(legacy).assistanceScope).toEqual({
+      mode: 'all',
+      employeeIds: [],
+    })
   })
 
   it('keeps a copied setup independent of its source', () => {

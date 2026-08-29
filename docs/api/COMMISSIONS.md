@@ -4,7 +4,7 @@ Commission has an employee-owned read surface and a separate Admin/HR control su
 derives the actor from the active staff session and returns private, non-cacheable data. The self
 route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
 Commission authority or live HR department membership. Employee-profile mutations require database
-capability `2026082904`; the advanced shadow engine requires `2026082903`. All calculated values in
+capability `2026082905`; the advanced shadow engine requires `2026082903`. All calculated values in
 this release are non-payable shadow evidence.
 
 ### GET `/api/commissions/me`
@@ -16,7 +16,7 @@ the authenticated staff session.
 
 **Success:** `200` with the caller's current and scheduled agreement summaries, own six-month/YTD
 analytics, service breakdown, recent current-revision entries, own open-exception count, and latest
-calculation time. The response reports whether profile capability `2026082904` is installed.
+calculation time. The response reports whether the employee-profile schema is available.
 
 **Errors:** `401` for no session; `403` for an inactive or missing employee; `500` for an unexpected
 private-data load failure.
@@ -39,7 +39,8 @@ for an unexpected load failure.
 
 **Input:** A valid `Idempotency-Key` and strict complete employee-agreement JSON: employee, label,
 effective date, optional location scope and copied-profile provenance, change reason, typed rates for
-every supported service, and optional monthly bonus. Replacements cannot be backdated. Initial
+every supported service, Ticket Assistance scope (`all` or `specific_agents` with employee UUIDs),
+and optional monthly bonus. Replacements cannot be backdated. Initial
 agreements may start at the beginning of the current month. Tiered/bonus agreements use whole-month
 boundaries.
 
@@ -49,7 +50,7 @@ creates no live link. Current agreements close at the new start date; a current-
 triggers a bounded shadow-processing attempt.
 
 **Errors:** `400` for malformed or unsafe setup; `401`/`403` for access failure; `404` for a missing
-employee/location/copy source; `409` for an effective-date conflict; `503` when `2026082904` is not
+employee/location/copy source; `409` for an effective-date conflict; `503` when `2026082905` is not
 installed; `500` for an unexpected transactional failure.
 
 ### POST `/api/commissions/admin/profiles/[id]/cancel`
@@ -232,9 +233,10 @@ failure; `503` for missing capability; `500` for an unexpected preview failure.
 **Input:** Optional `employeeId`, ISO `periodStart`, ISO `periodEnd`, `limit` 1-100, and opaque
 filter-bound `cursor`. Unknown keys, reversed dates, and mismatched cursors are rejected.
 
-**Success:** `200` with shadow entry IDs, kind, source case, recipient and profit-owner labels,
-policy/component IDs, earning/period dates, signed GBP amount, explanation, revision lineage, and
-`nextCursor`. Rows are newest first and include historical revisions.
+**Success:** `200` with shadow entry IDs, kind, service code, source case, recipient and profit-owner
+labels, Ticket Assistance scope mode/match when relevant, policy/component IDs, earning/period
+dates, signed GBP amount, explanation, revision lineage, and `nextCursor`. Rows are newest first and
+include historical revisions.
 
 **Errors:** `400` for invalid filters/cursor; `401`/`403` for access failure; `503` for missing
 capability; `500` when entries or employee labels cannot be loaded.

@@ -15,7 +15,7 @@ The generator runs the current Supabase CLI against the linked project, validate
 `types/supabase.ts` exports the current repository `Database`: the generated snapshot plus narrow
 function overrides for committed functions not yet present in the linked snapshot and nullable
 PostgreSQL inputs that the generator does not preserve. The generated snapshot includes Commission
-capability `2026082904`; its former table overlay has been removed. Remove a pending override after
+capability `2026082905`; its former table overlay has been removed. Remove a pending override after
 the deployed schema is regenerated, but retain a documented semantic correction while the generated
 contract would otherwise reject a valid database input. Do not hand-edit the generated file.
 
