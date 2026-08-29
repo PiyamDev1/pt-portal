@@ -25,6 +25,7 @@ export async function GET() {
     .select(
       'id, employee_id, rule_id, policy_version_id, source_module, service_code, recipient_role, location_id, start_date, effective_to, created_by, updated_at',
     )
+    .is('profile_id', null)
     .order('start_date', { ascending: false })
     .order('id', { ascending: false })
     .limit(200)

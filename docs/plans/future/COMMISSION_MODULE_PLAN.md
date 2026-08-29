@@ -5,19 +5,22 @@
 > reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Phase 1 shadow capability deployed; policy setup and month reconciliation pending
+- **Status:** Phase 1 shadow capability deployed; employee-owned agreement workflow code-ready;
+  capability `2026082904` rollout and month reconciliation pending
 - **Last updated:** August 29, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
-- **First delivery:** Policy setup and admin/HR-only shadow calculations; no payable entries
+- **First delivery:** Employee-owned setup, Admin/HR reconciliation, and own-employee preview; no
+  payable entries
 
 Implementation checkpoint on August 29, 2026: the linked database reports Commission capability
-`2026082903` ready in `shadow` mode. The policy/version/assignment foundation, bounded
-processor, typed exceptions and retry path, Admin/HR console, and daily cron route are implemented.
-Existing source events remain pending and no shadow money has been calculated yet: authorised HR
-must configure and assign active employee policies before replay. Active HR department membership
-in Staff Management is the HR access source. Scheduled runs use an explicit system audit actor and
-do not impersonate or require the UUID of an employee.
+`2026082903` ready in `shadow` mode. The locally validated, additive capability `2026082904`
+migration remains the rollout boundary; it adds employee-owned agreement snapshots,
+copy-on-create reuse, atomic per-service policies and assignments, effective-dated replacement,
+and cancellation of future changes. The calculation engine, typed exceptions, Admin/HR
+reconciliation console, and daily cron route remain the same audited shadow foundation. Active HR
+department membership in Staff Management is the HR access source. Scheduled runs use an explicit
+system audit actor and do not impersonate an employee.
 
 ## 1. Purpose and delivery decision
 
@@ -32,11 +35,13 @@ version.
 
 The first usable delivery is deliberately a **shadow foundation**:
 
-- Authorised Admin/HR users configure, preview, version, and assign policies.
+- Authorised Admin/HR users create one complete, independently versioned agreement around an
+  employee. Copying an existing agreement is a one-time fork, never a shared mutable link.
 - Existing and new Ticketing source events calculate into signed, non-payable shadow entries.
 - Monthly employee-attributed profit and sales-bonus results are reconciled internally.
 - Missing policies, inputs, or unsupported source states remain visible exceptions.
-- Agents do not receive statements, balances, payouts, or target cards in this delivery.
+- Employees receive a read-only view of their own agreement and clearly labelled calculation
+  preview. They do not receive statements, balances, payouts, or target cards in this delivery.
 
 Shadow results are never promoted into payable history. After a complete month reconciles, the live
 release recalculates from the same immutable facts and policy versions into separately posted
@@ -53,6 +58,10 @@ entries.
 - An employee without an applicable policy produces `needs_policy`; zero commission requires an
   explicit zero component.
 - Every policy version, assignment, location override, and bonus rule is effective-dated.
+- Reusable setups are copied into an employee-owned snapshot. A later change creates a new snapshot
+  and new immutable per-service policy versions; it cannot mutate another employee or history.
+- Future scheduled snapshots can be cancelled with a reason before they become effective. The
+  prior agreement is restored atomically and the cancellation is audited.
 - A policy version becomes immutable when activated. Draft previews store the exact draft snapshot
   and content hash used, but do not prevent further draft editing; changes to an active version
   require a cloned draft.
@@ -87,7 +96,20 @@ same access boundary.
 
 ### 3.2 First-delivery UI
 
-Replace the `/dashboard/commissions` placeholder with an internal console containing:
+Commission has two deliberate front doors:
+
+- `/dashboard/admin-commission` is the normal Admin/HR workspace. It selects an employee first,
+  shows their current/scheduled/history state, and saves a complete agreement atomically. An
+  administrator may start from an explicit-zero blank agreement, the employee's current agreement,
+  or a one-time copy of another agreement. Small edits remain local to the target employee.
+- `/dashboard/my-commissions` is available to every active employee and exposes only that
+  employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and recent
+  calculated entries.
+- `/dashboard/admin-commission/engine` retains the advanced policy, assignment, synthetic preview,
+  shadow-entry, bonus-period, exception, and reconciliation tools.
+- `/dashboard/commissions` remains only as a role-aware compatibility redirect.
+
+The advanced engine contains:
 
 - Overview: pending events, processed events, exceptions, and shadow totals.
 - Policies: draft/version/activate typed policies.
@@ -101,14 +123,15 @@ Replace the `/dashboard/commissions` placeholder with an internal console contai
 - Exceptions: filter, inspect, and retry held source facts.
 - Access is managed in Staff Management by assigning or removing the HR department.
 
-The first delivery does not expose shadow money to agents or managers. Future live visibility is:
+Shadow money is exposed to its employee only as an unmistakable non-payable calculation preview.
+Future live visibility is:
 
 - Employee: own entries, sales-bonus progress, statements, and balances.
 - Manager: read-only results for their direct/indirect reporting subtree.
 - Admin/authorised finance roles: company-wide review and statement operations.
 
-The Commission dashboard navigation must eventually include eligible employees; the current
-role-only dashboard tile does not satisfy the future own-agent view.
+Dashboard navigation contains **My commissions** for all active employees and **Admin commission**
+only when the database-backed Commission management capability succeeds.
 
 ## 4. Source-event and attribution contract
 
@@ -481,6 +504,7 @@ Expected capabilities:
 | `commission_policy_components`    | Typed component configuration and ordering                  |
 | `commission_tiers`                | Marginal threshold bands tied to policy versions            |
 | `employee_commission_assignments` | Per-service/role/location effective assignments             |
+| `employee_commission_profiles`    | Employee-owned, effective-dated agreement snapshots         |
 | `commission_access_grants`        | Retained legacy grant audit; no longer an authority source  |
 | `commission_source_events`        | Existing immutable producer facts                           |
 | `commission_source_event_states`  | Existing claim/retry/held processing state                  |
@@ -496,6 +520,13 @@ modes, and exception states. Browser roles receive no direct table mutation gran
 routes call service-only transactional functions after server-side session/permission checks.
 
 ### 9.2 First-delivery APIs
+
+- `GET /api/commissions/me` (caller-owned agreement and preview only)
+- `GET /api/commissions/admin`
+- `POST /api/commissions/admin/profiles`
+- `POST /api/commissions/admin/profiles/{profileId}/cancel`
+- `POST /api/commissions/admin/process`
+- `POST /api/commissions/admin/exceptions/{exceptionId}/retry`
 
 - `GET/POST /api/commissions/policies`
 - `GET/PATCH /api/commissions/policies/{policyId}` for stable metadata only
@@ -550,13 +581,14 @@ Implementation starts with all of the following:
 - Replace the placeholder with the Admin/HR policy, preview, shadow, bonus-period, and exception
   console.
 - Replay all supported Ticketing history and reconcile at least one full calendar month.
-- Keep every result explicitly non-payable and hidden from employees/managers.
+- Keep every result explicitly non-payable. An employee may see only their own preview through the
+  dedicated self endpoint; managers receive no Commission access by role alone.
 
 ### Phase 2: Live entries, statements, and agent experience
 
 - Recalculate approved policies into separate posted entries; never promote shadow rows.
-- Add own-agent entries, bonus progress, monthly statements, signed balances, locks, offsets, and
-  payment recording.
+- Promote the existing own-agent preview to approved live entries, then add bonus progress, monthly
+  statements, signed balances, locks, offsets, and payment recording.
 - Enable manager subtree read-only visibility and company-wide authorised review.
 - Pilot a small employee group and reconcile source facts, ordinary entries, bonus result, statement,
   and payment evidence.
@@ -602,7 +634,8 @@ Implementation starts with all of the following:
 
 - Admin/Master/Super Admin and active HR department staff can manage policies as documented.
 - Only Master/Super Admin can change HR department membership through browser workflows.
-- Manager, Maintenance Admin, and ordinary employees cannot access shadow money or mutations.
+- Manager and Maintenance Admin roles cannot access shadow money or mutations. Ordinary employees
+  can read only their own agreement/preview and cannot call any management mutation.
 - Every mutation and retry writes an audit event.
 - Preview writes no source state, entry, period, or balance.
 - Policy forms expose only typed components/approved variables.
@@ -631,8 +664,8 @@ through historical shadow reconciliation.
 ## 13. First-delivery boundaries and success criteria
 
 The shadow foundation includes no payable entry, statement, balance, payment, payroll transfer,
-agent money view, Manager money view, Ticketing target card, automatic Package posting, automatic
-exchange rate, public leaderboard, or hard deletion.
+Manager money view, Ticketing target card, automatic Package posting, automatic exchange rate,
+public leaderboard, or hard deletion. The own-employee view is calculation evidence only.
 
 It is successful when:
 

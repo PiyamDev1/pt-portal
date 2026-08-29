@@ -41,7 +41,13 @@ The two modes are intentionally not identical. The computer layout keeps the ful
 
 The dashboard presents enabled modules and a notice board. A user can personalize dashboard module visibility and the three configurable phone-navigation slots; administrators manage shared notice slides. On mobile, a notice appears as an accessible first-visit sheet and can be dismissed for the day; on computers it rotates in the fixed-width dashboard rail. Portrait artwork is shown uncropped in a 1504:2816 display area, so the rail grows vertically rather than widening. Notice images accept JPEG, PNG, or WebP up to 5 MB and are delivered through an authenticated portal stream after the saved slide is verified. Common routes include Applications, Bookings, Packages, LMS, Accounting, Pricing, Timeclock, Training, Employee Module, Settings, and Account.
 
-Ticketing currently provides a front-end workspace with placeholder Refund Calculator and Ticketing Ledger submodules, an empty upcoming-flight overview, and the planned mark/review/finalise schedule-change flow. It does not yet read or write ticketing records. Commissions remains a coming-soon page. Do not treat these placeholders, database tables, or historical plans as a finished operator workflow.
+Commission is split into **My commissions** for every active employee and **Admin commission** for
+authorised Admin/HR staff. My commissions shows the employee's own effective agreement, monthly and
+year-to-date calculation preview, six-month chart, service breakdown, and recent entries. Every
+shadow figure is labelled non-payable; it is not a payslip or payment promise. Admin commission
+creates a complete agreement around one employee. Copying another agreement is only a starting
+point, and future edits never change the source employee or historical versions. The advanced
+engine remains available to authorised staff for reconciliation, exceptions, and synthetic tests.
 
 ## Applications and receipts
 

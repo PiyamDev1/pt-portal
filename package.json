@@ -37,6 +37,7 @@
     "test:db:commission": "bash scripts/ci/test-commission-migration.sh",
     "test:db:commission-processor": "bash scripts/ci/test-commission-processor.sh",
     "test:db:lms": "bash scripts/ci/test-lms-migration.sh",
+    "test:db:commission-profiles": "bash scripts/ci/test-commission-staff-profiles.sh",
     "test:db:security": "bash scripts/ci/test-security-migration.sh"
   },
   "dependencies": {

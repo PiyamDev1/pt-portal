@@ -246,3 +246,370 @@ export const commissionVersionParamSchema = z
 
 export type CommissionComponentInput = z.infer<typeof commissionComponentSchema>
 export type CreateCommissionAssignmentInput = z.infer<typeof createCommissionAssignmentSchema>
+
+/**
+ * Employee agreement editor contract.
+ *
+ * Policies and assignments remain the immutable calculation primitives. A profile is
+ * the employee-owned snapshot that creates those primitives atomically, so copying
+ * another employee's setup never keeps the two employees linked.
+ */
+export const COMMISSION_PROFILE_SERVICE_CODES = [
+  'tk_primary',
+  'tk_assistance',
+  'dc',
+  'r_er',
+  'low_fare',
+  'higher_fare',
+  'package_sale',
+] as const
+
+export type CommissionProfileServiceCode = (typeof COMMISSION_PROFILE_SERVICE_CODES)[number]
+
+export const COMMISSION_SERVICE_LABELS: Record<
+  CommissionProfileServiceCode | 'sales_bonus',
+  string
+> = {
+  tk_primary: 'Ticket sales',
+  tk_assistance: 'Ticket assistance',
+  dc: 'Date changes',
+  r_er: 'Reissues',
+  low_fare: 'Low-fare savings',
+  higher_fare: 'Higher-fare adjustments',
+  package_sale: 'Package sales',
+  sales_bonus: 'Monthly profit bonus',
+}
+
+export const COMMISSION_RATE_KINDS = [
+  'none',
+  'per_unit',
+  'per_event',
+  'percentage',
+  'tiered',
+] as const
+
+export type CommissionRateKind = (typeof COMMISSION_RATE_KINDS)[number]
+
+const profileTierSchema = z
+  .object({
+    minUnit: z.number().int().min(1).max(100_000),
+    rateGbp: z.number().finite().min(0).max(100_000),
+  })
+  .strict()
+
+export const commissionRateSchema = z
+  .object({
+    kind: z.enum(COMMISSION_RATE_KINDS),
+    value: z.number().finite().min(0).max(1_000_000).default(0),
+    tiers: z.array(profileTierSchema).max(12).default([]),
+  })
+  .strict()
+  .superRefine((rate, context) => {
+    if (rate.kind === 'percentage' && rate.value > 100) {
+      context.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'Percentage rates cannot exceed 100%',
+      })
+    }
+
+    if (rate.kind !== 'tiered') return
+    if (rate.tiers.length === 0) {
+      context.addIssue({ code: 'custom', path: ['tiers'], message: 'Add at least one tier' })
+      return
+    }
+
+    const ordered = [...rate.tiers].sort((left, right) => left.minUnit - right.minUnit)
+    if (ordered[0]?.minUnit !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: ['tiers'],
+        message: 'Tiered rates must begin at ticket 1',
+      })
+    }
+    if (new Set(ordered.map((tier) => tier.minUnit)).size !== ordered.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['tiers'],
+        message: 'Each tier must begin at a different ticket number',
+      })
+    }
+  })
+
+export const commissionProfileSchema = z
+  .object({
+    employeeId: uuidSchema,
+    label: z.string().trim().min(2).max(100),
+    effectiveFrom: z.iso.date(),
+    locationId: uuidSchema.nullable().default(null),
+    copiedFromProfileId: uuidSchema.nullable().default(null),
+    changeReason: z.string().trim().min(8).max(500),
+    services: z
+      .object({
+        tkPrimary: commissionRateSchema,
+        tkAssistance: commissionRateSchema.refine(
+          (rate) => rate.kind !== 'percentage' && rate.kind !== 'tiered',
+          'Assistance can be paid per ticket, per booking, or explicitly set to zero',
+        ),
+        dateChange: commissionRateSchema.refine(
+          (rate) => rate.kind !== 'tiered',
+          'Date changes do not support volume tiers',
+        ),
+        reissue: commissionRateSchema.refine(
+          (rate) => rate.kind !== 'tiered',
+          'Reissues do not support volume tiers',
+        ),
+        lowFare: commissionRateSchema.refine(
+          (rate) => rate.kind === 'none' || rate.kind === 'percentage',
+          'Low-fare commission must be a percentage or zero',
+        ),
+        higherFare: commissionRateSchema.refine(
+          (rate) => rate.kind === 'none' || rate.kind === 'percentage',
+          'Higher-fare treatment must be a percentage debit or zero',
+        ),
+        packageSale: commissionRateSchema.refine(
+          (rate) => rate.kind !== 'tiered',
+          'Package sales do not support ticket-volume tiers',
+        ),
+      })
+      .strict(),
+    monthlyBonus: z
+      .object({
+        enabled: z.boolean(),
+        thresholdGbp: z.number().finite().min(0).max(100_000_000),
+        rewardKind: z.enum(['fixed_gbp', 'percentage_of_qualifying_profit']),
+        rewardValue: z.number().finite().min(0).max(1_000_000),
+        eligibleServices: z
+          .array(z.enum(['tk_primary', 'dc', 'r_er']))
+          .min(1)
+          .max(3)
+          .default(['tk_primary']),
+      })
+      .strict(),
+  })
+  .strict()
+
+export type CommissionProfileInput = z.infer<typeof commissionProfileSchema>
+export type CommissionRate = z.infer<typeof commissionRateSchema>
+
+export type CommissionPolicyComponentInput = {
+  componentType:
+    | 'explicit_zero'
+    | 'fixed_per_unit'
+    | 'fixed_per_event'
+    | 'percentage_of_variable'
+    | 'signed_percentage'
+    | 'marginal_ticket_tier'
+    | 'fixed_package'
+    | 'fixed_package_per_passenger'
+    | 'percentage_of_package_profit'
+    | 'sales_profit_bonus'
+  sourceVariable?: string
+  recipientRole: 'primary' | 'assistant' | 'low_fare_actor' | 'package_sales' | 'sales_bonus'
+  rateValue?: number
+  thresholdGbp?: number
+  rewardKind?: 'fixed_gbp' | 'percentage_of_qualifying_profit'
+  rewardValue?: number
+  eligibleServices: Array<(typeof commissionServiceCodes)[number]>
+  tiers?: Array<{ minUnit: number; rateGbp: number }>
+  config: Record<string, unknown>
+}
+
+export type CommissionServicePolicyInput = {
+  sourceModule: 'ticketing' | 'packages'
+  serviceCode: CommissionProfileServiceCode | 'sales_bonus'
+  recipientRole: CommissionPolicyComponentInput['recipientRole']
+  components: CommissionPolicyComponentInput[]
+}
+
+export type StoredCommissionProfileConfiguration = {
+  uiVersion: 1
+  services: CommissionServicePolicyInput[]
+  draft: CommissionProfileInput
+}
+
+const PROFILE_SERVICE_METADATA: Record<
+  CommissionProfileServiceCode,
+  {
+    sourceModule: CommissionServicePolicyInput['sourceModule']
+    recipientRole: CommissionServicePolicyInput['recipientRole']
+    sourceVariable?: string
+  }
+> = {
+  tk_primary: {
+    sourceModule: 'ticketing',
+    recipientRole: 'primary',
+    sourceVariable: 'passenger_ticket_count',
+  },
+  tk_assistance: {
+    sourceModule: 'ticketing',
+    recipientRole: 'assistant',
+    sourceVariable: 'passenger_ticket_count',
+  },
+  dc: {
+    sourceModule: 'ticketing',
+    recipientRole: 'primary',
+    sourceVariable: 'passenger_ticket_count',
+  },
+  r_er: {
+    sourceModule: 'ticketing',
+    recipientRole: 'primary',
+    sourceVariable: 'passenger_ticket_count',
+  },
+  low_fare: {
+    sourceModule: 'ticketing',
+    recipientRole: 'low_fare_actor',
+    sourceVariable: 'difference_gbp',
+  },
+  higher_fare: {
+    sourceModule: 'ticketing',
+    recipientRole: 'low_fare_actor',
+    sourceVariable: 'difference_gbp',
+  },
+  package_sale: {
+    sourceModule: 'packages',
+    recipientRole: 'package_sales',
+    sourceVariable: 'package_profit_gbp',
+  },
+}
+
+function componentForProfileRate(
+  serviceCode: CommissionProfileServiceCode,
+  rate: CommissionRate,
+): CommissionPolicyComponentInput {
+  const metadata = PROFILE_SERVICE_METADATA[serviceCode]
+  const common = {
+    recipientRole: metadata.recipientRole,
+    eligibleServices: [serviceCode],
+    config: { serviceCode },
+  }
+
+  if (rate.kind === 'none') {
+    return { ...common, componentType: 'explicit_zero', rateValue: 0 }
+  }
+  if (rate.kind === 'tiered') {
+    return {
+      ...common,
+      componentType: 'marginal_ticket_tier',
+      tiers: [...rate.tiers].sort((left, right) => left.minUnit - right.minUnit),
+    }
+  }
+  if (serviceCode === 'package_sale') {
+    if (rate.kind === 'per_event') {
+      return { ...common, componentType: 'fixed_package', rateValue: rate.value }
+    }
+    if (rate.kind === 'per_unit') {
+      return {
+        ...common,
+        componentType: 'fixed_package_per_passenger',
+        sourceVariable: 'passenger_count',
+        rateValue: rate.value,
+      }
+    }
+    return {
+      ...common,
+      componentType: 'percentage_of_package_profit',
+      sourceVariable: metadata.sourceVariable,
+      rateValue: rate.value,
+    }
+  }
+  if (rate.kind === 'per_event') {
+    return { ...common, componentType: 'fixed_per_event', rateValue: rate.value }
+  }
+  if (rate.kind === 'percentage') {
+    return {
+      ...common,
+      componentType: serviceCode === 'higher_fare' ? 'signed_percentage' : 'percentage_of_variable',
+      sourceVariable:
+        serviceCode === 'low_fare' || serviceCode === 'higher_fare'
+          ? 'difference_gbp'
+          : 'sale_price_gbp',
+      rateValue: rate.value,
+    }
+  }
+  return {
+    ...common,
+    componentType: 'fixed_per_unit',
+    sourceVariable: metadata.sourceVariable,
+    rateValue: rate.value,
+  }
+}
+
+export function toStoredCommissionProfile(
+  input: CommissionProfileInput,
+): StoredCommissionProfileConfiguration {
+  const profileRates: Array<[CommissionProfileServiceCode, CommissionRate]> = [
+    ['tk_primary', input.services.tkPrimary],
+    ['tk_assistance', input.services.tkAssistance],
+    ['dc', input.services.dateChange],
+    ['r_er', input.services.reissue],
+    ['low_fare', input.services.lowFare],
+    ['higher_fare', input.services.higherFare],
+    ['package_sale', input.services.packageSale],
+  ]
+  const services: CommissionServicePolicyInput[] = profileRates.map(([serviceCode, rate]) => {
+    const metadata = PROFILE_SERVICE_METADATA[serviceCode]
+    return {
+      sourceModule: metadata.sourceModule,
+      serviceCode,
+      recipientRole: metadata.recipientRole,
+      components: [componentForProfileRate(serviceCode, rate)],
+    }
+  })
+
+  if (input.monthlyBonus.enabled) {
+    services.push({
+      sourceModule: 'ticketing',
+      serviceCode: 'sales_bonus',
+      recipientRole: 'sales_bonus',
+      components: [
+        {
+          componentType: 'sales_profit_bonus',
+          recipientRole: 'sales_bonus',
+          thresholdGbp: input.monthlyBonus.thresholdGbp,
+          rewardKind: input.monthlyBonus.rewardKind,
+          rewardValue: input.monthlyBonus.rewardValue,
+          eligibleServices: input.monthlyBonus.eligibleServices,
+          config: { period: 'calendar_month' },
+        },
+      ],
+    })
+  }
+
+  return { uiVersion: 1, services, draft: input }
+}
+
+export function createDefaultCommissionProfile(employeeId = ''): CommissionProfileInput {
+  const now = new Date()
+  const effectiveFrom = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`
+  const zeroRate: CommissionRate = { kind: 'none', value: 0, tiers: [] }
+
+  return {
+    employeeId,
+    label: 'New commission agreement',
+    effectiveFrom,
+    locationId: null,
+    copiedFromProfileId: null,
+    changeReason: 'Initial employee commission agreement',
+    services: {
+      tkPrimary: { ...zeroRate },
+      tkAssistance: { ...zeroRate },
+      dateChange: { ...zeroRate },
+      reissue: { ...zeroRate },
+      lowFare: { ...zeroRate },
+      higherFare: { ...zeroRate },
+      packageSale: { ...zeroRate },
+    },
+    monthlyBonus: {
+      enabled: false,
+      thresholdGbp: 0,
+      rewardKind: 'fixed_gbp',
+      rewardValue: 0,
+      eligibleServices: ['tk_primary'],
+    },
+  }
+}
+
+export function profileNeedsWholeMonths(profile: CommissionProfileInput) {
+  return profile.services.tkPrimary.kind === 'tiered' || profile.monthlyBonus.enabled
+}

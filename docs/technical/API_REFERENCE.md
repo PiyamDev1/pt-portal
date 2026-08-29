@@ -300,6 +300,12 @@ Ticketing responses never expose calculated commission, earnings, margin, or pro
 
 | Methods       | Route                                                                |
 | ------------- | -------------------------------------------------------------------- |
+| `GET`         | `/api/commissions/me`                                                |
+| `GET`         | `/api/commissions/admin`                                             |
+| `POST`        | `/api/commissions/admin/profiles`                                    |
+| `POST`        | `/api/commissions/admin/profiles/[id]/cancel`                        |
+| `POST`        | `/api/commissions/admin/process`                                     |
+| `POST`        | `/api/commissions/admin/exceptions/[id]/retry`                       |
 | `GET`         | `/api/commissions/overview`                                          |
 | `GET`         | `/api/commissions/setup-options`                                     |
 | `GET`, `POST` | `/api/commissions/policies`                                          |
@@ -315,10 +321,12 @@ Ticketing responses never expose calculated commission, earnings, margin, or pro
 | `GET`, `POST` | `/api/commissions/access-grants`                                     |
 | `DELETE`      | `/api/commissions/access-grants/[id]`                                |
 
-The staff routes require Admin Commission authority or active HR department membership and database
-capability `2026082903`. Master/Super Admin manage HR membership in Staff Management. All money remains private,
-non-payable shadow evidence. Policy/assignment/preview/process/retry mutations are strict and
-idempotent; the bounded worker parks business problems as typed exceptions. See the
+The self route resolves the caller's employee identity server-side and returns only that employee's
+agreement and non-payable preview. Management routes require Admin Commission authority or active HR
+department membership. Employee-owned agreement mutations require capability `2026082904`; advanced
+engine routes require `2026082903`. Master/Super Admin manage HR membership in Staff Management.
+Policy/profile/assignment/preview/process/retry mutations are strict and idempotent; the bounded
+worker parks business problems as typed exceptions. See the
 [Commission API](../api/COMMISSIONS.md).
 
 ## Frappe, HR, training, and dashboard services

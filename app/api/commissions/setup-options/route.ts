@@ -36,7 +36,11 @@ export async function GET() {
 
   const ruleIds = [...new Set((versions.data || []).map((version) => version.rule_id))]
   const { data: rules, error: ruleError } = ruleIds.length
-    ? await service.from('commission_rules').select('id, rule_name').in('id', ruleIds)
+    ? await service
+        .from('commission_rules')
+        .select('id, rule_name')
+        .in('id', ruleIds)
+        .is('profile_id', null)
     : { data: [], error: null }
   if (ruleError) return commissionError('Unable to resolve Commission policy labels.', 500)
 
@@ -52,13 +56,15 @@ export async function GET() {
         name: location.name,
         branchCode: location.branch_code,
       })),
-      activePolicyVersions: (versions.data || []).map((version) => ({
-        id: version.id,
-        policyId: version.rule_id,
-        policyName:
-          rules?.find((rule) => rule.id === version.rule_id)?.rule_name || 'Unknown policy',
-        versionNumber: version.version_number,
-      })),
+      activePolicyVersions: (versions.data || [])
+        .filter((version) => rules?.some((rule) => rule.id === version.rule_id))
+        .map((version) => ({
+          id: version.id,
+          policyId: version.rule_id,
+          policyName:
+            rules?.find((rule) => rule.id === version.rule_id)?.rule_name || 'Unknown policy',
+          versionNumber: version.version_number,
+        })),
     },
     COMMISSION_PRIVATE_RESPONSE,
   )

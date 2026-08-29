@@ -31,7 +31,9 @@ describe('mobile navigation preferences', () => {
 
     expect(employeeIds).not.toContain('pricing')
     expect(employeeIds).not.toContain('commissions')
+    expect(employeeIds).toContain('my-commissions')
     expect(adminIds).toContain('pricing')
     expect(adminIds).toContain('commissions')
+    expect(adminIds).toContain('my-commissions')
   })
 })

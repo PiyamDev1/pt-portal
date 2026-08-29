@@ -1,10 +1,92 @@
 # Commission API
 
-Commission is an internal Admin/HR financial-control surface. Every staff route derives the actor
-from the active staff session, requires Admin Commission authority or a live
-HR department membership, enforces database capability `2026082903`, and returns
-`Cache-Control: private, no-store`. All calculated values in this release are non-payable shadow
-evidence and are not exposed to agents or managers.
+Commission has an employee-owned read surface and a separate Admin/HR control surface. Every route
+derives the actor from the active staff session and returns private, non-cacheable data. The self
+route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
+Commission authority or live HR department membership. Employee-profile mutations require database
+capability `2026082904`; the advanced shadow engine requires `2026082903`. All calculated values in
+this release are non-payable shadow evidence.
+
+### GET `/api/commissions/me`
+
+**Access:** Any active employee, for that employee only.
+
+**Input:** No body, query parameter, or employee identifier. The employee identity is resolved from
+the authenticated staff session.
+
+**Success:** `200` with the caller's current and scheduled agreement summaries, own six-month/YTD
+analytics, service breakdown, recent current-revision entries, own open-exception count, and latest
+calculation time. The response reports whether profile capability `2026082904` is installed.
+
+**Errors:** `401` for no session; `403` for an inactive or missing employee; `500` for an unexpected
+private-data load failure.
+
+### GET `/api/commissions/admin`
+
+**Access:** Authorised Commission Admin/HR staff only.
+
+**Input:** No body or query parameters.
+
+**Success:** `200` with active employee setup status, employee-owned profile history, open
+exceptions, bounded shadow overview, latest calculation run, schema version, and mode.
+
+**Errors:** `401`/`403` for access failure; `503` when management capability is unavailable; `500`
+for an unexpected load failure.
+
+### POST `/api/commissions/admin/profiles`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the permission check.
+
+**Input:** A valid `Idempotency-Key` and strict complete employee-agreement JSON: employee, label,
+effective date, optional location scope and copied-profile provenance, change reason, typed rates for
+every supported service, and optional monthly bonus. Replacements cannot be backdated. Initial
+agreements may start at the beginning of the current month. Tiered/bonus agreements use whole-month
+boundaries.
+
+**Success:** `201` after one transaction creates the employee-owned snapshot plus a distinct policy,
+active immutable version, and effective assignment for each service. Copying records provenance but
+creates no live link. Current agreements close at the new start date; a current-date profile also
+triggers a bounded shadow-processing attempt.
+
+**Errors:** `400` for malformed or unsafe setup; `401`/`403` for access failure; `404` for a missing
+employee/location/copy source; `409` for an effective-date conflict; `503` when `2026082904` is not
+installed; `500` for an unexpected transactional failure.
+
+### POST `/api/commissions/admin/profiles/[id]/cancel`
+
+**Access:** Authorised Commission Admin/HR staff only.
+
+**Input:** Profile UUID, valid `Idempotency-Key`, and strict JSON `{ reason }` with an 8-500
+character audit reason.
+
+**Success:** `200` when a future, not-yet-effective agreement is cancelled. Its unstarted
+assignments are removed and the preceding profile/assignments are restored to the next valid
+boundary atomically. Effective or already-cancelled profiles cannot be cancelled.
+
+**Errors:** `400` for invalid input or a profile already in effect; `401`/`403` for access failure;
+`404` for a missing profile; `500` for an unexpected transactional failure.
+
+### POST `/api/commissions/admin/process`
+
+**Access:** Authorised Commission Admin/HR staff only.
+
+**Input:** No JSON body. An optional valid `Idempotency-Key` is accepted and the batch is capped at
+200 events.
+
+**Success:** `200` with the service-only shadow processor result. No payable entry is created.
+
+**Errors:** `401`/`403` for access failure; `500` for an unexpected processor failure.
+
+### POST `/api/commissions/admin/exceptions/[id]/retry`
+
+**Access:** Authorised Commission Admin/HR staff only.
+
+**Input:** Exception UUID and optional valid `Idempotency-Key`; no actor or override variables.
+
+**Success:** `200` with the service-only retry result.
+
+**Errors:** `400` for an invalid UUID; `401`/`403` for access failure; `500` for an unexpected retry
+failure.
 
 ### GET `/api/commissions/overview`
 

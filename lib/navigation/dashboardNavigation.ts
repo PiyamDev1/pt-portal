@@ -43,11 +43,13 @@ const PARENT_RULES: ParentRule[] = [
 
 const DIRECTORY_LABELS: Record<string, string> = {
   account: 'Dashboard',
+  'admin-commission': 'Admin commission',
   accounting: 'Accounting',
   applications: 'Applications',
   bookings: 'Bookings',
   dashboard: 'Dashboard',
   lms: 'Accounts',
+  'my-commissions': 'My commissions',
   nadra: 'NADRA Services',
   packages: 'Packages',
   passports: 'Pakistani Passports',

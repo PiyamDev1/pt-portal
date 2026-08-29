@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
   const { data: rules, error } = await service
     .from('commission_rules')
     .select('id, rule_name, description, created_by, updated_at')
+    .is('profile_id', null)
     .order('rule_name')
     .limit(parsed.data.limit)
   if (error) return commissionError('Unable to load Commission policies.', 500)

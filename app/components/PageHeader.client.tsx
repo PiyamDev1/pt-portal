@@ -38,11 +38,28 @@ type MenuItem = {
 
 const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
   { href: '/dashboard/accounting', label: 'Accounting', icon: BadgePoundSterling },
   { href: '/dashboard/settings?tab=security', label: 'My Account', icon: UserRound },
 ]
 
 const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }> = [
+  {
+    match: '/dashboard/admin-commission',
+    title: 'Commission menu',
+    items: [
+      { href: '/dashboard/admin-commission', label: 'Employee agreements', icon: UsersRound },
+      { href: '/dashboard/admin-commission/engine', label: 'Advanced engine', icon: Calculator },
+      { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
+    ],
+  },
+  {
+    match: '/dashboard/my-commissions',
+    title: 'Commission menu',
+    items: [
+      { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
+    ],
+  },
   {
     match: '/dashboard/accounting',
     title: 'Accounting menu',
