@@ -706,15 +706,23 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     html,
     body {
       width: 210mm;
-      height: 297mm;
+      min-height: 297mm;
+      height: auto;
       background: #fff;
-      overflow: hidden;
+      overflow: visible;
     }
     .print-sheet {
       width: 207.8mm;
       height: 215.6mm;
       max-width: none;
       margin: 4.5mm auto 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .print-sheet + .print-sheet,
+    .continuation-sheet {
+      break-before: page !important;
+      page-break-before: always !important;
     }
     .voucher {
       width: 107.8mm;
@@ -1423,10 +1431,10 @@ export function renderTransportVoucherHtml(
       return `<div class="print-sheet continuation-sheet"><main class="voucher continuation-voucher"><section class="main">
         <header class="header">
           <div class="brand"><img class="brand-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
-          <div class="title"><h1>GROUND TRANSPORT</h1><p>ITINERARY CONTINUED</p></div>
+          <div class="title"><h1>GROUND TRANSPORT</h1><p>${pageIndex === 0 ? 'REVERSE SIDE / ITINERARY' : 'ITINERARY CONTINUED'}</p></div>
         </header>
-        <div class="continuation-heading"><h2>${escapeHtml(packageFolder.customer_name || 'Customer')}</h2><p>${escapeHtml(packageFolder.package_reference)} · Page ${pageNumber} of ${totalPages}</p></div>
-        <div class="itinerary"><p class="label">Itinerary continued</p><div class="itinerary-list">${renderItineraryItems(items, offset)}</div></div>
+        <div class="continuation-heading"><h2>${escapeHtml(packageFolder.customer_name || 'Customer')}</h2><p>${escapeHtml(packageFolder.package_reference)} · ${pageIndex === 0 ? 'Reverse side · ' : ''}Page ${pageNumber} of ${totalPages}</p></div>
+        <div class="itinerary"><p class="label">${pageIndex === 0 ? 'Itinerary on reverse' : 'Itinerary continued'}</p><div class="itinerary-list">${renderItineraryItems(items, offset)}</div></div>
         <div class="footer">
           <div><p class="value">Transport provider: ${escapeHtml(providerName)}</p>${transportContactParts.length ? `<p class="contact-line">${escapeHtml(transportContactParts.join(' | '))}</p>` : '<p class="contact-line">Contact details to be confirmed</p>'}</div>
           <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com<br>+447400828212</p></div>
@@ -1461,7 +1469,7 @@ export function renderTransportVoucherHtml(
 	        <div><p class="label">Landing</p><p class="value">${escapeHtml(formatVoucherDateTime(data.landingDate || dateOnly(data.arrivalAt), data.landingTime || timeOnly(data.arrivalAt)))}</p></div>
 	      </div>
 	    </div>
-	    <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div>${continuationItineraries.length ? '<p class="continuation-note">Additional transport movements continue on the next printed page.</p>' : ''}</div>
+	    <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div>${continuationItineraries.length ? '<p class="continuation-note">Additional transport movements are printed on the reverse side.</p>' : ''}</div>
     <div class="footer">
       <div><p class="value">Transport provider: ${escapeHtml(providerName)}</p>${transportContactParts.length ? `<p class="contact-line">${escapeHtml(transportContactParts.join(' | '))}</p>` : '<p class="contact-line">Contact details to be confirmed</p>'}</div>
       <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com | +447400828212</p></div>

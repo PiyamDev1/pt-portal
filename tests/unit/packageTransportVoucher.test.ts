@@ -119,8 +119,9 @@ describe('transport vouchers', () => {
     )
 
     expect(html).toMatch(/@page\s*{\s*size:\s*A4 portrait;\s*margin:\s*0;\s*}/)
-    expect(html).toMatch(/html,\s*body\s*{[^}]*width:\s*210mm;[^}]*height:\s*297mm/s)
-    expect(html).toMatch(/html,\s*body\s*{[^}]*overflow:\s*hidden/s)
+    expect(html).toMatch(/html,\s*body\s*{[^}]*width:\s*210mm;[^}]*min-height:\s*297mm/s)
+    expect(html).toMatch(/html,\s*body\s*{[^}]*height:\s*auto/s)
+    expect(html).toMatch(/html,\s*body\s*{[^}]*overflow:\s*visible/s)
     expect(html).toMatch(/\.print-sheet\s*{[^}]*width:\s*207\.8mm;[^}]*height:\s*215\.6mm/s)
     expect(html).toMatch(/grid-template-columns:\s*107\.8mm 2mm 98mm/)
     expect(html).toMatch(/\.voucher\s*{[^}]*width:\s*107\.8mm;[^}]*height:\s*215\.6mm/s)
@@ -166,13 +167,16 @@ describe('transport vouchers', () => {
       }),
     )
 
-    expect(html).toContain('Additional transport movements continue on the next printed page.')
+    expect(html).toContain('Additional transport movements are printed on the reverse side.')
     expect(html).toContain('class="print-sheet continuation-sheet"')
-    expect(html).toContain('ITINERARY CONTINUED')
-    expect(html).toContain('Page 2 of 2')
+    expect(html).toContain('REVERSE SIDE / ITINERARY')
+    expect(html).toContain('Reverse side · Page 2 of 2')
     expect(html).toContain('4. Transfer 4')
     expect(html).toContain('6. Transfer 6')
     expect(html).toMatch(/\.continuation-sheet\s*{[^}]*page-break-before:\s*always/s)
+    expect(html).toMatch(
+      /@media print\s*{[\s\S]*?\.print-sheet \+ \.print-sheet,[\s\S]*?page-break-before:\s*always !important/s,
+    )
   })
 
   it('renders a standalone access voucher for individual printing', () => {

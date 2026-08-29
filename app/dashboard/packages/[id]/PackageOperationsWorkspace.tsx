@@ -1019,6 +1019,24 @@ export default function PackageOperationsWorkspace({
     })
   }
 
+  const updateVoucherItineraryVehicle = (index: number, vehicleType: string) => {
+    setVoucherForm((current) => {
+      const itineraryItem = current.itinerary?.[index]
+      if (!itineraryItem) return current
+      const routeAssignments = [...(current.routeAssignments || [])]
+      const existingAssignment = routeAssignments[index]
+      routeAssignments[index] = {
+        routeName: existingAssignment?.routeName || itineraryItem.description,
+        type: existingAssignment?.type || itineraryItem.type,
+        supplierName: existingAssignment?.supplierName || '',
+        vehicleType,
+        date: existingAssignment?.date || itineraryItem.date,
+        time: existingAssignment?.time || itineraryItem.time,
+      }
+      return { ...current, routeAssignments }
+    })
+  }
+
   const addVoucherItineraryItem = (type: string) => {
     setVoucherForm((current) => ({
       ...current,
@@ -3316,14 +3334,53 @@ export default function PackageOperationsWorkspace({
                             Remove
                           </button>
                         </div>
-                        <input
-                          value={item.type}
-                          onChange={(event) =>
-                            updateVoucherItinerary(index, { type: event.target.value })
-                          }
-                          placeholder="Airport Pickup"
-                          className="w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="text-[11px] font-bold uppercase text-slate-500">
+                            Segment type
+                            <input
+                              value={item.type}
+                              onChange={(event) =>
+                                updateVoucherItinerary(index, { type: event.target.value })
+                              }
+                              placeholder="Airport Pickup"
+                              className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm normal-case text-slate-900"
+                            />
+                          </label>
+                          <label className="text-[11px] font-bold uppercase text-slate-500">
+                            Vehicle for this segment
+                            <select
+                              value={
+                                voucherForm.routeAssignments?.[index]?.vehicleType ||
+                                voucherForm.vehicleType ||
+                                voucherForm.vehicle ||
+                                ''
+                              }
+                              onChange={(event) =>
+                                updateVoucherItineraryVehicle(index, event.target.value)
+                              }
+                              className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm normal-case text-slate-900"
+                            >
+                              <option value="">To be confirmed</option>
+                              {TRANSPORT_VEHICLES.map((vehicle) => (
+                                <option key={vehicle.name} value={vehicle.name}>
+                                  {vehicle.name}
+                                </option>
+                              ))}
+                              {voucherForm.routeAssignments?.[index]?.vehicleType &&
+                                !TRANSPORT_VEHICLES.some(
+                                  (vehicle) =>
+                                    vehicle.name ===
+                                    voucherForm.routeAssignments?.[index]?.vehicleType,
+                                ) && (
+                                  <option
+                                    value={voucherForm.routeAssignments[index]?.vehicleType || ''}
+                                  >
+                                    {voucherForm.routeAssignments[index]?.vehicleType}
+                                  </option>
+                                )}
+                            </select>
+                          </label>
+                        </div>
                         <input
                           value={item.description}
                           onChange={(event) =>
