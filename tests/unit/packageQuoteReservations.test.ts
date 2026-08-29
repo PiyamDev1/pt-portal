@@ -174,8 +174,9 @@ describe('package quote reservation drafts', () => {
     })
     expect(physicalDraft).toMatchObject({
       syncKey: 'transport-group-physical',
-      soldPriceTotal: 0,
-      suggestedBookedCost: 485,
+      title: 'Group main transport',
+      soldPriceTotal: 500,
+      suggestedBookedCost: 0,
       metadata: {
         familyAllocations: [
           expect.objectContaining({
@@ -238,34 +239,34 @@ describe('package quote reservation drafts', () => {
       soldPrice: number
       referenceOptionId: string
     }>
-    const familyAllocation = allocations.find((allocation) => allocation.quoteId === 'quote-family')
     const familyDraft = buildPackageQuoteReservationDrafts({
       payload: familyPayload,
       combination: families[1].combination,
       familyLabel: 'Second family',
       sharedGroupTransportAllocation: true,
-      sharedGroupTransportSoldPrice: familyAllocation?.soldPrice,
     }).find((draft) => draft.reservationType === 'transport')
 
     expect(physicalDraft).toMatchObject({
-      suggestedBookedCost: 300,
+      title: 'Group main transport',
+      suggestedBookedCost: 0,
+      soldPriceTotal: 650,
       metadata: {
         calculationSourceOptionId: 'main-shared-transport',
         totalPassengerCount: 5,
-        totalSoldPrice: 600,
+        totalSoldPrice: 650,
       },
     })
     expect(allocations).toEqual([
-      expect.objectContaining({ quoteId: 'quote-lead', bookedCost: 240, soldPrice: 480 }),
+      expect.objectContaining({ quoteId: 'quote-lead', bookedCost: 240, soldPrice: 600 }),
       expect.objectContaining({
         quoteId: 'quote-family',
         bookedCost: 60,
-        soldPrice: 120,
+        soldPrice: 50,
         referenceOptionId: 'family-reference-transport',
       }),
     ])
     expect(familyDraft).toMatchObject({
-      soldPriceTotal: 120,
+      soldPriceTotal: 50,
       suggestedBookedCost: 0,
       metadata: {
         invoiceReferenceOnly: true,

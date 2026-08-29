@@ -271,9 +271,7 @@ export function allocateSharedGroupTransportBookedCost(
 
     allocated[targetIndex] = {
       ...allocated[targetIndex],
-      booked_cost_total: roundPackageInvoiceMoney(
-        allocated[targetIndex].booked_cost_total + allocatedCost,
-      ),
+      booked_cost_total: allocatedCost,
     }
   })
 

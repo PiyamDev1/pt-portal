@@ -162,7 +162,6 @@ function autoReservationRows({
   groupMemberId,
   familyLabel,
   sharedGroupTransportAllocation = false,
-  sharedGroupTransportSoldPrice,
 }: {
   packageId: string
   quote: TravelPackageQuote
@@ -173,7 +172,6 @@ function autoReservationRows({
   groupMemberId?: string | null
   familyLabel?: string
   sharedGroupTransportAllocation?: boolean
-  sharedGroupTransportSoldPrice?: number
 }) {
   const baseRow = {
     package_id: packageId,
@@ -197,7 +195,6 @@ function autoReservationRows({
     combination,
     familyLabel,
     sharedGroupTransportAllocation,
-    sharedGroupTransportSoldPrice,
   }).map((draft) => ({
     ...baseRow,
     reservation_type: draft.reservationType,
@@ -259,7 +256,7 @@ function sharedGroupTransportPhysicalRow({
         : null,
     currency: entries[0]?.quote.selected_option!.combination.currency || 'GBP',
     booked_cost_total: draft.suggestedBookedCost,
-    sold_price_total: 0,
+    sold_price_total: draft.soldPriceTotal,
     discount_total: 0,
     commission_expected_total: 0,
     deposit_required: false,
@@ -824,23 +821,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const now = new Date().toISOString()
-  const sharedTransportDraft = groupContext
-    ? buildSharedGroupTransportDraft(
-        entries.map((entry) => ({
-          quoteId: entry.quote.id,
-          groupMemberId: entry.member?.id || null,
-          familyLabel: entry.member?.family_label || entry.quote.title,
-          payload: entry.payload,
-          combination: entry.quote.selected_option!.combination,
-        })),
-        leadEntry.quote.id,
-      )
-    : null
-  const sharedTransportAllocations = new Map(
-    (
-      (sharedTransportDraft?.metadata.familyAllocations as Array<Record<string, unknown>>) || []
-    ).map((allocation) => [String(allocation.quoteId || ''), Number(allocation.soldPrice || 0)]),
-  )
   const reservationRows: Array<Record<string, unknown>> = entries.flatMap((entry) =>
     autoReservationRows({
       packageId: packageFolder.id,
@@ -852,7 +832,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       groupMemberId: entry.member?.id,
       familyLabel: entry.member?.family_label,
       sharedGroupTransportAllocation: Boolean(groupContext),
-      sharedGroupTransportSoldPrice: sharedTransportAllocations.get(entry.quote.id),
     }),
   )
   if (groupContext) {

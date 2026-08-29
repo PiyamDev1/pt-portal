@@ -286,18 +286,12 @@ function buildDesiredReservations(snapshot: TravelPackageFolder['selected_quote_
 
   const physicalTransport =
     groupFamilies.length > 0 ? buildSharedGroupTransportDraft(families, snapshot.quote?.id) : null
-  const sharedTransportAllocations = new Map(
-    ((physicalTransport?.metadata.familyAllocations as Array<Record<string, unknown>>) || []).map(
-      (allocation) => [String(allocation.quoteId || ''), Number(allocation.soldPrice || 0)],
-    ),
-  )
   const desired: DesiredReservation[] = families.flatMap((family) =>
     buildPackageQuoteReservationDrafts({
       payload: family.payload,
       combination: family.combination,
       familyLabel: family.familyLabel,
       sharedGroupTransportAllocation: groupFamilies.length > 0,
-      sharedGroupTransportSoldPrice: sharedTransportAllocations.get(family.quoteId),
     }).map((draft) => ({
       ...draft,
       quoteId: family.quoteId,
@@ -647,7 +641,10 @@ export async function syncConvertedPackageFromQuotes(
     }
 
     usedIds.add(matched.id)
+    const preservePhysicalSoldOverride =
+      isPhysicalTransport && metadataOf(matched.metadata).soldPriceOverride === true
     const preserveSold =
+      preservePhysicalSoldOverride ||
       matched.itemCount > 0 ||
       hasManualQuoteFinancialOverride(matched, 'quoteSoldPrice', matched.sold_price_total)
     const preserveDiscount =
@@ -686,7 +683,15 @@ export async function syncConvertedPackageFromQuotes(
         deposit_required: desiredReservation.depositRequired,
         deposit_amount: desiredReservation.depositAmount,
         internal_notes: desiredReservation.internalNotes,
-        metadata: quoteMetadata(matched.metadata, desiredReservation, syncedAt),
+        metadata: {
+          ...quoteMetadata(matched.metadata, desiredReservation, syncedAt),
+          ...(isPhysicalTransport
+            ? {
+                soldPriceOverride: preservePhysicalSoldOverride,
+                derivedSoldPrice: desiredReservation.soldPriceTotal,
+              }
+            : {}),
+        },
       })
       .eq('id', matched.id)
       .eq('package_id', options.packageId)

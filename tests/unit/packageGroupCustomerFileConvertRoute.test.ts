@@ -366,19 +366,20 @@ describe('group customer file conversion', () => {
         expect.objectContaining({
           quote_id: 'quote-1',
           booked_cost_total: 0,
-          sold_price_total: 100,
+          sold_price_total: 200,
         }),
         expect.objectContaining({
           quote_id: 'quote-2',
           booked_cost_total: 0,
-          sold_price_total: 100,
+          sold_price_total: 200,
         }),
       ]),
     )
     expect(physicalReservations).toEqual([
       expect.objectContaining({
-        booked_cost_total: 300,
-        sold_price_total: 0,
+        title: 'Group main transport',
+        booked_cost_total: 0,
+        sold_price_total: 400,
         supplier_name: 'Operations Supplier',
         metadata: expect.objectContaining({
           sharedGroupTransport: true,

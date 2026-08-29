@@ -131,7 +131,7 @@ describe('package invoice helpers', () => {
       quote_id: 'quote-2',
       reservation_type: 'transport',
       title: 'Family 2 - Shared group transport',
-      booked_cost_total: 0,
+      booked_cost_total: 999,
       sold_price_total: 120,
       metadata: {
         billingAllocation: true,

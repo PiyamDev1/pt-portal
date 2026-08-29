@@ -96,13 +96,11 @@ export function buildPackageQuoteReservationDrafts({
   combination,
   familyLabel,
   sharedGroupTransportAllocation = false,
-  sharedGroupTransportSoldPrice,
 }: {
   payload: PackageQuotePayload
   combination: PackageCombination
   familyLabel?: string | null
   sharedGroupTransportAllocation?: boolean
-  sharedGroupTransportSoldPrice?: number
 }) {
   const servicePassengers =
     payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
@@ -221,12 +219,9 @@ export function buildPackageQuoteReservationDrafts({
 
   if (combination.transportOption) {
     const quotedSold = optionTotal(combination.transportOption, servicePassengers)
-    const sold =
-      sharedGroupTransportAllocation && Number.isFinite(sharedGroupTransportSoldPrice)
-        ? roundMoney(Number(sharedGroupTransportSoldPrice))
-        : quotedSold
+    const sold = quotedSold
     const transportNetCost = Number(combination.transportOption.transportNetCost || 0)
-    componentTotal += sharedGroupTransportAllocation ? quotedSold : sold
+    componentTotal += sold
     drafts.push({
       syncKey: sharedGroupTransportAllocation ? 'transport-family-allocation' : 'transport',
       sourceKey: `transport-${combination.transportOption.id}`,
@@ -254,6 +249,7 @@ export function buildPackageQuoteReservationDrafts({
         ...(sharedGroupTransportAllocation
           ? {
               invoiceReferenceOnly: true,
+              calculationReferenceOnly: true,
               individualQuotedSoldPrice: quotedSold,
             }
           : {}),
@@ -318,7 +314,12 @@ export function buildSharedGroupTransportDraft(
   const allocationWeights =
     totalPassengers > 0 ? passengerCounts : families.map(() => (families.length > 0 ? 1 : 0))
   const totalWeight = allocationWeights.reduce((total, count) => total + count, 0)
-  const totalSoldPrice = optionTotal(option, totalPassengers)
+  const familySoldPrices = families.map((family, index) =>
+    optionTotal(family.combination.transportOption, passengerCounts[index] || 0),
+  )
+  const totalSoldPrice = roundMoney(
+    familySoldPrices.reduce((total, soldPrice) => total + soldPrice, 0),
+  )
 
   const allocateByPassenger = (total: number) => {
     let allocated = 0
@@ -332,7 +333,6 @@ export function buildSharedGroupTransportDraft(
     })
   }
   const bookedAllocations = allocateByPassenger(transportNetCost)
-  const soldAllocations = allocateByPassenger(totalSoldPrice)
   const familyAllocations: SharedGroupTransportFamilyAllocation[] = families.map(
     (family, index) => ({
       quoteId: family.quoteId,
@@ -340,7 +340,7 @@ export function buildSharedGroupTransportDraft(
       familyLabel: family.familyLabel || null,
       passengerCount: passengerCounts[index] || 0,
       bookedCost: bookedAllocations[index] || 0,
-      soldPrice: soldAllocations[index] || 0,
+      soldPrice: familySoldPrices[index] || 0,
       referenceOptionId: family.combination.transportOption?.id || null,
       referenceOptionTitle: family.combination.transportOption?.title || null,
     }),
@@ -350,10 +350,10 @@ export function buildSharedGroupTransportDraft(
     syncKey: 'transport-group-physical',
     sourceKey: 'shared-group-transport',
     reservationType: 'transport',
-    title: `Shared group transport - ${option.title || 'Selected transport'}`,
-    soldPriceTotal: 0,
+    title: 'Group main transport',
+    soldPriceTotal: totalSoldPrice,
     discountTotal: 0,
-    suggestedBookedCost: transportNetCost > 0 ? transportNetCost : 0,
+    suggestedBookedCost: 0,
     internalNotes: cleanSummary(option),
     metadata: {
       sharedGroupTransport: true,
@@ -369,6 +369,8 @@ export function buildSharedGroupTransportDraft(
       calculationSourceOptionTitle: option.title || null,
       totalPassengerCount: totalPassengers,
       totalSoldPrice,
+      soldPriceOverride: false,
+      derivedSoldPrice: totalSoldPrice,
       allocationBasis: 'per_passenger',
       familyAllocations,
     },

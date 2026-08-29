@@ -102,14 +102,20 @@ import {
   formatFileSize,
   formatReservationStatus,
   filterAndSortReservations,
+  getGroupMainTransportDerivedSold,
   getLinkedVisaPhotoParentId,
   getOptionSoldTotal,
   getReservationSummary,
+  getReservationCalculationLine,
+  getReservationCalculationTotals,
+  getSharedTransportReferenceBookedCost,
   getStaySelectionSoldTotal,
   getTransportReservationSummary,
   getVisaOptionSoldTotal,
   getVisaPassengerCategoryLabel,
   getVisaQuantity,
+  isGroupMainTransportReservation,
+  isSharedTransportInvoiceReference,
   invoiceStatusOptions,
   isVisaPhotoDocument,
   mapInvoiceToPackageInvoiceStatus,
@@ -171,6 +177,9 @@ export default function PackageOverviewClient({
   >({})
   const [reservationFinancialForms, setReservationFinancialForms] = useState<
     Record<string, ReservationFinancialFormState>
+  >({})
+  const [mainTransportSoldOverrideDrafts, setMainTransportSoldOverrideDrafts] = useState<
+    Record<string, boolean>
   >({})
   const [reservationRefundForms, setReservationRefundForms] = useState<
     Record<string, ReservationRefundFormState>
@@ -910,27 +919,31 @@ export default function PackageOverviewClient({
     [packageFolder?.selected_quote_snapshot, reservations],
   )
   const reservationTotals = useMemo(() => {
-    return reservations.reduce(
-      (totals, reservation) => {
-        const supplierRefund = Number(reservation.supplier_refund_total || 0)
-        const customerRefund = Number(reservation.customer_refund_total || 0)
-        totals.booked += Math.max(0, Number(reservation.booked_cost_total || 0) - supplierRefund)
-        totals.sold += Math.max(0, Number(reservation.sold_price_total || 0) - customerRefund)
-        totals.discount += Number(reservation.discount_total || 0)
-        totals.commission += Number(reservation.commission_expected_total || 0)
-        totals.supplierRefund += supplierRefund
-        totals.customerRefund += customerRefund
-        return totals
-      },
-      {
+    return getReservationCalculationTotals(reservations)
+  }, [reservations])
+  const quoteSourceCostSummary = useMemo(() => {
+    const summaries = new Map<
+      TravelPackageReservationType,
+      { type: TravelPackageReservationType; rows: number; booked: number; sold: number }
+    >()
+    reservations.forEach((reservation) => {
+      const line = getReservationCalculationLine(reservation, reservations)
+      if (!line.included) return
+      const current = summaries.get(reservation.reservation_type) || {
+        type: reservation.reservation_type,
+        rows: 0,
         booked: 0,
         sold: 0,
-        discount: 0,
-        commission: 0,
-        supplierRefund: 0,
-        customerRefund: 0,
-      },
-    )
+      }
+      current.rows += 1
+      current.booked += Math.max(0, line.booked - line.supplierRefund)
+      current.sold += Math.max(0, line.sold - line.discount - line.customerRefund)
+      summaries.set(reservation.reservation_type, current)
+    })
+    return reservationTypeOptions.flatMap((option) => {
+      const summary = summaries.get(option.value)
+      return summary ? [{ ...summary, label: option.label }] : []
+    })
   }, [reservations])
   const bookedSoldDifference =
     reservationTotals.sold - reservationTotals.discount - reservationTotals.booked
@@ -1005,28 +1018,35 @@ export default function PackageOverviewClient({
       })
     })
     if (selectedCombination.transportOption) {
+      const groupMainTransport = reservations.find(isGroupMainTransportReservation)
+      const isGroupTransport = packageFolder?.customer_file_mode === 'group'
       prefills.push({
-        key: `transport-${selectedCombination.transportOption.id}`,
+        key: isGroupTransport
+          ? 'shared-group-transport'
+          : `transport-${selectedCombination.transportOption.id}`,
         reservationType: 'transport',
-        title:
-          packageFolder?.customer_file_mode === 'group'
-            ? 'Shared group transport'
-            : selectedCombination.transportOption.title,
-        bookedCostTotal:
-          packageFolder?.customer_file_mode === 'group'
-            ? 0
-            : Number(selectedCombination.transportOption.transportNetCost || 0),
-        soldPriceTotal: getOptionSoldTotal(
-          selectedCombination.transportOption,
-          servicePassengers,
-          selectedComponentPassengerSummary,
-        ),
+        title: isGroupTransport
+          ? 'Group main transport'
+          : selectedCombination.transportOption.title,
+        bookedCostTotal: isGroupTransport
+          ? Number(groupMainTransport?.booked_cost_total || 0)
+          : Number(selectedCombination.transportOption.transportNetCost || 0),
+        soldPriceTotal:
+          isGroupTransport && groupMainTransport
+            ? getReservationCalculationLine(groupMainTransport, reservations).sold
+            : getOptionSoldTotal(
+                selectedCombination.transportOption,
+                servicePassengers,
+                selectedComponentPassengerSummary,
+              ),
         internalNotes: getTransportReservationSummary(selectedCombination.transportOption),
-        sourceLabel: 'Transport from final quote',
+        sourceLabel: isGroupTransport
+          ? 'Single group transport calculation'
+          : 'Transport from final quote',
         metadata: {
           optionId: selectedCombination.transportOption.id,
-          sharedGroupTransport: packageFolder?.customer_file_mode === 'group',
-          billingAllocation: packageFolder?.customer_file_mode === 'group',
+          sharedGroupTransport: isGroupTransport,
+          physicalReservation: isGroupTransport,
         },
       })
     }
@@ -1056,6 +1076,9 @@ export default function PackageOverviewClient({
     const accountingSaleTotal =
       selectedCombination.totalPrice + Number(selectedCombination.refundAdjustmentTotal || 0)
     const adjustment = Math.round((accountingSaleTotal - componentTotal) * 100) / 100
+    if (packageFolder?.customer_file_mode === 'group') {
+      return prefills
+    }
     if (adjustment > 0) {
       prefills.push({
         key: 'package-pricing-adjustment',
@@ -1080,6 +1103,7 @@ export default function PackageOverviewClient({
   }, [
     packageFolder?.customer_file_mode,
     reservationCurrency,
+    reservations,
     selectedCombination,
     selectedPayload,
     selectedVisaPassengerCounts,
@@ -2107,7 +2131,27 @@ Please enter the access code and accept the data handling terms before downloadi
   }
 
   const getReservationFinancialForm = (reservation: TravelPackageReservation) => {
-    return reservationFinancialForms[reservation.id] || createReservationFinancialForm(reservation)
+    const form =
+      reservationFinancialForms[reservation.id] || createReservationFinancialForm(reservation)
+    if (
+      isGroupMainTransportReservation(reservation) &&
+      mainTransportSoldOverrideDrafts[reservation.id] !== true &&
+      reservation.metadata?.soldPriceOverride !== true
+    ) {
+      return {
+        ...form,
+        soldPriceTotal: String(getGroupMainTransportDerivedSold(reservation, reservations) || ''),
+      }
+    }
+    if (isSharedTransportInvoiceReference(reservation)) {
+      return {
+        ...form,
+        bookedCostTotal: String(
+          getSharedTransportReferenceBookedCost(reservation, reservations) || '',
+        ),
+      }
+    }
+    return form
   }
 
   const updateReservationFinancialForm = <Key extends keyof ReservationFinancialFormState>(
@@ -2126,6 +2170,15 @@ Please enter the access code and accept the data handling terms before downloadi
 
   const saveReservationFinancials = async (reservation: TravelPackageReservation) => {
     const financialForm = getReservationFinancialForm(reservation)
+    const isGroupMainTransport = isGroupMainTransportReservation(reservation)
+    const isInvoiceReference = isSharedTransportInvoiceReference(reservation)
+    const derivedMainTransportSold = isGroupMainTransport
+      ? getGroupMainTransportDerivedSold(reservation, reservations)
+      : 0
+    const soldOverrideEnabled = isGroupMainTransport
+      ? (mainTransportSoldOverrideDrafts[reservation.id] ??
+        reservation.metadata?.soldPriceOverride === true)
+      : false
     setSavingReservationFinancialId(reservation.id)
     setReservationError(null)
     try {
@@ -2137,13 +2190,22 @@ Please enter the access code and accept the data handling terms before downloadi
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            bookedCostTotal: financialForm.bookedCostTotal,
+            bookedCostTotal: isInvoiceReference ? 0 : financialForm.bookedCostTotal,
             soldPriceTotal: financialForm.soldPriceTotal,
             discountTotal: financialForm.discountTotal,
             commissionExpectedTotal: financialForm.commissionExpectedTotal,
             depositRequired: financialForm.depositRequired,
             depositAmount: financialForm.depositAmount,
             paymentDueAt: financialForm.paymentDueAt,
+            ...(isGroupMainTransport
+              ? {
+                  metadata: {
+                    ...reservation.metadata,
+                    soldPriceOverride: soldOverrideEnabled,
+                    derivedSoldPrice: derivedMainTransportSold,
+                  },
+                }
+              : {}),
           }),
         },
       )
@@ -2160,6 +2222,11 @@ Please enter the access code and accept the data handling terms before downloadi
         ...current,
         [reservation.id]: createReservationFinancialForm(data.reservation!),
       }))
+      setMainTransportSoldOverrideDrafts((current) => {
+        const next = { ...current }
+        delete next[reservation.id]
+        return next
+      })
     } catch (saveError) {
       setReservationError(
         saveError instanceof Error ? saveError.message : 'Failed to update reservation financials',
@@ -3772,6 +3839,45 @@ Please enter the access code and accept the data handling terms before downloadi
                       </button>
                     </div>
                   </div>
+                  <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase text-slate-500">
+                          Whole-package cost summary
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          Shared reference rows are de-duplicated; Group main transport is counted
+                          once.
+                        </p>
+                      </div>
+                      <p className="text-sm font-black text-[#8b1e2d]">
+                        Net sold {formatMoney(netReservationSold, reservationCurrency)} / Booked{' '}
+                        {formatMoney(reservationTotals.booked, reservationCurrency)}
+                      </p>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                      {quoteSourceCostSummary.map((summary) => (
+                        <div key={summary.type} className="rounded-lg bg-slate-50 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase text-slate-500">
+                            {summary.label} / {summary.rows} row{summary.rows === 1 ? '' : 's'}
+                          </p>
+                          <p className="mt-1 text-xs font-black text-slate-900">
+                            Sold {formatMoney(summary.sold, reservationCurrency)}
+                          </p>
+                          <p className="text-[11px] font-bold text-slate-500">
+                            Booked {formatMoney(summary.booked, reservationCurrency)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {reservationTotals.referenceRows > 0 && (
+                      <p className="mt-2 text-[11px] font-bold text-slate-500">
+                        {reservationTotals.calculationRows} calculation rows /{' '}
+                        {reservationTotals.referenceRows} invoice-reference rows excluded from the
+                        package totals
+                      </p>
+                    )}
+                  </div>
                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {quoteReservationPrefills.map((prefill) => (
                       <button
@@ -4144,8 +4250,22 @@ Please enter the access code and accept the data handling terms before downloadi
                     const savingFinancials = savingReservationFinancialId === reservation.id
                     const savingRefund = savingReservationRefundId === reservation.id
                     const expanded = Boolean(expandedReservationIds[reservation.id])
-                    const supplierRefund = Number(reservation.supplier_refund_total || 0)
-                    const customerRefund = Number(reservation.customer_refund_total || 0)
+                    const calculationLine = getReservationCalculationLine(reservation, reservations)
+                    const isInvoiceReference = calculationLine.role === 'invoice_reference'
+                    const isGroupMainTransport = calculationLine.role === 'group_main_transport'
+                    const derivedMainTransportSold = isGroupMainTransport
+                      ? getGroupMainTransportDerivedSold(reservation, reservations)
+                      : 0
+                    const mainTransportSoldOverrideEnabled = isGroupMainTransport
+                      ? (mainTransportSoldOverrideDrafts[reservation.id] ??
+                        reservation.metadata?.soldPriceOverride === true)
+                      : false
+                    const supplierRefund = isInvoiceReference
+                      ? Number(reservation.supplier_refund_total || 0)
+                      : calculationLine.supplierRefund
+                    const customerRefund = isInvoiceReference
+                      ? Number(reservation.customer_refund_total || 0)
+                      : calculationLine.customerRefund
                     const quoteDiscountAllocation = reservationDiscountAllocations[reservation.id]
                     const allocatedQuoteDiscount = Number(quoteDiscountAllocation?.total || 0)
                     const netBooked = Math.max(
@@ -4163,7 +4283,13 @@ Please enter the access code and accept the data handling terms before downloadi
                     return (
                       <div
                         key={reservation.id}
-                        className="rounded-lg border border-slate-200 bg-white p-4"
+                        className={`rounded-lg border p-4 ${
+                          isInvoiceReference
+                            ? 'border-slate-300 bg-slate-100 text-slate-600'
+                            : isGroupMainTransport
+                              ? 'border-cyan-300 bg-cyan-50/40'
+                              : 'border-slate-200 bg-white'
+                        }`}
                       >
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                           <div className="flex min-w-0 flex-1 gap-3">
@@ -4189,7 +4315,7 @@ Please enter the access code and accept the data handling terms before downloadi
                             </span>
                             <div className="min-w-0">
                               <p className="text-sm font-black text-slate-950">
-                                {reservation.title}
+                                {isGroupMainTransport ? 'Group main transport' : reservation.title}
                               </p>
                               <p className="mt-1 text-xs font-bold capitalize text-slate-500">
                                 {reservation.reservation_type}
@@ -4201,9 +4327,14 @@ Please enter the access code and accept the data handling terms before downloadi
                                     {reservation.metadata.familyLabel}
                                   </p>
                                 )}
-                              {reservation.metadata?.physicalReservation === true && (
-                                <p className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">
-                                  Group-wide calculation
+                              {isGroupMainTransport && (
+                                <p className="mt-1 inline-flex rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-black text-cyan-900">
+                                  Included once in package calculation
+                                </p>
+                              )}
+                              {isInvoiceReference && (
+                                <p className="mt-1 inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-black text-slate-700">
+                                  Invoice reference only Â· excluded from package totals
                                 </p>
                               )}
                               {reservation.supplier_reference && (
@@ -4216,7 +4347,9 @@ Please enter the access code and accept the data handling terms before downloadi
                                 {formatMoney(
                                   Math.max(
                                     0,
-                                    Number(reservation.sold_price_total || 0) - customerRefund,
+                                    (isInvoiceReference
+                                      ? Number(reservation.sold_price_total || 0)
+                                      : calculationLine.sold) - customerRefund,
                                   ),
                                   reservation.currency,
                                 )}{' '}
@@ -4224,7 +4357,12 @@ Please enter the access code and accept the data handling terms before downloadi
                                 {formatMoney(
                                   Math.max(
                                     0,
-                                    Number(reservation.booked_cost_total || 0) - supplierRefund,
+                                    (isInvoiceReference
+                                      ? getSharedTransportReferenceBookedCost(
+                                          reservation,
+                                          reservations,
+                                        )
+                                      : calculationLine.booked) - supplierRefund,
                                   ),
                                   reservation.currency,
                                 )}
@@ -4436,7 +4574,11 @@ Please enter the access code and accept the data handling terms before downloadi
                             </form>
 
                             <form
-                              className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                              className={`mt-4 rounded-lg border p-3 ${
+                                isInvoiceReference
+                                  ? 'border-slate-300 bg-slate-200/70'
+                                  : 'border-slate-200 bg-slate-50'
+                              }`}
                               onSubmit={(event) => {
                                 event.preventDefault()
                                 void saveReservationFinancials(reservation)
@@ -4448,8 +4590,11 @@ Please enter the access code and accept the data handling terms before downloadi
                                     Reservation pricing
                                   </p>
                                   <p className="mt-1 text-xs font-bold text-slate-500">
-                                    Edit booked cost, sold price, discount, commission, and payment
-                                    due values here.
+                                    {isInvoiceReference
+                                      ? 'The booked share comes from Group main transport. The family sold value remains editable and feeds the main transport total.'
+                                      : isGroupMainTransport
+                                        ? 'Enter the single supplier booked cost here. Sold price is the sum of family transport references unless you override it.'
+                                        : 'Edit booked cost, sold price, discount, commission, and payment due values here.'}
                                   </p>
                                   <p className="mt-1 text-xs font-bold text-slate-500">
                                     Profit before commission:{' '}
@@ -4506,9 +4651,10 @@ Please enter the access code and accept the data handling terms before downloadi
 
                               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                 <label className="rounded-lg border border-[#8b1e2d]/20 bg-white p-2 text-xs font-bold uppercase text-slate-500">
-                                  Booked cost
+                                  {isInvoiceReference ? 'Allocated booked cost' : 'Booked cost'}
                                   <input
                                     value={financialForm.bookedCostTotal}
+                                    disabled={isInvoiceReference}
                                     onChange={(event) =>
                                       updateReservationFinancialForm(
                                         reservation,
@@ -4516,27 +4662,57 @@ Please enter the access code and accept the data handling terms before downloadi
                                         event.target.value,
                                       )
                                     }
-                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                                     inputMode="decimal"
                                     placeholder="0.00"
                                   />
                                 </label>
 
                                 <label className="text-xs font-bold uppercase text-slate-500">
-                                  Sold price
+                                  {isGroupMainTransport
+                                    ? mainTransportSoldOverrideEnabled
+                                      ? 'Sold price override'
+                                      : 'Summed family sold price'
+                                    : 'Sold price'}
                                   <input
                                     value={financialForm.soldPriceTotal}
-                                    onChange={(event) =>
+                                    onChange={(event) => {
+                                      if (isGroupMainTransport) {
+                                        setMainTransportSoldOverrideDrafts((current) => ({
+                                          ...current,
+                                          [reservation.id]: true,
+                                        }))
+                                      }
                                       updateReservationFinancialForm(
                                         reservation,
                                         'soldPriceTotal',
                                         event.target.value,
                                       )
-                                    }
+                                    }}
                                     className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
                                     inputMode="decimal"
                                     placeholder="0.00"
                                   />
+                                  {isGroupMainTransport && mainTransportSoldOverrideEnabled && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setMainTransportSoldOverrideDrafts((current) => ({
+                                          ...current,
+                                          [reservation.id]: false,
+                                        }))
+                                        updateReservationFinancialForm(
+                                          reservation,
+                                          'soldPriceTotal',
+                                          String(derivedMainTransportSold || ''),
+                                        )
+                                      }}
+                                      className="mt-1 text-[11px] font-black normal-case text-cyan-800 hover:text-cyan-950"
+                                    >
+                                      Use summed family sales (
+                                      {formatMoney(derivedMainTransportSold, reservation.currency)})
+                                    </button>
+                                  )}
                                 </label>
 
                                 <label className="text-xs font-bold uppercase text-slate-500">

@@ -72,6 +72,7 @@ import {
   type OperationsResponse,
   type WorkspaceTab,
 } from './packageOperationsModel'
+import { getReservationCalculationTotals } from './packageOverviewModel'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -333,7 +334,8 @@ export default function PackageOperationsWorkspace({
   const selectedFamilyReservationTotal = selectedPaymentFamily
     ? reservationSaleTotal(selectedPaymentFamily.quoteId)
     : 0
-  const groupReservationTotal = reservationSaleTotal()
+  const calculationTotals = getReservationCalculationTotals(reservations)
+  const groupReservationTotal = Math.max(0, calculationTotals.sold - calculationTotals.discount)
   const paymentTotalDue = selectedPaymentFamily
     ? (selectedFamilyInvoice?.total_sold ??
       (selectedFamilyReservationTotal > 0
