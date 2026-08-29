@@ -62,6 +62,9 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     border: 1px dashed #cbd5e1;
     overflow: hidden;
   }
+  .print-sheet:not(.continuation-sheet) > .voucher {
+    border-right: 0;
+  }
   .cut-divider {
     width: 0;
     height: 215.6mm;
@@ -668,9 +671,16 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     break-before: page;
     page-break-before: always;
     grid-template-columns: 98mm 2mm 107.8mm;
+    grid-template-rows: 215.6mm;
   }
   .continuation-voucher {
     grid-column: 3;
+    grid-row: 1;
+    border-left: 0;
+  }
+  .continuation-sheet .cut-divider {
+    grid-column: 2;
+    grid-row: 1;
   }
   .continuation-voucher .main {
     flex: 1;
@@ -697,10 +707,9 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .continuation-blank {
     grid-column: 1;
+    grid-row: 1;
     width: 98mm;
     height: 215.6mm;
-    border: 1px dashed #e2e8f0;
-    border-left: 0;
     background: #fff;
   }
   @media print {
@@ -732,6 +741,12 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
       border-radius: 0;
       border: 1px dashed #94a3b8;
       box-shadow: none;
+    }
+    .print-sheet:not(.continuation-sheet) > .voucher {
+      border-right: 0;
+    }
+    .continuation-voucher {
+      border-left: 0;
     }
     .access-voucher {
       width: 98mm;
@@ -1429,7 +1444,7 @@ export function renderTransportVoucherHtml(
       const offset = 3 + pageIndex * 7
       const pageNumber = pageIndex + 2
       const totalPages = continuationItineraries.length + 1
-      return `<div class="print-sheet continuation-sheet"><main class="voucher continuation-voucher"><section class="main">
+      return `<div class="print-sheet continuation-sheet"><div class="continuation-blank" aria-hidden="true"></div><div class="cut-divider" aria-hidden="true"></div><main class="voucher continuation-voucher"><section class="main">
         <header class="header">
           <div class="brand"><img class="brand-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
           <div class="title"><h1>GROUND TRANSPORT</h1><p>${pageIndex === 0 ? 'REVERSE SIDE / ITINERARY' : 'ITINERARY CONTINUED'}</p></div>
@@ -1440,7 +1455,7 @@ export function renderTransportVoucherHtml(
           <div><p class="value">Transport provider: ${escapeHtml(providerName)}</p>${transportContactParts.length ? `<p class="contact-line">${escapeHtml(transportContactParts.join(' | '))}</p>` : '<p class="contact-line">Contact details to be confirmed</p>'}</div>
           <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com<br>+447400828212</p></div>
         </div>
-      </section></main><div class="cut-divider" aria-hidden="true"></div><div class="continuation-blank" aria-hidden="true"></div></div>`
+      </section></main></div>`
     })
     .join('')
 

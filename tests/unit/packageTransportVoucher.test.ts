@@ -129,6 +129,9 @@ describe('transport vouchers', () => {
     expect(html).toContain('class="cut-divider"')
     expect(html).toMatch(/\.cut-divider\s*{[^}]*border-left:\s*\.5mm dotted #64748b/s)
     expect(html).toMatch(/\.cut-divider\s*{[^}]*background:\s*transparent/s)
+    expect(html).toMatch(
+      /\.print-sheet:not\(\.continuation-sheet\) > \.voucher\s*{[^}]*border-right:\s*0/s,
+    )
     expect(html).toContain('Amanat Ali')
     expect(html).toContain('PT-ABC123')
     expect(html).toContain('bookings.piyamtravel.com')
@@ -174,14 +177,22 @@ describe('transport vouchers', () => {
     expect(html).toContain('4. Transfer 4')
     expect(html).toContain('6. Transfer 6')
     expect(html).toMatch(/\.continuation-sheet\s*{[^}]*page-break-before:\s*always/s)
+    expect(html).toMatch(/\.continuation-sheet\s*{[^}]*grid-template-columns:\s*98mm 2mm 107\.8mm/s)
+    expect(html).toMatch(/\.continuation-sheet\s*{[^}]*grid-template-rows:\s*215\.6mm/s)
     expect(html).toMatch(
-      /\.continuation-sheet\s*{[^}]*grid-template-columns:\s*98mm 2mm 107\.8mm/s,
+      /\.continuation-voucher\s*{[^}]*grid-column:\s*3;[^}]*grid-row:\s*1;[^}]*border-left:\s*0/s,
     )
-    expect(html).toMatch(/\.continuation-voucher\s*{[^}]*grid-column:\s*3/s)
-    expect(html).toMatch(/\.continuation-blank\s*{[^}]*grid-column:\s*1/s)
+    expect(html).toMatch(
+      /\.continuation-sheet \.cut-divider\s*{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1/s,
+    )
+    expect(html).toMatch(/\.continuation-blank\s*{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1/s)
+    expect(html).toMatch(
+      /class="print-sheet continuation-sheet"><div class="continuation-blank"[^>]*><\/div><div class="cut-divider"[^>]*><\/div><main class="voucher continuation-voucher">/,
+    )
     expect(html).toMatch(
       /@media print\s*{[\s\S]*?\.print-sheet \+ \.print-sheet,[\s\S]*?page-break-before:\s*always !important/s,
     )
+    expect(html).toMatch(/@media print\s*{[\s\S]*?\.continuation-voucher\s*{[^}]*border-left:\s*0/s)
   })
 
   it('renders a standalone access voucher for individual printing', () => {
