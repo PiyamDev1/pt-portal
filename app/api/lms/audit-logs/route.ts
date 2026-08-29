@@ -22,10 +22,6 @@ import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
-
 const createAuditLogSchema = z.object({
   action: z
     .string({ error: 'Missing required fields' })
@@ -50,6 +46,11 @@ export async function GET(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { searchParams } = new URL(request.url)
     const accountId = searchParams.get('accountId')
@@ -111,6 +112,11 @@ export async function POST(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const limitResult = await enforceRateLimit(request, {
       scope: 'lms.audit-log-create',

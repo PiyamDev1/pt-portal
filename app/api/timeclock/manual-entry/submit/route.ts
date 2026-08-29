@@ -32,7 +32,6 @@ import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syn
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const adminSupabase = createClient(supabaseUrl, serviceKey)
 const DUPLICATE_WINDOW_MS = 8_000
 
 function computeHash(material: string) {
@@ -68,6 +67,8 @@ export async function POST(request: Request) {
     if (authError || !user) {
       return apiError('Unauthorized', 401)
     }
+
+    const adminSupabase = createClient(supabaseUrl, serviceKey)
 
     const body = await request.json()
     const rawCode = typeof body?.code === 'string' ? body.code.trim() : ''

@@ -29,10 +29,6 @@ const createNoteSchema = z.object({
   note: z.string().trim().min(1, 'Missing required fields').max(5_000, 'Note is too long'),
 })
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
-
 type EmployeeRef = { full_name?: string } | { full_name?: string }[]
 
 type NoteRow = {
@@ -64,6 +60,11 @@ export async function GET(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { searchParams } = new URL(request.url)
     const accountId = searchParams.get('accountId')
@@ -107,6 +108,11 @@ export async function POST(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const limit = await enforceNotesMutationLimit(request, access.user.id)
     if (!limit.allowed) return limit.response
@@ -159,6 +165,11 @@ export async function DELETE(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const limit = await enforceNotesMutationLimit(request, access.user.id)
     if (!limit.allowed) return limit.response

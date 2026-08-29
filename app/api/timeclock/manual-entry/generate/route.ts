@@ -41,7 +41,6 @@ import {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const adminSupabase = createClient(supabaseUrl, serviceKey)
 const PAYLOAD_NAMESPACE = 'ptc1:'
 
 function generateNonce() {
@@ -97,6 +96,8 @@ export async function POST(request: Request) {
     if (authError || !authUser) {
       return apiError('Unauthorized', 401)
     }
+
+    const adminSupabase = createClient(supabaseUrl, serviceKey)
 
     // Check if user has manager-level or maintenance-level timeclock access.
     const [{ data: user }, { count: reportCount }, { data: profile }] = await Promise.all([

@@ -45,7 +45,6 @@ type EmployeeRow = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const adminSupabase = createClient(supabaseUrl, serviceKey)
 
 const collectReports = (managerId: string, employees: EmployeeRow[]) => {
   const reports: string[] = []
@@ -75,6 +74,8 @@ export async function GET(request: Request) {
     if (!supabaseUrl || !serviceKey) {
       return apiError('Supabase not configured', 500)
     }
+
+    const adminSupabase = createClient(supabaseUrl, serviceKey)
 
     const cookieStore = await cookies()
     const supabase = createServerClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
