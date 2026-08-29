@@ -17,6 +17,8 @@ The `scripts/` directory contains versioned database changes and repeatable repo
 - `npm run docs:check` validates local Markdown targets and heading anchors.
 - `npm run docs:check-api` verifies that every exported API handler has a field-level contract.
 - `npm run format:check:changed` checks all changed Prettier-supported files.
+- `npm run test:db:commission-profiles` validates employee-owned Commission agreements, lifecycle,
+  privileges, idempotency, and forward-replay safety against disposable PostgreSQL.
 - `npm run test:db:lms` validates the atomic LMS migration against disposable PostgreSQL.
 - `npm run test:db:security` validates shared rate limiting and backup-code replacement.
 - `npm run types:supabase` regenerates the linked public-schema types atomically.

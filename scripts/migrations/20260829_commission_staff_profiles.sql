@@ -6,6 +6,27 @@
 
 begin;
 
+select pg_advisory_xact_lock(hashtextextended('commission:schema-migration', 0));
+
+do $commission_profile_forward_guard$
+declare installed_version bigint;
+begin
+  select version into installed_version
+  from public.portal_schema_versions
+  where component = 'commission'
+  for update;
+  if installed_version is null or installed_version < 2026082903 then
+    raise exception 'Commission capability 2026082903 is required before employee profiles'
+      using errcode = '55000', hint = 'COMMISSION_SCHEMA_NOT_READY';
+  end if;
+  if installed_version > 2026082904 then
+    raise exception 'Commission profile capability % cannot run after installed capability %',
+      2026082904, installed_version
+      using errcode = '55000', hint = 'COMMISSION_FORWARD_MIGRATION_REPLAY_BLOCKED';
+  end if;
+end
+$commission_profile_forward_guard$;
+
 do $commission_profile_prerequisites$
 begin
   if to_regprocedure(

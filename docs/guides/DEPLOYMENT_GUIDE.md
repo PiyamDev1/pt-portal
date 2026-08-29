@@ -124,7 +124,7 @@ migration. See [Database Schema Overview](../technical/DATABASE_SCHEMA_OVERVIEW.
 | Workflow                      | Trigger                                 | Responsibility                                                                                                      |
 | ----------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `quality.yml`                 | push/PR to `main`, manual               | audit, repository-wide lint, types, API boundaries, unit tests, changed-file formatting, documentation links, build |
-| `database-integration.yml`    | relevant push/PR paths, manual          | PostgreSQL 16 LMS and security migration tests                                                                      |
+| `database-integration.yml`    | relevant push/PR paths, manual          | PostgreSQL 16 LMS, security, Ticketing, and employee-owned Commission migration tests                               |
 | `smoke-tests.yml`             | PR to `main`, manual                    | authenticated live Playwright suite and report artifact                                                             |
 | `db-backup.yml`               | daily 02:00 UTC, manual                 | linked Supabase schema/data dump to S3-compatible storage, 30-day default retention                                 |
 | `document-migration-cron.yml` | every ten minutes, manual               | bounded R2-to-MinIO migration endpoint call                                                                         |

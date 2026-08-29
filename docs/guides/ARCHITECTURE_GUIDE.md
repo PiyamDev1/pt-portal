@@ -147,6 +147,6 @@ Integration secrets are server-only. Every integration should have bounded timeo
 
 ## Verification architecture
 
-The quality workflow runs npm audit, lint, TypeScript, API boundaries, documentation links, Vitest, changed-file Prettier, and the production build. The database workflow runs disposable PostgreSQL 16 checks for LMS and shared security migrations. Playwright uses an authenticated setup project and can target a live deployment or a locally started server.
+The quality workflow runs npm audit, lint, TypeScript, API boundaries, documentation links, Vitest, changed-file Prettier, and the production build. The database workflow runs disposable PostgreSQL 16 checks for LMS, shared security, Ticketing, and employee-owned Commission migrations. Playwright uses an authenticated setup project and can target a live deployment or a locally started server.
 
 For exact commands, see [Quick Reference](QUICK_REFERENCE.md). For workflow triggers and secrets, see [Deployment](DEPLOYMENT_GUIDE.md).
