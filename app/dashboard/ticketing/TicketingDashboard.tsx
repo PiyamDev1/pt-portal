@@ -93,24 +93,26 @@ export function TicketingDashboard() {
           </span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {TICKETING_MODULES.map((moduleItem) => {
             const Icon = moduleItem.icon
             return (
               <Link
                 key={moduleItem.title}
                 href={moduleItem.href}
-                className={`rounded-2xl border p-5 shadow-sm ${moduleItem.tone}`}
+                className={`rounded-2xl border p-4 shadow-sm ${moduleItem.tone}`}
               >
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3">
                   <span
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${moduleItem.iconTone}`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${moduleItem.iconTone}`}
                   >
-                    <Icon className="h-6 w-6" aria-hidden="true" />
+                    <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-black text-slate-950">{moduleItem.title}</h3>
+                  <div className="min-w-0">
+                    <div className="flex flex-col items-start gap-1.5">
+                      <h3 className="text-base font-black leading-tight text-slate-950">
+                        {moduleItem.title}
+                      </h3>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-[10px] font-black uppercase tracking-wide ring-1 ${
                           moduleItem.available
@@ -126,10 +128,10 @@ export function TicketingDashboard() {
                         {moduleItem.available ? 'Available' : 'Coming soon'}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                    <p className="mt-2 text-sm leading-5 text-slate-600">
                       {moduleItem.description}
                     </p>
-                    <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-black text-slate-700">
+                    <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-slate-700">
                       {moduleItem.actionLabel}
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
