@@ -237,6 +237,12 @@ export type TicketingFlightMonitorItem = {
   arrivalLocal: string | null
   arrivalAtUtc: string | null
   scheduleStatus: (typeof TICKET_SCHEDULE_STATUSES)[number]
+  providerCheck: {
+    checkedAt: string | null
+    outcome: 'matched' | 'change_detected' | 'not_found' | 'failed' | null
+    providerStatus: string | null
+    scheduleChangeDetectedAt: string | null
+  } | null
   activeScheduleChange: TicketingActiveScheduleChange | null
   allowedScheduleActions: (typeof TICKET_SCHEDULE_CHANGE_ACTIONS)[number][]
 }

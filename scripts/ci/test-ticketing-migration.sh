@@ -33,6 +33,8 @@ service_passenger_allocation_migration="scripts/migrations/20260827_ticketing_se
 service_passenger_allocation_assertions="tests/integration/ticketing_service_passenger_allocation.sql"
 youth_assistance_archive_migration="scripts/migrations/20260828_ticketing_youth_assistance_archive.sql"
 youth_assistance_archive_assertions="tests/integration/ticketing_youth_assistance_archive.sql"
+admin_requests_suppliers_api_migration="scripts/migrations/20260828_ticketing_admin_requests_suppliers_api.sql"
+admin_requests_suppliers_api_assertions="tests/integration/ticketing_admin_requests_suppliers_api.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2360,6 +2362,15 @@ if [[ "$(ticketing_schema_fingerprint)" != "$youth_assistance_archive_first_fing
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$youth_assistance_archive_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_requests_suppliers_api_migration"
+admin_requests_first_fingerprint="$(ticketing_schema_fingerprint)"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_requests_suppliers_api_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$admin_requests_first_fingerprint" ]]; then
+  echo "Idempotent admin requests, suppliers, and flight API migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_requests_suppliers_api_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"

@@ -28,6 +28,12 @@ export type FlightMonitoringItem = {
   arrivalLocal: string | null
   arrivalAtUtc: string | null
   scheduleStatus: string
+  providerCheck: {
+    checkedAt: string | null
+    outcome: 'matched' | 'change_detected' | 'not_found' | 'failed' | null
+    providerStatus: string | null
+    scheduleChangeDetectedAt: string | null
+  } | null
   activeScheduleChange: {
     changeId: string
     eventVersion: number

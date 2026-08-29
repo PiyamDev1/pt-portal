@@ -109,6 +109,8 @@ type BookingRow = {
   departure_date: string | null
   package_match_status: string
   commission_scope: string
+  supplier_code: 'unknown' | 'sabre_polani' | 'amadeus_piyam' | 'sabre_bt' | 'ptap' | 'airline'
+  supplier_name: string
   archived_at: string | null
   airlines: Related<AirlineRow>
   ticket_booking_attribution_versions: AttributionVersionRow[] | null
@@ -264,6 +266,7 @@ function ledgerItem(
     pnr: booking.pnr,
     customerName: booking.customer_name,
     airline: airlineOption(airline),
+    supplier: { code: booking.supplier_code, name: booking.supplier_name },
     serviceType: row.service_type,
     operationalStatus: row.operational_status,
     paymentStatus: row.payment_status,
@@ -421,6 +424,8 @@ export async function GET(request: NextRequest) {
             departure_date,
             package_match_status,
             commission_scope,
+            supplier_code,
+            supplier_name,
             archived_at,
             airlines!inner(id, iata_code, name),
             ticket_booking_attribution_versions(
@@ -537,6 +542,7 @@ export async function GET(request: NextRequest) {
         locationName: location?.name || null,
         timezone: location?.timezone || 'Europe/London',
         canManageAttribution,
+        canManageRecords: canManageAttribution,
         attributionEmployees,
       },
     },
@@ -584,7 +590,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getServiceSupabaseClient()
-  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_priced', {
+  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_supplied', {
     p_actor_employee_id: access.employee.id,
     p_idempotency_key: idempotencyKey,
     p_entry: {

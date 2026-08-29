@@ -3,12 +3,13 @@
 > **Partial implementation record and remaining roadmap.** This document replaces the March 2026
 > brainstorm. The database foundation, TK ledger/detail completion, issued DC/R-ER financial
 > service entry, shared whole-PNR GBP Low Fare queue, audited root-TK staff attribution, and
-> privileged admin-on-behalf TK completion are implemented. Root-TK itinerary entry and all-agent
-> Flight Monitoring and its manual schedule-change workflow are also live. Later workflows
-> described here remain proposals until their code, migrations, and tests are shipped.
+> privileged admin-on-behalf TK completion are implemented. Root-TK itinerary entry, all-agent
+> Flight Monitoring, manual schedule changes, staff amendment/deletion requests, and the bounded
+> AeroDataBox monitoring integration are also implemented. Later workflows described here remain
+> proposals until their code, migrations, and tests are shipped.
 
-- **Status:** Foundation, sales ledger, shared Low Fare, root-TK completion/attribution, itinerary entry, Flight Monitoring, and manual schedule changes implemented
-- **Last updated:** August 27, 2026
+- **Status:** Foundation, sales ledger, shared Low Fare, root-TK completion/attribution, itinerary entry, admin-controlled corrections/archive, and Flight Monitoring implemented
+- **Last updated:** August 28, 2026
 - **Owner:** PT-Portal Team
 
 ### Implementation checkpoint — August 23, 2026
@@ -741,9 +742,16 @@ All routes must:
   grouped ADT/YTH/CHD/INF supplier fares, gross unit sale prices, explicit unit discounts, own-record
   search/status filters, duplicate confirmation, and package-match status. The API and database
   operation use verified actor identity and idempotency.
-- **Implemented:** responsible-agent/admin ticket detail editing and reasoned booking archive from
-  the ledger. Archive removes the booking from active views while preserving audit history and
-  superseding Commission facts with zero ticket/assistant target units.
+- **Implemented:** agents request amendments or deletion from their own ledger; the admin queue is
+  the control point for accepting/rejecting requests. Only Admin/Master Admin/Super Admin may edit
+  another employee's completed ticket or archive it. Archive requires a fresh authenticator or
+  backup code at the HTTP boundary, asks for no reason, removes the booking from active views,
+  preserves audit history, and supersedes Commission facts with zero ticket/assistant target units.
+- **Implemented:** admins may correct otherwise locked posted sale prices through an optimistic,
+  idempotent, audited database operation; agents continue to see those prices as locked.
+- **Implemented:** quick TK entry records a supplier snapshot, defaults to Sabre Polani, supports
+  Amadeus Piyam, Sabre BT, PTAP, or the selected airline's directory name, and retains the
+  keyboard-first Ctrl/Cmd+Enter save path. Staff attribution appears after fare entry.
 - **Implemented:** lazy own-record completion for customer/journey details, grouped sale values,
   Paid/Unpaid transition, and individual passenger names, contacts, dates of birth, and ticket
   numbers. Saves are atomic, versioned, retry-safe, and do not calculate/display commission.
@@ -761,15 +769,26 @@ All routes must:
 - **Implemented:** shared manual marking of flight-number/time changes, responsible-owner or
   reasoned administrator review/dismissal/finalisation, immutable case events, and finalised
   itinerary revisions without Commission facts.
+- **Implemented in code, pending environment enablement:** AeroDataBox checks active Issued sectors
+  at the configured weekly interval and once more by the configured 72-hour pre-departure deadline.
+  Because Vercel invokes the job daily, the due window opens one day early so an on-time run checks
+  between 72 and 96 hours before departure. The cron prioritises those final checks, enforces the
+  configured monthly/per-run budget,
+  records each consumed API unit and outcome, and flags provider differences without silently
+  replacing the operational itinerary. Admin settings expose enablement, cadence, limits, usage,
+  remaining allowance, and recent calls; the API key remains an environment secret.
+- **Implemented:** the user-provided OurAirports CSVs can be imported in bounded server-side batches,
+  including country/region metadata and derived IANA timezones. Airline import accepts a separately
+  authorised JSON dataset rather than silently vendoring an unlicensed source repository.
 - **Implemented:** Flight Monitoring responsible-agent and local departure-date filters applied to
   both rows and summary counts, with opaque cursors bound to the selected filters.
 - **Implemented:** bounded team-ledger PNR/customer search and opaque keyset pagination with a
   client Load more control; own/team authorization remains server-enforced.
 - **Implemented:** ledger filters and row indicators for incomplete TK details and Held records
   past their airline time limit.
-- **Future:** add exact affected-passenger allocation, component fee/fare-difference costs, Held
-  DC/R-ER, changed child-service itinerary allocation, and transaction-scoped admin/assistant
-  attribution for DC/R-ER service completion.
+- **Implemented:** exact affected-passenger allocation for DC/R-ER service transactions.
+- **Future:** add component fee/fare-difference costs, Held DC/R-ER, changed child-service itinerary
+  allocation, and transaction-scoped admin/assistant attribution for DC/R-ER service completion.
 - Connect the 24/6/2-hour time-limit reminders and exact expiry processing.
 - Complete admin team-ledger pagination/search; audited admin-on-behalf root-TK completion is
   implemented.
@@ -885,7 +904,9 @@ access boundary, and a Playwright smoke flow covering TK entry through issued-ta
 ## 7. Explicit first-release boundaries
 
 - No import of the historical Excel workbook; operational records start fresh.
-- No live airline/flight-status provider. Flight status and schedule changes are entered manually.
+- No automatic provider-driven itinerary mutation. AeroDataBox observations are budgeted and
+  retained as monitoring evidence; staff still review and finalise schedule changes through the
+  existing manual workflow.
 - No automatic foreign-exchange conversion or rate lookup.
 - No commission-policy, statement, or payout UI inside Ticketing; those belong to the Commission
   module.

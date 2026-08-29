@@ -52,7 +52,7 @@ export const ticketingCompleteTkDetailsSchema = z
     returnDate: isoDateSchema.nullable(),
     paymentStatus: z.enum(['unpaid', 'paid']),
     paidAt: isoDateSchema.nullable(),
-    fareSales: z.array(ticketingCompletionFareSaleSchema).min(1).max(3),
+    fareSales: z.array(ticketingCompletionFareSaleSchema).min(1).max(4),
     passengers: z.array(ticketingCompletionPassengerSchema).max(99),
     onBehalfReason: z
       .string()
@@ -155,6 +155,7 @@ export type TicketingCompletionContext = {
   ownerEmployee: TicketingAttributionEmployee
   isOnBehalf: boolean
   onBehalfReasonRequired: boolean
+  canManageRecords: boolean
 }
 
 export type TicketingCompletionResponse = {

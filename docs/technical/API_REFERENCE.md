@@ -1,6 +1,6 @@
 # API Route Inventory
 
-Last verified against `app/api/**/route.{ts,js}`: August 23, 2026.
+Last verified against `app/api/**/route.{ts,js}`: August 28, 2026.
 
 This compact reference inventories every current API route and records cross-cutting contracts. The [detailed API documentation](../api/README.md) provides field-level access, input, success, error, side-effect, and example contracts for every exported handler. The route implementation, its schemas, and focused tests remain authoritative when a deployment has moved ahead of these documents.
 
@@ -240,6 +240,10 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 | -------------- | ------------------------------------------------------------------ |
 | `GET`, `POST`  | `/api/ticketing/ledger`                                            |
 | `GET`, `PATCH` | `/api/ticketing/ledger/[bookingId]`                                |
+| `DELETE`       | `/api/ticketing/ledger/[bookingId]/archive`                        |
+| `POST`         | `/api/ticketing/ledger/[bookingId]/requests`                       |
+| `GET`          | `/api/ticketing/requests`                                          |
+| `PATCH`        | `/api/ticketing/requests/[requestId]`                              |
 | `GET`          | `/api/ticketing/bookings`                                          |
 | `POST`         | `/api/ticketing/bookings/[bookingId]/transactions`                 |
 | `PATCH`        | `/api/ticketing/bookings/[bookingId]/transactions/[transactionId]` |
@@ -247,21 +251,31 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 | `GET`          | `/api/ticketing/airports`                                          |
 | `GET`          | `/api/ticketing/flight-monitor`                                    |
 | `POST`         | `/api/ticketing/flight-monitor/[sectorId]/schedule-change`         |
+| `GET`, `PATCH` | `/api/admin/ticketing/flight-api`                                  |
+| `GET`          | `/api/cron/ticketing/flight-monitor`                               |
+| `GET`          | `/api/cron/ticketing/time-limits`                                  |
 
 The My Sales Ledger endpoint verifies an active Ticketing department member or Ticketing oversight
-role, but always returns and creates records for the authenticated employee in this first slice.
-Quick TK creation is one retry-safe database operation and performs duplicate confirmation and
-package-PNR matching atomically. The detail route lazily loads and atomically completes customer,
-journey, grouped sale/payment, and passenger-slot details with optimistic versions and retry-safe
-conflict handling. The exact-PNR booking route uses bounded keyset pages so every own-agent match
-remains reachable, and the child-transaction routes add issued DC/R-ER financial service movements
-plus a separate Unpaid-to-Paid transition. Root-TK itinerary routes remain owner-only except for
-reasoned Admin/Master Admin/Super Admin cover. Flight Monitoring is intentionally shared across all
-agents but exposes only operational flight, passenger, contact, owner, and active schedule-case
-context. Any authorised Ticketing employee may mark a suspected time/flight-number change; only
-the responsible owner or reasoned Admin/Master Admin/Super Admin cover may review, dismiss, or
-finalise it. API mutation responses and the ledger never expose calculated commission, earnings,
-margin, or profit. See the [Ticketing API](../api/TICKETING.md).
+role; regular staff receive their own records and Admin/Master Admin/Super Admin receive the bounded
+team ledger. Quick TK creation is one retry-safe database operation, snapshots the chosen supplier,
+and performs duplicate confirmation and package-PNR matching atomically. The detail route lazily
+loads and atomically completes customer, journey, grouped sale/payment, and passenger-slot details
+with optimistic versions and retry-safe conflict handling. Posted sale values remain locked for
+staff; the same admin roles use a separate audited correction boundary.
+
+Staff request amendment or deletion through their own booking. Admins review the bounded request
+queue and perform the actual correction or archive. Archive is soft deletion, accepts no reason,
+and requires a fresh authenticator or backup code before the admin-only database operation runs.
+The exact-PNR booking route and child-transaction routes preserve owner and source-event rules.
+Root-TK itinerary routes remain owner-only except for reasoned admin cover.
+
+Flight Monitoring remains intentionally shared across agents but exposes only operational flight,
+passenger, contact, owner, schedule-case, and provider-observation context. AeroDataBox automation
+uses the daily cron bearer boundary, applies the configured weekly and final-check cadence, records
+every API unit, respects monthly/per-run limits, and never mutates an itinerary automatically. Only
+the admin settings endpoint may enable or tune it; the API key stays in the server environment.
+Ticketing responses never expose calculated commission, earnings, margin, or profit. See the
+[Ticketing API](../api/TICKETING.md).
 
 ## Frappe, HR, training, and dashboard services
 

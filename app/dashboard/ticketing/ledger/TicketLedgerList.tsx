@@ -11,7 +11,7 @@ import {
   UserRoundCog,
   Trash2,
 } from 'lucide-react'
-import type { TicketLedgerItem, TicketPassengerType } from './types'
+import type { TicketChangeRequestType, TicketLedgerItem, TicketPassengerType } from './types'
 
 const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'YTH', 'CHD', 'INF']
 
@@ -98,6 +98,7 @@ export function TicketLedgerList({
   canManageAttribution,
   onCorrectAttribution,
   onArchive,
+  onRequestChange,
 }: {
   items: TicketLedgerItem[]
   timezone: string
@@ -109,6 +110,7 @@ export function TicketLedgerList({
   canManageAttribution: boolean
   onCorrectAttribution: (item: TicketLedgerItem) => void
   onArchive: (item: TicketLedgerItem) => void
+  onRequestChange: (item: TicketLedgerItem, requestType: TicketChangeRequestType) => void
 }) {
   if (items.length === 0) {
     return (
@@ -166,6 +168,11 @@ export function TicketLedgerList({
                   <p className="mt-0.5 text-xs font-bold text-slate-500">
                     {item.airline.iataCode} · {item.airline.name}
                   </p>
+                  {item.supplier && (
+                    <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                      Supplier: {item.supplier.name}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -254,23 +261,31 @@ export function TicketLedgerList({
                     {isResponsibleEmployee ? (
                       <button
                         type="button"
-                        onClick={() => onComplete(item)}
-                        aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr}`}
+                        onClick={() =>
+                          item.detailsStatus === 'complete' && !canManageAttribution
+                            ? onRequestChange(item, 'amendment')
+                            : onComplete(item)
+                        }
+                        aria-label={`${item.detailsStatus === 'complete' && !canManageAttribution ? 'Request amendment to' : item.detailsStatus === 'complete' ? 'Edit' : 'Complete'} details for ${item.pnr}`}
                         className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
                       >
                         <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-                        {item.detailsStatus === 'complete' ? 'Edit details' : 'Complete details'}
+                        {item.detailsStatus === 'complete' && !canManageAttribution
+                          ? 'Request amendment'
+                          : item.detailsStatus === 'complete'
+                            ? 'Edit details'
+                            : 'Complete details'}
                       </button>
                     ) : canManageAttribution ? (
                       <button
                         type="button"
                         onClick={() => onComplete(item)}
-                        aria-label={`${item.detailsStatus === 'complete' ? 'View' : 'Complete'} details for ${item.pnr} on behalf of ${item.responsibleEmployee.fullName}`}
+                        aria-label={`${item.detailsStatus === 'complete' ? 'Edit' : 'Complete'} details for ${item.pnr} on behalf of ${item.responsibleEmployee.fullName}`}
                         className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 hover:bg-violet-100"
                       >
                         <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
                         {item.detailsStatus === 'complete'
-                          ? 'View on behalf'
+                          ? 'Edit on behalf'
                           : 'Complete on behalf'}
                       </button>
                     ) : (
@@ -303,12 +318,14 @@ export function TicketLedgerList({
                     {(isResponsibleEmployee || canManageAttribution) && (
                       <button
                         type="button"
-                        onClick={() => onArchive(item)}
-                        aria-label={`Delete ticket ${item.pnr}`}
+                        onClick={() =>
+                          canManageAttribution ? onArchive(item) : onRequestChange(item, 'deletion')
+                        }
+                        aria-label={`${canManageAttribution ? 'Delete' : 'Request deletion of'} ticket ${item.pnr}`}
                         className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-800 hover:bg-red-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Delete
+                        {canManageAttribution ? 'Delete' : 'Request deletion'}
                       </button>
                     )}
                   </>

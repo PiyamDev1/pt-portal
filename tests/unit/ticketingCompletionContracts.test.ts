@@ -47,6 +47,20 @@ describe('Ticketing completion contracts', () => {
     expect(parsed.onBehalfReason).toBeNull()
   })
 
+  it('accepts all four passenger fare groups including Youth', () => {
+    const parsed = ticketingCompleteTkDetailsSchema.parse({
+      ...validDetails(),
+      fareSales: [
+        { passengerType: 'ADT', unitSalePrice: 525.5 },
+        { passengerType: 'YTH', unitSalePrice: 475 },
+        { passengerType: 'CHD', unitSalePrice: 410 },
+        { passengerType: 'INF', unitSalePrice: 75 },
+      ],
+    })
+
+    expect(parsed.fareSales.map((fare) => fare.passengerType)).toEqual(['ADT', 'YTH', 'CHD', 'INF'])
+  })
+
   it('accepts a bounded on-behalf reason without accepting identity fields', () => {
     const parsed = ticketingCompleteTkDetailsSchema.parse({
       ...validDetails(),

@@ -11,6 +11,7 @@ import type {
   TicketAirlineOption,
   TicketAttributionEmployee,
   TicketPassengerType,
+  TicketSupplierCode,
 } from './types'
 
 const PASSENGER_TYPES: TicketPassengerType[] = ['ADT', 'YTH', 'CHD', 'INF']
@@ -25,6 +26,7 @@ type QuickEntryDraft = {
   customerName: string
   pnr: string
   airlineCode: string
+  supplierCode: TicketSupplierCode
   operationalStatus: 'held' | 'issued'
   bookingDate: string
   timeLimitAt: string
@@ -62,6 +64,7 @@ function initialDraft(
     customerName: '',
     pnr: '',
     airlineCode,
+    supplierCode: 'sabre_polani',
     operationalStatus: 'issued',
     bookingDate: today,
     timeLimitAt: '',
@@ -256,6 +259,7 @@ export function TicketQuickEntryForm({
         customerName,
         pnr,
         airlineId: airline.id,
+        supplierCode: draft.supplierCode,
         serviceType: 'TK',
         operationalStatus: draft.operationalStatus,
         bookingDate: draft.bookingDate,
@@ -304,9 +308,15 @@ export function TicketQuickEntryForm({
   }
 
   const handleFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== 'Escape' || isSaving || duplicate) return
-    event.preventDefault()
-    reset()
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault()
+      if (!isSaving && !duplicate) event.currentTarget.requestSubmit()
+      return
+    }
+    if (event.key === 'Escape' && !isSaving && !duplicate) {
+      event.preventDefault()
+      reset()
+    }
   }
 
   return (
@@ -324,7 +334,7 @@ export function TicketQuickEntryForm({
             </p>
             <h2 className="mt-1 text-lg font-black text-slate-950">New TK ticket</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Tab through the row, press Enter to save, or Escape to clear.
+              Tab through the row, press Ctrl/⌘ + Enter to save, or Escape to clear.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-wide">
@@ -349,7 +359,7 @@ export function TicketQuickEntryForm({
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-8">
             <label className="text-xs font-bold text-slate-700 sm:col-span-2 xl:col-span-2">
               Customer / lead passenger
               <input
@@ -423,6 +433,36 @@ export function TicketQuickEntryForm({
             </div>
 
             <label className="text-xs font-bold text-slate-700">
+              Supplier
+              <select
+                value={draft.supplierCode}
+                onChange={(event) =>
+                  updateDraft((current) => ({
+                    ...current,
+                    supplierCode: event.target.value as TicketSupplierCode,
+                  }))
+                }
+                disabled={isSaving}
+                aria-label="Ticket supplier"
+                className={fieldClass(false)}
+              >
+                <option value="sabre_polani">Sabre Polani</option>
+                <option value="amadeus_piyam">Amadeus Piyam</option>
+                <option value="sabre_bt">Sabre BT</option>
+                <option value="ptap">PTAP</option>
+                <option value="airline">Airline</option>
+              </select>
+              {draft.supplierCode === 'airline' && (
+                <span className="mt-1 block text-[11px] font-semibold text-sky-800">
+                  {airlines.find(
+                    (airline) =>
+                      airline.iataCode.toUpperCase() === draft.airlineCode.trim().toUpperCase(),
+                  )?.name || 'Choose the airline code to resolve its full name.'}
+                </span>
+              )}
+            </label>
+
+            <label className="text-xs font-bold text-slate-700">
               Ticket state
               <select
                 value={draft.operationalStatus}
@@ -494,6 +534,154 @@ export function TicketQuickEntryForm({
               </label>
             )}
           </div>
+
+          <fieldset aria-describedby={errors.fares ? 'ticket-fares-error' : undefined}>
+            <legend className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+              Passenger mix and unit fare cost
+            </legend>
+            <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {PASSENGER_TYPES.map((passengerType) => {
+                const fare = draft.fares[passengerType]
+                const quantityError = errors[`fare.${passengerType}.quantity`]
+                const costError = errors[`fare.${passengerType}.unitSupplierCost`]
+                const saleError = errors[`fare.${passengerType}.unitSalePrice`]
+                const discountError = errors[`fare.${passengerType}.unitDiscount`]
+                const disabled = Number(fare.quantity) === 0
+                const fareErrorId = `ticket-${passengerType.toLowerCase()}-fare-error`
+                return (
+                  <div
+                    key={passengerType}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <p className="text-sm font-black text-slate-900">{passengerType}</p>
+                    <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Quantity
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={99}
+                          step={1}
+                          value={fare.quantity}
+                          disabled={isSaving}
+                          onChange={(event) =>
+                            updateDraft((current) => ({
+                              ...current,
+                              fares: {
+                                ...current.fares,
+                                [passengerType]: {
+                                  quantity: event.target.value,
+                                  unitSupplierCost:
+                                    Number(event.target.value) === 0
+                                      ? ''
+                                      : current.fares[passengerType].unitSupplierCost,
+                                  unitSalePrice:
+                                    Number(event.target.value) === 0
+                                      ? ''
+                                      : current.fares[passengerType].unitSalePrice,
+                                  unitDiscount:
+                                    Number(event.target.value) === 0
+                                      ? '0'
+                                      : current.fares[passengerType].unitDiscount,
+                                },
+                              },
+                            }))
+                          }
+                          aria-label={`${passengerType} quantity`}
+                          aria-invalid={Boolean(quantityError)}
+                          aria-describedby={quantityError ? fareErrorId : undefined}
+                          className={fieldClass(Boolean(quantityError))}
+                        />
+                      </label>
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Unit fare cost (£)
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={fare.unitSupplierCost}
+                          disabled={disabled || isSaving}
+                          onChange={(event) =>
+                            updateDraft((current) => ({
+                              ...current,
+                              fares: {
+                                ...current.fares,
+                                [passengerType]: {
+                                  ...current.fares[passengerType],
+                                  unitSupplierCost: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          aria-label={`${passengerType} unit fare cost`}
+                          aria-invalid={Boolean(costError)}
+                          aria-describedby={costError ? fareErrorId : undefined}
+                          className={`${fieldClass(Boolean(costError))} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
+                          placeholder={disabled ? 'Not used' : '0.00'}
+                        />
+                      </label>
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Sale price (£)
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={fare.unitSalePrice}
+                          disabled={disabled || isSaving}
+                          onChange={(event) =>
+                            updateDraft((current) => ({
+                              ...current,
+                              fares: {
+                                ...current.fares,
+                                [passengerType]: {
+                                  ...current.fares[passengerType],
+                                  unitSalePrice: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          aria-label={`${passengerType} unit sale price`}
+                          aria-invalid={Boolean(saleError)}
+                          className={fieldClass(Boolean(saleError))}
+                          placeholder={disabled ? 'Not used' : '0.00'}
+                        />
+                      </label>
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Discount (£)
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={fare.unitDiscount}
+                          disabled={disabled || isSaving}
+                          onChange={(event) =>
+                            updateDraft((current) => ({
+                              ...current,
+                              fares: {
+                                ...current.fares,
+                                [passengerType]: {
+                                  ...current.fares[passengerType],
+                                  unitDiscount: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          aria-label={`${passengerType} unit discount`}
+                          aria-invalid={Boolean(discountError)}
+                          className={fieldClass(Boolean(discountError))}
+                          placeholder="0.00"
+                        />
+                      </label>
+                    </div>
+                    {(quantityError || costError || saleError || discountError) && (
+                      <p id={fareErrorId} className="mt-2 text-xs font-semibold text-red-700">
+                        {quantityError || costError || saleError || discountError}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <FieldError id="ticket-fares-error" message={errors.fares} />
+          </fieldset>
 
           <fieldset className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
             <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-sky-900">
@@ -647,154 +835,6 @@ export function TicketQuickEntryForm({
             )}
           </fieldset>
 
-          <fieldset aria-describedby={errors.fares ? 'ticket-fares-error' : undefined}>
-            <legend className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-              Passenger mix and unit fare cost
-            </legend>
-            <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {PASSENGER_TYPES.map((passengerType) => {
-                const fare = draft.fares[passengerType]
-                const quantityError = errors[`fare.${passengerType}.quantity`]
-                const costError = errors[`fare.${passengerType}.unitSupplierCost`]
-                const saleError = errors[`fare.${passengerType}.unitSalePrice`]
-                const discountError = errors[`fare.${passengerType}.unitDiscount`]
-                const disabled = Number(fare.quantity) === 0
-                const fareErrorId = `ticket-${passengerType.toLowerCase()}-fare-error`
-                return (
-                  <div
-                    key={passengerType}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <p className="text-sm font-black text-slate-900">{passengerType}</p>
-                    <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
-                      <label className="text-[11px] font-bold text-slate-600">
-                        Quantity
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={99}
-                          step={1}
-                          value={fare.quantity}
-                          disabled={isSaving}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              fares: {
-                                ...current.fares,
-                                [passengerType]: {
-                                  quantity: event.target.value,
-                                  unitSupplierCost:
-                                    Number(event.target.value) === 0
-                                      ? ''
-                                      : current.fares[passengerType].unitSupplierCost,
-                                  unitSalePrice:
-                                    Number(event.target.value) === 0
-                                      ? ''
-                                      : current.fares[passengerType].unitSalePrice,
-                                  unitDiscount:
-                                    Number(event.target.value) === 0
-                                      ? '0'
-                                      : current.fares[passengerType].unitDiscount,
-                                },
-                              },
-                            }))
-                          }
-                          aria-label={`${passengerType} quantity`}
-                          aria-invalid={Boolean(quantityError)}
-                          aria-describedby={quantityError ? fareErrorId : undefined}
-                          className={fieldClass(Boolean(quantityError))}
-                        />
-                      </label>
-                      <label className="text-[11px] font-bold text-slate-600">
-                        Unit fare cost (£)
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={fare.unitSupplierCost}
-                          disabled={disabled || isSaving}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              fares: {
-                                ...current.fares,
-                                [passengerType]: {
-                                  ...current.fares[passengerType],
-                                  unitSupplierCost: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                          aria-label={`${passengerType} unit fare cost`}
-                          aria-invalid={Boolean(costError)}
-                          aria-describedby={costError ? fareErrorId : undefined}
-                          className={`${fieldClass(Boolean(costError))} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
-                          placeholder={disabled ? 'Not used' : '0.00'}
-                        />
-                      </label>
-                      <label className="text-[11px] font-bold text-slate-600">
-                        Sale price (£)
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={fare.unitSalePrice}
-                          disabled={disabled || isSaving}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              fares: {
-                                ...current.fares,
-                                [passengerType]: {
-                                  ...current.fares[passengerType],
-                                  unitSalePrice: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                          aria-label={`${passengerType} unit sale price`}
-                          aria-invalid={Boolean(saleError)}
-                          className={fieldClass(Boolean(saleError))}
-                          placeholder={disabled ? 'Not used' : '0.00'}
-                        />
-                      </label>
-                      <label className="text-[11px] font-bold text-slate-600">
-                        Discount (£)
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={fare.unitDiscount}
-                          disabled={disabled || isSaving}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              fares: {
-                                ...current.fares,
-                                [passengerType]: {
-                                  ...current.fares[passengerType],
-                                  unitDiscount: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                          aria-label={`${passengerType} unit discount`}
-                          aria-invalid={Boolean(discountError)}
-                          className={fieldClass(Boolean(discountError))}
-                          placeholder="0.00"
-                        />
-                      </label>
-                    </div>
-                    {(quantityError || costError || saleError || discountError) && (
-                      <p id={fareErrorId} className="mt-2 text-xs font-semibold text-red-700">
-                        {quantityError || costError || saleError || discountError}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <FieldError id="ticket-fares-error" message={errors.fares} />
-          </fieldset>
-
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
@@ -814,11 +854,15 @@ export function TicketQuickEntryForm({
               </button>
               <button
                 type="submit"
+                aria-label={isSaving ? 'Saving TK' : 'Save TK'}
                 disabled={isSaving || airlines.length === 0}
                 className="ui-tap ui-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-5 text-sm font-black text-white shadow-sm hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
               >
                 <Save className="h-4 w-4" aria-hidden="true" />
                 {isSaving ? 'Saving…' : 'Save TK'}
+                {!isSaving && (
+                  <span className="hidden text-[10px] opacity-75 sm:inline">⌘/Ctrl ↵</span>
+                )}
               </button>
             </div>
           </div>

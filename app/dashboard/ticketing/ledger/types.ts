@@ -17,6 +17,13 @@ export type TicketAirlineOption = {
   name: string
 }
 
+export type TicketSupplierCode = 'sabre_polani' | 'amadeus_piyam' | 'sabre_bt' | 'ptap' | 'airline'
+
+export type TicketSupplier = {
+  code: TicketSupplierCode | 'unknown'
+  name: string
+}
+
 export type TicketAttributionEmployee = TicketingAttributionEmployee
 
 export type TicketLedgerFare = {
@@ -36,6 +43,7 @@ export type TicketLedgerItem = {
   pnr: string
   customerName: string
   airline: TicketAirlineOption
+  supplier?: TicketSupplier
   serviceType: 'TK' | 'DC' | 'R-ER'
   operationalStatus: string
   paymentStatus: string
@@ -58,6 +66,7 @@ export type TicketLedgerContext = {
   locationName: string | null
   timezone: string
   canManageAttribution: boolean
+  canManageRecords: boolean
   attributionEmployees: TicketAttributionEmployee[]
 }
 
@@ -80,6 +89,7 @@ export type CreateTkTicketInput = {
   customerName: string
   pnr: string
   airlineId: string
+  supplierCode: TicketSupplierCode
   serviceType: 'TK'
   operationalStatus: 'held' | 'issued'
   bookingDate: string
@@ -178,6 +188,20 @@ export type TicketCompletionContext = {
   ownerEmployee: TicketAttributionEmployee
   isOnBehalf: boolean
   onBehalfReasonRequired: boolean
+  canManageRecords: boolean
+}
+
+export type TicketChangeRequestType = 'amendment' | 'deletion'
+
+export type TicketChangeRequest = {
+  id: string
+  bookingId: string
+  pnr: string
+  customerName: string
+  requestType: TicketChangeRequestType
+  requestNotes: string | null
+  createdAt: string
+  requestedBy: TicketAttributionEmployee
 }
 
 export type TicketCompletionLoadResult = {

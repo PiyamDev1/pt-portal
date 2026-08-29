@@ -9,6 +9,8 @@
     "url": "https://github.com/PiyamDev1/pt-portal"
   },
   "scripts": {
+    "ticketing:import-airports": "node scripts/import-ticketing-airports.mjs",
+    "ticketing:import-airlines": "node scripts/import-ticketing-airlines.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -76,6 +78,7 @@
     "prettier": "^3.8.1",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0",
+    "tz-lookup": "^6.1.25",
     "vitest": "^4.1.0"
   }
 }

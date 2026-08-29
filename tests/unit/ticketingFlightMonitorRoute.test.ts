@@ -18,12 +18,14 @@ const mocks = vi.hoisted(() => {
     sectors: Result
     airports: Result
     changes: Result
+    providerChecks: Result
   } = {
     capability: {},
     counts: [],
     sectors: {},
     airports: {},
     changes: {},
+    providerChecks: {},
   }
 
   function query(result: () => Result) {
@@ -43,6 +45,7 @@ const mocks = vi.hoisted(() => {
   let listQuery = query(() => state.sectors)
   let airportQuery = query(() => state.airports)
   let changeQuery = query(() => state.changes)
+  let providerCheckQuery = query(() => state.providerChecks)
 
   const from = vi.fn((table: string) => {
     if (table === 'ticket_itinerary_sectors') {
@@ -58,6 +61,7 @@ const mocks = vi.hoisted(() => {
     }
     if (table === 'ticket_airports') return airportQuery
     if (table === 'ticket_active_schedule_changes') return changeQuery
+    if (table === 'ticket_flight_api_sector_state') return providerCheckQuery
     throw new Error(`Unexpected table: ${table}`)
   })
   const rpc = vi.fn(async (name: string) => {
@@ -71,6 +75,7 @@ const mocks = vi.hoisted(() => {
     listQuery = query(() => state.sectors)
     airportQuery = query(() => state.airports)
     changeQuery = query(() => state.changes)
+    providerCheckQuery = query(() => state.providerChecks)
   }
 
   return {
@@ -86,6 +91,9 @@ const mocks = vi.hoisted(() => {
     },
     get changeQuery() {
       return changeQuery
+    },
+    get providerCheckQuery() {
+      return providerCheckQuery
     },
     from,
     rpc,
@@ -238,7 +246,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082701 },
+      data: { ready: true, version: 2026082802 },
       error: null,
     }
     mocks.state.counts = [
@@ -255,6 +263,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
       error: null,
     }
     mocks.state.changes = { data: [], error: null }
+    mocks.state.providerChecks = { data: [], error: null }
   })
 
   it('authenticates before rate limiting or service-role access', async () => {
@@ -303,6 +312,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
           arrivalLocal: null,
           arrivalAtUtc: null,
           scheduleStatus: 'on_schedule',
+          providerCheck: null,
           activeScheduleChange: null,
           allowedScheduleActions: ['mark'],
         },
@@ -470,7 +480,7 @@ describe('GET /api/ticketing/flight-monitor', () => {
     mocks.state.capability = { data: { ready: true, version: 2026082602 }, error: null }
     expect((await GET(request())).status).toBe(503)
 
-    mocks.state.capability = { data: { ready: true, version: 2026082701 }, error: null }
+    mocks.state.capability = { data: { ready: true, version: 2026082802 }, error: null }
     mocks.resetQueries()
     mocks.state.counts = [
       { count: null, error: { code: 'DB_ERROR', message: 'private data' } },

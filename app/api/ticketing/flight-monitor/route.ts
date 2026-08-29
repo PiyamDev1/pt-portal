@@ -6,6 +6,7 @@ import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import {
   TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION,
   TICKET_SCHEDULE_STATUSES,
@@ -146,6 +147,14 @@ type ActiveScheduleChangeRow = {
   reviewed_by_employee_name: string | null
   reviewed_at: string | null
   review_reason: string | null
+}
+
+type ProviderCheckRow = {
+  sector_id: string
+  last_checked_at: string | null
+  last_check_status: 'matched' | 'change_detected' | 'not_found' | 'failed' | null
+  last_provider_status: string | null
+  schedule_change_detected_at: string | null
 }
 
 function privateError(message: string, status: number, extra: Record<string, unknown> = {}) {
@@ -465,6 +474,7 @@ function monitorItemFromRow(
     arrivalLocal: arrivalLocal?.success ? arrivalLocal.data : null,
     arrivalAtUtc: row.arrival_at_utc,
     scheduleStatus,
+    providerCheck: null,
     activeScheduleChange: null,
     allowedScheduleActions: [],
   }
@@ -527,7 +537,13 @@ export async function GET(request: NextRequest) {
   const { data: capability, error: capabilityError } = await supabase.rpc('ticketing_schema_status')
   if (
     capabilityError ||
-    !hasTicketingSchemaCapability(capability, TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION)
+    !hasTicketingSchemaCapability(
+      capability,
+      Math.max(
+        TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION,
+        TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION,
+      ),
+    )
   ) {
     return privateError('Ticketing flight monitoring is not installed on this database.', 503)
   }
@@ -656,6 +672,21 @@ export async function GET(request: NextRequest) {
     .filter((row) => row.schedule_status !== 'on_schedule')
     .map((row) => row.id)
   const activeChanges = new Map<string, TicketingActiveScheduleChange>()
+  const providerChecks = new Map<string, ProviderCheckRow>()
+  if (pageRows.length > 0) {
+    const { data: providerData, error: providerError } = await supabase
+      .from('ticket_flight_api_sector_state')
+      .select(
+        'sector_id, last_checked_at, last_check_status, last_provider_status, schedule_change_detected_at',
+      )
+      .in(
+        'sector_id',
+        pageRows.map((row) => row.id),
+      )
+    if (providerError) return privateError('Unable to load API monitoring state.', 500)
+    for (const row of (providerData || []) as ProviderCheckRow[])
+      providerChecks.set(row.sector_id, row)
+  }
   if (openSectorIds.length > 0) {
     const { data: changeData, error: changeError } = await supabase
       .from('ticket_active_schedule_changes')
@@ -701,6 +732,15 @@ export async function GET(request: NextRequest) {
             : ['finalise', 'dismiss']
     return {
       ...item,
+      providerCheck: providerChecks.has(item.sectorId)
+        ? {
+            checkedAt: providerChecks.get(item.sectorId)?.last_checked_at || null,
+            outcome: providerChecks.get(item.sectorId)?.last_check_status || null,
+            providerStatus: providerChecks.get(item.sectorId)?.last_provider_status || null,
+            scheduleChangeDetectedAt:
+              providerChecks.get(item.sectorId)?.schedule_change_detected_at || null,
+          }
+        : null,
       activeScheduleChange: activeChanges.get(item.sectorId) || null,
       allowedScheduleActions,
     }

@@ -11,16 +11,16 @@ export function TicketArchiveDialog({
   onClose,
   onArchived,
 }: {
-  item: TicketLedgerItem
+  item: Pick<TicketLedgerItem, 'bookingId' | 'pnr'>
   onClose: () => void
   onArchived: () => Promise<void>
 }) {
-  const [reason, setReason] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const value = reason.trim()
+    const value = verificationCode.trim()
     if (!value) return
     setIsSaving(true)
     try {
@@ -67,18 +67,21 @@ export function TicketArchiveDialog({
           </button>
         </div>
         <label className="mt-4 block text-xs font-bold text-slate-700">
-          Reason for deletion
-          <textarea
+          Authenticator or backup code
+          <input
             autoFocus
             required
-            maxLength={500}
-            rows={3}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            maxLength={100}
+            value={verificationCode}
+            onChange={(event) => setVerificationCode(event.target.value)}
             disabled={isSaving}
-            placeholder="For example: duplicate entry or incorrect PNR"
+            placeholder="6-digit code or backup code"
+            autoComplete="one-time-code"
             className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100"
           />
+          <span className="mt-1 block text-[11px] font-medium text-slate-500">
+            A deletion reason is not required. Your identity and the archived record are audited.
+          </span>
         </label>
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -91,7 +94,7 @@ export function TicketArchiveDialog({
           </button>
           <button
             type="submit"
-            disabled={isSaving || !reason.trim()}
+            disabled={isSaving || !verificationCode.trim()}
             className="ui-tap ui-focus inline-flex min-h-11 items-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-black text-white disabled:opacity-50"
           >
             <Archive className="h-4 w-4" aria-hidden="true" />

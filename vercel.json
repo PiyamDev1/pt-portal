@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/ticketing/time-limits",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/ticketing/flight-monitor",
+      "schedule": "30 5 * * *"
     }
   ]
 }

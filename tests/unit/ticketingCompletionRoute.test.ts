@@ -19,13 +19,16 @@ const mocks = vi.hoisted(() => {
   const state: {
     capability: { data: unknown; error: unknown }
     completion: { data: unknown; error: unknown }
+    saleCorrection: { data: unknown; error: unknown }
   } = {
     capability: { data: null, error: null },
     completion: { data: null, error: null },
+    saleCorrection: { data: null, error: null },
   }
   const rpc = vi.fn(async (functionName: string) => {
     if (functionName === 'ticketing_schema_status') return state.capability
     if (functionName === 'ticketing_complete_tk_details_authorized') return state.completion
+    if (functionName === 'ticketing_admin_correct_sale_prices') return state.saleCorrection
     throw new Error(`Unexpected RPC: ${functionName}`)
   })
   const from = vi.fn((table: string) => {
@@ -193,7 +196,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082403, requiredVersion: 2026082403 },
+      data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
       error: null,
     }
     mocks.state.completion = {
@@ -203,6 +206,10 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         changed: true,
         idempotentReplay: false,
       },
+      error: null,
+    }
+    mocks.state.saleCorrection = {
+      data: { bookingVersion: 4, transactionVersion: 8, idempotentReplay: false },
       error: null,
     }
     mocks.detailMaybeSingle.mockResolvedValue({ data: detailRow(), error: null })
@@ -247,6 +254,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       ownerEmployee: { id: ACTOR_ID, fullName: 'Ticketing Manager' },
       isOnBehalf: false,
       onBehalfReasonRequired: false,
+      canManageRecords: false,
     })
     expect(body.detail.passengers).toEqual([
       {
@@ -300,6 +308,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       ownerEmployee: { id: OWNER_ID, fullName: 'Staff member' },
       isOnBehalf: true,
       onBehalfReasonRequired: true,
+      canManageRecords: true,
     })
   })
 
@@ -400,7 +409,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
 
   it('accepts a singleton-array completion capability response', async () => {
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082403, requiredVersion: 2026082403 }],
+      data: [{ ready: true, version: 2026082802, requiredVersion: 2026082802 }],
       error: null,
     }
 
@@ -448,10 +457,9 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
   })
 
   it('passes only the verified actor, path booking, retry key, and strict details to one RPC', async () => {
-    mocks.detailMaybeSingle.mockResolvedValue({
-      data: detailRow({ complete: true }),
-      error: null,
-    })
+    mocks.detailMaybeSingle
+      .mockResolvedValueOnce({ data: detailRow(), error: null })
+      .mockResolvedValueOnce({ data: detailRow({ complete: true }), error: null })
 
     const response = await PATCH(patchRequest(validPatch(), 'save-details-1'), context())
     const body = await response.json()
@@ -471,6 +479,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         ownerEmployee: { id: ACTOR_ID, fullName: 'Ticketing Manager' },
         isOnBehalf: false,
         onBehalfReasonRequired: false,
+        canManageRecords: false,
       },
     })
     expect(JSON.stringify(body)).not.toMatch(/commission|profit/i)
@@ -525,7 +534,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     })
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082403, requiredVersion: 2026082403 },
+      data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
       error: null,
     }
     mocks.state.completion = {
@@ -561,8 +570,57 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       ownerEmployee: { id: OWNER_ID, fullName: 'Agent One' },
       isOnBehalf: true,
       onBehalfReasonRequired: true,
+      canManageRecords: true,
     })
     expect(JSON.stringify(body)).not.toMatch(/commission|profit|audit|sourceEvents/i)
+  })
+
+  it('lets an administrator correct a locked posted sale through the audited correction RPC', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'admin@example.test',
+        fullName: 'Portal Admin',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    mocks.detailMaybeSingle.mockResolvedValue({ data: detailRow({ complete: true }), error: null })
+
+    const response = await PATCH(
+      patchRequest(
+        {
+          ...validPatch(),
+          fareSales: [{ passengerType: 'ADT', unitSalePrice: 550 }],
+        },
+        'admin-price-1',
+      ),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_admin_correct_sale_prices', {
+      p_actor_employee_id: ACTOR_ID,
+      p_booking_id: BOOKING_ID,
+      p_expected_booking_version: 4,
+      p_expected_transaction_version: 7,
+      p_idempotency_key: 'sale:admin-price-1',
+      p_fare_sales: [{ passengerType: 'ADT', unitSalePrice: 550 }],
+    })
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_complete_tk_details_authorized', {
+      p_actor_employee_id: ACTOR_ID,
+      p_booking_id: BOOKING_ID,
+      p_idempotency_key: 'admin-price-1',
+      p_details: {
+        ...validPatch(),
+        expectedTransactionVersion: 8,
+        fareSales: [{ passengerType: 'ADT', unitSalePrice: 550 }],
+        onBehalfReason: null,
+      },
+    })
   })
 
   it('retries the exact committed payload after hydration failure and an ownership change', async () => {
@@ -625,6 +683,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         ownerEmployee: { id: ACTOR_ID, fullName: 'Portal Admin' },
         isOnBehalf: false,
         onBehalfReasonRequired: false,
+        canManageRecords: true,
       },
     })
     const completionCalls = mocks.rpc.mock.calls.filter(
@@ -669,7 +728,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     })
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082403, requiredVersion: 2026082403 },
+      data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
       error: null,
     }
     mocks.state.completion = {

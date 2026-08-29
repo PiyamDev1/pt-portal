@@ -711,16 +711,24 @@ export function TicketCompletionDrawer({
                               ),
                             }))
                           }
-                          disabled={fare.salePriceLocked || isSaving}
+                          disabled={
+                            (fare.salePriceLocked && !completionContext.canManageRecords) ||
+                            isSaving
+                          }
                           aria-label={`${fare.passengerType} unit sale price`}
                           aria-invalid={Boolean(error || errors.fareSales)}
                           aria-describedby={describedBy || undefined}
                           className={fieldClass(Boolean(error || errors.fareSales))}
                           placeholder="0.00"
                         />
-                        {fare.salePriceLocked && (
+                        {fare.salePriceLocked && !completionContext.canManageRecords && (
                           <span className="mt-1 block text-[10px] font-semibold text-slate-500">
-                            Recorded value is locked
+                            Locked — request an admin amendment
+                          </span>
+                        )}
+                        {fare.salePriceLocked && completionContext.canManageRecords && (
+                          <span className="mt-1 block text-[10px] font-semibold text-violet-700">
+                            Admin correction is audited
                           </span>
                         )}
                         <FieldError id={errorId} message={error} />

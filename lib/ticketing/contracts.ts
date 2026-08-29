@@ -6,9 +6,18 @@ import {
 } from '@/lib/ticketing/attributionContracts'
 
 export const TICKET_PASSENGER_TYPES = ['ADT', 'YTH', 'CHD', 'INF'] as const
-export const TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION = 2026082801
+export const TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION = 2026082802
+export const TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION =
+  TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION
 export const TICKET_QUICK_ENTRY_STATUSES = ['held', 'issued'] as const
 export const TICKET_DETAILS_STATUSES = ['needs_details', 'complete', 'recorded'] as const
+export const TICKET_SUPPLIER_CODES = [
+  'sabre_polani',
+  'amadeus_piyam',
+  'sabre_bt',
+  'ptap',
+  'airline',
+] as const
 
 function isIsoCalendarDate(value: string) {
   const [year, month, day] = value.split('-').map(Number)
@@ -77,6 +86,7 @@ export const ticketingQuickTkSchema = z
     customerName: z.string().trim().min(1).max(200).transform(normalizeTicketingCustomerName),
     pnr: z.string().trim().min(1).max(20),
     airlineId: z.string().uuid(),
+    supplierCode: z.enum(TICKET_SUPPLIER_CODES).default('sabre_polani'),
     serviceType: z.literal('TK'),
     operationalStatus: z.enum(TICKET_QUICK_ENTRY_STATUSES),
     bookingDate: isoDateSchema,
@@ -179,6 +189,13 @@ export type TicketingAirlineOption = {
   name: string
 }
 
+export type TicketingSupplierCode = (typeof TICKET_SUPPLIER_CODES)[number]
+
+export type TicketingSupplier = {
+  code: TicketingSupplierCode | 'unknown'
+  name: string
+}
+
 export type TicketingLedgerFare = {
   passengerType: (typeof TICKET_PASSENGER_TYPES)[number]
   quantity: number
@@ -196,6 +213,7 @@ export type TicketingLedgerItem = {
   pnr: string
   customerName: string
   airline: TicketingAirlineOption
+  supplier: TicketingSupplier
   serviceType: 'TK' | 'DC' | 'R-ER'
   operationalStatus: string
   paymentStatus: string
@@ -222,6 +240,7 @@ export type TicketingLedgerResponse = {
     locationName: string | null
     timezone: string
     canManageAttribution: boolean
+    canManageRecords: boolean
     attributionEmployees: TicketingAttributionEmployee[]
   }
 }

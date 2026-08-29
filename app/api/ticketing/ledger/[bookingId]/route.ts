@@ -16,9 +16,13 @@ import {
   type TicketingCompletionPassenger,
 } from '@/lib/ticketing/completionContracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
+import { TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_COMPLETION_VERSION = TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION
+const TICKETING_COMPLETION_VERSION = Math.max(
+  TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION,
+  TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION,
+)
 const POSTED_OPERATIONAL_STATUSES = new Set(['issued', 'cancelled', 'part_refunded', 'refunded'])
 
 type Related<T> = T | T[] | null
@@ -121,12 +125,14 @@ function canCompleteTicketOnBehalf(role: string) {
 function completionContext(
   detail: TicketingCompletionDetail,
   actorEmployeeId: string,
+  canManageRecords: boolean,
 ): TicketingCompletionContext {
   const isOnBehalf = detail.responsibleEmployee.id !== actorEmployeeId
   return {
     ownerEmployee: detail.responsibleEmployee,
     isOnBehalf,
     onBehalfReasonRequired: isOnBehalf,
+    canManageRecords,
   }
 }
 
@@ -154,8 +160,9 @@ function branchDate(value: string | null, timezone: string) {
 
 function fareOrder(passengerType: FareRow['passenger_type']) {
   if (passengerType === 'ADT') return 0
-  if (passengerType === 'CHD') return 1
-  return 2
+  if (passengerType === 'YTH') return 1
+  if (passengerType === 'CHD') return 2
+  return 3
 }
 
 function mappedPassengers(
@@ -428,7 +435,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   if (!detail) return privateError('Ticket record not found.', 404)
 
   return apiOk(
-    { detail, completionContext: completionContext(detail, access.employee.id) },
+    {
+      detail,
+      completionContext: completionContext(
+        detail,
+        access.employee.id,
+        canCompleteTicketOnBehalf(access.employee.role),
+      ),
+    },
     PRIVATE_RESPONSE,
   )
 }
@@ -475,11 +489,64 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (initial.error) return privateError('Unable to load the ticket details right now.', 500)
   if (!initial.detail) return privateError('Ticket record not found.', 404)
 
+  if (!allowAdminOnBehalf && initial.detail.detailsStatus === 'complete') {
+    return privateError(
+      'This recorded ticket is locked. Request an amendment for an administrator to make the change.',
+      403,
+      { code: 'AMENDMENT_REQUEST_REQUIRED' },
+    )
+  }
+
+  let completionDetails = details
+  let saleCorrected = false
+  const lockedSaleChanged = initial.detail.fares.some((fare) => {
+    if (!fare.salePriceLocked) return false
+    const incoming = details.fareSales.find(
+      (candidate) => candidate.passengerType === fare.passengerType,
+    )
+    return incoming?.unitSalePrice !== fare.unitSalePrice
+  })
+  if (lockedSaleChanged) {
+    if (!allowAdminOnBehalf) {
+      return privateError('Only an administrator can amend a recorded sale price.', 403, {
+        code: 'AMENDMENT_REQUEST_REQUIRED',
+      })
+    }
+    if (details.fareSales.some((fare) => fare.unitSalePrice === null)) {
+      return privateError('Recorded sale prices cannot be cleared.', 400)
+    }
+    const { data: correction, error: correctionError } = await supabase.rpc(
+      'ticketing_admin_correct_sale_prices',
+      {
+        p_actor_employee_id: access.employee.id,
+        p_booking_id: parsedBookingId.data,
+        p_expected_booking_version: details.expectedBookingVersion,
+        p_expected_transaction_version: details.expectedTransactionVersion,
+        p_idempotency_key: `sale:${idempotencyKey}`,
+        p_fare_sales: details.fareSales,
+      },
+    )
+    if (correctionError) return completionError(correctionError)
+    const corrected = correction as unknown as {
+      bookingVersion?: number
+      transactionVersion?: number
+    } | null
+    if (!corrected?.bookingVersion || !corrected.transactionVersion) {
+      return privateError('Ticketing returned an invalid sale correction result.', 500)
+    }
+    completionDetails = {
+      ...details,
+      expectedBookingVersion: Number(corrected.bookingVersion),
+      expectedTransactionVersion: Number(corrected.transactionVersion),
+    }
+    saleCorrected = true
+  }
+
   const { data, error } = await supabase.rpc('ticketing_complete_tk_details_authorized', {
     p_actor_employee_id: access.employee.id,
     p_booking_id: parsedBookingId.data,
     p_idempotency_key: idempotencyKey,
-    p_details: details,
+    p_details: completionDetails,
   })
   if (error) return completionError(error)
 
@@ -507,8 +574,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   return apiOk(
     {
       detail: loaded.detail,
-      completionContext: completionContext(loaded.detail, access.employee.id),
-      changed: result.changed === true,
+      completionContext: completionContext(loaded.detail, access.employee.id, allowAdminOnBehalf),
+      changed: result.changed === true || saleCorrected,
       idempotentReplay: result.idempotentReplay === true,
     },
     PRIVATE_RESPONSE,

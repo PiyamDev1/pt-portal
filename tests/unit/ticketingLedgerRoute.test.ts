@@ -147,7 +147,7 @@ describe('/api/ticketing/ledger', () => {
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026082801, requiredVersion: 2026082801 },
+          data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
           error: null,
         }
       }
@@ -206,6 +206,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            supplier_code: 'sabre_polani',
+            supplier_name: 'Sabre Polani',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
@@ -318,6 +320,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            supplier_code: 'sabre_polani',
+            supplier_name: 'Sabre Polani',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
@@ -452,6 +456,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: '2026-09-01',
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            supplier_code: 'sabre_polani',
+            supplier_name: 'Sabre Polani',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
@@ -520,6 +526,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            supplier_code: 'sabre_polani',
+            supplier_name: 'Sabre Polani',
             archived_at: null,
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
@@ -658,7 +666,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_create_quick_tk_priced',
+      'ticketing_create_quick_tk_supplied',
       expect.objectContaining({
         p_entry: expect.objectContaining({
           fares: [
@@ -681,7 +689,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(body.bookingId).toBe('booking-1')
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_priced', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_supplied', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'save-click-1',
       p_entry: expect.objectContaining({
@@ -711,7 +719,7 @@ describe('/api/ticketing/ledger', () => {
     )
 
     expect(response.status).toBe(201)
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_priced', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_supplied', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'agent-assistance-1',
       p_entry: expect.objectContaining({
@@ -771,7 +779,7 @@ describe('/api/ticketing/ledger', () => {
     const response = await POST(postRequest(override, 'admin-cover-1'))
 
     expect(response.status).toBe(201)
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_priced', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_supplied', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'admin-cover-1',
       p_entry: expect.objectContaining({
@@ -922,7 +930,7 @@ describe('/api/ticketing/ledger', () => {
 
   it('accepts a singleton array from the schema status RPC', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: [{ ready: true, version: 2026082801, requiredVersion: 2026082801 }],
+      data: [{ ready: true, version: 2026082802, requiredVersion: 2026082802 }],
       error: null,
     })
 

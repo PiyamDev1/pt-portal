@@ -498,6 +498,17 @@ export function FlightMonitoringPanel() {
                   >
                     {titleCase(item.scheduleStatus)}
                   </span>
+                  {item.providerCheck?.outcome === 'change_detected' && (
+                    <span className="mt-1 inline-flex w-fit rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-800 ring-1 ring-orange-200">
+                      API change detected
+                    </span>
+                  )}
+                  {item.providerCheck?.checkedAt && (
+                    <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                      API checked{' '}
+                      {new Date(item.providerCheck.checkedAt).toLocaleDateString('en-GB')}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(item.allowedScheduleActions || []).length === 0 ? (

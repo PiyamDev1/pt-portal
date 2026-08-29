@@ -36,6 +36,7 @@ import { GET as dispatchFrappeOutbox } from '@/app/api/cron/integrations/frappe/
 import { GET as backfillFrappeAttendance } from '@/app/api/cron/integrations/frappe/timeclock-attendance/route'
 import { GET as cleanupIssueReports } from '@/app/api/cron/issue-reports/cleanup/route'
 import { GET as cleanupPassportDrafts } from '@/app/api/cron/passports/pak/drafts-cleanup/route'
+import { GET as monitorTicketingFlights } from '@/app/api/cron/ticketing/flight-monitor/route'
 import { GET as processTicketingTimeLimits } from '@/app/api/cron/ticketing/time-limits/route'
 
 describe('cron route authorization wiring', () => {
@@ -50,6 +51,7 @@ describe('cron route authorization wiring', () => {
       backfillFrappeAttendance,
       cleanupIssueReports,
       cleanupPassportDrafts,
+      monitorTicketingFlights,
       processTicketingTimeLimits,
     ]
 

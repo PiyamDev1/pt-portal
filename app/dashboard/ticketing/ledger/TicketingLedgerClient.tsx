@@ -10,8 +10,19 @@ import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
 import { TicketAttributionDialog } from './TicketAttributionDialog'
 import { TicketItineraryDrawer } from './TicketItineraryDrawer'
 import { TicketArchiveDialog } from './TicketArchiveDialog'
-import { loadTicketLedger, TicketLedgerApiError } from './ledgerClientApi'
-import type { TicketLedgerItem, TicketLedgerPayload } from './types'
+import { TicketChangeRequestDialog } from './TicketChangeRequestDialog'
+import { TicketChangeRequestsPanel } from './TicketChangeRequestsPanel'
+import {
+  loadTicketLedger,
+  reviewTicketChangeRequest,
+  TicketLedgerApiError,
+} from './ledgerClientApi'
+import type {
+  TicketChangeRequest,
+  TicketChangeRequestType,
+  TicketLedgerItem,
+  TicketLedgerPayload,
+} from './types'
 
 export function TicketingLedgerClient() {
   const [payload, setPayload] = useState<TicketLedgerPayload | null>(null)
@@ -29,7 +40,16 @@ export function TicketingLedgerClient() {
   const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
     null,
   )
-  const [selectedArchiveItem, setSelectedArchiveItem] = useState<TicketLedgerItem | null>(null)
+  const [selectedArchiveItem, setSelectedArchiveItem] = useState<Pick<
+    TicketLedgerItem,
+    'bookingId' | 'pnr'
+  > | null>(null)
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState<{
+    item: Pick<TicketLedgerItem, 'bookingId' | 'pnr'>
+    requestType: TicketChangeRequestType
+  } | null>(null)
+  const [activeAmendmentRequestId, setActiveAmendmentRequestId] = useState<string | null>(null)
+  const [requestRefreshToken, setRequestRefreshToken] = useState(0)
   const [entryType, setEntryType] = useState<'TK' | 'DC' | 'R-ER'>('TK')
 
   const refresh = useCallback(
@@ -211,6 +231,19 @@ export function TicketingLedgerClient() {
         )}
       </section>
 
+      {payload.context.canManageRecords && (
+        <TicketChangeRequestsPanel
+          refreshToken={requestRefreshToken}
+          onAmend={(request: TicketChangeRequest) => {
+            setActiveAmendmentRequestId(request.id)
+            setSelectedBookingId(request.bookingId)
+          }}
+          onDelete={(request: TicketChangeRequest) =>
+            setSelectedArchiveItem({ bookingId: request.bookingId, pnr: request.pnr })
+          }
+        />
+      )}
+
       <section aria-labelledby="my-ticket-records-title" className="space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -294,6 +327,7 @@ export function TicketingLedgerClient() {
           canManageAttribution={payload.context.canManageAttribution}
           onCorrectAttribution={setSelectedAttributionItem}
           onArchive={setSelectedArchiveItem}
+          onRequestChange={(item, requestType) => setSelectedChangeRequest({ item, requestType })}
         />
 
         {nextCursor && (
@@ -311,8 +345,18 @@ export function TicketingLedgerClient() {
       <TicketCompletionDrawer
         bookingId={selectedBookingId}
         timezone={payload.context.timezone}
-        onClose={() => setSelectedBookingId(null)}
-        onSaved={() => refresh()}
+        onClose={() => {
+          setSelectedBookingId(null)
+          setActiveAmendmentRequestId(null)
+        }}
+        onSaved={async () => {
+          if (activeAmendmentRequestId) {
+            await reviewTicketChangeRequest(activeAmendmentRequestId, 'fulfilled')
+            setActiveAmendmentRequestId(null)
+            setRequestRefreshToken((current) => current + 1)
+          }
+          await refresh()
+        }}
       />
 
       <TicketItineraryDrawer
@@ -347,7 +391,23 @@ export function TicketingLedgerClient() {
           key={selectedArchiveItem.bookingId}
           item={selectedArchiveItem}
           onClose={() => setSelectedArchiveItem(null)}
-          onArchived={() => refresh()}
+          onArchived={async () => {
+            setRequestRefreshToken((current) => current + 1)
+            await refresh()
+          }}
+        />
+      )}
+
+      {selectedChangeRequest && (
+        <TicketChangeRequestDialog
+          key={`${selectedChangeRequest.item.bookingId}:${selectedChangeRequest.requestType}`}
+          item={selectedChangeRequest.item}
+          requestType={selectedChangeRequest.requestType}
+          onClose={() => setSelectedChangeRequest(null)}
+          onRequested={async () => {
+            setRequestRefreshToken((current) => current + 1)
+            await refresh()
+          }}
         />
       )}
     </div>

@@ -19,6 +19,7 @@ import { FrappeProvisioningTab } from './components/FrappeProvisioningTab'
 import { NoticeBoardTab } from './components/NoticeBoardTab'
 import { ServerControlTab } from './components/ServerControlTab'
 import { TimeclockDevicesTab } from './components/TimeclockDevicesTab'
+import { TicketingFlightApiTab } from './components/TicketingFlightApiTab'
 import Link from 'next/link'
 import type { AuthUser } from '@/app/types/auth'
 import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
@@ -176,6 +177,16 @@ export default function SettingsClient({
                     }`}
                   >
                     Hierarchy Tree
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('ticketing-flight-api')}
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                      activeTab === 'ticketing-flight-api'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                    }`}
+                  >
+                    Ticket Flight API
                   </button>
                   <button
                     onClick={() => setActiveTab('frappe-provisioning')}
@@ -367,6 +378,8 @@ export default function SettingsClient({
             supabase={supabase}
           />
         )}
+
+        {activeTab === 'ticketing-flight-api' && isOrgAdmin && <TicketingFlightApiTab />}
 
         {activeTab === 'frappe-provisioning' && isOrgAdmin && <FrappeProvisioningTab />}
 

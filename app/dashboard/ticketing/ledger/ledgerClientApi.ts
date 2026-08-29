@@ -8,6 +8,8 @@ import type {
   TicketCompletionContext,
   TicketCompletionLoadResult,
   TicketCompletionUpdate,
+  TicketChangeRequest,
+  TicketChangeRequestType,
   TicketLedgerPayload,
   TicketServiceBookingLookupResult,
   TicketServiceBookingOption,
@@ -113,15 +115,60 @@ export async function correctTicketAttribution(
   }
 }
 
-export async function archiveTicketBooking(bookingId: string, reason: string): Promise<void> {
+export async function archiveTicketBooking(
+  bookingId: string,
+  verificationCode: string,
+): Promise<void> {
   const response = await fetch(`/api/ticketing/ledger/${encodeURIComponent(bookingId)}/archive`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ verificationCode, verificationMethod: 'auto' }),
   })
   const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
   if (!response.ok) {
     throw new TicketLedgerApiError(payload.error || 'Unable to archive the ticket')
+  }
+}
+
+export async function requestTicketChange(
+  bookingId: string,
+  requestType: TicketChangeRequestType,
+  requestNotes: string | null,
+): Promise<void> {
+  const response = await fetch(`/api/ticketing/ledger/${encodeURIComponent(bookingId)}/requests`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestType, requestNotes }),
+  })
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  if (!response.ok) {
+    throw new TicketLedgerApiError(payload.error || 'Unable to submit the change request')
+  }
+}
+
+export async function loadTicketChangeRequests(): Promise<TicketChangeRequest[]> {
+  const response = await fetch('/api/ticketing/requests', { cache: 'no-store' })
+  const payload = (await response.json().catch(() => ({}))) as {
+    items?: TicketChangeRequest[]
+  } & ApiErrorPayload
+  if (!response.ok) {
+    throw new TicketLedgerApiError(payload.error || 'Unable to load ticket change requests')
+  }
+  return Array.isArray(payload.items) ? payload.items : []
+}
+
+export async function reviewTicketChangeRequest(
+  requestId: string,
+  status: 'fulfilled' | 'rejected',
+): Promise<void> {
+  const response = await fetch(`/api/ticketing/requests/${encodeURIComponent(requestId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  if (!response.ok) {
+    throw new TicketLedgerApiError(payload.error || 'Unable to update the change request')
   }
 }
 
@@ -247,6 +294,7 @@ export async function loadTicketCompletionDetail(
     !payload.completionContext ||
     typeof payload.completionContext.isOnBehalf !== 'boolean' ||
     typeof payload.completionContext.onBehalfReasonRequired !== 'boolean' ||
+    typeof payload.completionContext.canManageRecords !== 'boolean' ||
     typeof payload.completionContext.ownerEmployee?.id !== 'string' ||
     typeof payload.completionContext.ownerEmployee?.fullName !== 'string'
   ) {

@@ -18,7 +18,8 @@ No employee or owner selector is accepted.
 
 **Success:** `200` JSON with `items`, active `airlines`, and branch `context`. Each item contains the
 booking/transaction IDs, PNR, customer, airline, TK/DC/R-ER service type, operational/payment state,
-dates, passenger count, package-match state, grouped supplier/sale inputs, optimistic booking and
+dates, passenger count, ticket-supplier snapshot, package-match state, grouped supplier/sale inputs,
+optimistic booking and
 transaction versions, a derived `detailsStatus` (`needs_details` or `complete`), and creation
 timestamp. DC/R-ER rows instead use `recorded` because this first slice captures an aggregate
 financial service movement rather than TK passenger/itinerary completion. Every row also contains
@@ -43,10 +44,12 @@ may select operational attribution; Manager and regular staff are fixed to thems
 assistants. The database repeats the active-role/employee checks.
 
 **Input:** JSON for the first-release TK quick entry: `customerName`, `pnr`, `airlineId`,
+`supplierCode` (`sabre_polani`, `amadeus_piyam`, `sabre_bt`, `ptap`, or `airline`),
 `serviceType: "TK"`, `operationalStatus` (`held` or `issued`), `bookingDate`, branch-local
-`timeLimitAt` for Held or date-only `issuedAt` for Issued, `currency: "GBP"`, one to three unique
-`fares` (`passengerType`, positive integer `quantity`, non-negative `unitSupplierCost`), and optional
-`confirmDuplicate`. Admin callers may also provide `responsibleEmployeeId`, up to ten unique
+`timeLimitAt` for Held or date-only `issuedAt` for Issued, `currency: "GBP"`, one to four unique
+`fares` (`passengerType` ADT/YTH/CHD/INF, positive integer `quantity`, non-negative
+`unitSupplierCost`, optional `unitSalePrice`, and `unitDiscount`), and optional `confirmDuplicate`.
+Admin callers may also provide `responsibleEmployeeId`, up to ten unique
 `assistantEmployeeIds` that exclude the responsible employee, and nullable `attributionReason`.
 The responsible employee defaults to the authenticated actor. A non-empty reason is required when
 the responsible employee differs or assistants are present. A non-empty `Idempotency-Key` header of
@@ -57,8 +60,9 @@ issued root TK.
 **Success:** `201` for a new atomic save or `200` for an identical idempotent replay. The JSON DTO
 identifies the booking and transaction and returns the operational/payment state, passenger count,
 package-match state, and `idempotentReplay`; it contains no calculated earnings or profit. PNR-based
-package matching, immutable initial attribution/audit history, and an issuance source event are
-handled inside the same transaction. The source event attributes issued-ticket target units to the
+package matching, the server-derived supplier name, immutable initial attribution/audit history,
+and an issuance source event are handled inside the same transaction. The source event attributes
+issued-ticket target units to the
 responsible employee and records every assistant with zero target units. This assistant list belongs
 only to the root TK sale and is not inherited by later DC/R-ER rows.
 
@@ -158,6 +162,69 @@ profit.
 failures; `404` for an invalid or inaccessible record; `409` with `VERSION_CONFLICT`,
 `IDEMPOTENCY_CONFLICT`, or `CORRECTION_REQUIRED`; `429` when rate limited; `503` when capability
 `2026082403` is absent; `500` for an unexpected atomic-save/reload failure.
+
+For a posted ticket, regular staff cannot change an existing non-null sale price and receive
+`AMENDMENT_REQUEST_REQUIRED`. Admin, Master Admin, and Super Admin may submit corrected grouped
+sale values through this same route. The server first runs the capability `2026082802` admin-only,
+optimistic, idempotent correction operation, appends redacted audit history and a superseding
+Commission source fact, then applies the remaining detail update. The admin correction still does
+not calculate or return commission/profit.
+
+### POST `/api/ticketing/ledger/[bookingId]/requests`
+
+**Access:** The responsible employee requests a change to their active booking. Admin roles may
+also request for an accessible team booking; the database repeats owner/admin checks.
+
+**Input:** Strict 4 KiB JSON with `requestType` (`amendment` or `deletion`) and `notes`. Amendment
+notes are required and limited to 1,000 characters. Deletion always stores `null` notes and asks for
+no reason. One pending request of each type is allowed per booking; a repeated request returns the
+existing pending request.
+
+**Success:** `201` with the request ID/state, or `200` for the existing pending request.
+
+**Errors:** Malformed input is `400`; inaccessible records are `404`; schema absence is `503`.
+
+### GET `/api/ticketing/requests`
+
+**Access:** Admin, Master Admin, and Super Admin only.
+
+**Input:** No query parameters or request body.
+
+**Success:** `200 private, no-store` with up to 100 oldest pending amendment/deletion requests,
+including operational booking/requester context but no commission/profit output.
+
+**Errors:** `401`/`403` for access failures; `503` when capability `2026082802` is absent; `500` if
+the pending queue cannot be loaded.
+
+### PATCH `/api/ticketing/requests/[requestId]`
+
+**Access:** Admin roles only.
+
+**Input:** The request ID is a UUID path segment. Strict JSON selects `fulfilled` or `rejected`. The
+administrator cannot use this review endpoint to mutate the ticket itself; correction/archive
+remains a separate audited action.
+
+**Success:** `200` with the reviewed request state. Repeating the same completed review is safe.
+
+**Errors:** `400` for invalid input; `401`/`403` for access failures; `404` when the request does not
+exist; `503` when capability `2026082802` is absent; `500` for a failed review.
+
+### DELETE `/api/ticketing/ledger/[bookingId]/archive`
+
+**Access:** Admin, Master Admin, and Super Admin only. The request is limited to five attempts per
+15 minutes and must pass the shared fresh second-factor verifier.
+
+**Input:** Strict 4 KiB JSON with `verificationCode` (authenticator code or backup code) and
+`verificationMethod: "auto"`. No reason is accepted. The database independently checks the active
+administrator role.
+
+**Success:** `200` after soft-archiving the booking, fulfilling any pending deletion request, and
+superseding its Ticketing Commission facts with archived/zero-target variables. Posted financial
+history is retained; no hard delete occurs.
+
+**Errors:** `400` for malformed input; `401`/`403` for session, role, or fresh-auth failure; `404`
+for an unavailable booking; `429` when rate limited; `503` for missing limiter/schema capability;
+`500` for an unexpected archive failure.
 
 ### GET `/api/ticketing/bookings`
 
@@ -416,3 +483,66 @@ recorded flight-number/local-time proposal as a new itinerary revision, and retu
 flight/local times, chronology, or missing reason; `401`/`403` for access failures; `404` for an
 unavailable sector or case; `409` for stale itinerary/state or idempotency conflict; `429` when rate
 limited; `503` when capability `2026082701` is absent; `500` for an invalid or failed atomic result.
+
+### GET `/api/admin/ticketing/flight-api`
+
+**Access:** Admin, Master Admin, and Super Admin only after the normal Ticketing access check.
+
+**Input:** No query parameters or request body.
+
+**Success:** `200 private, no-store` with enabled/configured state, monthly limit, weekly
+interval, final-check deadline, per-run cap, used/remaining units for the UTC month, and the latest
+20 API-call outcomes. It never returns the API key.
+
+**Errors:** `401`/`403` for access failures; `503` when the settings migration is absent; `500` if
+settings or usage cannot be loaded.
+
+### PATCH `/api/admin/ticketing/flight-api`
+
+**Access:** Admin, Master Admin, and Super Admin only after the normal Ticketing access check.
+
+**Input:** Strict 4 KiB JSON with `enabled`, `monthlyLimit`, `weeklyIntervalDays`,
+`predepartureHours`, and `maxChecksPerRun`. Enabling returns `409` until
+`AERODATABOX_API_KEY` is configured. The verified admin is stored as the settings actor.
+
+**Success:** `200 private, no-store` with the saved settings, refreshed monthly usage, and recent
+calls.
+
+**Errors:** `400` for invalid input; `401`/`403` for access failures; `409` when enabling without an
+API key; `500`/`503` for unavailable storage or schema.
+
+### GET `/api/cron/ticketing/flight-monitor`
+
+**Access:** Exact `Authorization: Bearer <CRON_SECRET>` through the shared fail-closed cron guard.
+
+**Input:** No query parameters or request body.
+
+**Behaviour:** The once-daily job selects future active Issued sectors. It checks distant sectors
+at the configured weekly interval and opens the final-check window one daily cadence before the
+configured deadline (72 hours by default). It prioritises final checks, caps work by both remaining
+monthly units and `maxChecksPerRun`, records a usage row before each provider call, and stores a
+bounded normalized observation. A provider difference is flagged in Flight Monitoring but never
+replaces the itinerary or bypasses staff review. Failed provider calls remain eligible for retry;
+the monthly cap still applies.
+
+**Success:** `200` with processed/skipped counts and outcomes. Disabled or exhausted runs are
+successful no-ops.
+
+**Errors:** Missing provider configuration/schema is `503`; query/storage failures are `500`; cron
+authentication is `401`/`503` as described above.
+
+### GET `/api/cron/ticketing/time-limits`
+
+**Access:** The same exact `CRON_SECRET` bearer boundary.
+
+**Input:** No query parameters or request body.
+
+**Behaviour:** Claims and processes due Held-ticket time-limit notifications through the existing
+database capability. Vercel invokes it daily on Hobby; the route remains callable by an authorised
+external scheduler if finer reminder timing is required.
+
+**Success:** `200` with claimed/processed notification counts, including a safe no-op when nothing
+is due.
+
+**Errors:** Cron authentication is `401`/`503`; missing Ticketing capability is `503`; an unexpected
+claim/processing failure is `500`.

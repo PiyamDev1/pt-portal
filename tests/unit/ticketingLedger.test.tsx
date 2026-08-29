@@ -69,6 +69,7 @@ describe('TicketQuickEntryForm', () => {
       pnr: 'ABC123',
       airlineId: 'airline-tk',
       serviceType: 'TK',
+      supplierCode: 'sabre_polani',
       operationalStatus: 'issued',
       timeLimitAt: null,
       currency: 'GBP',
@@ -98,6 +99,33 @@ describe('TicketQuickEntryForm', () => {
       ),
     )
     expect((screen.getByLabelText('Airline') as HTMLInputElement).value).toBe('TK')
+  })
+
+  it('saves with Ctrl+Enter and resolves the Airline supplier label from the selected code', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ bookingId: 'booking-1' }, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
+    )
+
+    fillRequiredIssuedFields()
+    fireEvent.change(screen.getByLabelText('Ticket supplier'), { target: { value: 'airline' } })
+    expect(screen.getByText('Turkish Airlines')).toBeTruthy()
+    fireEvent.keyDown(screen.getByRole('form', { name: 'New TK ticket' }), {
+      key: 'Enter',
+      ctrlKey: true,
+    })
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      airlineId: 'airline-tk',
+      supplierCode: 'airline',
+    })
   })
 
   it('requires the branch-local airline deadline for a held ticket', async () => {
