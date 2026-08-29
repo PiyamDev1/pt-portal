@@ -233,8 +233,10 @@ Converts a finalised quote into its operational folder.
 
 **Access:** Authenticated user.
 
-**Input:** Path `id`; request body is ignored. Quote must have `selected_option` and `selected_at` and
-must not be archived.
+**Input:** Path `id`; optional strict JSON object `{ groupCustomerFile?: boolean }`. An omitted or
+empty body behaves as `{}`. `groupCustomerFile: true` requests one shared operational folder for the
+quote's linked group; a selection with `paymentScope: group` makes the same request automatically.
+The quote must have `selected_option` and `selected_at` and must not be archived.
 
 **Success:** First conversion returns `201 { package: TravelPackageFolder, alreadyConverted: false }`.
 It creates the folder/snapshot, placeholder passengers, component reservations, pending payment or
@@ -242,11 +244,12 @@ deposit rows, tasks, communication, version, deadlines, and audit event, then ma
 `converted`. Retail component rows preserve total price via a surcharge/discount adjustment. A
 later call returns `200 { package, alreadyConverted: true }` when the recorded folder still exists.
 
-**Errors:** `400` archived or not finalised; `401`; `404`; `503` schema missing; `500` folder insert
-failure. Ancillary passenger/reservation/payment/deadline inserts are best-effort, so callers should
-inspect the created folder after conversion. The conversion is a multi-write workflow, not a database
-transaction: its retry shortcut applies only after `converted_package_id` has been stored; a failure
-between folder creation and that final quote update can leave partial state requiring operator review.
+**Errors:** `400` malformed/invalid body, archived or not finalised, or linked group cannot be
+prepared; `401`; `404`; `503` schema missing; `500` folder insert failure. Ancillary
+passenger/reservation/payment/deadline inserts are best-effort, so callers should inspect the created
+folder after conversion. The conversion is a multi-write workflow, not a database transaction: its
+retry shortcut applies only after `converted_package_id` has been stored; a failure between folder
+creation and that final quote update can leave partial state requiring operator review.
 
 ### GET `/api/packages/share/[token]`
 
@@ -402,6 +405,25 @@ customer name refreshes the portal surname.
 
 **Errors:** `400` invalid JSON/status/passport status, missing cancellation reason, or no changes;
 `401`; `404`; `409` disallowed transition; `503` schema missing; `500` update failure.
+
+### POST `/api/travel-packages/[id]/quote-sync`
+
+Reconciles an existing operational folder from its current final quotation or linked-group
+quotations.
+
+**Access:** Authenticated user.
+
+**Input:** Path `id`; body ignored.
+
+**Success:** `200 { result: PackageQuoteSyncResult }`. Rebuilds the immutable quotation snapshot and
+passenger totals, then reconciles quote-generated reservations, payment requests, and previous-refund
+credits. Existing operational reservations and manual financial overrides are preserved and reported
+as conflicts instead of being silently overwritten. `result.status` is `synced` or `review_required`;
+the result also includes source quote IDs, create/update/cancel counts, conflicts, and the refreshed
+snapshot. The folder's `metadata.quoteSync` records the reconciliation status and time.
+
+**Errors:** `401`; `500` package/source quotation lookup or reconciliation failure. A failure is also
+recorded best-effort in `metadata.quoteSync` with status `failed`.
 
 ### GET `/api/travel-packages/[id]/operations`
 

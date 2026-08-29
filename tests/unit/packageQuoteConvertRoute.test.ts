@@ -190,6 +190,29 @@ describe('POST /api/packages/[id]/convert', () => {
     expect(response.status).toBe(401)
   })
 
+  it.each([
+    ['malformed JSON', '{"groupCustomerFile":'],
+    ['a wrong field type', JSON.stringify({ groupCustomerFile: 'yes' })],
+    ['an unknown field', JSON.stringify({ groupCustomerFile: false, unexpected: true })],
+  ])('rejects %s in the conversion request body', async (_label, body) => {
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      }) as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({ error: 'Invalid conversion request body' }),
+    )
+    expect(mocks.quoteSelect).not.toHaveBeenCalled()
+  })
+
   it('creates a package folder from a finalised quote', async () => {
     const response = await POST(
       new Request('http://localhost/api/packages/quote-1/convert') as never,

@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   buildPackageSnapshot,
@@ -31,6 +33,12 @@ import type { Database } from '@/types/supabase'
 
 const SCHEMA_HINT =
   'Travel package folder schema is incomplete. Run the package workflow migrations, including scripts/migrations/20260827_create_group_customer_files.sql, in Supabase SQL editor.'
+
+const convertRequestSchema = z
+  .object({
+    groupCustomerFile: z.boolean().optional(),
+  })
+  .strict()
 
 type TravelPackagePaymentInsert = Database['public']['Tables']['travel_package_payments']['Insert']
 type GroupTravelPackagePaymentInsert = TravelPackagePaymentInsert & {
@@ -581,6 +589,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
+  const { data: requestBody, error: requestBodyError } = await parseBodyWithSchema(
+    request,
+    convertRequestSchema,
+    { maxBytes: 1024 },
+  )
+  if (requestBodyError || !requestBody) return apiError('Invalid conversion request body', 400)
+
   const { data: quoteData, error: quoteError } = await supabase
     .from('travel_package_quotes')
     .select(selectQuoteColumns())
@@ -602,9 +617,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return apiError('Finalise a package option before converting this quote', 400)
   }
 
-  const requestBody = (await request.json().catch(() => null)) as Record<string, unknown> | null
   const groupCustomerFileRequested =
-    requestBody?.groupCustomerFile === true ||
+    requestBody.groupCustomerFile === true ||
     quote.selected_option.selection.paymentScope === 'group'
   let groupContext: Awaited<ReturnType<typeof loadGroupConversionContext>> | null = null
   if (groupCustomerFileRequested) {

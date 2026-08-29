@@ -171,6 +171,7 @@ Current LMS money/installment mutations require the `20260812` schema capability
 | ---------------------- | ----------------------------------------------------------------------- |
 | `GET`                  | `/api/travel-packages`                                                  |
 | `GET`, `PATCH`         | `/api/travel-packages/[id]`                                             |
+| `POST`                 | `/api/travel-packages/[id]/quote-sync`                                  |
 | `GET`, `POST`, `PATCH` | `/api/travel-packages/[id]/operations`                                  |
 | `POST`                 | `/api/travel-packages/[id]/operations/sync`                             |
 | `GET`, `POST`          | `/api/travel-packages/[id]/passengers`                                  |
