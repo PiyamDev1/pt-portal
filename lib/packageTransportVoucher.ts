@@ -667,9 +667,10 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .continuation-sheet {
     break-before: page;
     page-break-before: always;
+    grid-template-columns: 98mm 2mm 107.8mm;
   }
   .continuation-voucher {
-    grid-column: 1;
+    grid-column: 3;
   }
   .continuation-voucher .main {
     flex: 1;
@@ -695,7 +696,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     margin-top: 3.5mm;
   }
   .continuation-blank {
-    grid-column: 3;
+    grid-column: 1;
     width: 98mm;
     height: 215.6mm;
     border: 1px dashed #e2e8f0;

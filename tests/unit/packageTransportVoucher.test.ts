@@ -175,6 +175,11 @@ describe('transport vouchers', () => {
     expect(html).toContain('6. Transfer 6')
     expect(html).toMatch(/\.continuation-sheet\s*{[^}]*page-break-before:\s*always/s)
     expect(html).toMatch(
+      /\.continuation-sheet\s*{[^}]*grid-template-columns:\s*98mm 2mm 107\.8mm/s,
+    )
+    expect(html).toMatch(/\.continuation-voucher\s*{[^}]*grid-column:\s*3/s)
+    expect(html).toMatch(/\.continuation-blank\s*{[^}]*grid-column:\s*1/s)
+    expect(html).toMatch(
       /@media print\s*{[\s\S]*?\.print-sheet \+ \.print-sheet,[\s\S]*?page-break-before:\s*always !important/s,
     )
   })
