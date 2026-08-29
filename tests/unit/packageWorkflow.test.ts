@@ -102,6 +102,12 @@ it('nets completed customer payments against completed refunds', () => {
       payment({ amount: 1000 }),
       payment({ amount: 200, payment_type: 'refund' }),
       payment({ amount: 500, payment_status: 'pending', due_at: '2026-06-01T00:00:00.000Z' }),
+      payment({
+        amount: 150,
+        payment_type: 'refund',
+        payment_status: 'pending',
+        due_at: '2026-06-01T00:00:00.000Z',
+      }),
     ],
     Date.parse('2026-07-01T00:00:00.000Z'),
   )

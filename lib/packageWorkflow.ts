@@ -160,14 +160,23 @@ export function calculatePackagePaymentSummary(
   )
   const pending = money(
     payments
-      .filter((payment) => payment.payment_status === 'pending')
+      .filter(
+        (payment) =>
+          payment.payment_status === 'pending' &&
+          ['deposit', 'payment', 'account_credit'].includes(payment.payment_type),
+      )
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
   )
   const overdue = money(
     payments
       .filter((payment) => {
         const due = timestamp(payment.due_at)
-        return payment.payment_status === 'pending' && due !== null && due < now
+        return (
+          payment.payment_status === 'pending' &&
+          ['deposit', 'payment', 'account_credit'].includes(payment.payment_type) &&
+          due !== null &&
+          due < now
+        )
       })
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
   )

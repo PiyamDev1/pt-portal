@@ -232,18 +232,33 @@ export function allocateSharedGroupTransportBookedCost(
     )
     if (!matchingAllocation || familyAllocations.length === 0) return
 
-    const totalWeight = familyAllocations.reduce(
+    const bookedCost = roundPackageInvoiceMoney(physicalReservation.booked_cost_total)
+    const storedAllocatedCost = Number(matchingAllocation.bookedCost)
+    const passengerWeight = Math.max(0, Number(matchingAllocation.passengerCount || 0))
+    const totalPassengerWeight = familyAllocations.reduce(
+      (total, allocation) => total + Math.max(0, Number(allocation.passengerCount || 0)),
+      0,
+    )
+    const legacySoldWeight = Math.max(0, Number(matchingAllocation.soldPrice || 0))
+    const totalLegacySoldWeight = familyAllocations.reduce(
       (total, allocation) => total + Math.max(0, Number(allocation.soldPrice || 0)),
       0,
     )
-    const matchingWeight = Math.max(0, Number(matchingAllocation.soldPrice || 0))
-    const bookedCost = roundPackageInvoiceMoney(physicalReservation.booked_cost_total)
-    const allocatedCost = roundPackageInvoiceMoney(
-      totalWeight > 0
-        ? (bookedCost * matchingWeight) / totalWeight
-        : bookedCost / familyAllocations.length,
-    )
-    const optionId = String(metadata.optionId || '')
+    const originalBookedCost = Number(metadata.transportNetCost)
+    const storedAllocationMatchesPhysicalCost =
+      Number.isFinite(storedAllocatedCost) &&
+      Number.isFinite(originalBookedCost) &&
+      roundPackageInvoiceMoney(originalBookedCost) === bookedCost
+    const allocatedCost = storedAllocationMatchesPhysicalCost
+      ? roundPackageInvoiceMoney(storedAllocatedCost)
+      : roundPackageInvoiceMoney(
+          totalPassengerWeight > 0
+            ? (bookedCost * passengerWeight) / totalPassengerWeight
+            : totalLegacySoldWeight > 0
+              ? (bookedCost * legacySoldWeight) / totalLegacySoldWeight
+              : bookedCost / familyAllocations.length,
+        )
+    const optionId = String(matchingAllocation.referenceOptionId || metadata.optionId || '')
     const targetIndex = allocated.findIndex((reservation) => {
       const reservationMetadata = reservation.metadata || {}
       return (

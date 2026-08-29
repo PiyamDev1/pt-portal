@@ -178,9 +178,99 @@ describe('package quote reservation drafts', () => {
       suggestedBookedCost: 485,
       metadata: {
         familyAllocations: [
-          expect.objectContaining({ quoteId: 'quote-1', soldPrice: 400 }),
-          expect.objectContaining({ quoteId: 'quote-2', soldPrice: 100 }),
+          expect.objectContaining({
+            quoteId: 'quote-1',
+            passengerCount: 4,
+            bookedCost: 388,
+            soldPrice: 400,
+          }),
+          expect.objectContaining({
+            quoteId: 'quote-2',
+            passengerCount: 1,
+            bookedCost: 97,
+            soldPrice: 100,
+          }),
         ],
+      },
+    })
+  })
+
+  it('uses the main shared transport for passenger allocations and keeps family choices as references', () => {
+    const leadPayload = makePayload({ adults: 4, childrenPaying: 0, childrenFree: 0, infants: 0 })
+    const familyPayload = makePayload({ adults: 1, childrenPaying: 0, childrenFree: 0, infants: 0 })
+    const mainTransport = {
+      id: 'main-shared-transport',
+      title: 'Main coach',
+      summary: 'Main group transport',
+      price: 600,
+      pricingMode: 'total' as const,
+      transportNetCost: 300,
+      transportNetCurrency: 'GBP',
+    }
+    const referenceTransport = {
+      id: 'family-reference-transport',
+      title: 'Family reference only',
+      summary: 'Shown on the family invoice',
+      price: 50,
+      pricingMode: 'per_person' as const,
+      transportNetCost: 900,
+      transportNetCurrency: 'GBP',
+    }
+    const families = [
+      {
+        quoteId: 'quote-lead',
+        familyLabel: 'Lead family',
+        payload: leadPayload,
+        combination: makeCombination({ transportOption: mainTransport }),
+      },
+      {
+        quoteId: 'quote-family',
+        familyLabel: 'Second family',
+        payload: familyPayload,
+        combination: makeCombination({ transportOption: referenceTransport }),
+      },
+    ]
+
+    const physicalDraft = buildSharedGroupTransportDraft(families, 'quote-lead')
+    const allocations = physicalDraft?.metadata.familyAllocations as Array<{
+      quoteId: string
+      bookedCost: number
+      soldPrice: number
+      referenceOptionId: string
+    }>
+    const familyAllocation = allocations.find((allocation) => allocation.quoteId === 'quote-family')
+    const familyDraft = buildPackageQuoteReservationDrafts({
+      payload: familyPayload,
+      combination: families[1].combination,
+      familyLabel: 'Second family',
+      sharedGroupTransportAllocation: true,
+      sharedGroupTransportSoldPrice: familyAllocation?.soldPrice,
+    }).find((draft) => draft.reservationType === 'transport')
+
+    expect(physicalDraft).toMatchObject({
+      suggestedBookedCost: 300,
+      metadata: {
+        calculationSourceOptionId: 'main-shared-transport',
+        totalPassengerCount: 5,
+        totalSoldPrice: 600,
+      },
+    })
+    expect(allocations).toEqual([
+      expect.objectContaining({ quoteId: 'quote-lead', bookedCost: 240, soldPrice: 480 }),
+      expect.objectContaining({
+        quoteId: 'quote-family',
+        bookedCost: 60,
+        soldPrice: 120,
+        referenceOptionId: 'family-reference-transport',
+      }),
+    ])
+    expect(familyDraft).toMatchObject({
+      soldPriceTotal: 120,
+      suggestedBookedCost: 0,
+      metadata: {
+        invoiceReferenceOnly: true,
+        individualQuotedSoldPrice: 50,
+        optionId: 'family-reference-transport',
       },
     })
   })

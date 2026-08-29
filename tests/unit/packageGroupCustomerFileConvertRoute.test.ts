@@ -366,12 +366,12 @@ describe('group customer file conversion', () => {
         expect.objectContaining({
           quote_id: 'quote-1',
           booked_cost_total: 0,
-          sold_price_total: 200,
+          sold_price_total: 100,
         }),
         expect.objectContaining({
           quote_id: 'quote-2',
           booked_cost_total: 0,
-          sold_price_total: 200,
+          sold_price_total: 100,
         }),
       ]),
     )

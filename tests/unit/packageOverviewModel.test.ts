@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { PackageCombination, PackageComponentOption } from '@/app/types/packages'
+import type {
+  PackageCombination,
+  PackageComponentOption,
+  TravelPackageReservation,
+} from '@/app/types/packages'
 import {
+  filterAndSortReservations,
   getOptionSoldTotal,
   getVisaOptionSoldTotal,
   getVisaPassengerCategoryLabel,
@@ -70,5 +75,60 @@ describe('package overview model', () => {
     ).toBe(310)
     expect(parseMoneyInput('12.50')).toBe(12.5)
     expect(parseMoneyInput('not-money')).toBe(0)
+  })
+
+  it('filters group reservations by family, status, and search before sorting', () => {
+    const reservations = [
+      {
+        id: 'older-hotel',
+        quote_id: 'quote-1',
+        title: 'Makkah hotel',
+        reservation_type: 'hotel',
+        status: 'confirmed',
+        supplier_name: 'Hotel Supplier',
+        sold_price_total: 1200,
+        booked_cost_total: 900,
+        metadata: { familyLabel: 'Lead family' },
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'newer-flight',
+        quote_id: 'quote-2',
+        title: 'Return flight',
+        reservation_type: 'flight',
+        status: 'confirmed',
+        supplier_name: 'Airline',
+        sold_price_total: 800,
+        booked_cost_total: 700,
+        metadata: { familyLabel: 'Second family' },
+        created_at: '2026-02-01T00:00:00.000Z',
+      },
+      {
+        id: 'shared-transport',
+        quote_id: null,
+        title: 'Shared group transport',
+        reservation_type: 'transport',
+        status: 'reservation_pending',
+        sold_price_total: 0,
+        booked_cost_total: 500,
+        metadata: { physicalReservation: true },
+        created_at: '2026-03-01T00:00:00.000Z',
+      },
+    ] as TravelPackageReservation[]
+
+    expect(
+      filterAndSortReservations(reservations, {
+        quoteId: 'quote-2',
+        status: 'confirmed',
+        query: 'second family',
+        sort: 'newest',
+      }).map((reservation) => reservation.id),
+    ).toEqual(['newer-flight'])
+    expect(
+      filterAndSortReservations(reservations, {
+        quoteId: 'shared',
+        sort: 'booked_high',
+      }).map((reservation) => reservation.id),
+    ).toEqual(['shared-transport'])
   })
 })

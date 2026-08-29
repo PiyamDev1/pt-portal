@@ -284,12 +284,20 @@ function buildDesiredReservations(snapshot: TravelPackageFolder['selected_quote_
         ]
       : []
 
+  const physicalTransport =
+    groupFamilies.length > 0 ? buildSharedGroupTransportDraft(families, snapshot.quote?.id) : null
+  const sharedTransportAllocations = new Map(
+    ((physicalTransport?.metadata.familyAllocations as Array<Record<string, unknown>>) || []).map(
+      (allocation) => [String(allocation.quoteId || ''), Number(allocation.soldPrice || 0)],
+    ),
+  )
   const desired: DesiredReservation[] = families.flatMap((family) =>
     buildPackageQuoteReservationDrafts({
       payload: family.payload,
       combination: family.combination,
       familyLabel: family.familyLabel,
       sharedGroupTransportAllocation: groupFamilies.length > 0,
+      sharedGroupTransportSoldPrice: sharedTransportAllocations.get(family.quoteId),
     }).map((draft) => ({
       ...draft,
       quoteId: family.quoteId,
@@ -302,7 +310,6 @@ function buildDesiredReservations(snapshot: TravelPackageFolder['selected_quote_
   )
 
   if (groupFamilies.length > 0) {
-    const physicalTransport = buildSharedGroupTransportDraft(families)
     if (physicalTransport) {
       desired.push({
         ...physicalTransport,

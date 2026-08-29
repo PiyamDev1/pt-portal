@@ -36,6 +36,7 @@ import type {
   TravelPackagePaymentPlan,
   TravelPackagePaymentStatus,
   TravelPackagePaymentType,
+  TravelPackageReservation,
   TravelPackageRiskFlag,
   TravelPackageTask,
   TravelPackageTransportVoucher,
@@ -75,6 +76,7 @@ import {
 type Props = {
   packageFolder: TravelPackageFolder
   invoice: TravelPackageInvoice | null
+  reservations?: TravelPackageReservation[]
   employees?: Array<{ id: string; full_name: string | null; email?: string | null }>
   onPackageChange: (packageFolder: TravelPackageFolder) => void
   onInvoiceChange?: (invoice: TravelPackageInvoice) => void
@@ -83,6 +85,7 @@ type Props = {
 export default function PackageOperationsWorkspace({
   packageFolder,
   invoice,
+  reservations = [],
   employees = [],
   onPackageChange,
   onInvoiceChange,
@@ -313,18 +316,39 @@ export default function PackageOperationsWorkspace({
   )
   const selectedFamilyInvoice =
     selectedPaymentFamily && invoice?.quote_id === selectedPaymentFamily.quoteId ? invoice : null
-  const paymentBalance = selectedPaymentFamily
-    ? (selectedFamilyInvoice?.balance_due ??
-      Math.max(0, selectedPaymentFamily.selection.combination.totalPrice - paymentSummary.netPaid))
+  const reservationSaleTotal = (quoteId?: string) =>
+    reservations
+      .filter((reservation) => !quoteId || reservation.quote_id === quoteId)
+      .reduce(
+        (total, reservation) =>
+          total +
+          Math.max(
+            0,
+            Number(reservation.sold_price_total || 0) -
+              Number(reservation.discount_total || 0) -
+              Number(reservation.customer_refund_total || 0),
+          ),
+        0,
+      )
+  const selectedFamilyReservationTotal = selectedPaymentFamily
+    ? reservationSaleTotal(selectedPaymentFamily.quoteId)
+    : 0
+  const groupReservationTotal = reservationSaleTotal()
+  const paymentTotalDue = selectedPaymentFamily
+    ? (selectedFamilyInvoice?.total_sold ??
+      (selectedFamilyReservationTotal > 0
+        ? selectedFamilyReservationTotal
+        : selectedPaymentFamily.selection.combination.totalPrice))
     : groupFamilies.length > 0
-      ? Math.max(
-          0,
-          groupFamilies.reduce(
+      ? groupReservationTotal > 0
+        ? groupReservationTotal
+        : groupFamilies.reduce(
             (total, family) => total + family.selection.combination.totalPrice,
             0,
-          ) - paymentSummary.netPaid,
-        )
-      : invoice?.balance_due || 0
+          )
+      : Number(invoice?.total_sold || packageFolder.current_public_summary?.totalPrice || 0)
+  const paymentBalance = Math.max(0, paymentTotalDue - paymentSummary.netPaid)
+  const unrequestedPaymentBalance = Math.max(0, paymentBalance - paymentSummary.pending)
 
   useEffect(() => {
     if (groupFamilies.length === 0) {
@@ -1966,6 +1990,15 @@ export default function PackageOperationsWorkspace({
               )}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="border border-slate-200 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Full amount</p>
+                  <p className="mt-1 text-lg font-black">
+                    {formatMoney(
+                      paymentTotalDue,
+                      selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
+                    )}
+                  </p>
+                </div>
+                <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Net received</p>
                   <p className="mt-1 text-lg font-black">
                     {formatMoney(
@@ -1973,23 +2006,23 @@ export default function PackageOperationsWorkspace({
                       invoice?.currency || paymentSummary.currency,
                     )}
                   </p>
+                  {paymentSummary.accountCredits > 0 && (
+                    <p className="mt-1 text-xs font-bold text-sky-700">
+                      Includes {formatMoney(paymentSummary.accountCredits, paymentSummary.currency)}{' '}
+                      prior credit
+                    </p>
+                  )}
                 </div>
                 <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Pending</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Pending to pay</p>
                   <p className="mt-1 text-lg font-black">
                     {formatMoney(
                       paymentSummary.pending,
                       invoice?.currency || paymentSummary.currency,
                     )}
                   </p>
-                </div>
-                <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Prior credit used</p>
-                  <p className="mt-1 text-lg font-black text-sky-700">
-                    {formatMoney(
-                      paymentSummary.accountCredits,
-                      invoice?.currency || paymentSummary.currency,
-                    )}
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    Requested but not received
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
@@ -2002,12 +2035,17 @@ export default function PackageOperationsWorkspace({
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">
-                    {selectedFamilyInvoice ? 'Invoice balance' : 'Quoted balance'}
-                  </p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Outstanding balance</p>
                   <p className="mt-1 text-lg font-black text-[#8b1e2d]">
                     {formatMoney(
                       paymentBalance,
+                      selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    Still to request:{' '}
+                    {formatMoney(
+                      unrequestedPaymentBalance,
                       selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
                     )}
                   </p>

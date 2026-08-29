@@ -389,6 +389,67 @@ function createReservationDetailForm(
   }
 }
 
+export type ReservationSort = 'newest' | 'oldest' | 'title' | 'sold_high' | 'booked_high'
+
+export function filterAndSortReservations(
+  reservations: TravelPackageReservation[],
+  filters: {
+    query?: string
+    type?: TravelPackageReservationType | 'all'
+    status?: TravelPackageReservationStatus | 'all'
+    quoteId?: string | 'all' | 'shared'
+    sort?: ReservationSort
+  },
+) {
+  const query = (filters.query || '').trim().toLowerCase()
+  const filtered = reservations.filter((reservation) => {
+    if (filters.type && filters.type !== 'all' && reservation.reservation_type !== filters.type) {
+      return false
+    }
+    if (filters.status && filters.status !== 'all' && reservation.status !== filters.status) {
+      return false
+    }
+    if (filters.quoteId === 'shared' && reservation.quote_id) return false
+    if (
+      filters.quoteId &&
+      !['all', 'shared'].includes(filters.quoteId) &&
+      reservation.quote_id !== filters.quoteId
+    ) {
+      return false
+    }
+    if (!query) return true
+    const familyLabel =
+      typeof reservation.metadata?.familyLabel === 'string' ? reservation.metadata.familyLabel : ''
+    return [
+      reservation.title,
+      reservation.supplier_name,
+      reservation.supplier_reference,
+      reservation.booking_reference,
+      reservation.reservation_type,
+      reservation.status,
+      familyLabel,
+    ].some((value) =>
+      String(value || '')
+        .toLowerCase()
+        .includes(query),
+    )
+  })
+
+  return [...filtered].sort((left, right) => {
+    if (filters.sort === 'oldest') {
+      return Date.parse(left.created_at) - Date.parse(right.created_at)
+    }
+    if (filters.sort === 'title') return left.title.localeCompare(right.title)
+    if (filters.sort === 'sold_high') {
+      return Number(right.sold_price_total || 0) - Number(left.sold_price_total || 0)
+    }
+    if (filters.sort === 'booked_high') {
+      return Number(right.booked_cost_total || 0) - Number(left.booked_cost_total || 0)
+    }
+    return Date.parse(right.created_at) - Date.parse(left.created_at)
+  })
+}
+
 export {
   CUSTOMER_PORTAL_URL,
   VISA_PHOTO_DOCUMENT_KIND,

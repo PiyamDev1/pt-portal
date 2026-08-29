@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TravelPackageReservation } from '@/app/types/packages'
 import {
+  allocateSharedGroupTransportBookedCost,
   calculatePackageInvoiceTotals,
   createCustomerInvoiceSnapshot,
   createPackageInvoiceLinesFromReservations,
@@ -121,6 +122,55 @@ describe('package invoice helpers', () => {
     })
     expect(totals.totalSold).toBe(100)
     expect(totals.totalBookedCost).toBe(200)
+  })
+
+  it('uses the stored per-passenger shared transport cost allocation on a family invoice', () => {
+    const familyReservation = {
+      id: 'family-transport',
+      package_id: 'package-1',
+      quote_id: 'quote-2',
+      reservation_type: 'transport',
+      title: 'Family 2 - Shared group transport',
+      booked_cost_total: 0,
+      sold_price_total: 120,
+      metadata: {
+        billingAllocation: true,
+        sharedGroupTransport: true,
+        optionId: 'family-reference-option',
+      },
+    } as TravelPackageReservation
+    const physicalReservation = {
+      id: 'physical-transport',
+      package_id: 'package-1',
+      quote_id: null,
+      reservation_type: 'transport',
+      title: 'Shared group transport',
+      booked_cost_total: 300,
+      sold_price_total: 0,
+      metadata: {
+        physicalReservation: true,
+        sharedGroupTransport: true,
+        familyAllocations: [
+          { quoteId: 'quote-1', passengerCount: 4, bookedCost: 240, soldPrice: 480 },
+          {
+            quoteId: 'quote-2',
+            passengerCount: 1,
+            bookedCost: 60,
+            soldPrice: 120,
+            referenceOptionId: 'family-reference-option',
+          },
+        ],
+        optionId: 'main-shared-option',
+      },
+    } as TravelPackageReservation
+
+    expect(
+      allocateSharedGroupTransportBookedCost(
+        [familyReservation],
+        [familyReservation, physicalReservation],
+        'quote-2',
+      )[0],
+    ).toMatchObject({ booked_cost_total: 60, sold_price_total: 120 })
   })
 
   it('creates a customer snapshot without booked cost, margin, commission, or internal notes', () => {

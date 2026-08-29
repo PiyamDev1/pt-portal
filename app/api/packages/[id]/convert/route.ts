@@ -162,6 +162,7 @@ function autoReservationRows({
   groupMemberId,
   familyLabel,
   sharedGroupTransportAllocation = false,
+  sharedGroupTransportSoldPrice,
 }: {
   packageId: string
   quote: TravelPackageQuote
@@ -172,6 +173,7 @@ function autoReservationRows({
   groupMemberId?: string | null
   familyLabel?: string
   sharedGroupTransportAllocation?: boolean
+  sharedGroupTransportSoldPrice?: number
 }) {
   const baseRow = {
     package_id: packageId,
@@ -195,6 +197,7 @@ function autoReservationRows({
     combination,
     familyLabel,
     sharedGroupTransportAllocation,
+    sharedGroupTransportSoldPrice,
   }).map((draft) => ({
     ...baseRow,
     reservation_type: draft.reservationType,
@@ -221,11 +224,13 @@ function autoReservationRows({
 function sharedGroupTransportPhysicalRow({
   packageId,
   entries,
+  mainQuoteId,
   userId,
   now,
 }: {
   packageId: string
   entries: GroupConversionEntry[]
+  mainQuoteId?: string | null
   userId: string
   now: string
 }) {
@@ -237,6 +242,7 @@ function sharedGroupTransportPhysicalRow({
       payload: entry.payload,
       combination: entry.quote.selected_option!.combination,
     })),
+    mainQuoteId,
   )
   if (!draft) return null
 
@@ -818,6 +824,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const now = new Date().toISOString()
+  const sharedTransportDraft = groupContext
+    ? buildSharedGroupTransportDraft(
+        entries.map((entry) => ({
+          quoteId: entry.quote.id,
+          groupMemberId: entry.member?.id || null,
+          familyLabel: entry.member?.family_label || entry.quote.title,
+          payload: entry.payload,
+          combination: entry.quote.selected_option!.combination,
+        })),
+        leadEntry.quote.id,
+      )
+    : null
+  const sharedTransportAllocations = new Map(
+    (
+      (sharedTransportDraft?.metadata.familyAllocations as Array<Record<string, unknown>>) || []
+    ).map((allocation) => [String(allocation.quoteId || ''), Number(allocation.soldPrice || 0)]),
+  )
   const reservationRows: Array<Record<string, unknown>> = entries.flatMap((entry) =>
     autoReservationRows({
       packageId: packageFolder.id,
@@ -829,12 +852,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       groupMemberId: entry.member?.id,
       familyLabel: entry.member?.family_label,
       sharedGroupTransportAllocation: Boolean(groupContext),
+      sharedGroupTransportSoldPrice: sharedTransportAllocations.get(entry.quote.id),
     }),
   )
   if (groupContext) {
     const sharedTransportRow = sharedGroupTransportPhysicalRow({
       packageId: packageFolder.id,
       entries,
+      mainQuoteId: leadEntry.quote.id,
       userId: user.id,
       now,
     })

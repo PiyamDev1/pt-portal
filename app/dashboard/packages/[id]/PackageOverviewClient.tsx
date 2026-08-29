@@ -25,6 +25,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Search,
   ShieldCheck,
   Trash2,
   Upload,
@@ -100,6 +101,7 @@ import {
   formatDateTime,
   formatFileSize,
   formatReservationStatus,
+  filterAndSortReservations,
   getLinkedVisaPhotoParentId,
   getOptionSoldTotal,
   getReservationSummary,
@@ -119,7 +121,7 @@ import {
   reservationTypeOptions,
   toDateTimeLocalValue,
 } from './packageOverviewModel'
-import type { VisaPassengerCounts } from './packageOverviewModel'
+import type { ReservationSort, VisaPassengerCounts } from './packageOverviewModel'
 import { getReservationIcon, PackageStatusCard } from './PackageOverviewPrimitives'
 import { useAppDialog } from '@/components/AppDialog'
 
@@ -208,12 +210,22 @@ export default function PackageOverviewClient({
   const [showAccessVoucher, setShowAccessVoucher] = useState(false)
   const [showPackageGroupPanel, setShowPackageGroupPanel] = useState(false)
   const [showNewReservationForm, setShowNewReservationForm] = useState(false)
+  const [showAgentCommission, setShowAgentCommission] = useState(false)
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [accessVoucherQr, setAccessVoucherQr] = useState('')
   const [printAccessVoucherQr, setPrintAccessVoucherQr] = useState('')
   const [accessVoucherCopyMessage, setAccessVoucherCopyMessage] = useState('')
   const [activePackageTab, setActivePackageTab] = useState<PackageWorkspaceTab>('overview')
   const [expandedReservationIds, setExpandedReservationIds] = useState<Record<string, boolean>>({})
+  const [reservationQuery, setReservationQuery] = useState('')
+  const [reservationTypeFilter, setReservationTypeFilter] = useState<
+    TravelPackageReservationType | 'all'
+  >('all')
+  const [reservationStatusFilter, setReservationStatusFilter] = useState<
+    TravelPackageReservationStatus | 'all'
+  >('all')
+  const [reservationFamilyFilter, setReservationFamilyFilter] = useState('all')
+  const [reservationSort, setReservationSort] = useState<ReservationSort>('newest')
   const [packageGroups, setPackageGroups] = useState<TravelPackageGroup[]>([])
   const [activePackageGroup, setActivePackageGroup] = useState<TravelPackageGroupDetail | null>(
     null,
@@ -709,6 +721,24 @@ export default function PackageOverviewClient({
   const selectedSnapshotFamily =
     groupInvoiceFamilies.find((family) => family.quoteId === selectedSnapshotQuoteId) ||
     groupInvoiceFamilies[0]
+  const visibleReservations = useMemo(
+    () =>
+      filterAndSortReservations(reservations, {
+        query: reservationQuery,
+        type: reservationTypeFilter,
+        status: reservationStatusFilter,
+        quoteId: reservationFamilyFilter,
+        sort: reservationSort,
+      }),
+    [
+      reservationFamilyFilter,
+      reservationQuery,
+      reservationSort,
+      reservationStatusFilter,
+      reservationTypeFilter,
+      reservations,
+    ],
+  )
   useEffect(() => {
     if (groupInvoiceFamilies.length === 0) {
       if (selectedSnapshotQuoteId) setSelectedSnapshotQuoteId('')
@@ -2599,6 +2629,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 <PackageOperationsWorkspace
                   packageFolder={packageFolder}
                   invoice={invoice}
+                  reservations={reservations}
                   employees={employees}
                   onPackageChange={setPackageFolder}
                   onInvoiceChange={handleOperationsInvoiceChange}
@@ -3470,208 +3501,235 @@ Please enter the access code and accept the data handling terms before downloadi
                       this package&apos;s profit estimate. The future Commission module will replace
                       this provisional calculation with approved policies and statements.
                     </p>
+                    {!showAgentCommission && (
+                      <p className="mt-2 text-xs font-black text-amber-900">
+                        {agentCommissionAllocations.length} allocation
+                        {agentCommissionAllocations.length === 1 ? '' : 's'} Â·{' '}
+                        {formatMoney(agentCommissionDeduction, reservationCurrency)} deducted
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
+                    {showAgentCommission && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAgentCommissionAllocations((current) => [
+                              ...current,
+                              createBlankAgentCommissionAllocation(),
+                            ])
+                          }
+                          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 text-xs font-black text-amber-950 hover:bg-amber-100"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add agent
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void saveAgentCommissionAllocations()}
+                          disabled={savingAgentCommissions}
+                          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-amber-800 px-3 text-xs font-black text-white hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {savingAgentCommissions ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                          Save deductions
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
-                      onClick={() =>
-                        setAgentCommissionAllocations((current) => [
-                          ...current,
-                          createBlankAgentCommissionAllocation(),
-                        ])
-                      }
+                      onClick={() => setShowAgentCommission((current) => !current)}
+                      aria-expanded={showAgentCommission}
                       className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 text-xs font-black text-amber-950 hover:bg-amber-100"
                     >
-                      <Plus className="h-4 w-4" />
-                      Add agent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void saveAgentCommissionAllocations()}
-                      disabled={savingAgentCommissions}
-                      className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-amber-800 px-3 text-xs font-black text-white hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {savingAgentCommissions ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                      {showAgentCommission ? (
+                        <ChevronDown className="h-4 w-4" />
                       ) : (
-                        <Save className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4" />
                       )}
-                      Save deductions
+                      {showAgentCommission ? 'Minimise' : 'Manage'}
                     </button>
                   </div>
                 </div>
 
-                {agentCommissionAllocations.length === 0 ? (
-                  <p className="px-4 py-5 text-sm font-semibold text-slate-500">
-                    No agent commission has been allocated to this package.
-                  </p>
-                ) : (
-                  <div className="divide-y divide-slate-200">
-                    {agentCommissionAllocations.map((allocation) => {
-                      const amount = getPackageAgentCommissionAmount(allocation)
-                      return (
-                        <div key={allocation.id} className="space-y-3 p-4">
-                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_0.65fr_0.75fr_auto]">
-                            <label className="text-xs font-bold text-slate-600">
-                              Employee
-                              <select
-                                value={allocation.employeeId}
-                                onChange={(event) =>
-                                  updateAgentCommissionAllocation(
-                                    allocation.id,
-                                    'employeeId',
-                                    event.target.value,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
-                              >
-                                <option value="">Select employee</option>
-                                {employees.map((employee) => (
-                                  <option key={employee.id} value={employee.id}>
-                                    {employee.full_name || employee.email || employee.id}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="text-xs font-bold text-slate-600">
-                              Package role
-                              <select
-                                value={allocation.role}
-                                onChange={(event) =>
-                                  updateAgentCommissionAllocation(
-                                    allocation.id,
-                                    'role',
-                                    event.target.value as PackageAgentCommissionAllocation['role'],
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
-                              >
-                                <option value="ticketing_agent">Ticketing agent</option>
-                                <option value="assisting_agent">Assisting agent</option>
-                                <option value="main_dealer">Main dealer</option>
-                                <option value="other">Other</option>
-                              </select>
-                            </label>
-                            <label className="text-xs font-bold text-slate-600">
-                              Earning basis
-                              <select
-                                value={allocation.basis}
-                                onChange={(event) =>
-                                  updateAgentCommissionAllocation(
-                                    allocation.id,
-                                    'basis',
-                                    event.target.value as PackageAgentCommissionAllocation['basis'],
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
-                              >
-                                <option value="ticket_commission">Per issued ticket</option>
-                                <option value="fixed_amount">Fixed assistance</option>
-                                <option value="none">No commission</option>
-                              </select>
-                            </label>
-                            <label className="text-xs font-bold text-slate-600">
-                              {allocation.basis === 'ticket_commission' ? 'Tickets' : 'Quantity'}
-                              <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                disabled={allocation.basis !== 'ticket_commission'}
-                                value={allocation.quantity}
-                                onChange={(event) =>
-                                  updateAgentCommissionAllocation(
-                                    allocation.id,
-                                    'quantity',
-                                    Number(event.target.value),
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-bold disabled:bg-slate-100 disabled:text-slate-400"
-                              />
-                            </label>
-                            <label className="text-xs font-bold text-slate-600">
-                              {allocation.basis === 'ticket_commission'
-                                ? 'Per ticket'
-                                : 'Fixed amount'}
-                              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3">
-                                <span className="mr-2 text-xs font-black text-slate-500">
-                                  {reservationCurrency}
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  disabled={allocation.basis === 'none'}
-                                  value={allocation.unitAmount}
+                {showAgentCommission &&
+                  (agentCommissionAllocations.length === 0 ? (
+                    <p className="px-4 py-5 text-sm font-semibold text-slate-500">
+                      No agent commission has been allocated to this package.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {agentCommissionAllocations.map((allocation) => {
+                        const amount = getPackageAgentCommissionAmount(allocation)
+                        return (
+                          <div key={allocation.id} className="space-y-3 p-4">
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_0.65fr_0.75fr_auto]">
+                              <label className="text-xs font-bold text-slate-600">
+                                Employee
+                                <select
+                                  value={allocation.employeeId}
                                   onChange={(event) =>
                                     updateAgentCommissionAllocation(
                                       allocation.id,
-                                      'unitAmount',
+                                      'employeeId',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                                >
+                                  <option value="">Select employee</option>
+                                  {employees.map((employee) => (
+                                    <option key={employee.id} value={employee.id}>
+                                      {employee.full_name || employee.email || employee.id}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="text-xs font-bold text-slate-600">
+                                Package role
+                                <select
+                                  value={allocation.role}
+                                  onChange={(event) =>
+                                    updateAgentCommissionAllocation(
+                                      allocation.id,
+                                      'role',
+                                      event.target
+                                        .value as PackageAgentCommissionAllocation['role'],
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                                >
+                                  <option value="ticketing_agent">Ticketing agent</option>
+                                  <option value="assisting_agent">Assisting agent</option>
+                                  <option value="main_dealer">Main dealer</option>
+                                  <option value="other">Other</option>
+                                </select>
+                              </label>
+                              <label className="text-xs font-bold text-slate-600">
+                                Earning basis
+                                <select
+                                  value={allocation.basis}
+                                  onChange={(event) =>
+                                    updateAgentCommissionAllocation(
+                                      allocation.id,
+                                      'basis',
+                                      event.target
+                                        .value as PackageAgentCommissionAllocation['basis'],
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                                >
+                                  <option value="ticket_commission">Per issued ticket</option>
+                                  <option value="fixed_amount">Fixed assistance</option>
+                                  <option value="none">No commission</option>
+                                </select>
+                              </label>
+                              <label className="text-xs font-bold text-slate-600">
+                                {allocation.basis === 'ticket_commission' ? 'Tickets' : 'Quantity'}
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  disabled={allocation.basis !== 'ticket_commission'}
+                                  value={allocation.quantity}
+                                  onChange={(event) =>
+                                    updateAgentCommissionAllocation(
+                                      allocation.id,
+                                      'quantity',
                                       Number(event.target.value),
                                     )
                                   }
-                                  className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-bold disabled:bg-slate-100 disabled:text-slate-400"
                                 />
+                              </label>
+                              <label className="text-xs font-bold text-slate-600">
+                                {allocation.basis === 'ticket_commission'
+                                  ? 'Per ticket'
+                                  : 'Fixed amount'}
+                                <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3">
+                                  <span className="mr-2 text-xs font-black text-slate-500">
+                                    {reservationCurrency}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    disabled={allocation.basis === 'none'}
+                                    value={allocation.unitAmount}
+                                    onChange={(event) =>
+                                      updateAgentCommissionAllocation(
+                                        allocation.id,
+                                        'unitAmount',
+                                        Number(event.target.value),
+                                      )
+                                    }
+                                    className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
+                                  />
+                                </div>
+                              </label>
+                              <button
+                                type="button"
+                                aria-label="Remove agent commission"
+                                onClick={() =>
+                                  setAgentCommissionAllocations((current) =>
+                                    current.filter((item) => item.id !== allocation.id),
+                                  )
+                                }
+                                className="mt-5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                              <label className="text-xs font-bold text-slate-600">
+                                Internal note
+                                <input
+                                  value={allocation.note}
+                                  onChange={(event) =>
+                                    updateAgentCommissionAllocation(
+                                      allocation.id,
+                                      'note',
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder="For example: assisted with the complete package"
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
+                                />
+                              </label>
+                              <label className="flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-950">
+                                <input
+                                  type="checkbox"
+                                  disabled={allocation.basis === 'none'}
+                                  checked={allocation.deductFromProfit}
+                                  onChange={(event) =>
+                                    updateAgentCommissionAllocation(
+                                      allocation.id,
+                                      'deductFromProfit',
+                                      event.target.checked,
+                                    )
+                                  }
+                                  className="h-4 w-4 accent-amber-800"
+                                />
+                                Subtract from profit
+                              </label>
+                              <div className="min-w-36 rounded-lg bg-slate-900 px-3 py-2 text-right text-white">
+                                <p className="text-[10px] font-bold uppercase text-slate-300">
+                                  Total
+                                </p>
+                                <p className="text-sm font-black">
+                                  {formatMoney(amount, reservationCurrency)}
+                                </p>
                               </div>
-                            </label>
-                            <button
-                              type="button"
-                              aria-label="Remove agent commission"
-                              onClick={() =>
-                                setAgentCommissionAllocations((current) =>
-                                  current.filter((item) => item.id !== allocation.id),
-                                )
-                              }
-                              className="mt-5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
-                            <label className="text-xs font-bold text-slate-600">
-                              Internal note
-                              <input
-                                value={allocation.note}
-                                onChange={(event) =>
-                                  updateAgentCommissionAllocation(
-                                    allocation.id,
-                                    'note',
-                                    event.target.value,
-                                  )
-                                }
-                                placeholder="For example: assisted with the complete package"
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
-                              />
-                            </label>
-                            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-950">
-                              <input
-                                type="checkbox"
-                                disabled={allocation.basis === 'none'}
-                                checked={allocation.deductFromProfit}
-                                onChange={(event) =>
-                                  updateAgentCommissionAllocation(
-                                    allocation.id,
-                                    'deductFromProfit',
-                                    event.target.checked,
-                                  )
-                                }
-                                className="h-4 w-4 accent-amber-800"
-                              />
-                              Subtract from profit
-                            </label>
-                            <div className="min-w-36 rounded-lg bg-slate-900 px-3 py-2 text-right text-white">
-                              <p className="text-[10px] font-bold uppercase text-slate-300">
-                                Total
-                              </p>
-                              <p className="text-sm font-black">
-                                {formatMoney(amount, reservationCurrency)}
-                              </p>
                             </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                        )
+                      })}
+                    </div>
+                  ))}
               </section>
               {Object.values(reservationDiscountAllocations).some(
                 (allocation) => allocation.total > 0,
@@ -3962,13 +4020,121 @@ Please enter the access code and accept the data handling terms before downloadi
                 </form>
               )}
 
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                  <label className="relative xl:col-span-2">
+                    <span className="sr-only">Search reservations</span>
+                    <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <input
+                      value={reservationQuery}
+                      onChange={(event) => setReservationQuery(event.target.value)}
+                      placeholder="Search title, supplier, reference, or family"
+                      className="min-h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    />
+                  </label>
+                  <select
+                    aria-label="Filter reservations by type"
+                    value={reservationTypeFilter}
+                    onChange={(event) =>
+                      setReservationTypeFilter(
+                        event.target.value as TravelPackageReservationType | 'all',
+                      )
+                    }
+                    className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                  >
+                    <option value="all">All service types</option>
+                    {reservationTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter reservations by status"
+                    value={reservationStatusFilter}
+                    onChange={(event) =>
+                      setReservationStatusFilter(
+                        event.target.value as TravelPackageReservationStatus | 'all',
+                      )
+                    }
+                    className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                  >
+                    <option value="all">All statuses</option>
+                    {reservationStatusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Sort reservations"
+                    value={reservationSort}
+                    onChange={(event) => setReservationSort(event.target.value as ReservationSort)}
+                    className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900"
+                  >
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="title">Title A-Z</option>
+                    <option value="sold_high">Highest sold price</option>
+                    <option value="booked_high">Highest booked cost</option>
+                  </select>
+                </div>
+                {groupInvoiceFamilies.length > 0 && (
+                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setReservationFamilyFilter('all')}
+                      className={`min-h-9 shrink-0 rounded-lg px-3 text-xs font-black ${
+                        reservationFamilyFilter === 'all'
+                          ? 'bg-slate-900 text-white'
+                          : 'border border-slate-300 bg-white text-slate-700'
+                      }`}
+                    >
+                      All families
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReservationFamilyFilter('shared')}
+                      className={`min-h-9 shrink-0 rounded-lg px-3 text-xs font-black ${
+                        reservationFamilyFilter === 'shared'
+                          ? 'bg-cyan-900 text-white'
+                          : 'border border-cyan-200 bg-white text-cyan-900'
+                      }`}
+                    >
+                      Group-wide
+                    </button>
+                    {groupInvoiceFamilies.map((family) => (
+                      <button
+                        key={family.quoteId}
+                        type="button"
+                        onClick={() => setReservationFamilyFilter(family.quoteId)}
+                        className={`min-h-9 shrink-0 rounded-lg px-3 text-xs font-black ${
+                          reservationFamilyFilter === family.quoteId
+                            ? 'bg-cyan-900 text-white'
+                            : 'border border-cyan-200 bg-white text-cyan-900'
+                        }`}
+                      >
+                        {family.familyLabel}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  Showing {visibleReservations.length} of {reservations.length} reservations
+                </p>
+              </div>
+
               <div className="mt-4 space-y-3">
                 {reservations.length === 0 && !reservationsLoading ? (
                   <div className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-500">
                     No reservations added yet.
                   </div>
+                ) : visibleReservations.length === 0 && !reservationsLoading ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-500">
+                    No reservations match the current filters.
+                  </div>
                 ) : (
-                  reservations.map((reservation) => {
+                  visibleReservations.map((reservation) => {
                     const ReservationIcon = getReservationIcon(reservation.reservation_type)
                     const itemForm = getReservationItemForm(reservation)
                     const detailForm = getReservationDetailForm(reservation)
@@ -4029,6 +4195,17 @@ Please enter the access code and accept the data handling terms before downloadi
                                 {reservation.reservation_type}
                                 {reservation.supplier_name ? ` · ${reservation.supplier_name}` : ''}
                               </p>
+                              {typeof reservation.metadata?.familyLabel === 'string' &&
+                                reservation.metadata.familyLabel && (
+                                  <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-black text-cyan-900">
+                                    {reservation.metadata.familyLabel}
+                                  </p>
+                                )}
+                              {reservation.metadata?.physicalReservation === true && (
+                                <p className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">
+                                  Group-wide calculation
+                                </p>
+                              )}
                               {reservation.supplier_reference && (
                                 <p className="mt-1 text-xs text-slate-500">
                                   Ref: {reservation.supplier_reference}

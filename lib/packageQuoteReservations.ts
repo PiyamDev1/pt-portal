@@ -25,6 +25,17 @@ export type PackageQuoteReservationFamily = {
   combination: PackageCombination
 }
 
+export type SharedGroupTransportFamilyAllocation = {
+  quoteId: string
+  groupMemberId: string | null
+  familyLabel: string | null
+  passengerCount: number
+  bookedCost: number
+  soldPrice: number
+  referenceOptionId: string | null
+  referenceOptionTitle: string | null
+}
+
 function roundMoney(value: number) {
   return Math.round(Math.max(0, value) * 100) / 100
 }
@@ -85,11 +96,13 @@ export function buildPackageQuoteReservationDrafts({
   combination,
   familyLabel,
   sharedGroupTransportAllocation = false,
+  sharedGroupTransportSoldPrice,
 }: {
   payload: PackageQuotePayload
   combination: PackageCombination
   familyLabel?: string | null
   sharedGroupTransportAllocation?: boolean
+  sharedGroupTransportSoldPrice?: number
 }) {
   const servicePassengers =
     payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
@@ -207,9 +220,13 @@ export function buildPackageQuoteReservationDrafts({
   })
 
   if (combination.transportOption) {
-    const sold = optionTotal(combination.transportOption, servicePassengers)
+    const quotedSold = optionTotal(combination.transportOption, servicePassengers)
+    const sold =
+      sharedGroupTransportAllocation && Number.isFinite(sharedGroupTransportSoldPrice)
+        ? roundMoney(Number(sharedGroupTransportSoldPrice))
+        : quotedSold
     const transportNetCost = Number(combination.transportOption.transportNetCost || 0)
-    componentTotal += sold
+    componentTotal += sharedGroupTransportAllocation ? quotedSold : sold
     drafts.push({
       syncKey: sharedGroupTransportAllocation ? 'transport-family-allocation' : 'transport',
       sourceKey: `transport-${combination.transportOption.id}`,
@@ -234,6 +251,12 @@ export function buildPackageQuoteReservationDrafts({
         transportNetCost,
         transportNetCurrency:
           combination.transportOption.transportNetCurrency || combination.currency,
+        ...(sharedGroupTransportAllocation
+          ? {
+              invoiceReferenceOnly: true,
+              individualQuotedSoldPrice: quotedSold,
+            }
+          : {}),
       },
     })
   }
@@ -273,11 +296,55 @@ export function buildPackageQuoteReservationDrafts({
 
 export function buildSharedGroupTransportDraft(
   families: PackageQuoteReservationFamily[],
+  mainQuoteId?: string | null,
 ): PackageQuoteReservationDraft | null {
-  const sourceFamily = families.find((family) => family.combination.transportOption)
+  const sourceFamily =
+    families.find(
+      (family) => family.quoteId === mainQuoteId && family.combination.transportOption,
+    ) || families.find((family) => family.combination.transportOption)
   const option = sourceFamily?.combination.transportOption
   if (!sourceFamily || !option) return null
   const transportNetCost = Number(option.transportNetCost || 0)
+  const passengerCounts = families.map((family) =>
+    Math.max(
+      0,
+      family.payload.adults +
+        family.payload.childrenPaying +
+        family.payload.childrenFree +
+        family.payload.infants,
+    ),
+  )
+  const totalPassengers = passengerCounts.reduce((total, count) => total + count, 0)
+  const allocationWeights =
+    totalPassengers > 0 ? passengerCounts : families.map(() => (families.length > 0 ? 1 : 0))
+  const totalWeight = allocationWeights.reduce((total, count) => total + count, 0)
+  const totalSoldPrice = optionTotal(option, totalPassengers)
+
+  const allocateByPassenger = (total: number) => {
+    let allocated = 0
+    return allocationWeights.map((weight, index) => {
+      const amount =
+        index === allocationWeights.length - 1
+          ? roundMoney(total - allocated)
+          : roundMoney(totalWeight > 0 ? (total * weight) / totalWeight : 0)
+      allocated = roundMoney(allocated + amount)
+      return amount
+    })
+  }
+  const bookedAllocations = allocateByPassenger(transportNetCost)
+  const soldAllocations = allocateByPassenger(totalSoldPrice)
+  const familyAllocations: SharedGroupTransportFamilyAllocation[] = families.map(
+    (family, index) => ({
+      quoteId: family.quoteId,
+      groupMemberId: family.groupMemberId || null,
+      familyLabel: family.familyLabel || null,
+      passengerCount: passengerCounts[index] || 0,
+      bookedCost: bookedAllocations[index] || 0,
+      soldPrice: soldAllocations[index] || 0,
+      referenceOptionId: family.combination.transportOption?.id || null,
+      referenceOptionTitle: family.combination.transportOption?.title || null,
+    }),
+  )
 
   return {
     syncKey: 'transport-group-physical',
@@ -297,18 +364,13 @@ export function buildSharedGroupTransportDraft(
       transportMainSupplierName: option.transportMainSupplierName || '',
       transportNetCost,
       transportNetCurrency: option.transportNetCurrency || sourceFamily.combination.currency,
-      familyAllocations: families.map((family) => ({
-        quoteId: family.quoteId,
-        groupMemberId: family.groupMemberId || null,
-        familyLabel: family.familyLabel || null,
-        soldPrice: optionTotal(
-          family.combination.transportOption,
-          family.payload.adults +
-            family.payload.childrenPaying +
-            family.payload.childrenFree +
-            family.payload.infants,
-        ),
-      })),
+      calculationSourceQuoteId: sourceFamily.quoteId,
+      calculationSourceOptionId: option.id,
+      calculationSourceOptionTitle: option.title || null,
+      totalPassengerCount: totalPassengers,
+      totalSoldPrice,
+      allocationBasis: 'per_passenger',
+      familyAllocations,
     },
   }
 }
