@@ -37,7 +37,7 @@ psql "$database_url" -v ON_ERROR_STOP=1 -c "
   where component = 'commission';
 " >/dev/null
 future_state_before="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
-  "select version::text || '|' || details ->> 'migration'
+  "select version::text || '|' || (details ->> 'migration')
    from public.portal_schema_versions where component = 'commission'")"
 future_replay_output="$(mktemp)"
 trap 'rm -f "$future_replay_output"' EXIT
@@ -52,7 +52,7 @@ if ! grep -q 'COMMISSION_FORWARD_MIGRATION_REPLAY_BLOCKED' "$future_replay_outpu
   exit 1
 fi
 future_state_after="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
-  "select version::text || '|' || details ->> 'migration'
+  "select version::text || '|' || (details ->> 'migration')
    from public.portal_schema_versions where component = 'commission'")"
 if [[ "$future_state_before" != "2026082905|$future_marker" \
   || "$future_state_after" != "$future_state_before" ]]; then
