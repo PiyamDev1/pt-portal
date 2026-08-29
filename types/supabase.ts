@@ -2,122 +2,10 @@ import type { Database as GeneratedDatabase, Json } from './supabase.generated'
 
 export type { Json } from './supabase.generated'
 
-type GeneratedTables = GeneratedDatabase['public']['Tables']
-
-// `supabase.generated.ts` is the last linked-project snapshot. These additions
-// describe committed migrations that can legitimately lead the deployed schema
-// until `npm run types:supabase` is run after migration rollout.
-type PendingMigrationTables = {
-  api_rate_limit_buckets: {
-    Row: {
-      identity_hash: string
-      request_count: number
-      scope: string
-      updated_at: string
-      window_started_at: string
-    }
-    Insert: {
-      identity_hash: string
-      request_count?: number
-      scope: string
-      updated_at?: string
-      window_started_at?: string
-    }
-    Update: {
-      identity_hash?: string
-      request_count?: number
-      scope?: string
-      updated_at?: string
-      window_started_at?: string
-    }
-    Relationships: []
-  }
-  portal_schema_versions: {
-    Row: {
-      applied_at: string
-      component: string
-      details: Json
-      version: number
-    }
-    Insert: {
-      applied_at?: string
-      component: string
-      details?: Json
-      version: number
-    }
-    Update: {
-      applied_at?: string
-      component?: string
-      details?: Json
-      version?: number
-    }
-    Relationships: []
-  }
-  employee_commission_assignments: {
-    Row: GeneratedTables['employee_commission_assignments']['Row'] & {
-      profile_id: string | null
-    }
-    Insert: GeneratedTables['employee_commission_assignments']['Insert'] & {
-      profile_id?: string | null
-    }
-    Update: GeneratedTables['employee_commission_assignments']['Update'] & {
-      profile_id?: string | null
-    }
-    Relationships: GeneratedTables['employee_commission_assignments']['Relationships']
-  }
-  commission_rules: {
-    Row: GeneratedTables['commission_rules']['Row'] & {
-      profile_id: string | null
-    }
-    Insert: GeneratedTables['commission_rules']['Insert'] & {
-      profile_id?: string | null
-    }
-    Update: GeneratedTables['commission_rules']['Update'] & {
-      profile_id?: string | null
-    }
-    Relationships: GeneratedTables['commission_rules']['Relationships']
-  }
-  employee_commission_profiles: {
-    Row: {
-      id: string
-      employee_id: string
-      label: string
-      effective_from: string
-      effective_to: string | null
-      location_id: string | null
-      copied_from_profile_id: string | null
-      configuration: Json
-      change_reason: string
-      created_by: string
-      created_at: string
-      cancelled_at: string | null
-      cancelled_by: string | null
-      cancellation_reason: string | null
-    }
-    Insert: {
-      id?: string
-      employee_id: string
-      label: string
-      effective_from: string
-      effective_to?: string | null
-      location_id?: string | null
-      copied_from_profile_id?: string | null
-      configuration: Json
-      change_reason: string
-      created_by: string
-      created_at?: string
-      cancelled_at?: string | null
-      cancelled_by?: string | null
-      cancellation_reason?: string | null
-    }
-    Update: {
-      effective_to?: string | null
-    }
-    Relationships: []
-  }
-}
-
-type PendingMigrationFunctions = {
+// The Supabase generator does not preserve nullable PostgreSQL function inputs.
+// Keep those runtime semantics explicit here, alongside functions from committed
+// migrations that have not reached the linked schema snapshot yet.
+type DatabaseFunctionOverrides = {
   check_api_rate_limit: {
     Args: {
       p_identity_hash: string
@@ -215,11 +103,9 @@ type PendingMigrationFunctions = {
 }
 
 export type Database = Omit<GeneratedDatabase, 'public'> & {
-  public: Omit<GeneratedDatabase['public'], 'Tables' | 'Functions'> & {
-    Tables: Omit<GeneratedDatabase['public']['Tables'], keyof PendingMigrationTables> &
-      PendingMigrationTables
-    Functions: Omit<GeneratedDatabase['public']['Functions'], keyof PendingMigrationFunctions> &
-      PendingMigrationFunctions
+  public: Omit<GeneratedDatabase['public'], 'Functions'> & {
+    Functions: Omit<GeneratedDatabase['public']['Functions'], keyof DatabaseFunctionOverrides> &
+      DatabaseFunctionOverrides
   }
 }
 

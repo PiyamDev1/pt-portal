@@ -5,18 +5,34 @@ import { spawnSync } from 'node:child_process'
 const projectRoot = resolve(import.meta.dirname, '../..')
 const outputPath = resolve(projectRoot, 'types/supabase.generated.ts')
 const temporaryPath = `${outputPath}.tmp`
-const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
+const supabaseArgs = [
+  '--yes',
+  'supabase@latest',
+  'gen',
+  'types',
+  'typescript',
+  '--linked',
+  '--schema',
+  'public',
+]
+let npxCommand = 'npx'
+let npxArgs = supabaseArgs
 
-const result = spawnSync(
-  npxCommand,
-  ['--yes', 'supabase@latest', 'gen', 'types', 'typescript', '--linked', '--schema', 'public'],
-  {
-    cwd: projectRoot,
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'inherit'],
-  },
-)
+if (process.platform === 'win32') {
+  const npmExecPath = process.env.npm_execpath
+  if (!npmExecPath) {
+    throw new Error('npm_execpath is required to run the Supabase type generator on Windows.')
+  }
+  npxCommand = process.execPath
+  npxArgs = [resolve(dirname(npmExecPath), 'npx-cli.js'), ...supabaseArgs]
+}
+
+const result = spawnSync(npxCommand, npxArgs, {
+  cwd: projectRoot,
+  encoding: 'utf8',
+  maxBuffer: 16 * 1024 * 1024,
+  stdio: ['ignore', 'pipe', 'inherit'],
+})
 
 if (result.error) throw result.error
 if (result.status !== 0) process.exit(result.status ?? 1)

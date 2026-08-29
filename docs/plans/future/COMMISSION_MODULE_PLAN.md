@@ -5,8 +5,8 @@
 > reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Phase 1 shadow capability deployed; employee-owned agreement workflow code-ready;
-  capability `2026082904` rollout and month reconciliation pending
+- **Status:** Phase 1 shadow capability and employee-owned agreement workflow deployed; month
+  reconciliation pending
 - **Last updated:** August 29, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
@@ -14,13 +14,13 @@
   payable entries
 
 Implementation checkpoint on August 29, 2026: the linked database reports Commission capability
-`2026082903` ready in `shadow` mode. The locally validated, additive capability `2026082904`
-migration remains the rollout boundary; it adds employee-owned agreement snapshots,
-copy-on-create reuse, atomic per-service policies and assignments, effective-dated replacement,
-and cancellation of future changes. The calculation engine, typed exceptions, Admin/HR
-reconciliation console, and daily cron route remain the same audited shadow foundation. Active HR
-department membership in Staff Management is the HR access source. Scheduled runs use an explicit
-system audit actor and do not impersonate an employee.
+`2026082904` ready in `shadow` mode. The deployed additive migration provides employee-owned
+agreement snapshots, copy-on-create reuse, atomic per-service policies and assignments,
+effective-dated replacement, and cancellation of future changes. The calculation engine, typed
+exceptions, Admin/HR reconciliation console, and daily cron route remain the same audited shadow
+foundation. Active HR department membership in Staff Management is the HR access source.
+Scheduled runs use an explicit system audit actor and do not impersonate an employee. A complete
+calendar-month reconciliation remains required before any live/payable phase.
 
 ## 1. Purpose and delivery decision
 

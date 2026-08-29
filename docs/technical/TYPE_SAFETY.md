@@ -1,6 +1,6 @@
 # Type Safety and Request Validation
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 29, 2026.
 
 ## Supabase schema types
 
@@ -12,7 +12,12 @@ npm run types:supabase
 
 The generator runs the current Supabase CLI against the linked project, validates that output contains `Database`, writes through a temporary file, and preserves the existing file if generation fails. Authenticate and link the Supabase CLI before running it; review and commit the resulting type diff with the migration.
 
-`types/supabase.ts` exports the current repository `Database`: the generated snapshot plus a narrow typed overlay for tables/functions introduced by committed migrations that have not yet appeared in a linked-project regeneration. The current overlay covers only the two `20260812` migrations. Remove an overlay entry after the deployed schema is regenerated and the generated file contains it; do not hand-edit the generated file.
+`types/supabase.ts` exports the current repository `Database`: the generated snapshot plus narrow
+function overrides for committed functions not yet present in the linked snapshot and nullable
+PostgreSQL inputs that the generator does not preserve. The generated snapshot includes Commission
+capability `2026082904`; its former table overlay has been removed. Remove a pending override after
+the deployed schema is regenerated, but retain a documented semantic correction while the generated
+contract would otherwise reject a valid database input. Do not hand-edit the generated file.
 
 `getStrictSupabaseClient()` exposes `SupabaseClient<Database>` for the combined current contract. `getSupabaseClient()` uses `LegacyDatabase` from the same file: it preserves current table/view/function names but allows legacy record payloads while older callers are migrated. Do not widen the overlay or use the compatibility layer for new code merely to avoid a type error.
 

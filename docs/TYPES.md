@@ -6,18 +6,18 @@ PT-Portal separates generated database types from application/domain contracts.
 
 ## File map
 
-| Path                          | Responsibility                                                                                                               |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `types/supabase.generated.ts` | Last linked-project schema snapshot: tables, views, functions, enums, rows, inserts, and updates                             |
-| `types/supabase.ts`           | Current `Database` overlay for committed, not-yet-regenerated migrations plus the temporary legacy-caller compatibility view |
-| `app/types/auth.ts`           | User/session/navigation-facing identity contracts                                                                            |
-| `app/types/bookings.ts`       | Booking, schedule, draft, waitlist, and reminder contracts                                                                   |
-| `app/types/lms.ts`            | LMS accounts, transactions, installments, notes, and filters                                                                 |
-| `app/types/nadra.ts`          | NADRA application and related domain contracts                                                                               |
-| `app/types/packages.ts`       | Quote, selection, folder, passenger, invoice, payment, reservation, document, voucher, and group contracts                   |
-| `app/types/pricing.ts`        | Pricing/configuration rows and form values                                                                                   |
-| `app/types/visa.ts`           | Visa metadata and form contracts                                                                                             |
-| `app/types/index.ts`          | Existing barrel for auth, LMS, NADRA, pricing, and visa only                                                                 |
+| Path                          | Responsibility                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `types/supabase.generated.ts` | Last linked-project schema snapshot: tables, views, functions, enums, rows, inserts, and updates              |
+| `types/supabase.ts`           | Current `Database` function corrections/pending additions plus the temporary legacy-caller compatibility view |
+| `app/types/auth.ts`           | User/session/navigation-facing identity contracts                                                             |
+| `app/types/bookings.ts`       | Booking, schedule, draft, waitlist, and reminder contracts                                                    |
+| `app/types/lms.ts`            | LMS accounts, transactions, installments, notes, and filters                                                  |
+| `app/types/nadra.ts`          | NADRA application and related domain contracts                                                                |
+| `app/types/packages.ts`       | Quote, selection, folder, passenger, invoice, payment, reservation, document, voucher, and group contracts    |
+| `app/types/pricing.ts`        | Pricing/configuration rows and form values                                                                    |
+| `app/types/visa.ts`           | Visa metadata and form contracts                                                                              |
+| `app/types/index.ts`          | Existing barrel for auth, LMS, NADRA, pricing, and visa only                                                  |
 
 Import bookings and packages directly:
 
@@ -44,12 +44,17 @@ import type { VisaFormState, VisaMetadata } from '@/app/types'
 
 ## Database contracts
 
-Use `Database` from `types/supabase.ts` for new database access. It combines the generated snapshot with narrowly typed pending-migration additions; `LegacyDatabase` exists only to migrate older callers incrementally. After applying a migration to the linked project, run:
+Use `Database` from `types/supabase.ts` for new database access. It combines the generated snapshot
+with narrowly typed pending functions and generator corrections such as nullable PostgreSQL RPC
+inputs; `LegacyDatabase` exists only to migrate older callers incrementally. After applying a
+migration to the linked project, run:
 
 ```bash
 npm run types:supabase
 ```
 
-Then remove any now-redundant pending overlay entry once the generated snapshot contains it. Never hand-edit `supabase.generated.ts` or turn the overlay into a parallel handwritten schema.
+Then remove any now-redundant pending overlay entry once the generated snapshot contains it. Keep a
+documented correction only where generated types still differ from valid database inputs. Never
+hand-edit `supabase.generated.ts` or turn the override into a parallel handwritten schema.
 
 See [Type Safety and Request Validation](technical/TYPE_SAFETY.md) and [Database Schema Overview](technical/DATABASE_SCHEMA_OVERVIEW.md).

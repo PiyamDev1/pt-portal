@@ -2007,6 +2007,7 @@ export type Database = {
           id: string
           is_active: boolean
           product_type: Database['public']['Enums']['product_type_category'] | null
+          profile_id: string | null
           rule_name: string
           updated_at: string
         }
@@ -2019,6 +2020,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           product_type?: Database['public']['Enums']['product_type_category'] | null
+          profile_id?: string | null
           rule_name: string
           updated_at?: string
         }
@@ -2031,6 +2033,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           product_type?: Database['public']['Enums']['product_type_category'] | null
+          profile_id?: string | null
           rule_name?: string
           updated_at?: string
         }
@@ -2040,6 +2043,13 @@ export type Database = {
             columns: ['created_by']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_rules_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'employee_commission_profiles'
             referencedColumns: ['id']
           },
         ]
@@ -2540,6 +2550,7 @@ export type Database = {
           id: string
           location_id: string | null
           policy_version_id: string
+          profile_id: string | null
           recipient_role: string
           rule_id: string
           service_code: string
@@ -2555,6 +2566,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           policy_version_id: string
+          profile_id?: string | null
           recipient_role: string
           rule_id: string
           service_code: string
@@ -2570,6 +2582,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           policy_version_id?: string
+          profile_id?: string | null
           recipient_role?: string
           rule_id?: string
           service_code?: string
@@ -2607,10 +2620,104 @@ export type Database = {
             referencedColumns: ['id']
           },
           {
+            foreignKeyName: 'employee_commission_assignments_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'employee_commission_profiles'
+            referencedColumns: ['id']
+          },
+          {
             foreignKeyName: 'employee_commission_assignments_rule_id_fkey'
             columns: ['rule_id']
             isOneToOne: false
             referencedRelation: 'commission_rules'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      employee_commission_profiles: {
+        Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          change_reason: string
+          configuration: Json
+          copied_from_profile_id: string | null
+          created_at: string
+          created_by: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          label: string
+          location_id: string | null
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          change_reason: string
+          configuration: Json
+          copied_from_profile_id?: string | null
+          created_at?: string
+          created_by: string
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          id?: string
+          label: string
+          location_id?: string | null
+        }
+        Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          change_reason?: string
+          configuration?: Json
+          copied_from_profile_id?: string | null
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          id?: string
+          label?: string
+          location_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'employee_commission_profiles_cancelled_by_fkey'
+            columns: ['cancelled_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_commission_profiles_copied_from_profile_id_fkey'
+            columns: ['copied_from_profile_id']
+            isOneToOne: false
+            referencedRelation: 'employee_commission_profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_commission_profiles_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_commission_profiles_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_commission_profiles_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
             referencedColumns: ['id']
           },
         ]
@@ -12144,6 +12251,15 @@ export type Database = {
         }
         Returns: Json
       }
+      commission_cancel_employee_profile_2026082904: {
+        Args: {
+          p_actor_employee_id: string
+          p_profile_id: string
+          p_reason: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
       commission_component_amount_2026082902: {
         Args: {
           p_component_id: string
@@ -12165,6 +12281,20 @@ export type Database = {
           p_request_key: string
           p_service_code: string
           p_source_module: string
+        }
+        Returns: Json
+      }
+      commission_create_employee_profile_2026082904: {
+        Args: {
+          p_actor_employee_id: string
+          p_change_reason: string
+          p_configuration: Json
+          p_copied_from_profile_id: string
+          p_effective_from: string
+          p_employee_id: string
+          p_label: string
+          p_location_id: string
+          p_request_key: string
         }
         Returns: Json
       }
