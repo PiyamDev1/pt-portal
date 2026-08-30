@@ -38,33 +38,10 @@ lock table
   public.ticket_transactions
 in share mode;
 
-create temporary table commission_reset_archived_ticket_event_ids (
-  event_id uuid primary key
-) on commit drop;
-
-insert into commission_reset_archived_ticket_event_ids (event_id)
-select source_event.id
-from public.commission_source_events source_event
-where source_event.source_module = 'ticketing'
-  and exists (
-    select 1
-    from public.ticket_bookings booking
-    where booking.archived_at is not null
-      and (
-        source_event.source_record_id = booking.id
-        or source_event.variables ->> 'booking_id' = booking.id::text
-        or exists (
-          select 1
-          from public.ticket_transactions transaction
-          where transaction.booking_id = booking.id
-            and transaction.id = source_event.source_record_id
-        )
-      )
-  );
-
 do $reset_guard$
 declare
   actor_id uuid;
+  archived_ticket_event_ids uuid[];
   actual_state jsonb;
   expected_state constant jsonb := jsonb_build_object(
     'profiles', 2,
@@ -79,6 +56,26 @@ declare
     'calculationRuns', 6
   );
 begin
+  select coalesce(array_agg(source_event.id order by source_event.id), array[]::uuid[])
+  into archived_ticket_event_ids
+  from public.commission_source_events source_event
+  where source_event.source_module = 'ticketing'
+    and exists (
+      select 1
+      from public.ticket_bookings booking
+      where booking.archived_at is not null
+        and (
+          source_event.source_record_id = booking.id
+          or source_event.variables ->> 'booking_id' = booking.id::text
+          or exists (
+            select 1
+            from public.ticket_transactions transaction
+            where transaction.booking_id = booking.id
+              and transaction.id = source_event.source_record_id
+          )
+        )
+    );
+
   if (public.commission_schema_status() ->> 'version')::bigint <> 2026083004 then
     raise exception 'Expected Commission schema 2026083004 before reset; found %',
       public.commission_schema_status() ->> 'version'
@@ -98,13 +95,8 @@ begin
   if exists (
     select 1
     from public.commission_source_events newer
-    join commission_reset_archived_ticket_event_ids archived_event
-      on archived_event.event_id = newer.supersedes_event_id
-    where not exists (
-      select 1
-      from commission_reset_archived_ticket_event_ids same_archived_chain
-      where same_archived_chain.event_id = newer.id
-    )
+    where newer.supersedes_event_id = any(archived_ticket_event_ids)
+      and not (newer.id = any(archived_ticket_event_ids))
   ) then
     raise exception 'An active Ticketing source event depends on an archived Ticketing event'
       using errcode = '55000', hint = 'COMMISSION_RESET_ARCHIVED_EVENT_STILL_REFERENCED';
@@ -172,9 +164,7 @@ begin
           where entry.entry_mode = 'shadow'
         ),
         'sourceEvents', (select count(*) from public.commission_source_events),
-        'archivedTicketingSourceEvents', (
-          select count(*) from commission_reset_archived_ticket_event_ids
-        ),
+        'archivedTicketingSourceEvents', cardinality(archived_ticket_event_ids),
         'monthlyExchangeRates', (
           select count(*) from public.commission_monthly_exchange_rates
         ),
@@ -223,22 +213,18 @@ begin
       'archivedTicketingSourceEvents', coalesce((
         select jsonb_agg(to_jsonb(source_event) order by source_event.created_at, source_event.id)
         from public.commission_source_events source_event
-        join commission_reset_archived_ticket_event_ids archived_event
-          on archived_event.event_id = source_event.id
+        where source_event.id = any(archived_ticket_event_ids)
       ), '[]'::jsonb),
       'archivedTicketingSourceEventStates', coalesce((
         select jsonb_agg(to_jsonb(source_state) order by source_state.event_id)
         from public.commission_source_event_states source_state
-        join commission_reset_archived_ticket_event_ids archived_event
-          on archived_event.event_id = source_state.event_id
+        where source_state.event_id = any(archived_ticket_event_ids)
       ), '[]'::jsonb)
     ),
     jsonb_build_object(
       'profiles', 0,
       'mode', 'shadow',
-      'archivedTicketingSourceEventsPurged', (
-        select count(*) from commission_reset_archived_ticket_event_ids
-      ),
+      'archivedTicketingSourceEventsPurged', cardinality(archived_ticket_event_ids),
       'liveTicketingSourceEventsPreserved', true,
       'packageSourceEventsPreserved', true,
       'ticketingRecordsPreserved', true,
@@ -286,18 +272,42 @@ delete from public.commission_rules;
 -- Remove only Commission source records belonging to Ticketing bookings that
 -- were already archived. The operational booking and audit rows remain intact.
 delete from public.commission_source_event_states source_state
-where exists (
-  select 1
-  from commission_reset_archived_ticket_event_ids archived_event
-  where archived_event.event_id = source_state.event_id
-);
+using public.commission_source_events source_event
+where source_state.event_id = source_event.id
+  and source_event.source_module = 'ticketing'
+  and exists (
+    select 1
+    from public.ticket_bookings booking
+    where booking.archived_at is not null
+      and (
+        source_event.source_record_id = booking.id
+        or source_event.variables ->> 'booking_id' = booking.id::text
+        or exists (
+          select 1
+          from public.ticket_transactions transaction
+          where transaction.booking_id = booking.id
+            and transaction.id = source_event.source_record_id
+        )
+      )
+  );
 
 delete from public.commission_source_events source_event
-where exists (
-  select 1
-  from commission_reset_archived_ticket_event_ids archived_event
-  where archived_event.event_id = source_event.id
-);
+where source_event.source_module = 'ticketing'
+  and exists (
+    select 1
+    from public.ticket_bookings booking
+    where booking.archived_at is not null
+      and (
+        source_event.source_record_id = booking.id
+        or source_event.variables ->> 'booking_id' = booking.id::text
+        or exists (
+          select 1
+          from public.ticket_transactions transaction
+          where transaction.booking_id = booking.id
+            and transaction.id = source_event.source_record_id
+        )
+      )
+  );
 
 -- Remove the self-reference before deleting all copied profile snapshots.
 update public.employee_commission_profiles
@@ -384,14 +394,22 @@ begin
     or exists (
       select 1
       from public.commission_source_events source_event
-      join commission_reset_archived_ticket_event_ids archived_event
-        on archived_event.event_id = source_event.id
-    )
-    or exists (
-      select 1
-      from public.commission_source_event_states source_state
-      join commission_reset_archived_ticket_event_ids archived_event
-        on archived_event.event_id = source_state.event_id
+      where source_event.source_module = 'ticketing'
+        and exists (
+          select 1
+          from public.ticket_bookings booking
+          where booking.archived_at is not null
+            and (
+              source_event.source_record_id = booking.id
+              or source_event.variables ->> 'booking_id' = booking.id::text
+              or exists (
+                select 1
+                from public.ticket_transactions transaction
+                where transaction.booking_id = booking.id
+                  and transaction.id = source_event.source_record_id
+              )
+            )
+        )
     )
   then
     raise exception 'Commission reset verification failed; rolling back'
