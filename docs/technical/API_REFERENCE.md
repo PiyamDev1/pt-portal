@@ -299,29 +299,30 @@ Ticketing responses never expose calculated commission, earnings, margin, or pro
 
 ## Commission policy and shadow processing
 
-| Methods       | Route                                                                |
-| ------------- | -------------------------------------------------------------------- |
-| `GET`         | `/api/commissions/me`                                                |
-| `GET`         | `/api/commissions/admin`                                             |
-| `POST`        | `/api/commissions/admin/profiles`                                    |
-| `POST`        | `/api/commissions/admin/exchange-rates`                              |
-| `POST`        | `/api/commissions/admin/profiles/[id]/cancel`                        |
-| `POST`        | `/api/commissions/admin/process`                                     |
-| `POST`        | `/api/commissions/admin/exceptions/[id]/retry`                       |
-| `GET`         | `/api/commissions/overview`                                          |
-| `GET`         | `/api/commissions/setup-options`                                     |
-| `GET`, `POST` | `/api/commissions/policies`                                          |
-| `GET`, `POST` | `/api/commissions/policies/[policyId]/versions`                      |
-| `POST`        | `/api/commissions/policies/[policyId]/versions/[versionId]/activate` |
-| `GET`, `POST` | `/api/commissions/assignments`                                       |
-| `POST`        | `/api/commissions/preview`                                           |
-| `GET`         | `/api/commissions/shadow-entries`                                    |
-| `GET`         | `/api/commissions/bonus-periods`                                     |
-| `GET`         | `/api/commissions/exceptions`                                        |
-| `POST`        | `/api/commissions/exceptions/[id]/retry`                             |
-| `POST`        | `/api/commissions/process`                                           |
-| `GET`, `POST` | `/api/commissions/access-grants`                                     |
-| `DELETE`      | `/api/commissions/access-grants/[id]`                                |
+| Methods         | Route                                                                |
+| --------------- | -------------------------------------------------------------------- |
+| `GET`           | `/api/commissions/me`                                                |
+| `GET`           | `/api/commissions/admin`                                             |
+| `POST`          | `/api/commissions/admin/profiles`                                    |
+| `PUT`, `DELETE` | `/api/commissions/admin/profiles/[id]`                               |
+| `POST`          | `/api/commissions/admin/exchange-rates`                              |
+| `POST`          | `/api/commissions/admin/profiles/[id]/cancel`                        |
+| `POST`          | `/api/commissions/admin/process`                                     |
+| `POST`          | `/api/commissions/admin/exceptions/[id]/retry`                       |
+| `GET`           | `/api/commissions/overview`                                          |
+| `GET`           | `/api/commissions/setup-options`                                     |
+| `GET`, `POST`   | `/api/commissions/policies`                                          |
+| `GET`, `POST`   | `/api/commissions/policies/[policyId]/versions`                      |
+| `POST`          | `/api/commissions/policies/[policyId]/versions/[versionId]/activate` |
+| `GET`, `POST`   | `/api/commissions/assignments`                                       |
+| `POST`          | `/api/commissions/preview`                                           |
+| `GET`           | `/api/commissions/shadow-entries`                                    |
+| `GET`           | `/api/commissions/bonus-periods`                                     |
+| `GET`           | `/api/commissions/exceptions`                                        |
+| `POST`          | `/api/commissions/exceptions/[id]/retry`                             |
+| `POST`          | `/api/commissions/process`                                           |
+| `GET`, `POST`   | `/api/commissions/access-grants`                                     |
+| `DELETE`        | `/api/commissions/access-grants/[id]`                                |
 
 The self route resolves the caller's employee identity server-side and returns only that employee's
 agreement and non-payable preview. Management routes require Admin Commission authority or active HR

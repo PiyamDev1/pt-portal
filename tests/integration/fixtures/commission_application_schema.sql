@@ -11,6 +11,16 @@ create table if not exists public.nadra_services (
   tracking_number text
 );
 
+create table if not exists public.nicop_cnic_details (
+  id uuid primary key references public.nadra_services(id) on delete cascade,
+  service_option text not null default 'Normal'
+);
+
+create table if not exists public.poc_details (
+  id uuid primary key references public.nadra_services(id) on delete cascade,
+  service_option text not null default 'Normal (no modification)'
+);
+
 create table if not exists public.nadra_status_history (
   id uuid primary key default gen_random_uuid(),
   nadra_service_id uuid references public.nadra_services(id) on delete cascade,

@@ -100,6 +100,28 @@ type DatabaseFunctionOverrides = {
     }
     Returns: Json
   }
+  commission_replace_employee_profile_2026083006: {
+    Args: {
+      p_actor_employee_id: string
+      p_profile_id: string
+      p_label: string
+      p_effective_from: string
+      p_location_id: string | null
+      p_configuration: Json
+      p_change_reason: string
+      p_request_key: string
+    }
+    Returns: Json
+  }
+  commission_remove_employee_profile_2026083006: {
+    Args: {
+      p_actor_employee_id: string
+      p_profile_id: string
+      p_reason: string
+      p_request_key: string
+    }
+    Returns: Json
+  }
   commission_source_module_overview_2026083003: {
     Args: { p_actor_employee_id: string }
     Returns: Json

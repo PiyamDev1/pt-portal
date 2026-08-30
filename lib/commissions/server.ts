@@ -198,7 +198,9 @@ function profileDraft(value: Json | null | undefined): CommissionProfileInput | 
           services: {
             packageSale: zeroRate,
             applicationNadra: zeroRate,
+            applicationNadraUrgent: services.applicationNadra || zeroRate,
             applicationPassportPk: zeroRate,
+            applicationPassportPkUrgent: services.applicationPassportPk || zeroRate,
             applicationPassportGb: zeroRate,
             applicationVisa: zeroRate,
             ...services,
@@ -579,20 +581,25 @@ export async function loadCommissionAdminData(
   if (sourceModulesResult.error) throw sourceModulesResult.error
 
   const today = new Date().toISOString().slice(0, 10)
-  const profiles: CommissionAdminProfile[] = (profilesResult.data || []).map((profile) => ({
-    id: profile.id,
-    employeeId: profile.employee_id,
-    label: profile.label,
-    effectiveFrom: profile.effective_from,
-    effectiveTo: profile.effective_to,
-    locationId: profile.location_id,
-    copiedFromProfileId: profile.copied_from_profile_id,
-    changeReason: profile.change_reason,
-    createdAt: profile.created_at,
-    cancelledAt: profile.cancelled_at,
-    cancellationReason: profile.cancellation_reason,
-    configuration: profileDraft(profile.configuration),
-  }))
+  const profiles: CommissionAdminProfile[] = (profilesResult.data || [])
+    .filter(
+      (profile) =>
+        !/^\[(?:removed|overwritten)\]/i.test(String(profile.cancellation_reason || '').trim()),
+    )
+    .map((profile) => ({
+      id: profile.id,
+      employeeId: profile.employee_id,
+      label: profile.label,
+      effectiveFrom: profile.effective_from,
+      effectiveTo: profile.effective_to,
+      locationId: profile.location_id,
+      copiedFromProfileId: profile.copied_from_profile_id,
+      changeReason: profile.change_reason,
+      createdAt: profile.created_at,
+      cancelledAt: profile.cancelled_at,
+      cancellationReason: profile.cancellation_reason,
+      configuration: profileDraft(profile.configuration),
+    }))
   const exceptions: CommissionAdminException[] = (exceptionsResult.data || []).map((item) => {
     const details = jsonObject(item.details)
     return {

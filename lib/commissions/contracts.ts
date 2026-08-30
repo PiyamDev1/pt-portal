@@ -4,7 +4,7 @@ export const COMMISSION_CAPABILITY_VERSION = 2026082903
 export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026083002
 export const COMMISSION_PACKAGE_CAPABILITY_VERSION = 2026083003
 export const COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION = 2026083004
-export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083005
+export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083006
 
 export const commissionSourceModules = ['ticketing', 'packages', 'applications'] as const
 export const commissionServiceCodes = [
@@ -16,7 +16,9 @@ export const commissionServiceCodes = [
   'higher_fare',
   'package_sale',
   'application_nadra',
+  'application_nadra_urgent',
   'application_passport_pk',
+  'application_passport_pk_urgent',
   'application_passport_gb',
   'application_visa',
   'sales_bonus',
@@ -287,7 +289,9 @@ export const COMMISSION_PROFILE_SERVICE_CODES = [
   'higher_fare',
   'package_sale',
   'application_nadra',
+  'application_nadra_urgent',
   'application_passport_pk',
+  'application_passport_pk_urgent',
   'application_passport_gb',
   'application_visa',
 ] as const
@@ -305,8 +309,10 @@ export const COMMISSION_SERVICE_LABELS: Record<
   low_fare: 'Low-fare savings',
   higher_fare: 'Supplier fare increase adjustments',
   package_sale: 'Package sales',
-  application_nadra: 'NADRA applications',
-  application_passport_pk: 'Pakistani passport applications',
+  application_nadra: 'NADRA applications - normal',
+  application_nadra_urgent: 'NADRA applications - urgent / executive',
+  application_passport_pk: 'Pakistani passport applications - normal',
+  application_passport_pk_urgent: 'Pakistani passport applications - urgent / executive',
   application_passport_gb: 'British passport applications',
   application_visa: 'Visa applications',
   sales_bonus: 'Monthly profit bonus',
@@ -430,16 +436,24 @@ export const commissionProfileSchema = z
           'A supplier fare increase adjustment must be the full difference, a percentage, or zero',
         ),
         packageSale: commissionRateSchema.refine(
-          (rate) => rate.kind !== 'tiered' && rate.kind !== 'full_difference',
-          'Package sales do not support ticket-volume tiers',
+          (rate) => rate.kind !== 'full_difference',
+          'Package sales do not support fare-difference adjustments',
         ),
         applicationNadra: commissionRateSchema.refine(
           (rate) => ['none', 'per_event'].includes(rate.kind),
           'NADRA applications support a fixed completed-application rate or zero',
         ),
+        applicationNadraUrgent: commissionRateSchema.refine(
+          (rate) => ['none', 'per_event'].includes(rate.kind),
+          'Urgent NADRA applications support a fixed completed-application rate or zero',
+        ),
         applicationPassportPk: commissionRateSchema.refine(
           (rate) => ['none', 'per_event'].includes(rate.kind),
           'Pakistani passport applications support a fixed collected-application rate or zero',
+        ),
+        applicationPassportPkUrgent: commissionRateSchema.refine(
+          (rate) => ['none', 'per_event'].includes(rate.kind),
+          'Urgent Pakistani passport applications support a fixed collected-application rate or zero',
         ),
         applicationPassportGb: commissionRateSchema.refine(
           (rate) => ['none', 'per_event'].includes(rate.kind),
@@ -632,7 +646,15 @@ const PROFILE_SERVICE_METADATA: Record<
     sourceModule: 'applications',
     recipientRole: 'application_agent',
   },
+  application_nadra_urgent: {
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
   application_passport_pk: {
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
+  application_passport_pk_urgent: {
     sourceModule: 'applications',
     recipientRole: 'application_agent',
   },
@@ -662,6 +684,9 @@ function componentForProfileRate(
       ...(serviceCode === 'tk_assistance' ? { assistanceScope } : {}),
       ...(serviceCode === 'tk_primary' && rate.kind === 'tiered'
         ? { includeDateChangesInMarginalTiers: input.ticketTierOptions.includeDateChanges }
+        : {}),
+      ...(serviceCode === 'package_sale' && rate.kind === 'tiered'
+        ? { marginalUnit: 'package_passenger' }
         : {}),
     },
   }
@@ -737,7 +762,9 @@ export function toStoredCommissionProfile(
     ['higher_fare', input.services.higherFare],
     ['package_sale', input.services.packageSale],
     ['application_nadra', input.services.applicationNadra],
+    ['application_nadra_urgent', input.services.applicationNadraUrgent],
     ['application_passport_pk', input.services.applicationPassportPk],
+    ['application_passport_pk_urgent', input.services.applicationPassportPkUrgent],
     ['application_passport_gb', input.services.applicationPassportGb],
     ['application_visa', input.services.applicationVisa],
   ]
@@ -794,7 +821,9 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
       higherFare: { ...zeroRate },
       packageSale: { ...zeroRate },
       applicationNadra: { ...zeroRate },
+      applicationNadraUrgent: { ...zeroRate },
       applicationPassportPk: { ...zeroRate },
+      applicationPassportPkUrgent: { ...zeroRate },
       applicationPassportGb: { ...zeroRate },
       applicationVisa: { ...zeroRate },
     },
@@ -814,6 +843,7 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
 export function profileNeedsWholeMonths(profile: CommissionProfileInput) {
   return (
     profile.services.tkPrimary.kind === 'tiered' ||
+    profile.services.packageSale.kind === 'tiered' ||
     profile.monthlyBonus.enabled ||
     profile.compensation.currency !== 'GBP' ||
     profile.compensation.monthlySalary > 0

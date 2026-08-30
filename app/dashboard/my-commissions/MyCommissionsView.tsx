@@ -417,14 +417,26 @@ export default function MyCommissionsView({
                       ['Supplier fare increase adjustment', profile.services.higherFare],
                       ['Package sales', profile.services.packageSale, true],
                       [
-                        'NADRA applications',
+                        'NADRA applications - normal',
                         profile.services.applicationNadra,
                         false,
                         'completed application',
                       ],
                       [
-                        'Pakistani passport applications',
+                        'NADRA applications - urgent',
+                        profile.services.applicationNadraUrgent,
+                        false,
+                        'completed application',
+                      ],
+                      [
+                        'Pakistani passport applications - normal',
                         profile.services.applicationPassportPk,
+                        false,
+                        'collected application',
+                      ],
+                      [
+                        'Pakistani passport applications - urgent',
+                        profile.services.applicationPassportPkUrgent,
                         false,
                         'collected application',
                       ],

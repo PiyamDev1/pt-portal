@@ -31,6 +31,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserRoundCheck,
   Users,
   X,
@@ -89,10 +90,12 @@ function nextMonthStart() {
 function conflictingCommissionProfile(
   draft: CommissionProfileInput,
   profiles: CommissionAdminProfile[],
+  excludedProfileId: string | null = null,
 ) {
   return profiles.find(
     (profile) =>
       profile.employeeId === draft.employeeId &&
+      profile.id !== excludedProfileId &&
       profile.locationId === draft.locationId &&
       profile.cancelledAt === null &&
       (profile.effectiveFrom >= draft.effectiveFrom ||
@@ -247,6 +250,7 @@ function RateEditor({
   noneLabel = 'No commission',
   perEventLabel = 'Per booking / case',
   currency = 'GBP',
+  tierUnitLabel = 'ticket',
 }: {
   title: string
   description: string
@@ -257,6 +261,7 @@ function RateEditor({
   noneLabel?: string
   perEventLabel?: string
   currency?: 'GBP' | 'PKR'
+  tierUnitLabel?: string
 }) {
   const setKind = (kind: CommissionRateKind) => {
     onChange({
@@ -293,7 +298,9 @@ function RateEditor({
                   ? noneLabel
                   : kind === 'per_event'
                     ? perEventLabel
-                    : KIND_LABELS[kind]}
+                    : kind === 'tiered' && tierUnitLabel !== 'ticket'
+                      ? `Marginal ${tierUnitLabel} tiers`
+                      : KIND_LABELS[kind]}
               </option>
             ))}
           </select>
@@ -330,7 +337,7 @@ function RateEditor({
               className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
             >
               <label className="text-[11px] font-bold text-slate-500">
-                Starts at ticket
+                Starts at {tierUnitLabel}
                 <DraftNumberInput
                   min="1"
                   step="1"
@@ -346,7 +353,7 @@ function RateEditor({
                 />
               </label>
               <label className="text-[11px] font-bold text-slate-500">
-                {currency} per ticket
+                {currency} per {tierUnitLabel}
                 <DraftNumberInput
                   min="0"
                   step="0.01"
@@ -554,6 +561,7 @@ function AgreementEditor({
   onClose,
   onSubmit,
   intent,
+  editingProfileId,
 }: {
   draft: CommissionProfileInput
   setDraft: (draft: CommissionProfileInput) => void
@@ -565,10 +573,11 @@ function AgreementEditor({
   onClose: () => void
   onSubmit: (event: FormEvent) => void
   intent: CommissionEditorIntent
+  editingProfileId: string | null
 }) {
   const employeeNames = new Map(employees.map((item) => [item.id, item.fullName]))
   const templates = profiles.filter((profile) => profile.configuration)
-  const dateConflict = conflictingCommissionProfile(draft, profiles)
+  const dateConflict = conflictingCommissionProfile(draft, profiles, editingProfileId)
   const updateService = (key: ServiceKey, rate: CommissionRate) => {
     setDraft({ ...draft, services: { ...draft.services, [key]: rate } })
   }
@@ -598,7 +607,7 @@ function AgreementEditor({
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               {intent === 'edit'
-                ? 'The current values are loaded below. Saving schedules an edited replacement while preserving the previous version in history.'
+                ? 'The current values are loaded below. Saving overwrites this plan. Existing calculation evidence remains archived and is recalculated against the edited plan.'
                 : 'Start with a blank commission or copy another profile once. The new commission remains independent after it is saved.'}
             </p>
           </div>
@@ -622,8 +631,8 @@ function AgreementEditor({
                     Editing the current commission
                   </p>
                   <p className="mt-1 text-xs leading-5 text-amber-800">
-                    Change only the values that need updating. To start over or use another staff
-                    member&apos;s profile, close this editor and choose New commission instead.
+                    Change any values or the effective date, then save to replace this plan. New
+                    commission creates a separate effective-dated plan instead.
                   </p>
                 </div>
               </div>
@@ -894,11 +903,12 @@ function AgreementEditor({
               <div className="lg:col-span-2">
                 <RateEditor
                   title="Package sales"
-                  description="Commission on a package sold by this employee."
+                  description="Commission on a package sold by this employee, including marginal rates based on its passenger count."
                   rate={draft.services.packageSale}
-                  allowedKinds={['none', 'per_unit', 'per_event', 'percentage']}
+                  allowedKinds={['none', 'per_unit', 'per_event', 'percentage', 'tiered']}
                   onChange={(rate) => updateService('packageSale', rate)}
                   packageRate
+                  tierUnitLabel="passenger"
                   currency={draft.compensation.currency}
                 />
               </div>
@@ -917,8 +927,8 @@ function AgreementEditor({
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <RateEditor
-                    title="NADRA applications"
-                    description="Paid when a NADRA application reaches Completed."
+                    title="NADRA applications - normal"
+                    description="Paid when a normal NADRA application reaches Completed."
                     rate={draft.services.applicationNadra}
                     allowedKinds={['none', 'per_event']}
                     onChange={(rate) => updateService('applicationNadra', rate)}
@@ -926,12 +936,30 @@ function AgreementEditor({
                     currency={draft.compensation.currency}
                   />
                   <RateEditor
-                    title="Pakistani passport applications"
-                    description="Paid when a Pakistani passport reaches Collected."
+                    title="NADRA applications - urgent / executive"
+                    description="Paid when a NADRA application with an Urgent or Executive service option reaches Completed."
+                    rate={draft.services.applicationNadraUrgent}
+                    allowedKinds={['none', 'per_event']}
+                    onChange={(rate) => updateService('applicationNadraUrgent', rate)}
+                    perEventLabel="Fixed per completed urgent application"
+                    currency={draft.compensation.currency}
+                  />
+                  <RateEditor
+                    title="Pakistani passport applications - normal"
+                    description="Paid when a normal Pakistani passport reaches Collected."
                     rate={draft.services.applicationPassportPk}
                     allowedKinds={['none', 'per_event']}
                     onChange={(rate) => updateService('applicationPassportPk', rate)}
                     perEventLabel="Fixed per collected application"
+                    currency={draft.compensation.currency}
+                  />
+                  <RateEditor
+                    title="Pakistani passport applications - urgent / executive"
+                    description="Paid when an Urgent or Executive Pakistani passport reaches Collected."
+                    rate={draft.services.applicationPassportPkUrgent}
+                    allowedKinds={['none', 'per_event']}
+                    onChange={(rate) => updateService('applicationPassportPkUrgent', rate)}
+                    perEventLabel="Fixed per collected urgent application"
                     currency={draft.compensation.currency}
                   />
                   <RateEditor
@@ -1138,10 +1166,27 @@ function ProfileSummary({
     ['Low-fare savings', config.services.lowFare],
     ['Supplier fare increase adjustment', config.services.higherFare],
     ['Package sales', config.services.packageSale, true],
-    ['NADRA applications', config.services.applicationNadra, false, 'completed application'],
     [
-      'Pakistani passport applications',
+      'NADRA applications - normal',
+      config.services.applicationNadra,
+      false,
+      'completed application',
+    ],
+    [
+      'NADRA applications - urgent',
+      config.services.applicationNadraUrgent,
+      false,
+      'completed application',
+    ],
+    [
+      'Pakistani passport applications - normal',
       config.services.applicationPassportPk,
+      false,
+      'collected application',
+    ],
+    [
+      'Pakistani passport applications - urgent',
+      config.services.applicationPassportPkUrgent,
       false,
       'collected application',
     ],
@@ -1225,6 +1270,7 @@ export default function AdminCommissionClient({
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<CommissionProfileInput | null>(null)
   const [editorIntent, setEditorIntent] = useState<CommissionEditorIntent>('new')
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
@@ -1292,10 +1338,15 @@ export default function AdminCommissionClient({
       }
     }
     next.locationId = intent === 'edit' ? next.locationId : null
-    next.effectiveFrom = currentProfile ? nextMonthStart() : next.effectiveFrom
+    next.effectiveFrom =
+      intent === 'edit' && source
+        ? source.effectiveFrom
+        : currentProfile
+          ? nextMonthStart()
+          : next.effectiveFrom
     next.label =
       intent === 'edit' && source
-        ? `${source.label} update`
+        ? source.label
         : source
           ? `${source.label} copy`
           : 'New commission'
@@ -1308,6 +1359,7 @@ export default function AdminCommissionClient({
             ? 'New employee commission'
             : 'Initial employee commission'
     setEditorIntent(intent)
+    setEditingProfileId(intent === 'edit' ? source?.id || null : null)
     setDraft(next)
     setError('')
     setNotice('')
@@ -1356,16 +1408,22 @@ export default function AdminCommissionClient({
             : 'Check the commission plan values',
         )
       }
-      await fetchJson('/api/commissions/admin/profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey('profile') },
-        body: JSON.stringify(parsed.data),
-      })
+      await fetchJson(
+        editorIntent === 'edit' && editingProfileId
+          ? `/api/commissions/admin/profiles/${editingProfileId}`
+          : '/api/commissions/admin/profiles',
+        {
+          method: editorIntent === 'edit' ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey('profile') },
+          body: JSON.stringify(parsed.data),
+        },
+      )
       await refresh()
       setDraft(null)
+      setEditingProfileId(null)
       setNotice(
         editorIntent === 'edit'
-          ? 'The edited commission was saved as a new effective-dated version.'
+          ? 'The commission plan was overwritten and its calculations were queued for refresh.'
           : 'The new commission was saved independently for this employee.',
       )
     } catch (saveError) {
@@ -1442,8 +1500,8 @@ export default function AdminCommissionClient({
     setWorking(true)
     setError('')
     try {
-      await fetchJson(`/api/commissions/admin/profiles/${cancelProfile.id}/cancel`, {
-        method: 'POST',
+      await fetchJson(`/api/commissions/admin/profiles/${cancelProfile.id}`, {
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           'Idempotency-Key': requestKey('profile-cancel'),
@@ -1453,9 +1511,9 @@ export default function AdminCommissionClient({
       await refresh()
       setCancelProfile(null)
       setCancelReason('')
-      setNotice('The scheduled plan was cancelled and the preceding plan was restored.')
+      setNotice('The commission plan was removed and the surrounding plan dates were restored.')
     } catch (cancelError) {
-      setError(cancelError instanceof Error ? cancelError.message : 'Unable to cancel plan')
+      setError(cancelError instanceof Error ? cancelError.message : 'Unable to remove plan')
     } finally {
       setWorking(false)
     }
@@ -1936,7 +1994,7 @@ export default function AdminCommissionClient({
                       }}
                       className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-900 hover:bg-blue-100"
                     >
-                      Cancel scheduled change
+                      Delete scheduled change
                     </button>
                   </div>
                 </article>
@@ -1986,15 +2044,29 @@ export default function AdminCommissionClient({
                             {profile.cancelledAt ? ` · ${profile.cancellationReason}` : ''}
                           </p>
                         </div>
-                        {profile.configuration && (
-                          <button
-                            onClick={() => startAgreement('copy', profile)}
-                            disabled={!planEditorReady || Boolean(scheduledProfile)}
-                            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-[#8b1e2d] hover:bg-red-50 disabled:opacity-30"
-                          >
-                            <Copy className="h-3.5 w-3.5" /> Copy
-                          </button>
-                        )}
+                        <div className="flex shrink-0 items-center gap-1">
+                          {profile.configuration && (
+                            <button
+                              onClick={() => startAgreement('copy', profile)}
+                              disabled={!planEditorReady || Boolean(scheduledProfile)}
+                              className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-[#8b1e2d] hover:bg-red-50 disabled:opacity-30"
+                            >
+                              <Copy className="h-3.5 w-3.5" /> Copy
+                            </button>
+                          )}
+                          {!profile.cancelledAt && (
+                            <button
+                              onClick={() => {
+                                setCancelProfile(profile)
+                                setCancelReason('')
+                              }}
+                              disabled={!planEditorReady}
+                              className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-30"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2078,6 +2150,7 @@ export default function AdminCommissionClient({
           onClose={() => setDraft(null)}
           onSubmit={saveAgreement}
           intent={editorIntent}
+          editingProfileId={editingProfileId}
         />
       )}
 
@@ -2095,23 +2168,25 @@ export default function AdminCommissionClient({
               </span>
               <div>
                 <h2 id="cancel-profile-title" className="text-lg font-black text-slate-950">
-                  Cancel scheduled commission plan?
+                  Delete commission plan?
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  {cancelProfile.label} will never become active. The commission plan before it will
-                  be restored automatically.
+                  {cancelProfile.label} will be removed from the active plan history. If
+                  calculations already reference it, its accounting evidence is retained internally
+                  while the plan is archived. Surrounding effective dates are restored
+                  automatically.
                 </p>
               </div>
             </div>
             <label className="mt-5 block text-xs font-bold text-slate-600">
-              Cancellation reason
+              Deletion reason
               <textarea
                 value={cancelReason}
                 onChange={(event) => setCancelReason(event.target.value)}
                 minLength={8}
-                maxLength={500}
+                maxLength={480}
                 rows={3}
-                placeholder="Why is this scheduled change being cancelled?"
+                placeholder="Why is this commission plan being removed?"
                 className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-amber-500"
               />
             </label>
@@ -2128,7 +2203,7 @@ export default function AdminCommissionClient({
                 disabled={working || cancelReason.trim().length < 8}
                 className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-40"
               >
-                {working && <Loader2 className="h-4 w-4 animate-spin" />} Cancel scheduled plan
+                {working && <Loader2 className="h-4 w-4 animate-spin" />} Delete commission plan
               </button>
             </div>
           </div>

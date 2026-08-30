@@ -23,7 +23,9 @@ describe('employee commission profile contract', () => {
       'higher_fare',
       'package_sale',
       'application_nadra',
+      'application_nadra_urgent',
       'application_passport_pk',
+      'application_passport_pk_urgent',
       'application_passport_gb',
       'application_visa',
     ])
@@ -55,10 +57,39 @@ describe('employee commission profile contract', () => {
     })
   })
 
+  it('maps package marginal tiers to authoritative passenger units', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.services.packageSale = {
+      kind: 'tiered',
+      value: 0,
+      tiers: [
+        { minUnit: 6, rateGbp: 8 },
+        { minUnit: 1, rateGbp: 5 },
+      ],
+    }
+
+    const component = toStoredCommissionProfile(profile).services.find(
+      (service) => service.serviceCode === 'package_sale',
+    )?.components[0]
+
+    expect(component).toMatchObject({
+      componentType: 'marginal_ticket_tier',
+      recipientRole: 'package_sales',
+      config: { marginalUnit: 'package_passenger' },
+      tiers: [
+        { minUnit: 1, rateGbp: 5 },
+        { minUnit: 6, rateGbp: 8 },
+      ],
+    })
+    expect(profileNeedsWholeMonths(profile)).toBe(true)
+  })
+
   it('maps each completed Application service to a fixed employee-owned event rate', () => {
     const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
     profile.services.applicationNadra = { kind: 'per_event', value: 10, tiers: [] }
+    profile.services.applicationNadraUrgent = { kind: 'per_event', value: 15, tiers: [] }
     profile.services.applicationPassportPk = { kind: 'per_event', value: 20, tiers: [] }
+    profile.services.applicationPassportPkUrgent = { kind: 'per_event', value: 25, tiers: [] }
     profile.services.applicationPassportGb = { kind: 'per_event', value: 30, tiers: [] }
     profile.services.applicationVisa = { kind: 'per_event', value: 40, tiers: [] }
 
@@ -68,12 +99,14 @@ describe('employee commission profile contract', () => {
 
     expect(applicationServices.map((service) => service.serviceCode)).toEqual([
       'application_nadra',
+      'application_nadra_urgent',
       'application_passport_pk',
+      'application_passport_pk_urgent',
       'application_passport_gb',
       'application_visa',
     ])
     expect(applicationServices.map((service) => service.components[0]?.rateValue)).toEqual([
-      10, 20, 30, 40,
+      10, 15, 20, 25, 30, 40,
     ])
     expect(
       applicationServices.every(

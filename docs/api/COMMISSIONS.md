@@ -4,7 +4,7 @@ Commission has an employee-owned read surface and a separate Admin/HR control su
 derives the actor from the active staff session and returns private, non-cacheable data. The self
 route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
 Commission authority or live HR department membership. Employee-profile mutations require database
-capability `2026083005`, including completed Application commission sources; the advanced shadow
+capability `2026083006`, including completed Application commission sources; the advanced shadow
 engine requires `2026082903`. All calculated values in this release are non-payable shadow evidence.
 
 ### GET `/api/commissions/me`
@@ -43,8 +43,10 @@ for an unexpected load failure.
 effective date, optional location scope and copied-profile provenance, change reason, pay currency
 and salary, typed rates for every supported service, Ticket Assistance scope (`all` or
 `specific_agents` with an independent rate for every selected primary employee), ticket-tier date
-change inclusion, four fixed completed-Application rates, and optional monthly bonus. Application
-rates are either fixed per completed/collected case or explicit zero. Past effective dates are
+change inclusion, separate normal and urgent/executive NADRA and Pakistani-passport rates, British
+passport and Visa rates, and optional monthly bonus. Application rates are either fixed per
+completed/collected case or explicit zero. Package sales can also use marginal per-passenger tiers
+based on the authoritative package passenger count. Past effective dates are
 accepted only when they do not overlap a completed or later plan and do not rewrite calculated
 history. Tiered, bonus, salary, and PKR agreements use whole-month boundaries.
 
@@ -55,8 +57,39 @@ triggers a bounded shadow-processing attempt.
 
 **Errors:** `400` for malformed or unsafe setup; `401`/`403` for access failure; `404` for a missing
 employee/location/copy source; `409` when the date overlaps a completed/later plan or protected
-calculated history; `503` when `2026083005` is not
+calculated history; `503` when `2026083006` is not
 installed; `500` for an unexpected transactional failure.
+
+### PUT `/api/commissions/admin/profiles/[id]`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the permission check.
+
+**Input:** Profile UUID, valid `Idempotency-Key`, and the same strict complete agreement JSON used
+to create a profile. The employee and branch scope must still identify the selected plan.
+
+**Success:** `200` after one transaction archives the old immutable snapshot, restores its timeline,
+creates the edited employee-owned plan, re-queues affected source facts, and attempts a bounded
+shadow recalculation. Existing accounting evidence remains auditable but the overwritten plan is
+removed from operational history.
+
+**Errors:** `400` for invalid data or a branch-scope change; `401`/`403` for access failure; `404`
+for a missing active profile; `409` for an effective-date conflict; `503` when capability
+`2026083006` is absent; and `500` for an unexpected transactional failure.
+
+### DELETE `/api/commissions/admin/profiles/[id]`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the permission check.
+
+**Input:** Profile UUID, valid `Idempotency-Key`, and strict JSON `{ reason }` with an 8-480
+character audit reason.
+
+**Success:** `200` after removing the plan from operational history, removing its assignments, and
+restoring the previous plan to the next valid boundary. Policy and calculation evidence is retained
+internally where required for audit.
+
+**Errors:** `400` for invalid input; `401`/`403` for access failure; `404` for a missing profile;
+`409` when the plan is already inactive; `503` when capability `2026083006` is absent; and `500` for
+an unexpected transactional failure.
 
 ### POST `/api/commissions/admin/exchange-rates`
 
