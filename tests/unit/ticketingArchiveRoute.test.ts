@@ -47,7 +47,7 @@ describe('DELETE /api/ticketing/ledger/[bookingId]/archive', () => {
     mocks.verifyFreshSecondFactor.mockResolvedValue({ verified: true, method: 'totp' })
     mocks.rpc.mockImplementation(async (name: string) =>
       name === 'ticketing_schema_status'
-        ? { data: { ready: true, version: 2026082802 }, error: null }
+        ? { data: { ready: true, version: 2026083001 }, error: null }
         : { data: { bookingId: BOOKING_ID, archived: true }, error: null },
     )
   })
@@ -102,7 +102,7 @@ describe('DELETE /api/ticketing/ledger/[bookingId]/archive', () => {
   it('does not weaken database ownership denial', async () => {
     mocks.rpc.mockImplementation(async (name: string) =>
       name === 'ticketing_schema_status'
-        ? { data: { ready: true, version: 2026082802 }, error: null }
+        ? { data: { ready: true, version: 2026083001 }, error: null }
         : { data: null, error: { code: '42501' } },
     )
     const response = await DELETE(request(), { params: Promise.resolve({ bookingId: BOOKING_ID }) })

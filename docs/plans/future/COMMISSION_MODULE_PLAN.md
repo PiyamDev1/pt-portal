@@ -7,19 +7,20 @@
 > reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Phase 1 shadow capability and employee-owned agreement workflow deployed; month
+- **Status:** Phase 1 shadow capability and employee-owned agreement workflow implemented; month
   reconciliation pending
-- **Last updated:** August 29, 2026
+- **Last updated:** August 30, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
 - **First delivery:** Employee-owned setup, Admin/HR reconciliation, and own-employee preview; no
   payable entries
 
-Implementation checkpoint on August 29, 2026: the linked database reports Commission capability
-`2026082905` ready in `shadow` mode. The additive migrations provide employee-owned
-agreement snapshots, copy-on-create reuse, atomic per-service policies and assignments,
-effective-dated replacement, cancellation of future changes, and all-or-selected primary-agent
-scope for Ticket Assistance. The calculation engine, typed
+Implementation checkpoint on August 30, 2026: capability `2026083001` adds employee-owned GBP or
+PKR compensation, audited monthly PKR-per-GBP book conversion, independent Ticket Assistance rates
+for each selected primary agent, optional Date Change marginal-tier volume, fixed Low Fare amounts,
+the complete supplier-fare-increase debit, and archive-safe marginal recalculation. The additive
+migrations retain employee-owned agreement snapshots, copy-on-create reuse, atomic per-service
+policies and assignments, effective-dated replacement, and cancellation of future changes. The calculation engine, typed
 exceptions, Admin/HR reconciliation console, and daily cron route remain the same audited shadow
 foundation. Active HR department membership in Staff Management is the HR access source.
 Scheduled runs use an explicit system audit actor and do not impersonate an employee. A complete
@@ -73,10 +74,13 @@ entries.
 - Primary responsible employees, Low Fare actors, and assistants are distinct roles. Assistance and
   Low Fare may earn independently without advancing primary ticket-count tiers or issued-ticket
   targets.
-- Ticket Assistance belongs to the assistant's employee-owned plan. It can apply when assisting any
-  primary agent or only an explicit list of primary agents; changing that list creates a new
+- Ticket Assistance belongs to the assistant's employee-owned plan. It can apply at one shared rate
+  when assisting any primary agent or use an independent rate for every explicitly selected primary
+  agent; changing that list or its rates creates a new
   effective-dated plan version and never alters another employee's plan.
-- Calculations use PostgreSQL `numeric` and actual GBP variables. JavaScript floating point,
+- Fixed pay rates and salary may be denominated in GBP or PKR. PKR agreements use an audited,
+  month-specific PKR-per-GBP rate for the accounting equivalent; the rate locks once calculations
+  use it. Calculations use PostgreSQL `numeric` and actual GBP source variables. JavaScript floating point,
   inferred exchange rates, and currency-ambiguous package metadata are never financial authority.
 - Missing financial inputs create exceptions; they are not treated as zero.
 - Payment state does not gate the initial ticket commission policy. A valid Issued fact earns the
@@ -255,8 +259,8 @@ employee + source module + service + recipient role + business date + source loc
 
 The engine supports these reviewed component types:
 
-- Fixed GBP amount per issued/affected passenger-ticket.
-- Fixed GBP amount per transaction/event.
+- Fixed pay-currency amount per issued/affected passenger-ticket.
+- Fixed pay-currency amount per transaction/event.
 - Percentage of an approved positive or signed GBP variable.
 - Independent fixed or percentage assistant component.
 - Explicit zero for a supported service.
@@ -282,8 +286,9 @@ component result is rounded.
   profit-dependent component.
 - Tier counters reset by calendar month in the source branch timezone.
 - Tiers are marginal: tickets 1-30 keep their first rate; ticket 31 onward receives the next rate.
-- Only primary issued units count. Assistance, Low Fare, DC, R-ER, refund, voucher, and payment
-  events contribute zero to the default primary TK tier count.
+- Only primary issued units count by default. An employee agreement can explicitly include completed
+  Date Change passenger-ticket units. Assistance, Low Fare, R-ER, refund, voucher, and payment
+  events always contribute zero to the primary TK tier count.
 - Within a period, issued units order by the immutable `issued_at` source variable and stable source
   identity so replay produces the same tier allocation.
 - A correction may re-rank an open/shadow period and append superseding shadow entries.
@@ -361,7 +366,9 @@ GBP 500 - GBP 540 = -GBP 40
 
 Selecting **No adjustment** stores an explicit zero component. A configured percentage applies to
 the signed difference, so a supplier decrease remains the separate positive Low Fare case and a
-supplier increase produces a negative preview adjustment.
+supplier increase produces a negative preview adjustment. Selecting **Full fare increase
+difference** applies 100% of that signed difference, so the example produces a -GBP 40 employee
+adjustment rather than -GBP 4.
 
 Required example:
 
@@ -522,23 +529,24 @@ policy version and produce a backfill report.
 
 Expected capabilities:
 
-| Table/capability                  | Responsibility                                              |
-| --------------------------------- | ----------------------------------------------------------- |
-| `commission_rules`                | Stable named policy identity                                |
-| `commission_policy_versions`      | Immutable draft/active/retired policy versions              |
-| `commission_policy_components`    | Typed component configuration and ordering                  |
-| `commission_tiers`                | Marginal threshold bands tied to policy versions            |
-| `employee_commission_assignments` | Per-service/role/location effective assignments             |
-| `employee_commission_profiles`    | Employee-owned, effective-dated agreement snapshots         |
-| `commission_access_grants`        | Retained legacy grant audit; no longer an authority source  |
-| `commission_source_events`        | Existing immutable producer facts                           |
-| `commission_source_event_states`  | Existing claim/retry/held processing state                  |
-| `commission_calculation_runs`     | Preview/shadow/live run metadata and policy snapshot        |
-| `commission_entries`              | Signed shadow/live revisions with recipient/profit owner    |
-| `commission_period_results`       | Monthly profit/threshold/reward calculation snapshots       |
-| `commission_exceptions`           | Typed held facts and resolution/retry evidence              |
-| `commission_audit_events`         | Access, policy, assignment, processing, and statement audit |
-| Future statement/target tables    | Live balances, statements, membership, and ticket targets   |
+| Table/capability                    | Responsibility                                              |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `commission_rules`                  | Stable named policy identity                                |
+| `commission_policy_versions`        | Immutable draft/active/retired policy versions              |
+| `commission_policy_components`      | Typed component configuration and ordering                  |
+| `commission_tiers`                  | Marginal threshold bands tied to policy versions            |
+| `employee_commission_assignments`   | Per-service/role/location effective assignments             |
+| `employee_commission_profiles`      | Employee-owned, effective-dated agreement snapshots         |
+| `commission_monthly_exchange_rates` | Audited month-specific PKR-per-GBP accounting conversion    |
+| `commission_access_grants`          | Retained legacy grant audit; no longer an authority source  |
+| `commission_source_events`          | Existing immutable producer facts                           |
+| `commission_source_event_states`    | Existing claim/retry/held processing state                  |
+| `commission_calculation_runs`       | Preview/shadow/live run metadata and policy snapshot        |
+| `commission_entries`                | Signed shadow/live revisions with recipient/profit owner    |
+| `commission_period_results`         | Monthly profit/threshold/reward calculation snapshots       |
+| `commission_exceptions`             | Typed held facts and resolution/retry evidence              |
+| `commission_audit_events`           | Access, policy, assignment, processing, and statement audit |
+| Future statement/target tables      | Live balances, statements, membership, and ticket targets   |
 
 Use strict constraints for component kinds, recipient roles, service codes, policy states, entry
 modes, and exception states. Browser roles receive no direct table mutation grants; authorised API
@@ -549,6 +557,7 @@ routes call service-only transactional functions after server-side session/permi
 - `GET /api/commissions/me` (caller-owned agreement and preview only)
 - `GET /api/commissions/admin`
 - `POST /api/commissions/admin/profiles`
+- `POST /api/commissions/admin/exchange-rates`
 - `POST /api/commissions/admin/profiles/{profileId}/cancel`
 - `POST /api/commissions/admin/process`
 - `POST /api/commissions/admin/exceptions/{exceptionId}/retry`
@@ -641,6 +650,11 @@ Implementation starts with all of the following:
 - Idempotent source retries and worker retries produce one active calculation result.
 - Source correction/attribution lineage appends superseding results without duplication.
 - Monthly marginal tiers apply higher rates only after each threshold.
+- Archived Ticketing facts have zero current Commission and cannot remain in marginal-tier volume;
+  later entries in the same month are superseded with recalculated tier positions.
+- Selected Ticket Assistance primary agents can each resolve to a different fixed rate.
+- PKR fixed earnings retain their local amount and use the locked monthly rate for the GBP book
+  equivalent.
 - Assistants use their own policies and receive zero primary tier/target/bonus units.
 - Fixed issuance commission calculates before Paid and before unrelated profit variables complete.
 - Profit-dependent components remain incomplete until actual GBP inputs exist.

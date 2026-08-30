@@ -25,6 +25,21 @@ type CommissionManagerAccess =
 
 type RelatedName = { name?: string | null }
 type RelatedLocation = { id?: string | null; name?: string | null; branch_code?: string | null }
+type CommissionEntryRow = Pick<
+  Database['public']['Tables']['commission_entries']['Row'],
+  | 'id'
+  | 'entry_mode'
+  | 'entry_kind'
+  | 'amount_gbp'
+  | 'amount_pay_currency'
+  | 'pay_currency'
+  | 'exchange_rate_units_per_gbp'
+  | 'earning_on'
+  | 'created_at'
+  | 'supersedes_entry_id'
+  | 'source_event_id'
+  | 'explanation'
+>
 
 export type CommissionPageIdentity = {
   userId: string
@@ -49,6 +64,15 @@ export type MyCommissionData = {
     effectiveFrom: string
   } | null
   analytics: CommissionAnalytics
+  compensation: {
+    currency: 'GBP' | 'PKR'
+    monthlySalary: number
+    currentMonthCommission: number
+    currentMonthGrossPay: number
+    currentMonthBookGbp: number | null
+    unitsPerGbp: number | null
+    ratePending: boolean
+  }
   openExceptionCount: number
   lastCalculatedAt: string | null
 }
@@ -90,12 +114,21 @@ export type CommissionAdminException = {
   serviceCode: string | null
 }
 
+export type CommissionMonthlyExchangeRate = {
+  id: string
+  currency: 'PKR'
+  periodStart: string
+  unitsPerGbp: number
+  setAt: string
+}
+
 export type CommissionAdminData = {
   schemaReady: boolean
   schemaVersion: number
   mode: string
   employees: CommissionAdminEmployee[]
   profiles: CommissionAdminProfile[]
+  exchangeRates: CommissionMonthlyExchangeRate[]
   exceptions: CommissionAdminException[]
   overview: {
     pendingEvents: number
@@ -218,33 +251,48 @@ export async function getCommissionPageIdentity(
 
 export async function loadMyCommissionData(employeeId: string): Promise<MyCommissionData> {
   const supabase = commissionClient()
-  const [profilesResult, entriesResult, exceptionsResult, runsResult] = await Promise.all([
-    supabase
-      .from('employee_commission_profiles')
-      .select('id, label, effective_from, effective_to, configuration, created_at')
-      .eq('employee_id', employeeId)
-      .is('cancelled_at', null)
-      .order('effective_from', { ascending: false }),
-    supabase
-      .from('commission_entries')
-      .select(
-        'id, entry_mode, entry_kind, amount_gbp, earning_on, created_at, supersedes_entry_id, source_event_id, explanation',
-      )
-      .eq('recipient_employee_id', employeeId)
-      .order('earning_on', { ascending: false })
-      .limit(500),
-    supabase
-      .from('commission_exceptions')
-      .select('id', { count: 'exact', head: true })
-      .eq('employee_id', employeeId)
-      .eq('status', 'open'),
-    supabase
-      .from('commission_calculation_runs')
-      .select('completed_at')
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-      .limit(1),
-  ])
+  const currentPeriodStart = `${new Date().toISOString().slice(0, 7)}-01`
+  const schemaResult = await supabase.rpc('commission_schema_status')
+  if (schemaResult.error && !isSchemaMissing(schemaResult.error)) throw schemaResult.error
+  const profileCapabilityReady =
+    numeric(jsonObject(schemaResult.data).version) >= COMMISSION_PROFILE_CAPABILITY_VERSION
+  const entrySelection = profileCapabilityReady
+    ? 'id, entry_mode, entry_kind, amount_gbp, amount_pay_currency, pay_currency, exchange_rate_units_per_gbp, earning_on, created_at, supersedes_entry_id, source_event_id, explanation'
+    : 'id, entry_mode, entry_kind, amount_gbp, earning_on, created_at, supersedes_entry_id, source_event_id, explanation'
+  const [profilesResult, entriesResult, exceptionsResult, runsResult, exchangeRateResult] =
+    await Promise.all([
+      supabase
+        .from('employee_commission_profiles')
+        .select('id, label, effective_from, effective_to, configuration, created_at')
+        .eq('employee_id', employeeId)
+        .is('cancelled_at', null)
+        .order('effective_from', { ascending: false }),
+      supabase
+        .from('commission_entries')
+        .select(entrySelection)
+        .eq('recipient_employee_id', employeeId)
+        .order('earning_on', { ascending: false })
+        .limit(500),
+      supabase
+        .from('commission_exceptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('employee_id', employeeId)
+        .eq('status', 'open'),
+      supabase
+        .from('commission_calculation_runs')
+        .select('completed_at')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(1),
+      profileCapabilityReady
+        ? supabase
+            .from('commission_monthly_exchange_rates')
+            .select('units_per_gbp')
+            .eq('currency', 'PKR')
+            .eq('period_start', currentPeriodStart)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ])
 
   if (profilesResult.error && isSchemaMissing(profilesResult.error)) {
     return {
@@ -252,16 +300,45 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
       profile: null,
       scheduledProfile: null,
       analytics: buildCommissionAnalytics([]),
+      compensation: {
+        currency: 'GBP',
+        monthlySalary: 0,
+        currentMonthCommission: 0,
+        currentMonthGrossPay: 0,
+        currentMonthBookGbp: 0,
+        unitsPerGbp: 1,
+        ratePending: false,
+      },
       openExceptionCount: 0,
       lastCalculatedAt: null,
     }
   }
   if (profilesResult.error) throw profilesResult.error
+  if (entriesResult.error && isSchemaMissing(entriesResult.error)) {
+    return {
+      schemaReady: false,
+      profile: null,
+      scheduledProfile: null,
+      analytics: buildCommissionAnalytics([]),
+      compensation: {
+        currency: 'GBP',
+        monthlySalary: 0,
+        currentMonthCommission: 0,
+        currentMonthGrossPay: 0,
+        currentMonthBookGbp: 0,
+        unitsPerGbp: 1,
+        ratePending: false,
+      },
+      openExceptionCount: 0,
+      lastCalculatedAt: null,
+    }
+  }
   if (entriesResult.error) throw entriesResult.error
   if (exceptionsResult.error) throw exceptionsResult.error
   if (runsResult.error) throw runsResult.error
+  if (exchangeRateResult.error) throw exchangeRateResult.error
 
-  const entryRows = entriesResult.data || []
+  const entryRows = (entriesResult.data || []) as unknown as CommissionEntryRow[]
   const sourceIds = Array.from(
     new Set(entryRows.map((entry) => entry.source_event_id).filter((id): id is string => !!id)),
   )
@@ -291,6 +368,8 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
           ? entry.entry_kind
           : 'ordinary',
       amountGbp: numeric(entry.amount_gbp),
+      amountPayCurrency: numeric(entry.amount_pay_currency),
+      payCurrency: entry.pay_currency === 'PKR' ? 'PKR' : 'GBP',
       earningOn: entry.earning_on,
       createdAt: entry.created_at,
       supersedesEntryId: entry.supersedes_entry_id,
@@ -315,22 +394,62 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
   const scheduled = [...profiles]
     .filter((profile) => profile.effective_from > today)
     .sort((left, right) => left.effective_from.localeCompare(right.effective_from))[0]
+  const currentConfiguration = current ? profileDraft(current.configuration) : null
+  const payCurrency = currentConfiguration?.compensation.currency || 'GBP'
+  const monthlySalary = currentConfiguration?.compensation.monthlySalary || 0
+  const currentMonth = today.slice(0, 7)
+  const supersededEntryIds = new Set(
+    entryRows
+      .map((entry) => entry.supersedes_entry_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )
+  const currentPayEntries = entryRows.filter(
+    (entry) =>
+      !supersededEntryIds.has(entry.id) &&
+      entry.earning_on.startsWith(currentMonth) &&
+      (entry.pay_currency === payCurrency || (payCurrency === 'GBP' && !entry.pay_currency)),
+  )
+  const currentMonthCommission = currentPayEntries.reduce(
+    (total, entry) => total + numeric(entry.amount_pay_currency ?? entry.amount_gbp),
+    0,
+  )
+  const unitsPerGbpValue =
+    payCurrency === 'GBP'
+      ? 1
+      : exchangeRateResult.data?.units_per_gbp ||
+        currentPayEntries.find((entry) => numeric(entry.exchange_rate_units_per_gbp) > 0)
+          ?.exchange_rate_units_per_gbp ||
+        null
+  const unitsPerGbp = unitsPerGbpValue ? numeric(unitsPerGbpValue) : null
+  const currentMonthGrossPay = monthlySalary + currentMonthCommission
 
   return {
-    schemaReady: true,
+    schemaReady: profileCapabilityReady,
     profile: current
       ? {
           id: current.id,
           label: current.label,
           effectiveFrom: current.effective_from,
           effectiveTo: current.effective_to,
-          configuration: profileDraft(current.configuration),
+          configuration: currentConfiguration,
         }
       : null,
     scheduledProfile: scheduled
       ? { id: scheduled.id, label: scheduled.label, effectiveFrom: scheduled.effective_from }
       : null,
     analytics: buildCommissionAnalytics(entries),
+    compensation: {
+      currency: payCurrency,
+      monthlySalary,
+      currentMonthCommission: Math.round(currentMonthCommission * 100) / 100,
+      currentMonthGrossPay: Math.round(currentMonthGrossPay * 100) / 100,
+      currentMonthBookGbp:
+        unitsPerGbp && unitsPerGbp > 0
+          ? Math.round((currentMonthGrossPay / unitsPerGbp) * 100) / 100
+          : null,
+      unitsPerGbp,
+      ratePending: payCurrency !== 'GBP' && !unitsPerGbp,
+    },
     openExceptionCount: exceptionsResult.count || 0,
     lastCalculatedAt: runsResult.data?.[0]?.completed_at || null,
   }
@@ -355,6 +474,7 @@ export async function loadCommissionAdminData(
   if (schemaResult.error && !isSchemaMissing(schemaResult.error)) throw schemaResult.error
   const schemaStatus = jsonObject(schemaResult.data)
   const schemaVersion = numeric(schemaStatus.version)
+  const profileCapabilityReady = schemaVersion >= COMMISSION_PROFILE_CAPABILITY_VERSION
 
   const profilesResult = await supabase
     .from('employee_commission_profiles')
@@ -369,6 +489,7 @@ export async function loadCommissionAdminData(
       mode: String(schemaStatus.mode || 'unavailable'),
       employees: [],
       profiles: [],
+      exchangeRates: [],
       exceptions: [],
       overview: EMPTY_OVERVIEW,
       lastRun: null,
@@ -376,33 +497,42 @@ export async function loadCommissionAdminData(
   }
   if (profilesResult.error) throw profilesResult.error
 
-  const [employeesResult, exceptionsResult, overviewResult, runsResult] = await Promise.all([
-    supabase
-      .from('employees')
-      .select('id, full_name, email, is_active, roles(name), locations(id, name, branch_code)')
-      .eq('is_active', true)
-      .order('full_name'),
-    supabase
-      .from('commission_exceptions')
-      .select('id, employee_id, exception_code, status, details, retry_count, created_at')
-      .eq('status', 'open')
-      .order('created_at', { ascending: false })
-      .limit(100),
-    supabase.rpc('commission_shadow_overview_2026082901', {
-      p_actor_employee_id: actorEmployeeId,
-    }),
-    supabase
-      .from('commission_calculation_runs')
-      .select(
-        'id, status, started_at, completed_at, source_event_count, entry_count, exception_count',
-      )
-      .order('started_at', { ascending: false })
-      .limit(1),
-  ])
+  const [employeesResult, exceptionsResult, overviewResult, runsResult, exchangeRatesResult] =
+    await Promise.all([
+      supabase
+        .from('employees')
+        .select('id, full_name, email, is_active, roles(name), locations(id, name, branch_code)')
+        .eq('is_active', true)
+        .order('full_name'),
+      supabase
+        .from('commission_exceptions')
+        .select('id, employee_id, exception_code, status, details, retry_count, created_at')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase.rpc('commission_shadow_overview_2026082901', {
+        p_actor_employee_id: actorEmployeeId,
+      }),
+      supabase
+        .from('commission_calculation_runs')
+        .select(
+          'id, status, started_at, completed_at, source_event_count, entry_count, exception_count',
+        )
+        .order('started_at', { ascending: false })
+        .limit(1),
+      profileCapabilityReady
+        ? supabase
+            .from('commission_monthly_exchange_rates')
+            .select('id, currency, period_start, units_per_gbp, created_at')
+            .order('period_start', { ascending: false })
+            .limit(24)
+        : Promise.resolve({ data: [], error: null }),
+    ])
   if (employeesResult.error) throw employeesResult.error
   if (exceptionsResult.error) throw exceptionsResult.error
   if (overviewResult.error) throw overviewResult.error
   if (runsResult.error) throw runsResult.error
+  if (exchangeRatesResult.error) throw exchangeRatesResult.error
 
   const today = new Date().toISOString().slice(0, 10)
   const profiles: CommissionAdminProfile[] = (profilesResult.data || []).map((profile) => ({
@@ -468,11 +598,18 @@ export async function loadCommissionAdminData(
   const overview = jsonObject(overviewResult.data)
   const lastRun = runsResult.data?.[0]
   return {
-    schemaReady: schemaVersion >= COMMISSION_PROFILE_CAPABILITY_VERSION,
+    schemaReady: profileCapabilityReady,
     schemaVersion,
     mode: String(schemaStatus.mode || 'shadow'),
     employees,
     profiles,
+    exchangeRates: (exchangeRatesResult.data || []).map((rate) => ({
+      id: rate.id,
+      currency: 'PKR',
+      periodStart: rate.period_start,
+      unitsPerGbp: numeric(rate.units_per_gbp),
+      setAt: rate.created_at,
+    })),
     exceptions,
     overview: {
       pendingEvents: numeric(overview.pendingEvents),

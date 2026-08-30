@@ -24,8 +24,8 @@ describe('employee commission profile contract', () => {
       'package_sale',
     ])
     expect(stored.services.every((service) => service.components.length === 1)).toBe(true)
-    expect(profile.assistanceScope).toEqual({ mode: 'all', employeeIds: [] })
-    expect(stored.uiVersion).toBe(2)
+    expect(profile.assistanceScope).toEqual({ mode: 'all', employeeIds: [], agentRates: [] })
+    expect(stored.uiVersion).toBe(3)
     expect(
       stored.services.every(
         (service) =>
@@ -83,7 +83,11 @@ describe('employee commission profile contract', () => {
     const primaryAgentId = '22222222-2222-4222-8222-222222222222'
     const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
     profile.services.tkAssistance = { kind: 'per_unit', value: 4, tiers: [] }
-    profile.assistanceScope = { mode: 'specific_agents', employeeIds: [primaryAgentId] }
+    profile.assistanceScope = {
+      mode: 'specific_agents',
+      employeeIds: [primaryAgentId],
+      agentRates: [{ employeeId: primaryAgentId, value: 4 }],
+    }
 
     const parsed = commissionProfileSchema.parse(profile)
     const assistance = toStoredCommissionProfile(parsed).services.find(
@@ -95,14 +99,18 @@ describe('employee commission profile contract', () => {
       rateValue: 4,
       config: {
         serviceCode: 'tk_assistance',
-        assistanceScope: { mode: 'specific_agents', employeeIds: [primaryAgentId] },
+        assistanceScope: {
+          mode: 'specific_agents',
+          employeeIds: [primaryAgentId],
+          agentRates: [{ employeeId: primaryAgentId, value: 4 }],
+        },
       },
     })
   })
 
   it('rejects empty, duplicate, or self-referencing selected-agent scopes', () => {
     const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
-    profile.assistanceScope = { mode: 'specific_agents', employeeIds: [] }
+    profile.assistanceScope = { mode: 'specific_agents', employeeIds: [], agentRates: [] }
     expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
 
     profile.assistanceScope.employeeIds = [EMPLOYEE_ID]
@@ -110,6 +118,7 @@ describe('employee commission profile contract', () => {
 
     const other = '22222222-2222-4222-8222-222222222222'
     profile.assistanceScope.employeeIds = [other, other]
+    profile.assistanceScope.agentRates = [{ employeeId: other, value: 2 }]
     expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
   })
 
@@ -120,7 +129,72 @@ describe('employee commission profile contract', () => {
     expect(commissionProfileSchema.parse(legacy).assistanceScope).toEqual({
       mode: 'all',
       employeeIds: [],
+      agentRates: [],
     })
+  })
+
+  it('stores separate Ticket Assistance rates for each selected primary agent', () => {
+    const first = '22222222-2222-4222-8222-222222222222'
+    const second = '33333333-3333-4333-8333-333333333333'
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.services.tkAssistance = { kind: 'per_unit', value: 0, tiers: [] }
+    profile.assistanceScope = {
+      mode: 'specific_agents',
+      employeeIds: [first, second],
+      agentRates: [
+        { employeeId: first, value: 3 },
+        { employeeId: second, value: 2 },
+      ],
+    }
+
+    const component = toStoredCommissionProfile(
+      commissionProfileSchema.parse(profile),
+    ).services.find((service) => service.serviceCode === 'tk_assistance')?.components[0]
+
+    expect(component?.config.assistanceScope).toEqual(profile.assistanceScope)
+  })
+
+  it('maps the full fare increase and fixed Low Fare ticket methods explicitly', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.services.higherFare = { kind: 'full_difference', value: 100, tiers: [] }
+    profile.services.lowFare = { kind: 'per_unit', value: 5, tiers: [] }
+    const stored = toStoredCommissionProfile(commissionProfileSchema.parse(profile))
+
+    expect(
+      stored.services.find((service) => service.serviceCode === 'higher_fare')?.components[0],
+    ).toMatchObject({
+      componentType: 'signed_percentage',
+      sourceVariable: 'difference_gbp',
+      rateValue: 100,
+    })
+    expect(
+      stored.services.find((service) => service.serviceCode === 'low_fare')?.components[0],
+    ).toMatchObject({
+      componentType: 'fixed_per_unit',
+      sourceVariable: 'passenger_ticket_count',
+      rateValue: 5,
+    })
+  })
+
+  it('stores local compensation and the date-change marginal-volume choice', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.compensation = { currency: 'PKR', monthlySalary: 150_000 }
+    profile.services.tkPrimary = {
+      kind: 'tiered',
+      value: 0,
+      tiers: [{ minUnit: 1, rateGbp: 500 }],
+    }
+    profile.ticketTierOptions.includeDateChanges = true
+
+    const stored = toStoredCommissionProfile(commissionProfileSchema.parse(profile))
+    const ticketComponent = stored.services.find((service) => service.serviceCode === 'tk_primary')
+      ?.components[0]
+    expect(ticketComponent?.config).toMatchObject({
+      payCurrency: 'PKR',
+      includeDateChangesInMarginalTiers: true,
+    })
+    expect(stored.draft.compensation).toEqual({ currency: 'PKR', monthlySalary: 150_000 })
+    expect(profileNeedsWholeMonths(profile)).toBe(true)
   })
 
   it('keeps a copied setup independent of its source', () => {

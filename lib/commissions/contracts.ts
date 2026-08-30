@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const COMMISSION_CAPABILITY_VERSION = 2026082903
-export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026082905
+export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026083001
 
 export const commissionSourceModules = ['ticketing', 'packages'] as const
 export const commissionServiceCodes = [
@@ -181,6 +181,18 @@ export const commissionProcessSchema = z
 
 export const commissionRetrySchema = z.object({}).strict()
 
+export const commissionMonthlyExchangeRateSchema = z
+  .object({
+    currency: z.literal('PKR'),
+    periodStart: z.iso.date(),
+    unitsPerGbp: z.number().finite().positive().max(1_000_000_000),
+  })
+  .strict()
+  .refine((value) => value.periodStart.endsWith('-01'), {
+    path: ['periodStart'],
+    message: 'The exchange-rate month must begin on day 1',
+  })
+
 export const commissionPreviewSchema = z
   .object({
     component: commissionComponentSchema,
@@ -286,6 +298,7 @@ export const COMMISSION_RATE_KINDS = [
   'per_unit',
   'per_event',
   'percentage',
+  'full_difference',
   'tiered',
 ] as const
 
@@ -295,6 +308,17 @@ export const commissionAssistanceScopeSchema = z
   .object({
     mode: z.enum(['all', 'specific_agents']).default('all'),
     employeeIds: z.array(uuidSchema).max(100).default([]),
+    agentRates: z
+      .array(
+        z
+          .object({
+            employeeId: uuidSchema,
+            value: z.number().finite().min(0).max(1_000_000),
+          })
+          .strict(),
+      )
+      .max(100)
+      .default([]),
   })
   .strict()
 
@@ -320,6 +344,14 @@ export const commissionRateSchema = z
         code: 'custom',
         path: ['value'],
         message: 'Percentage rates cannot exceed 100%',
+      })
+    }
+
+    if (rate.kind === 'full_difference' && rate.value !== 100) {
+      context.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'A full-difference adjustment must use 100%',
       })
     }
 
@@ -358,27 +390,28 @@ export const commissionProfileSchema = z
       .object({
         tkPrimary: commissionRateSchema,
         tkAssistance: commissionRateSchema.refine(
-          (rate) => rate.kind !== 'percentage' && rate.kind !== 'tiered',
+          (rate) =>
+            rate.kind !== 'percentage' && rate.kind !== 'full_difference' && rate.kind !== 'tiered',
           'Assistance can be paid per ticket, per booking, or explicitly set to zero',
         ),
         dateChange: commissionRateSchema.refine(
-          (rate) => rate.kind !== 'tiered',
+          (rate) => rate.kind !== 'tiered' && rate.kind !== 'full_difference',
           'Date changes do not support volume tiers',
         ),
         reissue: commissionRateSchema.refine(
-          (rate) => rate.kind !== 'tiered',
+          (rate) => rate.kind !== 'tiered' && rate.kind !== 'full_difference',
           'Reissues do not support volume tiers',
         ),
         lowFare: commissionRateSchema.refine(
-          (rate) => rate.kind === 'none' || rate.kind === 'percentage',
-          'Low-fare commission must be a percentage or zero',
+          (rate) => ['none', 'per_unit', 'percentage'].includes(rate.kind),
+          'Low-fare commission must be fixed per ticket, a percentage, or zero',
         ),
         higherFare: commissionRateSchema.refine(
-          (rate) => rate.kind === 'none' || rate.kind === 'percentage',
-          'A supplier fare increase adjustment must be a percentage debit or zero',
+          (rate) => ['none', 'percentage', 'full_difference'].includes(rate.kind),
+          'A supplier fare increase adjustment must be the full difference, a percentage, or zero',
         ),
         packageSale: commissionRateSchema.refine(
-          (rate) => rate.kind !== 'tiered',
+          (rate) => rate.kind !== 'tiered' && rate.kind !== 'full_difference',
           'Package sales do not support ticket-volume tiers',
         ),
       })
@@ -386,7 +419,19 @@ export const commissionProfileSchema = z
     assistanceScope: commissionAssistanceScopeSchema.default({
       mode: 'all',
       employeeIds: [],
+      agentRates: [],
     }),
+    ticketTierOptions: z
+      .object({ includeDateChanges: z.boolean().default(false) })
+      .strict()
+      .default({ includeDateChanges: false }),
+    compensation: z
+      .object({
+        currency: z.enum(['GBP', 'PKR']).default('GBP'),
+        monthlySalary: z.number().finite().min(0).max(1_000_000_000).default(0),
+      })
+      .strict()
+      .default({ currency: 'GBP', monthlySalary: 0 }),
     monthlyBonus: z
       .object({
         enabled: z.boolean(),
@@ -403,7 +448,7 @@ export const commissionProfileSchema = z
   })
   .strict()
   .superRefine((profile, context) => {
-    const { mode, employeeIds } = profile.assistanceScope
+    const { mode, employeeIds, agentRates } = profile.assistanceScope
     if (new Set(employeeIds).size !== employeeIds.length) {
       context.addIssue({
         code: 'custom',
@@ -418,6 +463,13 @@ export const commissionProfileSchema = z
         message: 'All-agent assistance cannot also contain a selected-agent list',
       })
     }
+    if (mode === 'all' && agentRates.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'agentRates'],
+        message: 'All-agent assistance uses the shared rate and cannot contain individual rates',
+      })
+    }
     if (mode === 'specific_agents' && employeeIds.length === 0) {
       context.addIssue({
         code: 'custom',
@@ -430,6 +482,25 @@ export const commissionProfileSchema = z
         code: 'custom',
         path: ['assistanceScope', 'employeeIds'],
         message: 'The assistant cannot select themselves as the primary agent',
+      })
+    }
+    const rateEmployeeIds = agentRates.map((rate) => rate.employeeId)
+    if (new Set(rateEmployeeIds).size !== rateEmployeeIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'agentRates'],
+        message: 'Each primary agent can have only one assistance rate',
+      })
+    }
+    if (
+      mode === 'specific_agents' &&
+      (rateEmployeeIds.length !== employeeIds.length ||
+        rateEmployeeIds.some((employeeId) => !employeeIds.includes(employeeId)))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['assistanceScope', 'agentRates'],
+        message: 'Enter an assistance rate for every selected primary agent',
       })
     }
   })
@@ -468,7 +539,7 @@ export type CommissionServicePolicyInput = {
 }
 
 export type StoredCommissionProfileConfiguration = {
-  uiVersion: 2
+  uiVersion: 3
   services: CommissionServicePolicyInput[]
   draft: CommissionProfileInput
 }
@@ -522,6 +593,7 @@ function componentForProfileRate(
   serviceCode: CommissionProfileServiceCode,
   rate: CommissionRate,
   assistanceScope: CommissionAssistanceScope,
+  input: CommissionProfileInput,
 ): CommissionPolicyComponentInput {
   const metadata = PROFILE_SERVICE_METADATA[serviceCode]
   const common = {
@@ -529,7 +601,11 @@ function componentForProfileRate(
     eligibleServices: [serviceCode],
     config: {
       serviceCode,
+      payCurrency: input.compensation.currency,
       ...(serviceCode === 'tk_assistance' ? { assistanceScope } : {}),
+      ...(serviceCode === 'tk_primary' && rate.kind === 'tiered'
+        ? { includeDateChangesInMarginalTiers: input.ticketTierOptions.includeDateChanges }
+        : {}),
     },
   }
 
@@ -576,10 +652,18 @@ function componentForProfileRate(
       rateValue: rate.value,
     }
   }
+  if (rate.kind === 'full_difference') {
+    return {
+      ...common,
+      componentType: 'signed_percentage',
+      sourceVariable: 'difference_gbp',
+      rateValue: 100,
+    }
+  }
   return {
     ...common,
     componentType: 'fixed_per_unit',
-    sourceVariable: metadata.sourceVariable,
+    sourceVariable: serviceCode === 'low_fare' ? 'passenger_ticket_count' : metadata.sourceVariable,
     rateValue: rate.value,
   }
 }
@@ -602,7 +686,7 @@ export function toStoredCommissionProfile(
       sourceModule: metadata.sourceModule,
       serviceCode,
       recipientRole: metadata.recipientRole,
-      components: [componentForProfileRate(serviceCode, rate, input.assistanceScope)],
+      components: [componentForProfileRate(serviceCode, rate, input.assistanceScope, input)],
     }
   })
 
@@ -619,13 +703,13 @@ export function toStoredCommissionProfile(
           rewardKind: input.monthlyBonus.rewardKind,
           rewardValue: input.monthlyBonus.rewardValue,
           eligibleServices: input.monthlyBonus.eligibleServices,
-          config: { period: 'calendar_month' },
+          config: { period: 'calendar_month', payCurrency: input.compensation.currency },
         },
       ],
     })
   }
 
-  return { uiVersion: 2, services, draft: input }
+  return { uiVersion: 3, services, draft: input }
 }
 
 export function createDefaultCommissionProfile(employeeId = ''): CommissionProfileInput {
@@ -649,7 +733,9 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
       higherFare: { ...zeroRate },
       packageSale: { ...zeroRate },
     },
-    assistanceScope: { mode: 'all', employeeIds: [] },
+    assistanceScope: { mode: 'all', employeeIds: [], agentRates: [] },
+    ticketTierOptions: { includeDateChanges: false },
+    compensation: { currency: 'GBP', monthlySalary: 0 },
     monthlyBonus: {
       enabled: false,
       thresholdGbp: 0,
@@ -661,5 +747,10 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
 }
 
 export function profileNeedsWholeMonths(profile: CommissionProfileInput) {
-  return profile.services.tkPrimary.kind === 'tiered' || profile.monthlyBonus.enabled
+  return (
+    profile.services.tkPrimary.kind === 'tiered' ||
+    profile.monthlyBonus.enabled ||
+    profile.compensation.currency !== 'GBP' ||
+    profile.compensation.monthlySalary > 0
+  )
 }

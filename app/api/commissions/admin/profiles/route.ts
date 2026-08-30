@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   if (!access.authorized) return access.response
   if (!(await hasCommissionCapability(COMMISSION_PROFILE_CAPABILITY_VERSION))) {
     return apiError(
-      'Agent-specific ticket-assistance scope is not installed on this database',
+      'The latest employee commission profile capability is not installed on this database',
       503,
       {},
       COMMISSION_PRIVATE_RESPONSE,
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   }
   if (profileNeedsWholeMonths(profile) && !profile.effectiveFrom.endsWith('-01')) {
     return apiError(
-      'Tiered rates and monthly bonuses must start on the first of a month',
+      'Tiered rates, monthly bonuses, salary, and PKR plans must start on the first of a month',
       400,
       {},
       COMMISSION_PRIVATE_RESPONSE,
@@ -136,10 +136,16 @@ export async function POST(request: Request) {
       { ...COMMISSION_PRIVATE_RESPONSE, status: 201 },
     )
   } catch (error) {
+    const message = toErrorMessage(error, 'Unable to save employee commission profile')
+    console.error('[commission] employee-profile save failed', {
+      code: (error as { code?: string } | null)?.code,
+      hint: (error as { hint?: string } | null)?.hint,
+      details: (error as { details?: string } | null)?.details,
+    })
     return apiError(
-      toErrorMessage(error, 'Unable to save employee commission profile'),
+      message,
       databaseStatus(error),
-      {},
+      { issues: [{ path: 'commissionPlan', message }] },
       COMMISSION_PRIVATE_RESPONSE,
     )
   }

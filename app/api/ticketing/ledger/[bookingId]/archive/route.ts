@@ -7,7 +7,7 @@ import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
-import { TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
+import { TICKET_ARCHIVE_COMMISSION_TOMBSTONE_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 
 const archiveSchema = z
@@ -63,7 +63,7 @@ export async function DELETE(
     capability.error ||
     !hasTicketingSchemaCapability(
       capability.data,
-      TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION,
+      TICKET_ARCHIVE_COMMISSION_TOMBSTONE_CAPABILITY_VERSION,
     )
   ) {
     return apiError('Ticket archiving is not installed on this database.', 503)

@@ -43,7 +43,8 @@ The dashboard presents enabled modules and a notice board. A user can personaliz
 
 Commission is split into **My commissions** for every active employee and **Admin commission** for
 authorised Admin/HR staff. My commissions shows the employee's own effective agreement, monthly and
-year-to-date calculation preview, six-month chart, service breakdown, and recent entries. Every
+year-to-date calculation preview, local salary/commission view, audited GBP book equivalent,
+six-month chart, service breakdown, and recent entries. Every
 shadow figure is labelled non-payable; it is not a payslip or payment promise. Admin commission
 creates a complete agreement around one employee. Copying another agreement is only a starting
 point, and future edits never change the source employee or historical versions. The advanced

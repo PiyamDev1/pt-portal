@@ -27,6 +27,14 @@ const shortMoney = new Intl.NumberFormat('en-GB', {
   maximumFractionDigits: 1,
 })
 
+function payMoney(currency: 'GBP' | 'PKR') {
+  return new Intl.NumberFormat(currency === 'PKR' ? 'en-PK' : 'en-GB', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+  })
+}
+
 const date = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'short',
@@ -39,14 +47,16 @@ function formatDate(value: string | null) {
   return Number.isNaN(parsed.getTime()) ? value : date.format(parsed)
 }
 
-function formatRate(rate: CommissionRate, packageRate = false) {
+function formatRate(rate: CommissionRate, packageRate = false, currency: 'GBP' | 'PKR' = 'GBP') {
+  const formatter = payMoney(currency)
   if (rate.kind === 'none') return 'No commission'
+  if (rate.kind === 'full_difference') return 'Full supplier fare increase'
   if (rate.kind === 'percentage')
     return `${rate.value}% of ${packageRate ? 'final profit' : 'value'}`
   if (rate.kind === 'per_event')
-    return `${money.format(rate.value)} per ${packageRate ? 'package' : 'booking'}`
+    return `${formatter.format(rate.value)} per ${packageRate ? 'package' : 'booking'}`
   if (rate.kind === 'per_unit')
-    return `${money.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
+    return `${formatter.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
   return `${rate.tiers.length} volume tier${rate.tiers.length === 1 ? '' : 's'}`
 }
 
@@ -226,6 +236,64 @@ export default function MyCommissionsView({
         <EmptyState schemaReady={data.schemaReady} scheduledProfile={data.scheduledProfile} />
       ) : (
         <>
+          <section className="rounded-[1.6rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
+                  This month&apos;s local pay view
+                </p>
+                <h2 className="mt-1 text-xl font-black text-emerald-950">
+                  Salary and commission in {data.compensation.currency}
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">
+                  Your agreed local amounts stay unchanged. The GBP figure is the accounting value
+                  produced from the administrator&apos;s month-end remittance rate.
+                </p>
+              </div>
+              {data.compensation.ratePending ? (
+                <span className="rounded-full bg-amber-200 px-3 py-1.5 text-xs font-black text-amber-950">
+                  Awaiting this month&apos;s PKR / GBP rate
+                </span>
+              ) : (
+                <span className="rounded-full bg-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-950">
+                  {data.compensation.unitsPerGbp?.toLocaleString('en-GB', {
+                    maximumFractionDigits: 6,
+                  })}{' '}
+                  {data.compensation.currency} per £1
+                </span>
+              )}
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Monthly salary', data.compensation.monthlySalary],
+                ['Commission', data.compensation.currentMonthCommission],
+                ['Local gross total', data.compensation.currentMonthGrossPay],
+              ].map(([label, value]) => (
+                <div
+                  key={String(label)}
+                  className="rounded-2xl border border-emerald-200 bg-white p-4"
+                >
+                  <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                    {label}
+                  </p>
+                  <p className="mt-2 text-xl font-black text-slate-950">
+                    {payMoney(data.compensation.currency).format(Number(value))}
+                  </p>
+                </div>
+              ))}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-white">
+                <p className="text-[11px] font-black uppercase tracking-wide text-white/60">
+                  GBP book equivalent
+                </p>
+                <p className="mt-2 text-xl font-black">
+                  {data.compensation.currentMonthBookGbp === null
+                    ? 'Pending rate'
+                    : money.format(data.compensation.currentMonthBookGbp)}
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="This month"
@@ -263,7 +331,9 @@ export default function MyCommissionsView({
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                     Six-month view
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-slate-950">Calculated earnings</h2>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    Calculated earnings · GBP book view
+                  </h2>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
                   <span className="flex items-center gap-1.5">
@@ -349,7 +419,7 @@ export default function MyCommissionsView({
                     >
                       <span className="text-slate-500">{label}</span>
                       <span className="text-right font-black text-slate-800">
-                        {formatRate(rate, packageRate)}
+                        {formatRate(rate, packageRate, profile.compensation.currency)}
                       </span>
                     </div>
                   ))}
@@ -435,7 +505,14 @@ export default function MyCommissionsView({
                         className={`shrink-0 text-sm font-black ${entry.amountGbp >= 0 ? 'text-emerald-700' : 'text-[#8b1e2d]'}`}
                       >
                         {entry.amountGbp >= 0 ? '+' : '-'}
-                        {money.format(Math.abs(entry.amountGbp))}
+                        {entry.payCurrency === 'PKR' && entry.amountPayCurrency !== undefined
+                          ? payMoney('PKR').format(Math.abs(entry.amountPayCurrency))
+                          : money.format(Math.abs(entry.amountGbp))}
+                        {entry.payCurrency === 'PKR' && (
+                          <span className="mt-0.5 block text-right text-[10px] font-bold text-slate-400">
+                            {money.format(Math.abs(entry.amountGbp))} books
+                          </span>
+                        )}
                       </p>
                     </div>
                   ))}

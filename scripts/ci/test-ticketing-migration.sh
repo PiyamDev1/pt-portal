@@ -43,6 +43,8 @@ refund_voucher_lifecycle_migration="scripts/migrations/20260829_ticketing_refund
 refund_voucher_lifecycle_assertions="tests/integration/ticketing_refund_voucher_lifecycle.sql"
 fare_check_observations_migration="scripts/migrations/20260829_ticketing_fare_check_observations.sql"
 fare_check_observations_assertions="tests/integration/ticketing_fare_check_observations.sql"
+archive_tombstones_migration="scripts/migrations/20260830_ticketing_archive_commission_tombstones.sql"
+archive_tombstones_assertions="tests/integration/ticketing_archive_commission_tombstones.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2423,6 +2425,17 @@ if [[ "$(ticketing_schema_fingerprint)" != "$fare_check_first_fingerprint" ]] \
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$fare_check_observations_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$archive_tombstones_migration"
+archive_tombstones_first_fingerprint="$(ticketing_schema_fingerprint)"
+archive_tombstones_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$archive_tombstones_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$archive_tombstones_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$archive_tombstones_first_applied_at" ]]; then
+  echo "Idempotent archive-tombstone migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$archive_tombstones_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"

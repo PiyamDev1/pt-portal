@@ -4,7 +4,7 @@ Commission has an employee-owned read surface and a separate Admin/HR control su
 derives the actor from the active staff session and returns private, non-cacheable data. The self
 route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
 Commission authority or live HR department membership. Employee-profile mutations require database
-capability `2026082905`; the advanced shadow engine requires `2026082903`. All calculated values in
+capability `2026083001`; the advanced shadow engine requires `2026082903`. All calculated values in
 this release are non-payable shadow evidence.
 
 ### GET `/api/commissions/me`
@@ -15,8 +15,9 @@ this release are non-payable shadow evidence.
 the authenticated staff session.
 
 **Success:** `200` with the caller's current and scheduled agreement summaries, own six-month/YTD
-analytics, service breakdown, recent current-revision entries, own open-exception count, and latest
-calculation time. The response reports whether the employee-profile schema is available.
+analytics, service breakdown, recent current-revision entries, local salary/commission totals and
+their audited GBP book equivalent, own open-exception count, and latest calculation time. The
+response reports whether the employee-profile schema is available.
 
 **Errors:** `401` for no session; `403` for an inactive or missing employee; `500` for an unexpected
 private-data load failure.
@@ -27,8 +28,9 @@ private-data load failure.
 
 **Input:** No body or query parameters.
 
-**Success:** `200` with active employee setup status, employee-owned profile history, open
-exceptions, bounded shadow overview, latest calculation run, schema version, and mode.
+**Success:** `200` with active employee setup status, employee-owned profile history, recent PKR
+monthly conversion rates, open exceptions, bounded shadow overview, latest calculation run, schema
+version, and mode.
 
 **Errors:** `401`/`403` for access failure; `503` when management capability is unavailable; `500`
 for an unexpected load failure.
@@ -38,11 +40,12 @@ for an unexpected load failure.
 **Access:** Authorised Commission Admin/HR staff only. The database repeats the permission check.
 
 **Input:** A valid `Idempotency-Key` and strict complete employee-agreement JSON: employee, label,
-effective date, optional location scope and copied-profile provenance, change reason, typed rates for
-every supported service, Ticket Assistance scope (`all` or `specific_agents` with employee UUIDs),
-and optional monthly bonus. Replacements cannot be backdated. Initial
-agreements may start at the beginning of the current month. Tiered/bonus agreements use whole-month
-boundaries.
+effective date, optional location scope and copied-profile provenance, change reason, pay currency
+and salary, typed rates for every supported service, Ticket Assistance scope (`all` or
+`specific_agents` with an independent rate for every selected primary employee), ticket-tier date
+change inclusion, and optional monthly bonus. Replacements cannot be backdated. Initial agreements
+may start at the beginning of the current month. Tiered, bonus, salary, and PKR agreements use
+whole-month boundaries.
 
 **Success:** `201` after one transaction creates the employee-owned snapshot plus a distinct policy,
 active immutable version, and effective assignment for each service. Copying records provenance but
@@ -50,8 +53,25 @@ creates no live link. Current agreements close at the new start date; a current-
 triggers a bounded shadow-processing attempt.
 
 **Errors:** `400` for malformed or unsafe setup; `401`/`403` for access failure; `404` for a missing
-employee/location/copy source; `409` for an effective-date conflict; `503` when `2026082905` is not
+employee/location/copy source; `409` for an effective-date conflict; `503` when `2026083001` is not
 installed; `500` for an unexpected transactional failure.
+
+### POST `/api/commissions/admin/exchange-rates`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the permission check.
+
+**Input:** Strict JSON `{ currency: "PKR", periodStart: "YYYY-MM-01", unitsPerGbp: number }` and
+an optional valid `Idempotency-Key`. The rate means the number of Pakistani rupees represented by
+one British pound for the selected month.
+
+**Success:** `200` after recording the audited monthly rate, re-queuing calculations held for that
+month, and attempting one bounded shadow-processing batch. A rate may be corrected until a
+calculation uses it; it is locked afterwards so recorded GBP book values continue to match the
+remittance evidence.
+
+**Errors:** `400` for an invalid currency, month, or value; `401`/`403` for access failure; `409`
+when calculations already lock a different rate; `503` when capability `2026083001` is absent; and
+`500` for an unexpected failure.
 
 ### POST `/api/commissions/admin/profiles/[id]/cancel`
 

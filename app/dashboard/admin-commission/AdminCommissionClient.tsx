@@ -1,7 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type InputHTMLAttributes,
+} from 'react'
 import {
   AlertTriangle,
   ArrowRight,
@@ -30,6 +37,7 @@ import {
 } from 'lucide-react'
 import {
   COMMISSION_RATE_KINDS,
+  commissionProfileSchema,
   createDefaultCommissionProfile,
   type CommissionProfileInput,
   type CommissionRate,
@@ -41,11 +49,15 @@ import type {
   CommissionAdminProfile,
 } from '@/lib/commissions/server'
 
-const money = new Intl.NumberFormat('en-GB', {
-  style: 'currency',
-  currency: 'GBP',
-  minimumFractionDigits: 2,
-})
+function moneyFormatter(currency = 'GBP') {
+  return new Intl.NumberFormat(currency === 'PKR' ? 'en-PK' : 'en-GB', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+  })
+}
+
+const money = moneyFormatter()
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -73,25 +85,41 @@ function nextMonthStart() {
     .slice(0, 10)
 }
 
+function currentMonthStart() {
+  return `${todayIso().slice(0, 7)}-01`
+}
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-function rateLabel(rate: CommissionRate, packageRate = false) {
-  if (rate.kind === 'none') return '£0 · explicitly off'
+function rateLabel(rate: CommissionRate, packageRate = false, currency = 'GBP') {
+  const formatter = moneyFormatter(currency)
+  if (rate.kind === 'none') return `${formatter.format(0)} · explicitly off`
+  if (rate.kind === 'full_difference') return 'Full supplier fare increase'
   if (rate.kind === 'percentage')
     return `${rate.value}% of ${packageRate ? 'final profit' : 'value'}`
   if (rate.kind === 'per_event')
-    return `${money.format(rate.value)} per ${packageRate ? 'package' : 'booking'}`
+    return `${formatter.format(rate.value)} per ${packageRate ? 'package' : 'booking'}`
   if (rate.kind === 'per_unit')
-    return `${money.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
+    return `${formatter.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
   return `${rate.tiers.length} marginal tier${rate.tiers.length === 1 ? '' : 's'}`
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, cache: 'no-store' })
-  const payload = (await response.json().catch(() => ({}))) as T & { error?: string }
-  if (!response.ok) throw new Error(payload.error || 'Commission request failed')
+  const payload = (await response.json().catch(() => ({}))) as T & {
+    error?: string
+    issues?: Array<{ path?: string; message?: string }>
+  }
+  if (!response.ok) {
+    const issue = payload.issues?.find((item) => item.message)
+    throw new Error(
+      issue
+        ? `${issue.path ? `${issue.path}: ` : ''}${issue.message}`
+        : payload.error || 'Commission request failed',
+    )
+  }
   return payload
 }
 
@@ -148,7 +176,45 @@ const KIND_LABELS: Record<CommissionRateKind, string> = {
   per_unit: 'Per ticket / passenger',
   per_event: 'Per booking / case',
   percentage: 'Percentage',
+  full_difference: 'Full fare increase difference',
   tiered: 'Marginal ticket tiers',
+}
+
+function DraftNumberInput({
+  value,
+  onValueChange,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> & {
+  value: number
+  onValueChange: (value: number) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (inputRef.current && document.activeElement !== inputRef.current) {
+      inputRef.current.value = String(value)
+    }
+  }, [value])
+
+  return (
+    <input
+      {...props}
+      ref={inputRef}
+      type="number"
+      defaultValue={value}
+      onChange={(event) => {
+        const next = event.target.value
+        if (next.trim() === '') return
+        const parsed = Number(next)
+        if (Number.isFinite(parsed)) onValueChange(parsed)
+      }}
+      onBlur={(event) => {
+        if (event.target.value.trim() === '' || !Number.isFinite(Number(event.target.value))) {
+          event.target.value = String(value)
+        }
+      }}
+    />
+  )
 }
 
 function RateEditor({
@@ -159,6 +225,7 @@ function RateEditor({
   onChange,
   packageRate = false,
   noneLabel = 'No commission',
+  currency = 'GBP',
 }: {
   title: string
   description: string
@@ -167,11 +234,13 @@ function RateEditor({
   onChange: (rate: CommissionRate) => void
   packageRate?: boolean
   noneLabel?: string
+  currency?: 'GBP' | 'PKR'
 }) {
   const setKind = (kind: CommissionRateKind) => {
     onChange({
       kind,
-      value: kind === 'none' || kind === 'tiered' ? 0 : rate.value,
+      value:
+        kind === 'full_difference' ? 100 : kind === 'none' || kind === 'tiered' ? 0 : rate.value,
       tiers:
         kind === 'tiered'
           ? rate.tiers.length > 0
@@ -203,16 +272,15 @@ function RateEditor({
             ))}
           </select>
         </label>
-        {rate.kind !== 'none' && rate.kind !== 'tiered' && (
+        {rate.kind !== 'none' && rate.kind !== 'tiered' && rate.kind !== 'full_difference' && (
           <label className="text-xs font-bold text-slate-600">
-            {rate.kind === 'percentage' ? 'Rate (%)' : 'Amount (£)'}
-            <input
-              type="number"
+            {rate.kind === 'percentage' ? 'Rate (%)' : `Amount (${currency})`}
+            <DraftNumberInput
               min="0"
               max={rate.kind === 'percentage' ? 100 : 1_000_000}
               step="0.01"
               value={rate.value}
-              onChange={(event) => onChange({ ...rate, value: Number(event.target.value || 0) })}
+              onValueChange={(value) => onChange({ ...rate, value })}
               className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
             />
           </label>
@@ -221,6 +289,11 @@ function RateEditor({
       {rate.kind === 'none' && (
         <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
           An explicit zero is recorded, so this service is intentional rather than missing setup.
+        </p>
+      )}
+      {rate.kind === 'full_difference' && (
+        <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-800">
+          The complete supplier fare increase is deducted. A £40 increase produces a £40 debit.
         </p>
       )}
       {rate.kind === 'tiered' && (
@@ -232,17 +305,14 @@ function RateEditor({
             >
               <label className="text-[11px] font-bold text-slate-500">
                 Starts at ticket
-                <input
-                  type="number"
+                <DraftNumberInput
                   min="1"
                   step="1"
                   value={tier.minUnit}
                   disabled={index === 0}
-                  onChange={(event) => {
+                  onValueChange={(value) => {
                     const tiers = rate.tiers.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, minUnit: Number(event.target.value || 1) }
-                        : item,
+                      itemIndex === index ? { ...item, minUnit: value } : item,
                     )
                     onChange({ ...rate, tiers })
                   }}
@@ -250,17 +320,14 @@ function RateEditor({
                 />
               </label>
               <label className="text-[11px] font-bold text-slate-500">
-                £ per ticket
-                <input
-                  type="number"
+                {currency} per ticket
+                <DraftNumberInput
                   min="0"
                   step="0.01"
                   value={tier.rateGbp}
-                  onChange={(event) => {
+                  onValueChange={(value) => {
                     const tiers = rate.tiers.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, rateGbp: Number(event.target.value || 0) }
-                        : item,
+                      itemIndex === index ? { ...item, rateGbp: value } : item,
                     )
                     onChange({ ...rate, tiers })
                   }}
@@ -336,7 +403,7 @@ function AssistanceScopeEditor({
             type="radio"
             name="assistance-scope"
             checked={!specific}
-            onChange={() => onChange({ mode: 'all', employeeIds: [] })}
+            onChange={() => onChange({ mode: 'all', employeeIds: [], agentRates: [] })}
             className="mr-2 accent-blue-700"
           />
           <span className="font-black">All primary agents</span>
@@ -351,7 +418,7 @@ function AssistanceScopeEditor({
             type="radio"
             name="assistance-scope"
             checked={specific}
-            onChange={() => onChange({ mode: 'specific_agents', employeeIds: [] })}
+            onChange={() => onChange({ mode: 'specific_agents', employeeIds: [], agentRates: [] })}
             className="mr-2 accent-blue-700"
           />
           <span className="font-black">Selected primary agents</span>
@@ -374,28 +441,67 @@ function AssistanceScopeEditor({
             {candidates.map((employee) => {
               const checked = draft.assistanceScope.employeeIds.includes(employee.id)
               return (
-                <label
+                <div
                   key={employee.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-blue-50"
+                  className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-2 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-blue-50"
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() =>
-                      onChange({
-                        mode: 'specific_agents',
-                        employeeIds: checked
-                          ? draft.assistanceScope.employeeIds.filter((id) => id !== employee.id)
-                          : [...draft.assistanceScope.employeeIds, employee.id],
-                      })
-                    }
-                    className="h-4 w-4 rounded border-slate-300 accent-blue-700"
-                  />
-                  <span className="font-bold">{employee.fullName}</span>
-                  <span className="ml-auto text-[11px] text-slate-400">
-                    {employee.location?.name || employee.role}
-                  </span>
-                </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        onChange({
+                          mode: 'specific_agents',
+                          employeeIds: checked
+                            ? draft.assistanceScope.employeeIds.filter((id) => id !== employee.id)
+                            : [...draft.assistanceScope.employeeIds, employee.id],
+                          agentRates: checked
+                            ? draft.assistanceScope.agentRates.filter(
+                                (rate) => rate.employeeId !== employee.id,
+                              )
+                            : [
+                                ...draft.assistanceScope.agentRates,
+                                {
+                                  employeeId: employee.id,
+                                  value: draft.services.tkAssistance.value,
+                                },
+                              ],
+                        })
+                      }
+                      className="h-4 w-4 rounded border-slate-300 accent-blue-700"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold">{employee.fullName}</span>
+                      <span className="block text-[11px] text-slate-400">
+                        {employee.location?.name || employee.role}
+                      </span>
+                    </span>
+                  </label>
+                  {checked && (
+                    <label className="text-[10px] font-black uppercase tracking-wide text-blue-700">
+                      {draft.compensation.currency} rate
+                      <DraftNumberInput
+                        min="0"
+                        max="1000000"
+                        step="0.01"
+                        value={
+                          draft.assistanceScope.agentRates.find(
+                            (rate) => rate.employeeId === employee.id,
+                          )?.value ?? draft.services.tkAssistance.value
+                        }
+                        onValueChange={(value) =>
+                          onChange({
+                            ...draft.assistanceScope,
+                            agentRates: draft.assistanceScope.agentRates.map((rate) =>
+                              rate.employeeId === employee.id ? { ...rate, value } : rate,
+                            ),
+                          })
+                        }
+                        className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-sm font-black text-slate-900"
+                      />
+                    </label>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -558,6 +664,62 @@ function AgreementEditor({
             </label>
           </section>
 
+          <section className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
+              Pay and reporting currency
+            </p>
+            <h3 className="mt-1 text-xl font-black text-emerald-950">Local compensation</h3>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-emerald-800">
+              Fixed commission rates, tier values, and salary use this employee&apos;s pay currency.
+              Percentage targets remain based on GBP trading figures. PKR totals are converted to
+              GBP with the audited rate entered for that month.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="text-xs font-bold text-emerald-900">
+                Employee pay currency
+                <select
+                  value={draft.compensation.currency}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      compensation: {
+                        ...draft.compensation,
+                        currency: event.target.value as 'GBP' | 'PKR',
+                      },
+                    })
+                  }
+                  className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
+                >
+                  <option value="GBP">GBP · British pounds</option>
+                  <option value="PKR">PKR · Pakistani rupees</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-emerald-900">
+                Monthly salary ({draft.compensation.currency})
+                <DraftNumberInput
+                  min="0"
+                  max="1000000000"
+                  step="0.01"
+                  value={draft.compensation.monthlySalary}
+                  onValueChange={(monthlySalary) =>
+                    setDraft({
+                      ...draft,
+                      compensation: { ...draft.compensation, monthlySalary },
+                    })
+                  }
+                  className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
+                />
+              </label>
+            </div>
+            {draft.compensation.currency === 'PKR' && (
+              <p className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-900">
+                The month stays pending until an administrator records how many PKR equal £1. The
+                stored rate is then used for the GBP book equivalent; it never rewrites the PKR
+                salary or commission agreement.
+              </p>
+            )}
+          </section>
+
           <section>
             <div className="mb-4">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
@@ -572,7 +734,33 @@ function AgreementEditor({
                 rate={draft.services.tkPrimary}
                 allowedKinds={['none', 'per_unit', 'per_event', 'percentage', 'tiered']}
                 onChange={(rate) => updateService('tkPrimary', rate)}
+                currency={draft.compensation.currency}
               />
+              {draft.services.tkPrimary.kind === 'tiered' && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 lg:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={draft.ticketTierOptions.includeDateChanges}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        ticketTierOptions: { includeDateChanges: event.target.checked },
+                      })
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-violet-300 accent-violet-700"
+                  />
+                  <span>
+                    <span className="block text-sm font-black text-violet-950">
+                      Count date-change tickets toward marginal ticket tiers
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-violet-800">
+                      When enabled, completed date changes increase the monthly ticket-volume
+                      position. They still earn their separate Date changes rate, not another ticket
+                      sale commission.
+                    </span>
+                  </span>
+                </label>
+              )}
               <div className="space-y-3">
                 <RateEditor
                   title="Ticket assistance"
@@ -580,6 +768,7 @@ function AgreementEditor({
                   rate={draft.services.tkAssistance}
                   allowedKinds={['none', 'per_unit', 'per_event']}
                   onChange={(rate) => updateService('tkAssistance', rate)}
+                  currency={draft.compensation.currency}
                 />
                 {draft.services.tkAssistance.kind !== 'none' && (
                   <AssistanceScopeEditor
@@ -595,6 +784,7 @@ function AgreementEditor({
                 rate={draft.services.dateChange}
                 allowedKinds={['none', 'per_unit', 'per_event', 'percentage']}
                 onChange={(rate) => updateService('dateChange', rate)}
+                currency={draft.compensation.currency}
               />
               <RateEditor
                 title="Reissues"
@@ -602,21 +792,24 @@ function AgreementEditor({
                 rate={draft.services.reissue}
                 allowedKinds={['none', 'per_unit', 'per_event', 'percentage']}
                 onChange={(rate) => updateService('reissue', rate)}
+                currency={draft.compensation.currency}
               />
               <RateEditor
                 title="Low-fare savings"
-                description="Share of a verified fare saving paid to its finder."
+                description="Pay a fixed amount per passenger ticket or a percentage of the verified saving."
                 rate={draft.services.lowFare}
-                allowedKinds={['none', 'percentage']}
+                allowedKinds={['none', 'per_unit', 'percentage']}
                 onChange={(rate) => updateService('lowFare', rate)}
+                currency={draft.compensation.currency}
               />
               <RateEditor
                 title="Supplier fare increase adjustment"
                 description="Optional debit when an agent records a replacement supplier fare that is higher than the original."
                 rate={draft.services.higherFare}
-                allowedKinds={['none', 'percentage']}
+                allowedKinds={['none', 'percentage', 'full_difference']}
                 onChange={(rate) => updateService('higherFare', rate)}
                 noneLabel="No adjustment"
+                currency={draft.compensation.currency}
               />
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 lg:col-span-2">
                 <div className="flex items-start gap-3">
@@ -626,12 +819,11 @@ function AgreementEditor({
                       What is a supplier fare increase adjustment?
                     </p>
                     <p className="mt-1 text-xs leading-5 text-amber-900">
-                      It is not an extra sale or an automatic penalty. Ticketing compares the
-                      original supplier fare with a later replacement fare. If the original was GBP
-                      500 and the replacement is GBP 540, the signed difference is -GBP 40. A 10%
-                      rule creates a -GBP 4 shadow adjustment for the agent who recorded that fare
-                      change. Choose <strong>No adjustment</strong> if your business does not debit
-                      staff for supplier fare increases.
+                      Ticketing compares the original supplier fare with its replacement. If the
+                      original was £500 and the replacement is £540, the increase is £40. A 10% rule
+                      creates a £4 debit; <strong>Full fare increase difference</strong> creates a
+                      £40 debit. Choose <strong>No adjustment</strong> when the business absorbs the
+                      increase.
                     </p>
                   </div>
                 </div>
@@ -644,6 +836,7 @@ function AgreementEditor({
                   allowedKinds={['none', 'per_unit', 'per_event', 'percentage']}
                   onChange={(rate) => updateService('packageSale', rate)}
                   packageRate
+                  currency={draft.compensation.currency}
                 />
               </div>
             </div>
@@ -676,17 +869,16 @@ function AgreementEditor({
               <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
                 <label className="text-xs font-bold text-slate-600">
                   Profit target (£)
-                  <input
-                    type="number"
+                  <DraftNumberInput
                     min="0"
                     step="0.01"
                     value={draft.monthlyBonus.thresholdGbp}
-                    onChange={(event) =>
+                    onValueChange={(thresholdGbp) =>
                       setDraft({
                         ...draft,
                         monthlyBonus: {
                           ...draft.monthlyBonus,
-                          thresholdGbp: Number(event.target.value || 0),
+                          thresholdGbp,
                         },
                       })
                     }
@@ -714,19 +906,20 @@ function AgreementEditor({
                   </select>
                 </label>
                 <label className="text-xs font-bold text-slate-600">
-                  {draft.monthlyBonus.rewardKind === 'fixed_gbp' ? 'Bonus (£)' : 'Bonus rate (%)'}
-                  <input
-                    type="number"
+                  {draft.monthlyBonus.rewardKind === 'fixed_gbp'
+                    ? `Bonus (${draft.compensation.currency})`
+                    : 'Bonus rate (%)'}
+                  <DraftNumberInput
                     min="0"
                     max={draft.monthlyBonus.rewardKind === 'fixed_gbp' ? 1_000_000 : 100}
                     step="0.01"
                     value={draft.monthlyBonus.rewardValue}
-                    onChange={(event) =>
+                    onValueChange={(rewardValue) =>
                       setDraft({
                         ...draft,
                         monthlyBonus: {
                           ...draft.monthlyBonus,
-                          rewardValue: Number(event.target.value || 0),
+                          rewardValue,
                         },
                       })
                     }
@@ -836,7 +1029,7 @@ function ProfileSummary({
         >
           <span className="text-slate-500">{label}</span>
           <span className="text-right font-black text-slate-800">
-            {rateLabel(rate, packageRate)}
+            {rateLabel(rate, packageRate, config.compensation.currency)}
           </span>
         </div>
       ))}
@@ -848,13 +1041,35 @@ function ProfileSummary({
             : config.assistanceScope.mode === 'all'
               ? 'All primary agents'
               : config.assistanceScope.employeeIds
-                  .map(
-                    (id) =>
-                      employees.find((employee) => employee.id === id)?.fullName || 'Former staff',
-                  )
+                  .map((id) => {
+                    const name =
+                      employees.find((employee) => employee.id === id)?.fullName || 'Former staff'
+                    const rate = config.assistanceScope.agentRates.find(
+                      (item) => item.employeeId === id,
+                    )
+                    return rate
+                      ? `${name} · ${moneyFormatter(config.compensation.currency).format(rate.value)}`
+                      : name
+                  })
                   .join(', ')}
         </span>
       </div>
+      <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
+        <span className="text-slate-500">Pay currency and salary</span>
+        <span className="text-right font-black text-slate-800">
+          {config.compensation.currency} ·{' '}
+          {moneyFormatter(config.compensation.currency).format(config.compensation.monthlySalary)}
+          /month
+        </span>
+      </div>
+      {config.services.tkPrimary.kind === 'tiered' && (
+        <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
+          <span className="text-slate-500">Date changes count toward tiers</span>
+          <span className="text-right font-black text-slate-800">
+            {config.ticketTierOptions.includeDateChanges ? 'Yes' : 'No'}
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
         <span className="text-slate-500">Monthly bonus</span>
         <span className="text-right font-black text-slate-800">
@@ -883,6 +1098,11 @@ export default function AdminCommissionClient({
   const [error, setError] = useState('')
   const [cancelProfile, setCancelProfile] = useState<CommissionAdminProfile | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [exchangeMonth, setExchangeMonth] = useState(currentMonthStart())
+  const [exchangeRate, setExchangeRate] = useState(
+    initialData.exchangeRates.find((rate) => rate.periodStart === currentMonthStart())
+      ?.unitsPerGbp || 0,
+  )
 
   const selectedEmployee = data.employees.find((employee) => employee.id === selectedId) || null
   const selectedProfiles = useMemo(
@@ -928,8 +1148,11 @@ export default function AdminCommissionClient({
       next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
         (employeeId) => employeeId !== selectedEmployee.id,
       )
+      next.assistanceScope.agentRates = next.assistanceScope.agentRates.filter(
+        (rate) => rate.employeeId !== selectedEmployee.id,
+      )
       if (next.assistanceScope.employeeIds.length === 0) {
-        next.assistanceScope = { mode: 'all', employeeIds: [] }
+        next.assistanceScope = { mode: 'all', employeeIds: [], agentRates: [] }
       }
     }
     next.locationId = null
@@ -954,8 +1177,11 @@ export default function AdminCommissionClient({
       next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
         (employeeId) => employeeId !== selectedEmployee.id,
       )
+      next.assistanceScope.agentRates = next.assistanceScope.agentRates.filter(
+        (rate) => rate.employeeId !== selectedEmployee.id,
+      )
       if (next.assistanceScope.employeeIds.length === 0) {
-        next.assistanceScope = { mode: 'all', employeeIds: [] }
+        next.assistanceScope = { mode: 'all', employeeIds: [], agentRates: [] }
       }
     }
     next.locationId = draft.locationId
@@ -972,10 +1198,19 @@ export default function AdminCommissionClient({
     setError('')
     setNotice('')
     try {
+      const parsed = commissionProfileSchema.safeParse(draft)
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0]
+        throw new Error(
+          issue
+            ? `${issue.path.join('.') || 'Commission plan'}: ${issue.message}`
+            : 'Check the commission plan values',
+        )
+      }
       await fetchJson('/api/commissions/admin/profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey('profile') },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(parsed.data),
       })
       await refresh()
       setDraft(null)
@@ -1000,6 +1235,33 @@ export default function AdminCommissionClient({
       setNotice('Queued commission events were processed in preview mode.')
     } catch (processError) {
       setError(processError instanceof Error ? processError.message : 'Unable to run calculations')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const saveExchangeRate = async (event: FormEvent) => {
+    event.preventDefault()
+    setWorking(true)
+    setError('')
+    setNotice('')
+    try {
+      await fetchJson('/api/commissions/admin/exchange-rates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': requestKey('exchange'),
+        },
+        body: JSON.stringify({
+          currency: 'PKR',
+          periodStart: exchangeMonth,
+          unitsPerGbp: exchangeRate,
+        }),
+      })
+      await refresh()
+      setNotice('The monthly PKR conversion rate was saved and queued earnings were recalculated.')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save exchange rate')
     } finally {
       setWorking(false)
     }
@@ -1163,6 +1425,73 @@ export default function AdminCommissionClient({
           icon={AlertTriangle}
         />
       </section>
+
+      <form
+        onSubmit={saveExchangeRate}
+        className="grid gap-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 lg:grid-cols-[minmax(0,1fr)_11rem_12rem_auto] lg:items-end"
+      >
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
+            Monthly pay conversion
+          </p>
+          <h2 className="mt-1 text-lg font-black text-emerald-950">PKR to GBP book rate</h2>
+          <p className="mt-1 max-w-xl text-xs leading-5 text-emerald-800">
+            Enter Pakistani rupees per £1 for the selected month. The local salary and commission
+            remain in PKR; this rate records the matching GBP amount for the books. Once used by a
+            calculation, the rate is locked.
+          </p>
+          {data.exchangeRates.length > 0 && (
+            <p className="mt-2 text-[11px] font-bold text-emerald-700">
+              Latest: {dateLabel(data.exchangeRates[0]!.periodStart)} ·{' '}
+              {data.exchangeRates[0]!.unitsPerGbp.toLocaleString('en-GB', {
+                maximumFractionDigits: 6,
+              })}{' '}
+              PKR per £1
+            </p>
+          )}
+        </div>
+        <label className="text-xs font-bold text-emerald-900">
+          Month
+          <input
+            type="month"
+            value={exchangeMonth.slice(0, 7)}
+            onChange={(event) => {
+              const periodStart = `${event.target.value}-01`
+              setExchangeMonth(periodStart)
+              setExchangeRate(
+                data.exchangeRates.find((rate) => rate.periodStart === periodStart)?.unitsPerGbp ||
+                  0,
+              )
+            }}
+            required
+            className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
+          />
+        </label>
+        <label className="text-xs font-bold text-emerald-900">
+          PKR per £1
+          <DraftNumberInput
+            min="0.000001"
+            max="1000000000"
+            step="0.000001"
+            value={exchangeRate}
+            onValueChange={setExchangeRate}
+            required
+            className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={working || exchangeRate <= 0 || !data.schemaReady}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 text-xs font-black text-white disabled:opacity-50"
+        >
+          {working ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <BadgePoundSterling className="h-4 w-4" />
+          )}
+          Save monthly rate
+        </button>
+      </form>
 
       <section className="grid min-h-[42rem] gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
         <aside className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-sm">

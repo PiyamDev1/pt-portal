@@ -5,6 +5,8 @@ export type CommissionEntryForAnalytics = {
   entryMode: 'shadow' | 'live'
   entryKind: 'ordinary' | 'sales_bonus' | 'manual_adjustment'
   amountGbp: number
+  amountPayCurrency?: number
+  payCurrency?: 'GBP' | 'PKR'
   earningOn: string
   createdAt: string
   supersedesEntryId: string | null
