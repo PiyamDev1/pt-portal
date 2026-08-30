@@ -65,72 +65,60 @@ declare
   signature constant regprocedure :=
     'public.commission_create_employee_profile_2026082904(uuid,uuid,text,date,uuid,uuid,jsonb,text,text)'::regprocedure;
   definition text;
+  original_definition text;
   updated_definition text;
-  old_fragment text;
-  new_fragment text;
 begin
   definition := replace(pg_get_functiondef(signature), E'\r\n', E'\n');
-  if position($needle$'application_nadra'$needle$ in definition) > 0 then
-    return;
+  original_definition := definition;
+
+  if definition !~ $pattern$jsonb_array_length\(p_configuration[[:space:]]*->[[:space:]]*'services'\)[[:space:]]+not[[:space:]]+between[[:space:]]+1[[:space:]]+and[[:space:]]+16$pattern$
+  then
+    updated_definition := regexp_replace(
+      definition,
+      $pattern$jsonb_array_length\(p_configuration[[:space:]]*->[[:space:]]*'services'\)[[:space:]]+not[[:space:]]+between[[:space:]]+1[[:space:]]+and[[:space:]]+[0-9]+$pattern$,
+      $replacement$jsonb_array_length(p_configuration -> 'services') not between 1 and 16$replacement$
+    );
+    if updated_definition = definition then
+      raise exception 'Commission application profile-size upgrade did not match'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+    definition := updated_definition;
   end if;
 
-  updated_definition := replace(
-    definition,
-    $old$jsonb_array_length(p_configuration -> 'services') not between 1 and 8$old$,
-    $new$jsonb_array_length(p_configuration -> 'services') not between 1 and 16$new$
-  );
-  if updated_definition = definition then
-    raise exception 'Commission application profile-size upgrade did not match'
-      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+  if definition !~ $pattern$service_code_value[[:space:]]+not[[:space:]]+in[[:space:]]*\([^)]*'application_nadra'$pattern$
+  then
+    updated_definition := regexp_replace(
+      definition,
+      $pattern$(service_code_value[[:space:]]+not[[:space:]]+in[[:space:]]*\([^)]*'sales_bonus'[^)]*)\)$pattern$,
+      $replacement$\1, 'application_nadra', 'application_passport_pk', 'application_passport_gb', 'application_visa')$replacement$
+    );
+    if updated_definition = definition then
+      raise exception 'Commission application service-code upgrade did not match'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+    definition := updated_definition;
   end if;
-  definition := updated_definition;
 
-  old_fragment := $old$      'tk_primary', 'tk_assistance', 'dc', 'r_er',
-        'low_fare', 'higher_fare', 'package_sale', 'sales_bonus'$old$;
-  new_fragment := $new$      'tk_primary', 'tk_assistance', 'dc', 'r_er',
-        'low_fare', 'higher_fare', 'package_sale', 'application_nadra',
-        'application_passport_pk', 'application_passport_gb', 'application_visa',
-        'sales_bonus'$new$;
-  updated_definition := replace(definition, old_fragment, new_fragment);
-  if updated_definition = definition then
-    raise exception 'Commission application service-code upgrade did not match'
-      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+  if definition !~ $pattern$lower\(btrim\(service[[:space:]]*->>[[:space:]]*'recipientRole'\)\)[[:space:]]+not[[:space:]]+in[[:space:]]*\([^)]*'application_agent'$pattern$
+  then
+    updated_definition := regexp_replace(
+      definition,
+      $pattern$(lower\(btrim\(service[[:space:]]*->>[[:space:]]*'recipientRole'\)\)[[:space:]]+not[[:space:]]+in[[:space:]]*\([^)]*'sales_bonus'[^)]*)\)$pattern$,
+      $replacement$\1, 'application_agent')$replacement$
+    );
+    if updated_definition = definition then
+      raise exception 'Commission application recipient-role upgrade did not match'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+    definition := updated_definition;
   end if;
-  definition := updated_definition;
 
-  old_fragment := $old$      'primary', 'assistant', 'low_fare_actor', 'package_sales', 'sales_bonus'$old$;
-  new_fragment := $new$      'primary', 'assistant', 'low_fare_actor', 'package_sales',
-        'application_agent', 'sales_bonus'$new$;
-  updated_definition := replace(definition, old_fragment, new_fragment);
-  if updated_definition = definition then
-    raise exception 'Commission application recipient-role upgrade did not match'
-      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
-  end if;
-  definition := updated_definition;
-
-  old_fragment := $old$    if (
-        service_code_value = 'package_sale'
-        and lower(btrim(service ->> 'sourceModule')) <> 'packages'
-      )
-      or (
-        service_code_value <> 'package_sale'
-        and lower(btrim(service ->> 'sourceModule')) <> 'ticketing'
-      )
-      or (service_code_value = 'tk_primary' and service ->> 'recipientRole' <> 'primary')
-      or (service_code_value = 'tk_assistance' and service ->> 'recipientRole' <> 'assistant')
-      or (service_code_value in ('dc', 'r_er') and service ->> 'recipientRole' <> 'primary')
-      or (
-        service_code_value in ('low_fare', 'higher_fare')
-        and service ->> 'recipientRole' <> 'low_fare_actor'
-      )
-      or (service_code_value = 'package_sale' and service ->> 'recipientRole' <> 'package_sales')
-      or (service_code_value = 'sales_bonus' and service ->> 'recipientRole' <> 'sales_bonus')
-    then$old$;
-  new_fragment := $new$    if (
-        service_code_value = 'package_sale'
-        and lower(btrim(service ->> 'sourceModule')) <> 'packages'
-      )
-      or (
+  if definition !~ $pattern$lower\(btrim\(service[[:space:]]*->>[[:space:]]*'sourceModule'\)\)[[:space:]]*<>[[:space:]]*'applications'$pattern$
+  then
+    updated_definition := regexp_replace(
+      definition,
+      $pattern$or[[:space:]]*\([[:space:]]*service_code_value[[:space:]]*<>[[:space:]]*'package_sale'[[:space:]]*and[[:space:]]*lower\(btrim\(service[[:space:]]*->>[[:space:]]*'sourceModule'\)\)[[:space:]]*<>[[:space:]]*'ticketing'[[:space:]]*\)$pattern$,
+      $replacement$or (
         service_code_value in (
           'application_nadra', 'application_passport_pk',
           'application_passport_gb', 'application_visa'
@@ -143,31 +131,48 @@ begin
           'application_passport_gb', 'application_visa'
         )
         and lower(btrim(service ->> 'sourceModule')) <> 'ticketing'
-      )
-      or (service_code_value = 'tk_primary' and service ->> 'recipientRole' <> 'primary')
-      or (service_code_value = 'tk_assistance' and service ->> 'recipientRole' <> 'assistant')
-      or (service_code_value in ('dc', 'r_er') and service ->> 'recipientRole' <> 'primary')
-      or (
-        service_code_value in ('low_fare', 'higher_fare')
-        and service ->> 'recipientRole' <> 'low_fare_actor'
-      )
-      or (service_code_value = 'package_sale' and service ->> 'recipientRole' <> 'package_sales')
-      or (
+      )$replacement$
+    );
+    if updated_definition = definition then
+      raise exception 'Commission application source-module upgrade did not match'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+    definition := updated_definition;
+  end if;
+
+  if definition !~ $pattern$service[[:space:]]*->>[[:space:]]*'recipientRole'[[:space:]]*<>[[:space:]]*'application_agent'$pattern$
+  then
+    updated_definition := regexp_replace(
+      definition,
+      $pattern$or[[:space:]]*\(service_code_value[[:space:]]*=[[:space:]]*'sales_bonus'[[:space:]]+and[[:space:]]+service[[:space:]]*->>[[:space:]]*'recipientRole'[[:space:]]*<>[[:space:]]*'sales_bonus'\)$pattern$,
+      $replacement$or (
         service_code_value in (
           'application_nadra', 'application_passport_pk',
           'application_passport_gb', 'application_visa'
         )
         and service ->> 'recipientRole' <> 'application_agent'
       )
-      or (service_code_value = 'sales_bonus' and service ->> 'recipientRole' <> 'sales_bonus')
-    then$new$;
-  updated_definition := replace(definition, old_fragment, new_fragment);
-  if updated_definition = definition then
-    raise exception 'Commission application service-scope upgrade did not match'
+      or (service_code_value = 'sales_bonus' and service ->> 'recipientRole' <> 'sales_bonus')$replacement$
+    );
+    if updated_definition = definition then
+      raise exception 'Commission application service-scope upgrade did not match'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+    definition := updated_definition;
+  end if;
+
+  if definition !~ $pattern$service_code_value[[:space:]]+not[[:space:]]+in[[:space:]]*\([^)]*'application_visa'$pattern$
+    or definition !~ $pattern$lower\(btrim\(service[[:space:]]*->>[[:space:]]*'recipientRole'\)\)[[:space:]]+not[[:space:]]+in[[:space:]]*\([^)]*'application_agent'$pattern$
+    or definition !~ $pattern$lower\(btrim\(service[[:space:]]*->>[[:space:]]*'sourceModule'\)\)[[:space:]]*<>[[:space:]]*'applications'$pattern$
+    or definition !~ $pattern$service[[:space:]]*->>[[:space:]]*'recipientRole'[[:space:]]*<>[[:space:]]*'application_agent'$pattern$
+  then
+    raise exception 'Commission application profile upgrade is incomplete'
       using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
   end if;
 
-  execute updated_definition;
+  if definition <> original_definition then
+    execute definition;
+  end if;
 end
 $upgrade_profile_creation$;
 

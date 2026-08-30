@@ -6,6 +6,7 @@ fixture="tests/integration/fixtures/ticketing_foundation_schema.sql"
 package_fixture="tests/integration/fixtures/commission_package_schema.sql"
 application_fixture="tests/integration/fixtures/commission_application_schema.sql"
 application_legacy_fixture="tests/integration/fixtures/commission_application_legacy_fixture.sql"
+application_function_drift_fixture="tests/integration/fixtures/commission_application_function_drift_fixture.sql"
 source_foundation="scripts/migrations/20260822_create_ticketing_commission_foundation.sql"
 commission_foundation="scripts/migrations/20260829_commission_shadow_foundation.sql"
 commission_processor="scripts/migrations/20260829_commission_shadow_processor.sql"
@@ -141,6 +142,7 @@ fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$package_assertions"
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$application_legacy_fixture"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$application_function_drift_fixture"
 
 first_applications_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select applied_at from public.portal_schema_versions where component = 'commission'")"
