@@ -116,7 +116,7 @@ begin
       and not exists (
         select 1
         from public.commission_source_events newer
-        where newer.supersedes_event_id = source_event.source_event_id
+        where newer.supersedes_event_id = source_event.id
       )
     order by source_event.source_fact_key, source_event.event_version desc
   loop
@@ -187,7 +187,7 @@ begin
       and not exists (
         select 1
         from public.commission_source_events newer
-        where newer.supersedes_event_id = source_event.source_event_id
+        where newer.supersedes_event_id = source_event.id
       )
     order by source_event.source_fact_key, source_event.event_version desc
   loop

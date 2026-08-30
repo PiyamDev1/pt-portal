@@ -416,10 +416,20 @@ begin
     and position('_commission_period_start' in definition) > 0
     and position('missing_exchange_rate' in definition) > 0
     and position('later_state.processing_status' in definition) > 0
+    and position('newer.supersedes_event_id = event.source_event_id' in definition) = 0
   then
     return;
   end if;
   updated_definition := definition;
+
+  old_fragment := $old$newer.supersedes_event_id = event.source_event_id$old$;
+  new_fragment := $new$newer.supersedes_event_id = event.id$new$;
+  updated_definition := replace(updated_definition, old_fragment, new_fragment);
+  if updated_definition = definition then
+    raise exception 'Commission processor source-lineage upgrade did not match'
+      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+  end if;
+  definition := updated_definition;
 
   old_fragment := $old$component.id, event.variables,
                 coalesce((event.variables ->> 'passenger_ticket_count')::integer, 0),$old$;
@@ -480,7 +490,7 @@ begin
                   )
                   and not exists (
                     select 1 from public.commission_source_events newer
-                    where newer.supersedes_event_id = prior_event.source_event_id
+                    where newer.supersedes_event_id = prior_event.id
                   );$new$;
   updated_definition := replace(definition, old_fragment, new_fragment);
   if updated_definition = definition then
@@ -551,7 +561,7 @@ begin
           )
           and not exists (
             select 1 from public.commission_source_events newer
-            where newer.supersedes_event_id = later_event.source_event_id
+            where newer.supersedes_event_id = later_event.id
           );
       elsif event.event_type in ('ticket_paid') then$new$;
   updated_definition := replace(definition, old_fragment, new_fragment);
@@ -583,9 +593,21 @@ declare
     qualifying_value,$new$;
 begin
   definition := pg_get_functiondef(signature);
-  if position('commission_exchange_rate_2026083001' in definition) > 0 then
+  if position('commission_exchange_rate_2026083001' in definition) > 0
+    and position('newer.supersedes_event_id = event.source_event_id' in definition) = 0
+  then
     return;
   end if;
+  updated_definition := replace(
+    definition,
+    'newer.supersedes_event_id = event.source_event_id',
+    'newer.supersedes_event_id = event.id'
+  );
+  if updated_definition = definition then
+    raise exception 'Commission bonus source-lineage upgrade did not match'
+      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+  end if;
+  definition := updated_definition;
   updated_definition := replace(definition, old_fragment, new_fragment);
   if updated_definition = definition then
     raise exception 'Commission bonus pay-currency upgrade did not match'

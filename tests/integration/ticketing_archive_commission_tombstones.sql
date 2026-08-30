@@ -53,7 +53,7 @@ begin
       )
       and not exists (
         select 1 from public.commission_source_events newer
-        where newer.supersedes_event_id = source_event.source_event_id
+        where newer.supersedes_event_id = source_event.id
       )
   ) then
     raise exception 'Archived booking retained a current non-tombstone Commission fact';
