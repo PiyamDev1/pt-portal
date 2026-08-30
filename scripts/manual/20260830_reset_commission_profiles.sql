@@ -1,10 +1,12 @@
--- One-time production reset for the Commission module.
+-- One-time production reset for the Commission module at capability 2026083004.
 --
 -- Run this entire file in the Supabase SQL editor. It deletes only the
 -- employee Commission configuration and shadow-calculation records described
--- in the reset request. Ticketing ledger rows, immutable Commission source
--- events, monthly exchange rates, access grants, and existing audit events are
--- preserved.
+-- in the reset request. It also purges Commission source-event chains belonging
+-- to Ticketing bookings that are already archived, so deleted ledger items
+-- cannot remain visible to or be recalculated by Commission. Live Ticketing
+-- rows, Ticketing audit history, Package source events, monthly exchange rates,
+-- access grants, and existing Commission audit events are preserved.
 --
 -- The transaction deliberately refuses to run if the expected production
 -- counts have changed, if a standalone Commission rule exists, or if any live
@@ -26,8 +28,39 @@ lock table
   public.commission_entries,
   public.commission_period_results,
   public.commission_exceptions,
-  public.commission_calculation_runs
+  public.commission_calculation_runs,
+  public.commission_source_events,
+  public.commission_source_event_states
 in exclusive mode;
+
+lock table
+  public.ticket_bookings,
+  public.ticket_transactions
+in share mode;
+
+create temporary table commission_reset_archived_ticket_event_ids (
+  event_id uuid primary key
+) on commit drop;
+
+insert into commission_reset_archived_ticket_event_ids (event_id)
+select source_event.id
+from public.commission_source_events source_event
+where source_event.source_module = 'ticketing'
+  and exists (
+    select 1
+    from public.ticket_bookings booking
+    where booking.archived_at is not null
+      and (
+        source_event.source_record_id = booking.id
+        or source_event.variables ->> 'booking_id' = booking.id::text
+        or exists (
+          select 1
+          from public.ticket_transactions transaction
+          where transaction.booking_id = booking.id
+            and transaction.id = source_event.source_record_id
+        )
+      )
+  );
 
 do $reset_guard$
 declare
@@ -46,8 +79,8 @@ declare
     'calculationRuns', 6
   );
 begin
-  if (public.commission_schema_status() ->> 'version')::bigint <> 2026083002 then
-    raise exception 'Expected Commission schema 2026083002 before reset; found %',
+  if (public.commission_schema_status() ->> 'version')::bigint <> 2026083004 then
+    raise exception 'Expected Commission schema 2026083004 before reset; found %',
       public.commission_schema_status() ->> 'version'
       using errcode = '55000', hint = 'COMMISSION_RESET_SCHEMA_CHANGED';
   end if;
@@ -60,6 +93,21 @@ begin
   if exists (select 1 from public.commission_entries where entry_mode = 'live') then
     raise exception 'The reset will not delete live or payable Commission entries'
       using errcode = '55000', hint = 'COMMISSION_RESET_LIVE_ENTRIES';
+  end if;
+
+  if exists (
+    select 1
+    from public.commission_source_events newer
+    join commission_reset_archived_ticket_event_ids archived_event
+      on archived_event.event_id = newer.supersedes_event_id
+    where not exists (
+      select 1
+      from commission_reset_archived_ticket_event_ids same_archived_chain
+      where same_archived_chain.event_id = newer.id
+    )
+  ) then
+    raise exception 'An active Ticketing source event depends on an archived Ticketing event'
+      using errcode = '55000', hint = 'COMMISSION_RESET_ARCHIVED_EVENT_STILL_REFERENCED';
   end if;
 
   actual_state := jsonb_build_object(
@@ -124,6 +172,9 @@ begin
           where entry.entry_mode = 'shadow'
         ),
         'sourceEvents', (select count(*) from public.commission_source_events),
+        'archivedTicketingSourceEvents', (
+          select count(*) from commission_reset_archived_ticket_event_ids
+        ),
         'monthlyExchangeRates', (
           select count(*) from public.commission_monthly_exchange_rates
         ),
@@ -168,12 +219,28 @@ begin
       'calculationRuns', coalesce((
         select jsonb_agg(to_jsonb(run_row) order by run_row.started_at, run_row.id)
         from public.commission_calculation_runs run_row
+      ), '[]'::jsonb),
+      'archivedTicketingSourceEvents', coalesce((
+        select jsonb_agg(to_jsonb(source_event) order by source_event.created_at, source_event.id)
+        from public.commission_source_events source_event
+        join commission_reset_archived_ticket_event_ids archived_event
+          on archived_event.event_id = source_event.id
+      ), '[]'::jsonb),
+      'archivedTicketingSourceEventStates', coalesce((
+        select jsonb_agg(to_jsonb(source_state) order by source_state.event_id)
+        from public.commission_source_event_states source_state
+        join commission_reset_archived_ticket_event_ids archived_event
+          on archived_event.event_id = source_state.event_id
       ), '[]'::jsonb)
     ),
     jsonb_build_object(
       'profiles', 0,
       'mode', 'shadow',
-      'sourceEventsPreserved', true,
+      'archivedTicketingSourceEventsPurged', (
+        select count(*) from commission_reset_archived_ticket_event_ids
+      ),
+      'liveTicketingSourceEventsPreserved', true,
+      'packageSourceEventsPreserved', true,
       'ticketingRecordsPreserved', true,
       'monthlyExchangeRatesPreserved', true,
       'accessGrantsPreserved', true
@@ -201,6 +268,10 @@ alter table public.commission_policy_versions
   disable trigger commission_policy_versions_profile_guard_2904;
 alter table public.employee_commission_profiles
   disable trigger employee_commission_profiles_guard_2904;
+alter table public.commission_source_event_states
+  disable trigger commission_source_event_states_protect_delete;
+alter table public.commission_source_events
+  disable trigger commission_source_events_immutable;
 
 delete from public.commission_exceptions;
 delete from public.commission_entries;
@@ -211,6 +282,22 @@ delete from public.commission_policy_tiers;
 delete from public.commission_policy_components;
 delete from public.commission_policy_versions;
 delete from public.commission_rules;
+
+-- Remove only Commission source records belonging to Ticketing bookings that
+-- were already archived. The operational booking and audit rows remain intact.
+delete from public.commission_source_event_states source_state
+where exists (
+  select 1
+  from commission_reset_archived_ticket_event_ids archived_event
+  where archived_event.event_id = source_state.event_id
+);
+
+delete from public.commission_source_events source_event
+where exists (
+  select 1
+  from commission_reset_archived_ticket_event_ids archived_event
+  where archived_event.event_id = source_event.id
+);
 
 -- Remove the self-reference before deleting all copied profile snapshots.
 update public.employee_commission_profiles
@@ -233,10 +320,14 @@ alter table public.commission_policy_versions
   enable trigger commission_policy_versions_profile_guard_2904;
 alter table public.employee_commission_profiles
   enable trigger employee_commission_profiles_guard_2904;
+alter table public.commission_source_event_states
+  enable trigger commission_source_event_states_protect_delete;
+alter table public.commission_source_events
+  enable trigger commission_source_events_immutable;
 
--- Current, calculable source facts wait for a new employee plan. Superseded
--- facts and deletion tombstones remain processed, so deleted Ticketing rows can
--- never be resurrected as ghost Commission earnings.
+-- Current, calculable source facts wait for a new employee plan. Remaining
+-- superseded facts stay processed; archived Ticketing chains were purged above,
+-- so deleted Ticketing rows cannot be resurrected as ghost Commission earnings.
 update public.commission_source_event_states state
 set processing_status = case
       when event.event_type in (
@@ -245,7 +336,8 @@ set processing_status = case
         'ticket_date_changed',
         'ticket_reissued',
         'ticket_low_fare_adjusted',
-        'ticket_higher_fare_adjusted'
+        'ticket_higher_fare_adjusted',
+        'package_closed'
       )
       and not exists (
         select 1
@@ -263,7 +355,8 @@ set processing_status = case
         'ticket_date_changed',
         'ticket_reissued',
         'ticket_low_fare_adjusted',
-        'ticket_higher_fare_adjusted'
+        'ticket_higher_fare_adjusted',
+        'package_closed'
       )
       and not exists (
         select 1
@@ -288,6 +381,18 @@ begin
     or exists (select 1 from public.commission_period_results)
     or exists (select 1 from public.commission_exceptions)
     or exists (select 1 from public.commission_calculation_runs)
+    or exists (
+      select 1
+      from public.commission_source_events source_event
+      join commission_reset_archived_ticket_event_ids archived_event
+        on archived_event.event_id = source_event.id
+    )
+    or exists (
+      select 1
+      from public.commission_source_event_states source_state
+      join commission_reset_archived_ticket_event_ids archived_event
+        on archived_event.event_id = source_state.event_id
+    )
   then
     raise exception 'Commission reset verification failed; rolling back'
       using errcode = '55000';
@@ -320,4 +425,13 @@ select
     where processing_status = 'held') as events_waiting_for_new_plan,
   (select count(*) from public.commission_audit_events
     where action = 'employee_profiles.reset'
-      and request_key = 'commission-profile-reset-20260830-01') as recovery_snapshots;
+      and request_key = 'commission-profile-reset-20260830-01') as recovery_snapshots,
+  (select coalesce(
+      (audit_event.before_state #>> '{summary,archivedTicketingSourceEvents}')::bigint,
+      0
+    )
+    from public.commission_audit_events audit_event
+    where audit_event.action = 'employee_profiles.reset'
+      and audit_event.request_key = 'commission-profile-reset-20260830-01'
+    order by audit_event.created_at desc
+    limit 1) as purged_archived_ticketing_source_events;
