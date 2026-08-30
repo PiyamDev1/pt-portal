@@ -59,6 +59,7 @@ export type MyCommissionData = {
     effectiveFrom: string
     effectiveTo: string | null
     configuration: CommissionProfileInput | null
+    applicationRoutingRecipientName: string | null
   } | null
   scheduledProfile: {
     id: string
@@ -195,6 +196,10 @@ function profileDraft(value: Json | null | undefined): CommissionProfileInput | 
     Object.keys(draftObject).length > 0
       ? {
           ...draftObject,
+          applicationRouting: draftObject.applicationRouting || {
+            mode: 'self',
+            recipientEmployeeId: null,
+          },
           services: {
             packageSale: zeroRate,
             applicationNadra: zeroRate,
@@ -419,6 +424,20 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
     .filter((profile) => profile.effective_from > today)
     .sort((left, right) => left.effective_from.localeCompare(right.effective_from))[0]
   const currentConfiguration = current ? profileDraft(current.configuration) : null
+  const applicationRoutingRecipientId =
+    currentConfiguration?.applicationRouting.mode === 'another_employee'
+      ? currentConfiguration.applicationRouting.recipientEmployeeId
+      : null
+  let applicationRoutingRecipientName: string | null = null
+  if (applicationRoutingRecipientId) {
+    const { data: recipient, error: recipientError } = await supabase
+      .from('employees')
+      .select('full_name')
+      .eq('id', applicationRoutingRecipientId)
+      .maybeSingle()
+    if (recipientError) throw recipientError
+    applicationRoutingRecipientName = recipient?.full_name || 'Former staff member'
+  }
   const payCurrency = currentConfiguration?.compensation.currency || 'GBP'
   const monthlySalary = currentConfiguration?.compensation.monthlySalary || 0
   const currentMonth = today.slice(0, 7)
@@ -456,6 +475,7 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
           effectiveFrom: current.effective_from,
           effectiveTo: current.effective_to,
           configuration: currentConfiguration,
+          applicationRoutingRecipientName,
         }
       : null,
     scheduledProfile: scheduled

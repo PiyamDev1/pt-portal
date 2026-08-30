@@ -4,7 +4,7 @@ export const COMMISSION_CAPABILITY_VERSION = 2026082903
 export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026083002
 export const COMMISSION_PACKAGE_CAPABILITY_VERSION = 2026083003
 export const COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION = 2026083004
-export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083006
+export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083007
 
 export const commissionSourceModules = ['ticketing', 'packages', 'applications'] as const
 export const commissionServiceCodes = [
@@ -349,6 +349,15 @@ export const commissionAssistanceScopeSchema = z
 
 export type CommissionAssistanceScope = z.infer<typeof commissionAssistanceScopeSchema>
 
+export const commissionApplicationRoutingSchema = z
+  .object({
+    mode: z.enum(['self', 'another_employee', 'none']).default('self'),
+    recipientEmployeeId: uuidSchema.nullable().default(null),
+  })
+  .strict()
+
+export type CommissionApplicationRouting = z.infer<typeof commissionApplicationRoutingSchema>
+
 const profileTierSchema = z
   .object({
     minUnit: z.number().int().min(1).max(100_000),
@@ -391,7 +400,7 @@ export const commissionRateSchema = z
       context.addIssue({
         code: 'custom',
         path: ['tiers'],
-        message: 'Tiered rates must begin at ticket 1',
+        message: 'Tiered rates must begin at unit 1',
       })
     }
     if (new Set(ordered.map((tier) => tier.minUnit)).size !== ordered.length) {
@@ -470,6 +479,10 @@ export const commissionProfileSchema = z
       employeeIds: [],
       agentRates: [],
     }),
+    applicationRouting: commissionApplicationRoutingSchema.default({
+      mode: 'self',
+      recipientEmployeeId: null,
+    }),
     ticketTierOptions: z
       .object({ includeDateChanges: z.boolean().default(false) })
       .strict()
@@ -497,6 +510,32 @@ export const commissionProfileSchema = z
   })
   .strict()
   .superRefine((profile, context) => {
+    const applicationRecipientId = profile.applicationRouting.recipientEmployeeId
+    if (profile.applicationRouting.mode === 'another_employee' && applicationRecipientId === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['applicationRouting', 'recipientEmployeeId'],
+        message: 'Select the employee who should receive Application commission',
+      })
+    }
+    if (
+      profile.applicationRouting.mode === 'another_employee' &&
+      applicationRecipientId === profile.employeeId
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['applicationRouting', 'recipientEmployeeId'],
+        message: 'Use Pay this employee instead of redirecting commission to the same employee',
+      })
+    }
+    if (profile.applicationRouting.mode !== 'another_employee' && applicationRecipientId !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['applicationRouting', 'recipientEmployeeId'],
+        message: 'Only redirected Application commission can have another recipient',
+      })
+    }
+
     const { mode, employeeIds, agentRates } = profile.assistanceScope
     if (new Set(employeeIds).size !== employeeIds.length) {
       context.addIssue({
@@ -594,7 +633,7 @@ export type CommissionServicePolicyInput = {
 }
 
 export type StoredCommissionProfileConfiguration = {
-  uiVersion: 4
+  uiVersion: 5
   services: CommissionServicePolicyInput[]
   draft: CommissionProfileInput
 }
@@ -686,7 +725,7 @@ function componentForProfileRate(
         ? { includeDateChangesInMarginalTiers: input.ticketTierOptions.includeDateChanges }
         : {}),
       ...(serviceCode === 'package_sale' && rate.kind === 'tiered'
-        ? { marginalUnit: 'package_passenger' }
+        ? { marginalUnit: 'package_passenger_band' }
         : {}),
     },
   }
@@ -797,7 +836,7 @@ export function toStoredCommissionProfile(
     })
   }
 
-  return { uiVersion: 4, services, draft: input }
+  return { uiVersion: 5, services, draft: input }
 }
 
 export function createDefaultCommissionProfile(employeeId = ''): CommissionProfileInput {
@@ -828,6 +867,7 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
       applicationVisa: { ...zeroRate },
     },
     assistanceScope: { mode: 'all', employeeIds: [], agentRates: [] },
+    applicationRouting: { mode: 'self', recipientEmployeeId: null },
     ticketTierOptions: { includeDateChanges: false },
     compensation: { currency: 'GBP', monthlySalary: 0 },
     monthlyBonus: {
@@ -843,7 +883,6 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
 export function profileNeedsWholeMonths(profile: CommissionProfileInput) {
   return (
     profile.services.tkPrimary.kind === 'tiered' ||
-    profile.services.packageSale.kind === 'tiered' ||
     profile.monthlyBonus.enabled ||
     profile.compensation.currency !== 'GBP' ||
     profile.compensation.monthlySalary > 0

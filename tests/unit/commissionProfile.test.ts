@@ -31,7 +31,8 @@ describe('employee commission profile contract', () => {
     ])
     expect(stored.services.every((service) => service.components.length === 1)).toBe(true)
     expect(profile.assistanceScope).toEqual({ mode: 'all', employeeIds: [], agentRates: [] })
-    expect(stored.uiVersion).toBe(4)
+    expect(profile.applicationRouting).toEqual({ mode: 'self', recipientEmployeeId: null })
+    expect(stored.uiVersion).toBe(5)
     expect(
       stored.services.every(
         (service) =>
@@ -57,7 +58,7 @@ describe('employee commission profile contract', () => {
     })
   })
 
-  it('maps package marginal tiers to authoritative passenger units', () => {
+  it('maps flat package bands to the authoritative passenger count', () => {
     const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
     profile.services.packageSale = {
       kind: 'tiered',
@@ -75,13 +76,13 @@ describe('employee commission profile contract', () => {
     expect(component).toMatchObject({
       componentType: 'marginal_ticket_tier',
       recipientRole: 'package_sales',
-      config: { marginalUnit: 'package_passenger' },
+      config: { marginalUnit: 'package_passenger_band' },
       tiers: [
         { minUnit: 1, rateGbp: 5 },
         { minUnit: 6, rateGbp: 8 },
       ],
     })
-    expect(profileNeedsWholeMonths(profile)).toBe(true)
+    expect(profileNeedsWholeMonths(profile)).toBe(false)
   })
 
   it('maps each completed Application service to a fixed employee-owned event rate', () => {
@@ -122,6 +123,35 @@ describe('employee commission profile contract', () => {
     const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
     profile.services.applicationVisa = { kind: 'percentage', value: 10, tiers: [] }
 
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+  })
+
+  it('stores a separate Application commission recipient without changing the plan owner', () => {
+    const recipientEmployeeId = '22222222-2222-4222-8222-222222222222'
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.applicationRouting = { mode: 'another_employee', recipientEmployeeId }
+
+    const stored = toStoredCommissionProfile(commissionProfileSchema.parse(profile))
+
+    expect(stored.draft.employeeId).toBe(EMPLOYEE_ID)
+    expect(stored.draft.applicationRouting).toEqual({
+      mode: 'another_employee',
+      recipientEmployeeId,
+    })
+  })
+
+  it('rejects missing, self-referencing, or stray Application recipients', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.applicationRouting = { mode: 'another_employee', recipientEmployeeId: null }
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+
+    profile.applicationRouting.recipientEmployeeId = EMPLOYEE_ID
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+
+    profile.applicationRouting = {
+      mode: 'none',
+      recipientEmployeeId: '22222222-2222-4222-8222-222222222222',
+    }
     expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
   })
 
@@ -199,11 +229,16 @@ describe('employee commission profile contract', () => {
   it('upgrades stored version-one drafts to all-agent assistance', () => {
     const legacy = createDefaultCommissionProfile(EMPLOYEE_ID) as Record<string, unknown>
     delete legacy.assistanceScope
+    delete legacy.applicationRouting
 
     expect(commissionProfileSchema.parse(legacy).assistanceScope).toEqual({
       mode: 'all',
       employeeIds: [],
       agentRates: [],
+    })
+    expect(commissionProfileSchema.parse(legacy).applicationRouting).toEqual({
+      mode: 'self',
+      recipientEmployeeId: null,
     })
   })
 

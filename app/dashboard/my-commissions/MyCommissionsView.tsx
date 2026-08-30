@@ -453,17 +453,35 @@ export default function MyCommissionsView({
                         'completed application',
                       ],
                     ] as Array<[string, CommissionRate, boolean?, string?]>
-                  ).map(([label, rate, packageRate, eventNoun]) => (
-                    <div
-                      key={label}
-                      className="flex items-center justify-between gap-4 py-3 text-sm"
-                    >
-                      <span className="text-slate-500">{label}</span>
-                      <span className="text-right font-black text-slate-800">
-                        {formatRate(rate, packageRate, profile.compensation.currency, eventNoun)}
-                      </span>
-                    </div>
-                  ))}
+                  )
+                    .filter(
+                      ([label]) =>
+                        profile.applicationRouting.mode === 'self' ||
+                        !label.toLowerCase().includes('applications'),
+                    )
+                    .map(([label, rate, packageRate, eventNoun]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between gap-4 py-3 text-sm"
+                      >
+                        <span className="text-slate-500">{label}</span>
+                        <span className="text-right font-black text-slate-800">
+                          {formatRate(rate, packageRate, profile.compensation.currency, eventNoun)}
+                        </span>
+                      </div>
+                    ))}
+                  <div className="flex items-start justify-between gap-4 py-3 text-sm">
+                    <span className="text-slate-500">Application commission</span>
+                    <span className="max-w-xs text-right font-black text-slate-800">
+                      {profile.applicationRouting.mode === 'self'
+                        ? 'Paid to you at the rates above'
+                        : profile.applicationRouting.mode === 'none'
+                          ? 'No commission is paid'
+                          : `Paid to ${
+                              data.profile.applicationRoutingRecipientName || 'another employee'
+                            } at their own rate`}
+                    </span>
+                  </div>
                   {profile.services.tkAssistance.kind !== 'none' && (
                     <div className="flex items-center justify-between gap-4 py-3 text-sm">
                       <span className="text-slate-500">Ticket assistance scope</span>

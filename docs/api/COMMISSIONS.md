@@ -4,7 +4,8 @@ Commission has an employee-owned read surface and a separate Admin/HR control su
 derives the actor from the active staff session and returns private, non-cacheable data. The self
 route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
 Commission authority or live HR department membership. Employee-profile mutations require database
-capability `2026083006`, including completed Application commission sources; the advanced shadow
+capability `2026083007`, including completed Application commission sources and recipient routing;
+the advanced shadow
 engine requires `2026082903`. All calculated values in this release are non-payable shadow evidence.
 
 ### GET `/api/commissions/me`
@@ -44,9 +45,13 @@ effective date, optional location scope and copied-profile provenance, change re
 and salary, typed rates for every supported service, Ticket Assistance scope (`all` or
 `specific_agents` with an independent rate for every selected primary employee), ticket-tier date
 change inclusion, separate normal and urgent/executive NADRA and Pakistani-passport rates, British
-passport and Visa rates, and optional monthly bonus. Application rates are either fixed per
-completed/collected case or explicit zero. Package sales can also use marginal per-passenger tiers
-based on the authoritative package passenger count. Past effective dates are
+passport and Visa rates, Application recipient routing (`self`, `another_employee`, or `none`), and
+optional monthly bonus. A redirected Application keeps the completing employee as its operational
+owner while resolving the selected recipient's own effective service rate and pay currency.
+Application rates are either fixed per completed/collected case or explicit zero. Package sales can
+also use a flat package amount selected by the authoritative passenger-count band; the amount is
+awarded once per package rather than once per passenger. Per-passenger commission remains a separate
+method, and linked group bookings remain one package. Past effective dates are
 accepted only when they do not overlap a completed or later plan and do not rewrite calculated
 history. Tiered, bonus, salary, and PKR agreements use whole-month boundaries.
 
@@ -57,7 +62,7 @@ triggers a bounded shadow-processing attempt.
 
 **Errors:** `400` for malformed or unsafe setup; `401`/`403` for access failure; `404` for a missing
 employee/location/copy source; `409` when the date overlaps a completed/later plan or protected
-calculated history; `503` when `2026083006` is not
+calculated history; `503` when `2026083007` is not
 installed; `500` for an unexpected transactional failure.
 
 ### PUT `/api/commissions/admin/profiles/[id]`
@@ -74,7 +79,7 @@ removed from operational history.
 
 **Errors:** `400` for invalid data or a branch-scope change; `401`/`403` for access failure; `404`
 for a missing active profile; `409` for an effective-date conflict; `503` when capability
-`2026083006` is absent; and `500` for an unexpected transactional failure.
+`2026083007` is absent; and `500` for an unexpected transactional failure.
 
 ### DELETE `/api/commissions/admin/profiles/[id]`
 
@@ -88,7 +93,7 @@ restoring the previous plan to the next valid boundary. Policy and calculation e
 internally where required for audit.
 
 **Errors:** `400` for invalid input; `401`/`403` for access failure; `404` for a missing profile;
-`409` when the plan is already inactive; `503` when capability `2026083006` is absent; and `500` for
+`409` when the plan is already inactive; `503` when capability `2026083007` is absent; and `500` for
 an unexpected transactional failure.
 
 ### POST `/api/commissions/admin/exchange-rates`

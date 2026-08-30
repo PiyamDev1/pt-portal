@@ -1098,7 +1098,8 @@ function ShadowEntries({ items }: { items: JsonRecord[] }) {
         <div>
           <h2 className="font-semibold text-white">Calculated preview results</h2>
           <p className="mt-1 text-xs text-slate-400">
-            Each row shows who receives the calculation and which primary agent owned the sale.
+            Each row separates the commission recipient from the employee who owned the sale or
+            completed the Application work.
           </p>
         </div>
         <label className="relative block sm:w-80">
@@ -1116,7 +1117,7 @@ function ShadowEntries({ items }: { items: JsonRecord[] }) {
         headers={[
           'Recipient',
           'Service',
-          'Primary sale owner',
+          'Work / profit owner',
           'Earning date',
           'Amount',
           'Scope / state',
@@ -1135,7 +1136,11 @@ function ShadowEntries({ items }: { items: JsonRecord[] }) {
                   ? 'Selected agent matched'
                   : 'Outside selected scope'
                 : 'All primary agents'
-              : String(item.entryKind).replace(/_/g, ' ')
+              : serviceCode.startsWith('application_')
+                ? item.explanation?.routed
+                  ? 'Application commission redirected'
+                  : 'Application paid to performer'
+                : String(item.entryKind).replace(/_/g, ' ')
           return [
             item.recipientName,
             serviceLabels[serviceCode] || serviceCode.replace(/_/g, ' ') || 'Commission',

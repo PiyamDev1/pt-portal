@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   }
   if (profileNeedsWholeMonths(profile) && !profile.effectiveFrom.endsWith('-01')) {
     return apiError(
-      'Tiered rates, monthly bonuses, salary, and PKR plans must start on the first of a month',
+      'Monthly ticket tiers, monthly bonuses, salary, and PKR plans must start on the first of a month',
       400,
       {},
       COMMISSION_PRIVATE_RESPONSE,
@@ -85,6 +85,30 @@ export async function POST(request: Request) {
     ) {
       return apiError(
         'Ticket Assistance can target only active employees',
+        400,
+        {},
+        COMMISSION_PRIVATE_RESPONSE,
+      )
+    }
+  }
+
+  if (profile.applicationRouting.mode === 'another_employee') {
+    const { data: recipient, error: recipientError } = await access.supabase
+      .from('employees')
+      .select('id, is_active')
+      .eq('id', profile.applicationRouting.recipientEmployeeId as string)
+      .maybeSingle()
+    if (recipientError) {
+      return apiError(
+        'Unable to validate the Application commission recipient',
+        500,
+        {},
+        COMMISSION_PRIVATE_RESPONSE,
+      )
+    }
+    if (!recipient?.is_active) {
+      return apiError(
+        'Application commission can be redirected only to an active employee',
         400,
         {},
         COMMISSION_PRIVATE_RESPONSE,

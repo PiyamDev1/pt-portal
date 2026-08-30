@@ -126,7 +126,9 @@ function rateLabel(
     return `${formatter.format(rate.value)} per ${packageRate ? 'package' : eventNoun}`
   if (rate.kind === 'per_unit')
     return `${formatter.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
-  return `${rate.tiers.length} marginal tier${rate.tiers.length === 1 ? '' : 's'}`
+  return packageRate
+    ? `${rate.tiers.length} passenger band${rate.tiers.length === 1 ? '' : 's'} per package`
+    : `${rate.tiers.length} marginal tier${rate.tiers.length === 1 ? '' : 's'}`
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -251,6 +253,11 @@ function RateEditor({
   perEventLabel = 'Per booking / case',
   currency = 'GBP',
   tierUnitLabel = 'ticket',
+  tierMethodLabel,
+  tierRateLabel,
+  defaultTierRate = 5,
+  secondTierRate,
+  tierStep = 10,
 }: {
   title: string
   description: string
@@ -262,6 +269,11 @@ function RateEditor({
   perEventLabel?: string
   currency?: 'GBP' | 'PKR'
   tierUnitLabel?: string
+  tierMethodLabel?: string
+  tierRateLabel?: string
+  defaultTierRate?: number
+  secondTierRate?: number
+  tierStep?: number
 }) {
   const setKind = (kind: CommissionRateKind) => {
     onChange({
@@ -272,7 +284,7 @@ function RateEditor({
         kind === 'tiered'
           ? rate.tiers.length > 0
             ? rate.tiers
-            : [{ minUnit: 1, rateGbp: 5 }]
+            : [{ minUnit: 1, rateGbp: defaultTierRate }]
           : [],
     })
   }
@@ -298,9 +310,11 @@ function RateEditor({
                   ? noneLabel
                   : kind === 'per_event'
                     ? perEventLabel
-                    : kind === 'tiered' && tierUnitLabel !== 'ticket'
-                      ? `Marginal ${tierUnitLabel} tiers`
-                      : KIND_LABELS[kind]}
+                    : kind === 'tiered' && tierMethodLabel
+                      ? tierMethodLabel
+                      : kind === 'tiered' && tierUnitLabel !== 'ticket'
+                        ? `Marginal ${tierUnitLabel} tiers`
+                        : KIND_LABELS[kind]}
               </option>
             ))}
           </select>
@@ -353,7 +367,7 @@ function RateEditor({
                 />
               </label>
               <label className="text-[11px] font-bold text-slate-500">
-                {currency} per {tierUnitLabel}
+                {tierRateLabel || `${currency} per ${tierUnitLabel}`}
                 <DraftNumberInput
                   min="0"
                   step="0.01"
@@ -387,7 +401,14 @@ function RateEditor({
             type="button"
             onClick={() => {
               const last = rate.tiers.at(-1)?.minUnit || 1
-              onChange({ ...rate, tiers: [...rate.tiers, { minUnit: last + 10, rateGbp: 5 }] })
+              const lastRate =
+                rate.tiers.length === 1 && secondTierRate !== undefined
+                  ? secondTierRate
+                  : (rate.tiers.at(-1)?.rateGbp ?? defaultTierRate)
+              onChange({
+                ...rate,
+                tiers: [...rate.tiers, { minUnit: last + tierStep, rateGbp: lastRate }],
+              })
             }}
             className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
           >
@@ -576,6 +597,9 @@ function AgreementEditor({
   editingProfileId: string | null
 }) {
   const employeeNames = new Map(employees.map((item) => [item.id, item.fullName]))
+  const applicationRecipientCandidates = employees.filter(
+    (candidate) => candidate.id !== draft.employeeId,
+  )
   const templates = profiles.filter((profile) => profile.configuration)
   const dateConflict = conflictingCommissionProfile(draft, profiles, editingProfileId)
   const updateService = (key: ServiceKey, rate: CommissionRate) => {
@@ -693,8 +717,8 @@ function AgreementEditor({
                 className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
               />
               <span className="mt-1.5 block font-normal leading-4 text-slate-400">
-                Past dates are allowed when they do not conflict with an existing plan. Tiered
-                rates, salary, PKR pay, and monthly bonuses start on the first of a month.
+                Past dates are allowed when they do not conflict with an existing plan. Monthly
+                ticket tiers, salary, PKR pay, and monthly bonuses start on the first of a month.
               </span>
             </label>
             <label className="text-xs font-bold text-slate-600">
@@ -903,14 +927,27 @@ function AgreementEditor({
               <div className="lg:col-span-2">
                 <RateEditor
                   title="Package sales"
-                  description="Commission on a package sold by this employee, including marginal rates based on its passenger count."
+                  description="Choose one amount per package, per passenger, a percentage, or one flat package amount selected by its passenger-count band."
                   rate={draft.services.packageSale}
                   allowedKinds={['none', 'per_unit', 'per_event', 'percentage', 'tiered']}
                   onChange={(rate) => updateService('packageSale', rate)}
                   packageRate
                   tierUnitLabel="passenger"
+                  tierMethodLabel="Passenger-count package bands"
+                  tierRateLabel={`${draft.compensation.currency} per package`}
+                  defaultTierRate={100}
+                  secondTierRate={150}
+                  tierStep={3}
                   currency={draft.compensation.currency}
                 />
+                {draft.services.packageSale.kind === 'tiered' && (
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                    Each closed package receives one band amount. For example, tiers beginning at
+                    passenger 1 for £100 and passenger 4 for £150 pay £100 total for 1–3 passengers
+                    and £150 total for 4 or more. Linked group bookings remain one package and are
+                    paid once.
+                  </p>
+                )}
               </div>
               <div className="space-y-4 rounded-[1.4rem] border border-blue-200 bg-blue-50/60 p-4 lg:col-span-2 sm:p-5">
                 <div>
@@ -921,66 +958,138 @@ function AgreementEditor({
                     Fixed commission for completed application work
                   </h4>
                   <p className="mt-1 text-xs leading-5 text-slate-600">
-                    Each rate is paid once to the responsible employee. It is automatically reversed
-                    if the application is refunded, cancelled, reopened, reassigned, or deleted.
+                    Operational ownership always remains with the employee who completed the work.
+                    Commission can be paid to them, redirected to another employee, or switched off.
                   </p>
                 </div>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <RateEditor
-                    title="NADRA applications - normal"
-                    description="Paid when a normal NADRA application reaches Completed."
-                    rate={draft.services.applicationNadra}
-                    allowedKinds={['none', 'per_event']}
-                    onChange={(rate) => updateService('applicationNadra', rate)}
-                    perEventLabel="Fixed per completed application"
-                    currency={draft.compensation.currency}
-                  />
-                  <RateEditor
-                    title="NADRA applications - urgent / executive"
-                    description="Paid when a NADRA application with an Urgent or Executive service option reaches Completed."
-                    rate={draft.services.applicationNadraUrgent}
-                    allowedKinds={['none', 'per_event']}
-                    onChange={(rate) => updateService('applicationNadraUrgent', rate)}
-                    perEventLabel="Fixed per completed urgent application"
-                    currency={draft.compensation.currency}
-                  />
-                  <RateEditor
-                    title="Pakistani passport applications - normal"
-                    description="Paid when a normal Pakistani passport reaches Collected."
-                    rate={draft.services.applicationPassportPk}
-                    allowedKinds={['none', 'per_event']}
-                    onChange={(rate) => updateService('applicationPassportPk', rate)}
-                    perEventLabel="Fixed per collected application"
-                    currency={draft.compensation.currency}
-                  />
-                  <RateEditor
-                    title="Pakistani passport applications - urgent / executive"
-                    description="Paid when an Urgent or Executive Pakistani passport reaches Collected."
-                    rate={draft.services.applicationPassportPkUrgent}
-                    allowedKinds={['none', 'per_event']}
-                    onChange={(rate) => updateService('applicationPassportPkUrgent', rate)}
-                    perEventLabel="Fixed per collected urgent application"
-                    currency={draft.compensation.currency}
-                  />
-                  <RateEditor
-                    title="British passport applications"
-                    description="Paid when a British passport application reaches Completed."
-                    rate={draft.services.applicationPassportGb}
-                    allowedKinds={['none', 'per_event']}
-                    onChange={(rate) => updateService('applicationPassportGb', rate)}
-                    perEventLabel="Fixed per completed application"
-                    currency={draft.compensation.currency}
-                  />
-                  <RateEditor
-                    title="Visa applications"
-                    description="Paid when a visa application reaches Completed, including package-linked visa work."
-                    rate={draft.services.applicationVisa}
-                    allowedKinds={['none', 'per_event']}
-                    onChange={(rate) => updateService('applicationVisa', rate)}
-                    perEventLabel="Fixed per completed application"
-                    currency={draft.compensation.currency}
-                  />
+                <div className="rounded-2xl border border-blue-200 bg-white p-4">
+                  <label className="text-xs font-black text-blue-950">
+                    Application commission recipient
+                    <select
+                      value={draft.applicationRouting.mode}
+                      onChange={(event) => {
+                        const mode = event.target
+                          .value as CommissionProfileInput['applicationRouting']['mode']
+                        setDraft({
+                          ...draft,
+                          applicationRouting: {
+                            mode,
+                            recipientEmployeeId:
+                              mode === 'another_employee'
+                                ? applicationRecipientCandidates[0]?.id || null
+                                : null,
+                          },
+                        })
+                      }}
+                      className="mt-1.5 w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-black text-slate-900"
+                    >
+                      <option value="self">Pay this employee</option>
+                      <option value="another_employee">Redirect to another employee</option>
+                      <option value="none">No Application commission</option>
+                    </select>
+                  </label>
+                  {draft.applicationRouting.mode === 'another_employee' && (
+                    <label className="mt-4 block text-xs font-black text-blue-950">
+                      Employee receiving commission
+                      <select
+                        value={draft.applicationRouting.recipientEmployeeId || ''}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            applicationRouting: {
+                              mode: 'another_employee',
+                              recipientEmployeeId: event.target.value || null,
+                            },
+                          })
+                        }
+                        required
+                        className="mt-1.5 w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-black text-slate-900"
+                      >
+                        <option value="">Select an employee</option>
+                        {applicationRecipientCandidates.map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>
+                            {candidate.fullName} · {candidate.role}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="mt-2 block font-normal leading-5 text-blue-800">
+                        Their own effective normal or urgent Application rate and pay currency will
+                        be used. This employee will remain recorded as the person who completed the
+                        application.
+                      </span>
+                    </label>
+                  )}
+                  {draft.applicationRouting.mode === 'none' && (
+                    <p className="mt-3 text-xs leading-5 text-blue-800">
+                      Completed Applications remain in operational reporting but create no
+                      commission earning.
+                    </p>
+                  )}
                 </div>
+                {draft.applicationRouting.mode === 'self' ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <RateEditor
+                      title="NADRA applications - normal"
+                      description="Paid when a normal NADRA application reaches Completed."
+                      rate={draft.services.applicationNadra}
+                      allowedKinds={['none', 'per_event']}
+                      onChange={(rate) => updateService('applicationNadra', rate)}
+                      perEventLabel="Fixed per completed application"
+                      currency={draft.compensation.currency}
+                    />
+                    <RateEditor
+                      title="NADRA applications - urgent / executive"
+                      description="Paid when a NADRA application with an Urgent or Executive service option reaches Completed."
+                      rate={draft.services.applicationNadraUrgent}
+                      allowedKinds={['none', 'per_event']}
+                      onChange={(rate) => updateService('applicationNadraUrgent', rate)}
+                      perEventLabel="Fixed per completed urgent application"
+                      currency={draft.compensation.currency}
+                    />
+                    <RateEditor
+                      title="Pakistani passport applications - normal"
+                      description="Paid when a normal Pakistani passport reaches Collected."
+                      rate={draft.services.applicationPassportPk}
+                      allowedKinds={['none', 'per_event']}
+                      onChange={(rate) => updateService('applicationPassportPk', rate)}
+                      perEventLabel="Fixed per collected application"
+                      currency={draft.compensation.currency}
+                    />
+                    <RateEditor
+                      title="Pakistani passport applications - urgent / executive"
+                      description="Paid when an Urgent or Executive Pakistani passport reaches Collected."
+                      rate={draft.services.applicationPassportPkUrgent}
+                      allowedKinds={['none', 'per_event']}
+                      onChange={(rate) => updateService('applicationPassportPkUrgent', rate)}
+                      perEventLabel="Fixed per collected urgent application"
+                      currency={draft.compensation.currency}
+                    />
+                    <RateEditor
+                      title="British passport applications"
+                      description="Paid when a British passport application reaches Completed."
+                      rate={draft.services.applicationPassportGb}
+                      allowedKinds={['none', 'per_event']}
+                      onChange={(rate) => updateService('applicationPassportGb', rate)}
+                      perEventLabel="Fixed per completed application"
+                      currency={draft.compensation.currency}
+                    />
+                    <RateEditor
+                      title="Visa applications"
+                      description="Paid when a visa application reaches Completed, including package-linked visa work."
+                      rate={draft.services.applicationVisa}
+                      allowedKinds={['none', 'per_event']}
+                      onChange={(rate) => updateService('applicationVisa', rate)}
+                      perEventLabel="Fixed per completed application"
+                      currency={draft.compensation.currency}
+                    />
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-blue-200 bg-blue-100/60 px-4 py-3 text-xs font-bold leading-5 text-blue-900">
+                    {draft.applicationRouting.mode === 'another_employee'
+                      ? 'Application rates from the receiving employee’s effective commission plan will be used.'
+                      : 'Application rate fields are not used while Application commission is switched off.'}
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -1198,19 +1307,35 @@ function ProfileSummary({
     ],
     ['Visa applications', config.services.applicationVisa, false, 'completed application'],
   ]
+  const applicationRoutingLabel =
+    config.applicationRouting.mode === 'self'
+      ? 'Paid to this employee'
+      : config.applicationRouting.mode === 'none'
+        ? 'No Application commission'
+        : `Redirected to ${
+            employees.find(
+              (employee) => employee.id === config.applicationRouting.recipientEmployeeId,
+            )?.fullName || 'Former staff member'
+          } at their own rate`
   return (
     <div className="grid gap-x-6 sm:grid-cols-2">
-      {rows.map(([label, rate, packageRate, eventNoun]) => (
-        <div
-          key={label}
-          className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm"
-        >
-          <span className="text-slate-500">{label}</span>
-          <span className="text-right font-black text-slate-800">
-            {rateLabel(rate, packageRate, config.compensation.currency, eventNoun)}
-          </span>
-        </div>
-      ))}
+      {rows
+        .filter(
+          ([label]) =>
+            config.applicationRouting.mode === 'self' ||
+            !label.toLowerCase().includes('applications'),
+        )
+        .map(([label, rate, packageRate, eventNoun]) => (
+          <div
+            key={label}
+            className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm"
+          >
+            <span className="text-slate-500">{label}</span>
+            <span className="text-right font-black text-slate-800">
+              {rateLabel(rate, packageRate, config.compensation.currency, eventNoun)}
+            </span>
+          </div>
+        ))}
       <div className="flex items-start justify-between gap-4 border-b border-slate-100 py-3 text-sm sm:col-span-2">
         <span className="text-slate-500">Ticket assistance applies to</span>
         <span className="max-w-md text-right font-black text-slate-800">
@@ -1230,6 +1355,12 @@ function ProfileSummary({
                       : name
                   })
                   .join(', ')}
+        </span>
+      </div>
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 py-3 text-sm sm:col-span-2">
+        <span className="text-slate-500">Application commission recipient</span>
+        <span className="max-w-md text-right font-black text-slate-800">
+          {applicationRoutingLabel}
         </span>
       </div>
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
@@ -1326,6 +1457,12 @@ export default function AdminCommissionClient({
       : createDefaultCommissionProfile(selectedEmployee.id)
     next.employeeId = selectedEmployee.id
     next.copiedFromProfileId = intent === 'copy' ? source?.id || null : null
+    if (
+      next.applicationRouting.mode === 'another_employee' &&
+      next.applicationRouting.recipientEmployeeId === selectedEmployee.id
+    ) {
+      next.applicationRouting = { mode: 'self', recipientEmployeeId: null }
+    }
     if (next.assistanceScope.mode === 'specific_agents') {
       next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
         (employeeId) => employeeId !== selectedEmployee.id,
@@ -1373,6 +1510,12 @@ export default function AdminCommissionClient({
       : createDefaultCommissionProfile(selectedEmployee.id)
     next.employeeId = selectedEmployee.id
     next.copiedFromProfileId = template?.id || null
+    if (
+      next.applicationRouting.mode === 'another_employee' &&
+      next.applicationRouting.recipientEmployeeId === selectedEmployee.id
+    ) {
+      next.applicationRouting = { mode: 'self', recipientEmployeeId: null }
+    }
     if (next.assistanceScope.mode === 'specific_agents') {
       next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
         (employeeId) => employeeId !== selectedEmployee.id,
