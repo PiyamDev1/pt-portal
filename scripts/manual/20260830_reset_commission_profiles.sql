@@ -11,7 +11,8 @@
 -- The transaction deliberately refuses to run if the expected production
 -- counts have changed, if a standalone Commission rule exists, or if any live
 -- (payable) Commission entry exists. A complete recovery snapshot is written
--- to commission_audit_events before any records are deleted.
+-- to commission_audit_events before any records are deleted. Re-running the
+-- file after a successful reset verifies the completed zero state and is safe.
 
 begin;
 
@@ -54,6 +55,18 @@ declare
     'periodResults', 0,
     'exceptions', 12,
     'calculationRuns', 6
+  );
+  completed_state constant jsonb := jsonb_build_object(
+    'profiles', 0,
+    'assignments', 0,
+    'rules', 0,
+    'versions', 0,
+    'components', 0,
+    'tiers', 0,
+    'entries', 0,
+    'periodResults', 0,
+    'exceptions', 0,
+    'calculationRuns', 0
   );
 begin
   select coalesce(array_agg(source_event.id order by source_event.id), array[]::uuid[])
@@ -115,20 +128,28 @@ begin
     'calculationRuns', (select count(*) from public.commission_calculation_runs)
   );
 
-  if actual_state is distinct from expected_state then
-    raise exception 'Commission reset state changed. Expected %, found %',
-      expected_state, actual_state
-      using errcode = '55000', hint = 'COMMISSION_RESET_STATE_CHANGED';
-  end if;
-
   if exists (
     select 1
     from public.commission_audit_events
     where action = 'employee_profiles.reset'
       and request_key = 'commission-profile-reset-20260830-01'
   ) then
-    raise exception 'This Commission reset request was already applied'
-      using errcode = '55000', hint = 'COMMISSION_RESET_ALREADY_APPLIED';
+    if actual_state is distinct from completed_state
+      or cardinality(archived_ticket_event_ids) <> 0
+    then
+      raise exception 'Commission reset was already applied, but its completed state has changed. Found configuration % and % archived Ticketing source events',
+        actual_state, cardinality(archived_ticket_event_ids)
+        using errcode = '55000', hint = 'COMMISSION_RESET_COMPLETED_STATE_CHANGED';
+    end if;
+
+    raise notice 'Commission reset was already applied and the completed state is valid';
+    return;
+  end if;
+
+  if actual_state is distinct from expected_state then
+    raise exception 'Commission reset state changed. Expected %, found %',
+      expected_state, actual_state
+      using errcode = '55000', hint = 'COMMISSION_RESET_STATE_CHANGED';
   end if;
 
   select profile.created_by into actor_id
