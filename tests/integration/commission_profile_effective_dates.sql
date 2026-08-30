@@ -1,9 +1,23 @@
 \set ON_ERROR_STOP on
 
+insert into auth.users (id, email)
+values ('42000000-0000-0000-0000-000000000005', 'profile-historical@example.test')
+on conflict (id) do nothing;
+
+insert into public.employees (id, full_name, email, role_id, location_id)
+values (
+  '42000000-0000-0000-0000-000000000005',
+  'Profile Historical',
+  'profile-historical@example.test',
+  '12000000-0000-0000-0000-000000000002',
+  '30000000-0000-0000-0000-000000000001'
+)
+on conflict (id) do nothing;
+
 do $past_effective_dates$
 declare
   admin_id constant uuid := '42000000-0000-0000-0000-000000000001';
-  employee_id_value constant uuid := '42000000-0000-0000-0000-000000000004';
+  employee_id_value constant uuid := '42000000-0000-0000-0000-000000000005';
   configuration jsonb;
   initial_start date := (date_trunc('month', current_date) - interval '12 months')::date;
   replacement_start date := (date_trunc('month', current_date) - interval '6 months')::date;
