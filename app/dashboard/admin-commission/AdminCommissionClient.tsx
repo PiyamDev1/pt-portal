@@ -67,6 +67,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-GB', {
 })
 
 type ServiceKey = keyof CommissionProfileInput['services']
+type CommissionEditorIntent = 'new' | 'edit' | 'copy'
 
 function dateLabel(value: string | null) {
   if (!value) return 'Open-ended'
@@ -537,7 +538,7 @@ function AgreementEditor({
   onTemplate: (profileId: string) => void
   onClose: () => void
   onSubmit: (event: FormEvent) => void
-  intent: 'create' | 'edit' | 'copy'
+  intent: CommissionEditorIntent
 }) {
   const employeeNames = new Map(employees.map((item) => [item.id, item.fullName]))
   const templates = profiles.filter((profile) => profile.configuration)
@@ -559,18 +560,19 @@ function AgreementEditor({
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 py-5 backdrop-blur sm:rounded-t-[1.75rem] sm:px-7">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1e2d]">
-              Employee commission plan
+              {intent === 'edit' ? 'Editing current commission' : 'Creating new commission'}
             </p>
             <h2 id="agreement-title" className="mt-1 text-2xl font-black text-slate-950">
               {intent === 'edit'
-                ? `Edit commission plan for ${employee.fullName}`
+                ? `Edit commission for ${employee.fullName}`
                 : intent === 'copy'
-                  ? `Copy a commission plan for ${employee.fullName}`
-                  : `Create commission plan for ${employee.fullName}`}
+                  ? `New commission from a copy for ${employee.fullName}`
+                  : `New commission for ${employee.fullName}`}
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Saving creates a new effective-dated version. The current plan and history remain
-              unchanged until that date.
+              {intent === 'edit'
+                ? 'The current values are loaded below. Saving schedules an edited replacement while preserving the previous version in history.'
+                : 'Start with a blank commission or copy another profile once. The new commission remains independent after it is saved.'}
             </p>
           </div>
           <button
@@ -584,31 +586,54 @@ function AgreementEditor({
         </div>
 
         <div className="space-y-6 p-5 sm:p-7">
-          <section className="rounded-[1.4rem] border border-blue-100 bg-blue-50 p-4">
-            <div className="flex items-start gap-3">
-              <Copy className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
-              <div className="min-w-0 flex-1">
-                <label className="text-sm font-black text-blue-950">Copy values from</label>
-                <select
-                  value={draft.copiedFromProfileId || ''}
-                  onChange={(event) => onTemplate(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
-                >
-                  <option value="">Blank commission plan</option>
-                  {templates.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {employeeNames.get(profile.employeeId) || 'Staff'} · {profile.label} ·{' '}
-                      {dateLabel(profile.effectiveFrom)}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs leading-5 text-blue-800">
-                  This copies the values once. Editing either employee later will not alter the
-                  other.
-                </p>
+          {intent === 'edit' ? (
+            <section className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start gap-3">
+                <Edit3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                <div>
+                  <p className="text-sm font-black text-amber-950">
+                    Editing the current commission
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    Change only the values that need updating. To start over or use another staff
+                    member&apos;s profile, close this editor and choose New commission instead.
+                  </p>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          ) : (
+            <section className="rounded-[1.4rem] border border-blue-100 bg-blue-50 p-4">
+              <div className="flex items-start gap-3">
+                <Copy className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
+                <div className="min-w-0 flex-1">
+                  <label
+                    htmlFor="commission-template-source"
+                    className="text-sm font-black text-blue-950"
+                  >
+                    Start the new commission from
+                  </label>
+                  <select
+                    id="commission-template-source"
+                    value={draft.copiedFromProfileId || ''}
+                    onChange={(event) => onTemplate(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Blank commission</option>
+                    {templates.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {employeeNames.get(profile.employeeId) || 'Staff'} · {profile.label} ·{' '}
+                        {dateLabel(profile.effectiveFrom)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs leading-5 text-blue-800">
+                    A copied profile is only a starting point. Later changes to either commission
+                    will not affect the other.
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
 
           <section className="grid gap-4 rounded-[1.4rem] border border-slate-200 bg-white p-5 sm:grid-cols-2">
             <label className="text-xs font-bold text-slate-600 sm:col-span-2">
@@ -989,7 +1014,11 @@ function AgreementEditor({
             ) : (
               <ShieldCheck className="h-4 w-4" />
             )}
-            Save commission plan version
+            {intent === 'edit'
+              ? 'Save edited commission'
+              : intent === 'copy'
+                ? 'Create copied commission'
+                : 'Create new commission'}
           </button>
         </div>
       </form>
@@ -1091,7 +1120,7 @@ export default function AdminCommissionClient({
   const [selectedId, setSelectedId] = useState(initialData.employees[0]?.id || '')
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<CommissionProfileInput | null>(null)
-  const [editorIntent, setEditorIntent] = useState<'create' | 'edit' | 'copy'>('create')
+  const [editorIntent, setEditorIntent] = useState<CommissionEditorIntent>('new')
   const [working, setWorking] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
@@ -1135,15 +1164,16 @@ export default function AdminCommissionClient({
   }
 
   const startAgreement = (
-    source: CommissionAdminProfile | null = currentProfile,
-    intent: 'create' | 'edit' | 'copy' = source?.id === currentProfile?.id ? 'edit' : 'copy',
+    intent: CommissionEditorIntent,
+    source: CommissionAdminProfile | null = null,
   ) => {
     if (!selectedEmployee) return
+    if (intent === 'edit' && (!source?.configuration || source.id !== currentProfile?.id)) return
     const next = source?.configuration
       ? clone(source.configuration)
       : createDefaultCommissionProfile(selectedEmployee.id)
     next.employeeId = selectedEmployee.id
-    next.copiedFromProfileId = source?.id || null
+    next.copiedFromProfileId = intent === 'copy' ? source?.id || null : null
     if (next.assistanceScope.mode === 'specific_agents') {
       next.assistanceScope.employeeIds = next.assistanceScope.employeeIds.filter(
         (employeeId) => employeeId !== selectedEmployee.id,
@@ -1155,18 +1185,30 @@ export default function AdminCommissionClient({
         next.assistanceScope = { mode: 'all', employeeIds: [], agentRates: [] }
       }
     }
-    next.locationId = null
+    next.locationId = intent === 'edit' ? next.locationId : null
     next.effectiveFrom = currentProfile ? nextMonthStart() : next.effectiveFrom
-    next.label = source ? `${source.label} update` : next.label
-    next.changeReason = source ? '' : 'Initial employee commission plan'
-    setEditorIntent(source ? intent : 'create')
+    next.label =
+      intent === 'edit' && source
+        ? `${source.label} update`
+        : source
+          ? `${source.label} copy`
+          : 'New commission'
+    next.changeReason =
+      intent === 'edit'
+        ? ''
+        : source
+          ? ''
+          : currentProfile
+            ? 'New employee commission'
+            : 'Initial employee commission'
+    setEditorIntent(intent)
     setDraft(next)
     setError('')
     setNotice('')
   }
 
   const applyTemplate = (profileId: string) => {
-    if (!draft || !selectedEmployee) return
+    if (!draft || !selectedEmployee || editorIntent === 'edit') return
     const template = data.profiles.find((profile) => profile.id === profileId)
     const next = template?.configuration
       ? clone(template.configuration)
@@ -1187,7 +1229,8 @@ export default function AdminCommissionClient({
     next.locationId = draft.locationId
     next.effectiveFrom = draft.effectiveFrom
     next.changeReason = draft.changeReason
-    next.label = template ? `${template.label} copy` : 'New commission plan'
+    next.label = template ? `${template.label} copy` : 'New commission'
+    setEditorIntent(template ? 'copy' : 'new')
     setDraft(next)
   }
 
@@ -1214,7 +1257,11 @@ export default function AdminCommissionClient({
       })
       await refresh()
       setDraft(null)
-      setNotice('The commission plan was saved as a new effective-dated version.')
+      setNotice(
+        editorIntent === 'edit'
+          ? 'The edited commission was saved as a new effective-dated version.'
+          : 'The new commission was saved independently for this employee.',
+      )
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save commission plan')
     } finally {
@@ -1612,14 +1659,24 @@ export default function AdminCommissionClient({
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => startAgreement()}
-                    disabled={!data.schemaReady || Boolean(scheduledProfile)}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {currentProfile ? <Edit3 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{' '}
-                    {currentProfile ? 'Edit commission plan' : 'Create commission plan'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => startAgreement('new')}
+                      disabled={!data.schemaReady || Boolean(scheduledProfile)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8b1e2d] bg-white px-4 py-2.5 text-sm font-black text-[#8b1e2d] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      <Plus className="h-4 w-4" /> New commission
+                    </button>
+                    {currentProfile && (
+                      <button
+                        onClick={() => startAgreement('edit', currentProfile)}
+                        disabled={!data.schemaReady || Boolean(scheduledProfile)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        <Edit3 className="h-4 w-4" /> Edit commission
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {scheduledProfile && (
                   <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold text-blue-800">
@@ -1646,11 +1703,11 @@ export default function AdminCommissionClient({
                       <p className="mt-1 text-xs text-slate-500">{currentProfile.changeReason}</p>
                     </div>
                     <button
-                      onClick={() => startAgreement(currentProfile)}
+                      onClick={() => startAgreement('edit', currentProfile)}
                       disabled={Boolean(scheduledProfile)}
                       className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-40"
                     >
-                      <Edit3 className="h-3.5 w-3.5" /> Edit plan
+                      <Edit3 className="h-3.5 w-3.5" /> Edit commission
                     </button>
                   </div>
                   <div className="mt-5">
@@ -1668,11 +1725,11 @@ export default function AdminCommissionClient({
                     services they do not earn from, preventing ambiguous missing-policy errors.
                   </p>
                   <button
-                    onClick={() => startAgreement(null)}
+                    onClick={() => startAgreement('new')}
                     disabled={!data.schemaReady}
                     className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
                   >
-                    <Sparkles className="h-4 w-4" /> Create first commission plan
+                    <Sparkles className="h-4 w-4" /> New commission
                   </button>
                 </article>
               )}
@@ -1754,7 +1811,7 @@ export default function AdminCommissionClient({
                         </div>
                         {profile.configuration && (
                           <button
-                            onClick={() => startAgreement(profile, 'copy')}
+                            onClick={() => startAgreement('copy', profile)}
                             disabled={Boolean(scheduledProfile)}
                             className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-[#8b1e2d] hover:bg-red-50 disabled:opacity-30"
                           >

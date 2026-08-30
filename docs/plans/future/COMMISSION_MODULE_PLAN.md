@@ -111,8 +111,10 @@ Commission has two deliberate front doors:
 - `/dashboard/admin-commission` is the normal Admin/HR workspace. It selects an employee first,
   shows their current/scheduled/history state, and saves a complete agreement atomically. An
   administrator may start from an explicit-zero blank agreement, the employee's current agreement,
-  or a one-time copy of another agreement. **Edit commission plan** loads the current values and
-  saves a new effective-dated immutable version. Small edits remain local to the target employee.
+  or a one-time copy of another agreement. **Edit commission** is a distinct workflow that loads
+  only the employee's current values and saves an effective-dated immutable replacement. **New
+  commission** starts blank or from a one-time template copy and never changes its source profile.
+  Both operations remain local to the target employee.
 - `/dashboard/my-commissions` is available to every active employee and exposes only that
   employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and recent
   calculated entries.
