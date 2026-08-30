@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   ReceiptText,
+  RefreshCw,
   Save,
   ShieldCheck,
   Trash2,
@@ -74,6 +75,12 @@ import {
   type WorkspaceTab,
 } from './packageOperationsModel'
 import { getReservationCalculationTotals } from './packageOverviewModel'
+import {
+  getPackageCommissionEventErrorLabel,
+  getPackageCommissionIssueLabel,
+  parsePackageCommissionReadiness,
+  type PackageCommissionReadiness,
+} from '@/lib/commissions/packageReadiness'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -82,6 +89,56 @@ type Props = {
   employees?: Array<{ id: string; full_name: string | null; email?: string | null }>
   onPackageChange: (packageFolder: TravelPackageFolder) => void
   onInvoiceChange?: (invoice: TravelPackageInvoice) => void
+}
+
+function commissionReadinessCopy(readiness: PackageCommissionReadiness) {
+  switch (readiness.state) {
+    case 'ready_to_close':
+      return {
+        title: 'Ready for Commission handoff',
+        detail: 'Closing this package will create a non-payable Commission shadow calculation.',
+        style: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+      }
+    case 'processed':
+      return {
+        title: 'Commission shadow calculation completed',
+        detail: 'The source is reconciled and visible in the Commission shadow console.',
+        style: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+      }
+    case 'processing':
+      return {
+        title: 'Commission calculation in progress',
+        detail: 'The source is being checked against the employee commission plan.',
+        style: 'border-cyan-200 bg-cyan-50 text-cyan-950',
+      }
+    case 'awaiting_processing':
+      return {
+        title: 'Sent to Commission',
+        detail: 'The source is queued for its non-payable shadow calculation.',
+        style: 'border-cyan-200 bg-cyan-50 text-cyan-950',
+      }
+    case 'held':
+      return {
+        title: 'Commission Admin review needed',
+        detail: 'The source is retained safely but cannot be calculated yet.',
+        style: 'border-amber-200 bg-amber-50 text-amber-950',
+      }
+    case 'rejected':
+      return {
+        title: 'Commission handoff rejected',
+        detail: 'Commission Admin needs to review this source record.',
+        style: 'border-red-200 bg-red-50 text-red-950',
+      }
+    default:
+      return {
+        title: 'Commission handoff needs attention',
+        detail:
+          readiness.stage === 'closed'
+            ? 'The closed package is retained but its Commission calculation will be held.'
+            : 'Resolve these source checks for a clean handoff when the package is closed.',
+        style: 'border-amber-200 bg-amber-50 text-amber-950',
+      }
+  }
 }
 
 export default function PackageOperationsWorkspace({
@@ -106,6 +163,11 @@ export default function PackageOperationsWorkspace({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
+  const [commissionReadiness, setCommissionReadiness] = useState<PackageCommissionReadiness | null>(
+    null,
+  )
+  const [commissionReadinessLoading, setCommissionReadinessLoading] = useState(true)
+  const [commissionReadinessError, setCommissionReadinessError] = useState<string | null>(null)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingPassengerId, setEditingPassengerId] = useState<string | null>(null)
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
@@ -182,6 +244,33 @@ export default function PackageOperationsWorkspace({
   })
   const [voucherForm, setVoucherForm] = useState<TravelPackageTransportVoucherData>(emptyVoucher)
   const [voucherRoutesText, setVoucherRoutesText] = useState('')
+
+  const loadCommissionReadiness = useCallback(async () => {
+    setCommissionReadinessLoading(true)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/commission-readiness`,
+        { cache: 'no-store' },
+      )
+      const data = (await readApiResponse(response)) as {
+        readiness?: unknown
+        error?: string
+      }
+      if (!response.ok) throw new Error(data.error || 'Unable to check Commission readiness')
+      const readiness = parsePackageCommissionReadiness(data.readiness)
+      if (!readiness) throw new Error('Commission readiness returned an invalid response')
+      setCommissionReadiness(readiness)
+      setCommissionReadinessError(null)
+      return readiness
+    } catch (error) {
+      setCommissionReadinessError(
+        error instanceof Error ? error.message : 'Unable to check Commission readiness',
+      )
+      return null
+    } finally {
+      setCommissionReadinessLoading(false)
+    }
+  }, [packageFolder.id])
 
   const loadWorkspace = async () => {
     setLoading(true)
@@ -295,6 +384,17 @@ export default function PackageOperationsWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packageFolder.id])
 
+  useEffect(() => {
+    void loadCommissionReadiness()
+  }, [
+    invoice?.updated_at,
+    loadCommissionReadiness,
+    packageFolder.updated_at,
+    passengers,
+    payments,
+    reservations,
+  ])
+
   const groupFamilies = useMemo(
     () => packageFolder.selected_quote_snapshot?.group?.families || [],
     [packageFolder.selected_quote_snapshot?.group?.families],
@@ -397,6 +497,12 @@ export default function PackageOperationsWorkspace({
   }, [onInvoiceChange, packageFolder.id, selectedPaymentFamilyQuoteId])
   const openTasks = tasks.filter((task) => ['open', 'in_progress', 'blocked'].includes(task.status))
   const openRisks = risks.filter((risk) => risk.status !== 'resolved')
+  const commissionReadinessDisplay = commissionReadiness
+    ? commissionReadinessCopy(commissionReadiness)
+    : null
+  const commissionEventError = getPackageCommissionEventErrorLabel(
+    commissionReadiness?.eventError || null,
+  )
   const availableStatuses = [
     packageFolder.status,
     ...getTravelPackageStatusTransitions(packageFolder.status),
@@ -529,6 +635,25 @@ export default function PackageOperationsWorkspace({
       if (!reason) return
       await patchPackage({ status, cancellationReason: reason })
       return
+    }
+    if (status === 'closed') {
+      const freshReadiness = await loadCommissionReadiness()
+      if (freshReadiness?.issues.includes('missing_sales_employee')) {
+        toast.error('Assign the responsible sales employee before closing this package.')
+        return
+      }
+      if (!freshReadiness?.handoffReady) {
+        const issueSummary = freshReadiness?.issues.length
+          ? `${freshReadiness.issues.length} source check${freshReadiness.issues.length === 1 ? '' : 's'} still need attention.`
+          : 'Commission readiness could not be verified.'
+        const shouldClose = await confirm({
+          title: 'Close package with Commission issues?',
+          message: `${issueSummary} The package can still be closed, but its non-payable Commission calculation may be held for Admin review.`,
+          confirmLabel: 'Close package anyway',
+          type: 'warning',
+        })
+        if (!shouldClose) return
+      }
     }
     await patchPackage({ status })
   }
@@ -1624,6 +1749,105 @@ export default function PackageOperationsWorkspace({
                         {label(packageFolder.risk_level)}
                       </p>
                     </div>
+                  </div>
+
+                  <div
+                    data-testid="package-commission-readiness"
+                    className={`border p-4 ${commissionReadinessDisplay?.style || 'border-slate-200 bg-slate-50 text-slate-950'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 bg-white/80 p-2">
+                          {commissionReadiness?.handoffReady ? (
+                            <ShieldCheck className="h-5 w-5" />
+                          ) : (
+                            <AlertTriangle className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black">
+                            {commissionReadinessDisplay?.title || 'Commission handoff'}
+                          </p>
+                          <p className="mt-1 text-xs font-semibold leading-5 opacity-80">
+                            {commissionReadinessLoading && !commissionReadiness
+                              ? 'Checking the package source records.'
+                              : commissionReadinessDisplay?.detail ||
+                                commissionReadinessError ||
+                                'Commission readiness is unavailable.'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void loadCommissionReadiness()}
+                        disabled={commissionReadinessLoading}
+                        aria-label="Refresh Commission readiness"
+                        className="border border-current/20 bg-white/70 p-2 disabled:opacity-50"
+                      >
+                        {commissionReadinessLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {commissionReadiness && (
+                      <>
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-white/70 p-2">
+                            <p className="text-[10px] font-bold uppercase opacity-70">Passengers</p>
+                            <p className="mt-1 text-lg font-black">
+                              {commissionReadiness.passengerCount}
+                            </p>
+                          </div>
+                          <div className="bg-white/70 p-2">
+                            <p className="text-[10px] font-bold uppercase opacity-70">
+                              Source rows
+                            </p>
+                            <p className="mt-1 text-lg font-black">
+                              {commissionReadiness.calculationRowCount}
+                            </p>
+                          </div>
+                          <div className="bg-white/70 p-2">
+                            <p className="text-[10px] font-bold uppercase opacity-70">References</p>
+                            <p className="mt-1 text-lg font-black">
+                              {commissionReadiness.invoiceReferenceRowCount}
+                            </p>
+                          </div>
+                        </div>
+
+                        {commissionReadiness.issues.length > 0 && (
+                          <ul className="mt-4 space-y-2 text-xs font-semibold leading-5">
+                            {commissionReadiness.issues.map((issue) => (
+                              <li key={issue} className="flex gap-2">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>{getPackageCommissionIssueLabel(issue)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {commissionEventError && (
+                          <p className="mt-4 border border-current/20 bg-white/70 p-2 text-xs font-bold leading-5">
+                            {commissionEventError}
+                          </p>
+                        )}
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-current/15 pt-3 text-[11px] font-bold opacity-75">
+                          <span>Shadow only - not payable</span>
+                          {commissionReadiness.eventVersion && (
+                            <span>Source version {commissionReadiness.eventVersion}</span>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {commissionReadinessError && commissionReadiness && (
+                      <p className="mt-3 text-xs font-semibold opacity-75">
+                        Last refresh failed: {commissionReadinessError}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

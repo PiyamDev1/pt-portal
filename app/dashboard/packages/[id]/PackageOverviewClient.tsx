@@ -2441,7 +2441,7 @@ Please enter the access code and accept the data handling terms before downloadi
           data.package.metadata?.[PACKAGE_AGENT_COMMISSION_METADATA_KEY],
         ),
       )
-      setReservationNotice('Provisional agent commission deductions saved.')
+      setReservationNotice('Provisional package commission costing saved.')
     } catch (saveError) {
       setReservationError(
         saveError instanceof Error ? saveError.message : 'Failed to save agent commissions',
@@ -3536,7 +3536,9 @@ Please enter the access code and accept the data handling terms before downloadi
                   </p>
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-xs font-bold uppercase text-amber-800">Agent commission</p>
+                  <p className="text-xs font-bold uppercase text-amber-800">
+                    Provisional staff cost
+                  </p>
                   <p className="mt-1 text-sm font-black text-amber-950">
                     -{formatMoney(agentCommissionDeduction, reservationCurrency)}
                   </p>
@@ -3551,7 +3553,7 @@ Please enter the access code and accept the data handling terms before downloadi
                     {formatMoney(estimatedMargin, reservationCurrency)}
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    Sold - discounts - booked + supplier commission - agent commission
+                    Sold - discounts - booked + supplier commission - provisional staff cost
                   </p>
                 </div>
               </div>
@@ -3562,19 +3564,20 @@ Please enter the access code and accept the data handling terms before downloadi
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-amber-800" />
                       <h3 className="text-sm font-black text-slate-950">
-                        Provisional agent commission
+                        Provisional package commission costing
                       </h3>
                     </div>
                     <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600">
-                      Record the employee and current manual earning basis. Selected lines reduce
-                      this package&apos;s profit estimate. The future Commission module will replace
-                      this provisional calculation with approved policies and statements.
+                      Planning estimate only. Selected lines reduce this package&apos;s profit
+                      estimate, but they never create or pay staff Commission. Actual staff earnings
+                      use the employee&apos;s effective Commission plan when the package closes.
                     </p>
                     {!showAgentCommission && (
                       <p className="mt-2 text-xs font-black text-amber-900">
                         {agentCommissionAllocations.length} allocation
-                        {agentCommissionAllocations.length === 1 ? '' : 's'} Â·{' '}
-                        {formatMoney(agentCommissionDeduction, reservationCurrency)} deducted
+                        {agentCommissionAllocations.length === 1 ? '' : 's'} ·{' '}
+                        {formatMoney(agentCommissionDeduction, reservationCurrency)} planning
+                        deduction
                       </p>
                     )}
                   </div>
@@ -3605,7 +3608,7 @@ Please enter the access code and accept the data handling terms before downloadi
                           ) : (
                             <Save className="h-4 w-4" />
                           )}
-                          Save deductions
+                          Save planning costs
                         </button>
                       </>
                     )}
@@ -3628,7 +3631,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 {showAgentCommission &&
                   (agentCommissionAllocations.length === 0 ? (
                     <p className="px-4 py-5 text-sm font-semibold text-slate-500">
-                      No agent commission has been allocated to this package.
+                      No provisional staff cost has been added to this package estimate.
                     </p>
                   ) : (
                     <div className="divide-y divide-slate-200">

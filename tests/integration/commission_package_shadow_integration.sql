@@ -124,6 +124,25 @@ values (
   35
 );
 
+do $assert_pre_close_readiness$
+declare readiness jsonb;
+begin
+  readiness := public.commission_package_readiness_2026083004(
+    '60000000-0000-0000-0000-000000000101'
+  );
+  if readiness ->> 'stage' <> 'pre_close'
+    or readiness ->> 'state' <> 'ready_to_close'
+    or readiness ->> 'handoffReady' <> 'true'
+    or jsonb_array_length(readiness -> 'issues') <> 0
+  then raise exception 'Complete returned package was not ready for handoff: %', readiness; end if;
+  if readiness ? 'packageProfitGbp'
+    or readiness ? 'package_profit_gbp'
+    or readiness ? 'amountGbp'
+    or readiness ? 'payCurrency'
+  then raise exception 'Readiness response leaked Commission or Package money: %', readiness; end if;
+end
+$assert_pre_close_readiness$;
+
 update public.travel_packages
 set status = 'closed', earned_at = current_timestamp, closed_at = current_timestamp
 where id = '60000000-0000-0000-0000-000000000101';
@@ -132,6 +151,7 @@ do $assert_initial_source$
 declare source_event public.commission_source_events%rowtype;
 declare process_result jsonb;
 declare active_amount numeric;
+declare readiness jsonb;
 begin
   select * into source_event
   from public.commission_source_events event
@@ -174,6 +194,16 @@ begin
   if active_amount <> 43.50 then
     raise exception 'Package profit percentage produced %, expected 43.50', active_amount;
   end if;
+
+  readiness := public.commission_package_readiness_2026083004(
+    '60000000-0000-0000-0000-000000000101'
+  );
+  if readiness ->> 'state' <> 'processed'
+    or readiness ->> 'authoritative' <> 'true'
+    or (readiness ->> 'passengerCount')::integer <> 3
+    or (readiness ->> 'calculationRowCount')::integer <> 2
+    or (readiness ->> 'invoiceReferenceRowCount')::integer <> 2
+  then raise exception 'Processed Package readiness is wrong: %', readiness; end if;
 end
 $assert_initial_source$;
 
@@ -252,6 +282,7 @@ select public.commission_process_shadow_2026082902(
 do $assert_held_and_overview$
 declare overview jsonb;
 declare packages jsonb;
+declare readiness jsonb;
 begin
   if not exists (
     select 1
@@ -275,6 +306,15 @@ begin
     or (packages ->> 'heldEvents')::integer < 1
     or (packages ->> 'activeEntries')::integer < 1
   then raise exception 'Package module overview is incomplete: %', overview; end if;
+
+  readiness := public.commission_package_readiness_2026083004(
+    '60000000-0000-0000-0000-000000000102'
+  );
+  if readiness ->> 'state' <> 'held'
+    or readiness ->> 'eventError' <> 'package_source_not_authoritative'
+    or not (readiness -> 'issues' ? 'missing_reservations')
+    or not (readiness -> 'issues' ? 'missing_active_invoice')
+  then raise exception 'Held Package readiness is not actionable: %', readiness; end if;
 end
 $assert_held_and_overview$;
 

@@ -406,6 +406,31 @@ customer name refreshes the portal surname.
 **Errors:** `400` invalid JSON/status/passport status, missing cancellation reason, or no changes;
 `401`; `404`; `409` disallowed transition; `503` schema missing; `500` update failure.
 
+### GET `/api/travel-packages/[id]/commission-readiness`
+
+Returns the pay-free Package-to-Commission handoff checks used in Package Operations. It uses the
+same authoritative database snapshot as the Commission shadow processor but deliberately omits
+package profit, employee rates, earnings, and pay currency.
+
+**Access:** A signed-in user must first be able to read the Package through its normal RLS policy.
+An unavailable Package returns `404` before the service-only Commission function is called.
+
+**Input:** Package UUID path segment; no query or body.
+
+**Success:** `200 { readiness }` with private no-store caching. `readiness.stage` is `pre_close` or
+`closed`; `state` is `ready_to_close | needs_attention | awaiting_processing | processing |
+processed | held | rejected`; `handoffReady` and `authoritative` are booleans. `issues` contains
+operational reason codes. Non-financial reconciliation evidence includes passenger, reservation,
+calculation-row, and invoice-reference-row counts. A closed Package may also include the immutable
+source `eventVersion`, processing status/error code, state update time, and whether that event still
+matches the current source snapshot.
+
+**Side effects:** None. Package closure separately emits the immutable source event; this endpoint
+only reads readiness and processing state.
+
+**Errors:** `400` invalid UUID; `401` signed out; `404` Package unavailable; `503` until Commission
+capability `2026083004` is installed; `500` database or response-contract failure.
+
 ### POST `/api/travel-packages/[id]/quote-sync`
 
 Reconciles an existing operational folder from its current final quotation or linked-group

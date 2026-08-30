@@ -576,6 +576,8 @@ routes call service-only transactional functions after server-side session/permi
 ### 9.2 First-delivery APIs
 
 - `GET /api/commissions/me` (caller-owned agreement and preview only)
+- `GET /api/travel-packages/{packageId}/commission-readiness` (pay-free source readiness and
+  shadow-processing state for staff who can already view that Package)
 - `GET /api/commissions/admin`
 - `POST /api/commissions/admin/profiles`
 - `POST /api/commissions/admin/exchange-rates`
@@ -658,6 +660,14 @@ Implementation starts with all of the following:
 
 - Authoritative settled-GBP closed-Package production and configured Package components are now
   enabled in shadow mode.
+- Package Operations now checks the same authoritative Commission snapshot before closure, explains
+  reconciliation issues without exposing employee pay or package profit, and shows the immutable
+  source version's pending/processed/held state after closure. Readiness problems warn without
+  blocking the operational Package closure; the existing sales-owner attribution requirement still
+  must be satisfied.
+- Existing Package allocation metadata is labelled as provisional costing only: it may reduce the
+  Package profit estimate but cannot create or pay a staff Commission entry. The employee's
+  effective Commission plan remains the sole earnings calculation source.
 - Add authoritative Ticketing refund/cancellation producers.
 - Add provisional package metadata reconciliation and duplicate-payment prevention.
 - Add refund/late-correction impacts through signed offsets without rewriting locked statements.

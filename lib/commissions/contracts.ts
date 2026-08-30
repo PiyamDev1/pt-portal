@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const COMMISSION_CAPABILITY_VERSION = 2026082903
 export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026083002
 export const COMMISSION_PACKAGE_CAPABILITY_VERSION = 2026083003
+export const COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION = 2026083004
 
 export const commissionSourceModules = ['ticketing', 'packages'] as const
 export const commissionServiceCodes = [
