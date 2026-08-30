@@ -4,8 +4,9 @@ export const COMMISSION_CAPABILITY_VERSION = 2026082903
 export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026083002
 export const COMMISSION_PACKAGE_CAPABILITY_VERSION = 2026083003
 export const COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION = 2026083004
+export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083005
 
-export const commissionSourceModules = ['ticketing', 'packages'] as const
+export const commissionSourceModules = ['ticketing', 'packages', 'applications'] as const
 export const commissionServiceCodes = [
   'tk_primary',
   'tk_assistance',
@@ -14,6 +15,10 @@ export const commissionServiceCodes = [
   'low_fare',
   'higher_fare',
   'package_sale',
+  'application_nadra',
+  'application_passport_pk',
+  'application_passport_gb',
+  'application_visa',
   'sales_bonus',
 ] as const
 export const commissionRecipientRoles = [
@@ -21,6 +26,7 @@ export const commissionRecipientRoles = [
   'assistant',
   'low_fare_actor',
   'package_sales',
+  'application_agent',
   'sales_bonus',
 ] as const
 export const commissionComponentTypes = [
@@ -70,7 +76,10 @@ export const commissionComponentSchema = z
     thresholdGbp: optionalMoneySchema,
     rewardKind: z.enum(['fixed_gbp', 'percentage_of_qualifying_profit']).optional(),
     rewardValue: optionalMoneySchema,
-    eligibleServices: z.array(z.enum(commissionServiceCodes)).max(8).default([]),
+    eligibleServices: z
+      .array(z.enum(commissionServiceCodes))
+      .max(commissionServiceCodes.length)
+      .default([]),
     tiers: z.array(commissionTierSchema).max(25).optional(),
     config: z.record(z.string(), z.unknown()).default({}),
   })
@@ -277,6 +286,10 @@ export const COMMISSION_PROFILE_SERVICE_CODES = [
   'low_fare',
   'higher_fare',
   'package_sale',
+  'application_nadra',
+  'application_passport_pk',
+  'application_passport_gb',
+  'application_visa',
 ] as const
 
 export type CommissionProfileServiceCode = (typeof COMMISSION_PROFILE_SERVICE_CODES)[number]
@@ -292,6 +305,10 @@ export const COMMISSION_SERVICE_LABELS: Record<
   low_fare: 'Low-fare savings',
   higher_fare: 'Supplier fare increase adjustments',
   package_sale: 'Package sales',
+  application_nadra: 'NADRA applications',
+  application_passport_pk: 'Pakistani passport applications',
+  application_passport_gb: 'British passport applications',
+  application_visa: 'Visa applications',
   sales_bonus: 'Monthly profit bonus',
 }
 
@@ -416,6 +433,22 @@ export const commissionProfileSchema = z
           (rate) => rate.kind !== 'tiered' && rate.kind !== 'full_difference',
           'Package sales do not support ticket-volume tiers',
         ),
+        applicationNadra: commissionRateSchema.refine(
+          (rate) => ['none', 'per_event'].includes(rate.kind),
+          'NADRA applications support a fixed completed-application rate or zero',
+        ),
+        applicationPassportPk: commissionRateSchema.refine(
+          (rate) => ['none', 'per_event'].includes(rate.kind),
+          'Pakistani passport applications support a fixed collected-application rate or zero',
+        ),
+        applicationPassportGb: commissionRateSchema.refine(
+          (rate) => ['none', 'per_event'].includes(rate.kind),
+          'British passport applications support a fixed completed-application rate or zero',
+        ),
+        applicationVisa: commissionRateSchema.refine(
+          (rate) => ['none', 'per_event'].includes(rate.kind),
+          'Visa applications support a fixed completed-application rate or zero',
+        ),
       })
       .strict(),
     assistanceScope: commissionAssistanceScopeSchema.default({
@@ -523,7 +556,13 @@ export type CommissionPolicyComponentInput = {
     | 'percentage_of_package_profit'
     | 'sales_profit_bonus'
   sourceVariable?: string
-  recipientRole: 'primary' | 'assistant' | 'low_fare_actor' | 'package_sales' | 'sales_bonus'
+  recipientRole:
+    | 'primary'
+    | 'assistant'
+    | 'low_fare_actor'
+    | 'package_sales'
+    | 'application_agent'
+    | 'sales_bonus'
   rateValue?: number
   thresholdGbp?: number
   rewardKind?: 'fixed_gbp' | 'percentage_of_qualifying_profit'
@@ -534,14 +573,14 @@ export type CommissionPolicyComponentInput = {
 }
 
 export type CommissionServicePolicyInput = {
-  sourceModule: 'ticketing' | 'packages'
+  sourceModule: 'ticketing' | 'packages' | 'applications'
   serviceCode: CommissionProfileServiceCode | 'sales_bonus'
   recipientRole: CommissionPolicyComponentInput['recipientRole']
   components: CommissionPolicyComponentInput[]
 }
 
 export type StoredCommissionProfileConfiguration = {
-  uiVersion: 3
+  uiVersion: 4
   services: CommissionServicePolicyInput[]
   draft: CommissionProfileInput
 }
@@ -588,6 +627,22 @@ const PROFILE_SERVICE_METADATA: Record<
     sourceModule: 'packages',
     recipientRole: 'package_sales',
     sourceVariable: 'package_profit_gbp',
+  },
+  application_nadra: {
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
+  application_passport_pk: {
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
+  application_passport_gb: {
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
+  application_visa: {
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
   },
 }
 
@@ -681,6 +736,10 @@ export function toStoredCommissionProfile(
     ['low_fare', input.services.lowFare],
     ['higher_fare', input.services.higherFare],
     ['package_sale', input.services.packageSale],
+    ['application_nadra', input.services.applicationNadra],
+    ['application_passport_pk', input.services.applicationPassportPk],
+    ['application_passport_gb', input.services.applicationPassportGb],
+    ['application_visa', input.services.applicationVisa],
   ]
   const services: CommissionServicePolicyInput[] = profileRates.map(([serviceCode, rate]) => {
     const metadata = PROFILE_SERVICE_METADATA[serviceCode]
@@ -711,7 +770,7 @@ export function toStoredCommissionProfile(
     })
   }
 
-  return { uiVersion: 3, services, draft: input }
+  return { uiVersion: 4, services, draft: input }
 }
 
 export function createDefaultCommissionProfile(employeeId = ''): CommissionProfileInput {
@@ -734,6 +793,10 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
       lowFare: { ...zeroRate },
       higherFare: { ...zeroRate },
       packageSale: { ...zeroRate },
+      applicationNadra: { ...zeroRate },
+      applicationPassportPk: { ...zeroRate },
+      applicationPassportGb: { ...zeroRate },
+      applicationVisa: { ...zeroRate },
     },
     assistanceScope: { mode: 'all', employeeIds: [], agentRates: [] },
     ticketTierOptions: { includeDateChanges: false },

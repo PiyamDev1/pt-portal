@@ -80,6 +80,14 @@ describe('Commission contracts', () => {
     expect(
       createCommissionAssignmentSchema.safeParse({
         ...assignment,
+        sourceModule: 'applications',
+        serviceCode: 'application_nadra',
+        recipientRole: 'application_agent',
+      }).success,
+    ).toBe(true)
+    expect(
+      createCommissionAssignmentSchema.safeParse({
+        ...assignment,
         effectiveTo: '2026-07-31',
       }).success,
     ).toBe(false)

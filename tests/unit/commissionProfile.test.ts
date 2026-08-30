@@ -22,10 +22,14 @@ describe('employee commission profile contract', () => {
       'low_fare',
       'higher_fare',
       'package_sale',
+      'application_nadra',
+      'application_passport_pk',
+      'application_passport_gb',
+      'application_visa',
     ])
     expect(stored.services.every((service) => service.components.length === 1)).toBe(true)
     expect(profile.assistanceScope).toEqual({ mode: 'all', employeeIds: [], agentRates: [] })
-    expect(stored.uiVersion).toBe(3)
+    expect(stored.uiVersion).toBe(4)
     expect(
       stored.services.every(
         (service) =>
@@ -49,6 +53,43 @@ describe('employee commission profile contract', () => {
       recipientRole: 'package_sales',
       rateValue: 12.5,
     })
+  })
+
+  it('maps each completed Application service to a fixed employee-owned event rate', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.services.applicationNadra = { kind: 'per_event', value: 10, tiers: [] }
+    profile.services.applicationPassportPk = { kind: 'per_event', value: 20, tiers: [] }
+    profile.services.applicationPassportGb = { kind: 'per_event', value: 30, tiers: [] }
+    profile.services.applicationVisa = { kind: 'per_event', value: 40, tiers: [] }
+
+    const applicationServices = toStoredCommissionProfile(
+      commissionProfileSchema.parse(profile),
+    ).services.filter((service) => service.sourceModule === 'applications')
+
+    expect(applicationServices.map((service) => service.serviceCode)).toEqual([
+      'application_nadra',
+      'application_passport_pk',
+      'application_passport_gb',
+      'application_visa',
+    ])
+    expect(applicationServices.map((service) => service.components[0]?.rateValue)).toEqual([
+      10, 20, 30, 40,
+    ])
+    expect(
+      applicationServices.every(
+        (service) =>
+          service.recipientRole === 'application_agent' &&
+          service.components[0]?.componentType === 'fixed_per_event' &&
+          service.components[0]?.config.payCurrency === 'GBP',
+      ),
+    ).toBe(true)
+  })
+
+  it('rejects percentage or ticket-unit methods for Application completion rates', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.services.applicationVisa = { kind: 'percentage', value: 10, tiers: [] }
+
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
   })
 
   it('sorts marginal tiers before creating the immutable policy payload', () => {

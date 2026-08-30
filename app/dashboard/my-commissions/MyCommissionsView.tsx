@@ -47,14 +47,19 @@ function formatDate(value: string | null) {
   return Number.isNaN(parsed.getTime()) ? value : date.format(parsed)
 }
 
-function formatRate(rate: CommissionRate, packageRate = false, currency: 'GBP' | 'PKR' = 'GBP') {
+function formatRate(
+  rate: CommissionRate,
+  packageRate = false,
+  currency: 'GBP' | 'PKR' = 'GBP',
+  eventNoun = 'booking',
+) {
   const formatter = payMoney(currency)
   if (rate.kind === 'none') return 'No commission'
   if (rate.kind === 'full_difference') return 'Full supplier fare increase'
   if (rate.kind === 'percentage')
     return `${rate.value}% of ${packageRate ? 'final profit' : 'value'}`
   if (rate.kind === 'per_event')
-    return `${formatter.format(rate.value)} per ${packageRate ? 'package' : 'booking'}`
+    return `${formatter.format(rate.value)} per ${packageRate ? 'package' : eventNoun}`
   if (rate.kind === 'per_unit')
     return `${formatter.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
   return `${rate.tiers.length} volume tier${rate.tiers.length === 1 ? '' : 's'}`
@@ -411,15 +416,39 @@ export default function MyCommissionsView({
                       ['Low-fare savings', profile.services.lowFare],
                       ['Supplier fare increase adjustment', profile.services.higherFare],
                       ['Package sales', profile.services.packageSale, true],
-                    ] as Array<[string, CommissionRate, boolean?]>
-                  ).map(([label, rate, packageRate]) => (
+                      [
+                        'NADRA applications',
+                        profile.services.applicationNadra,
+                        false,
+                        'completed application',
+                      ],
+                      [
+                        'Pakistani passport applications',
+                        profile.services.applicationPassportPk,
+                        false,
+                        'collected application',
+                      ],
+                      [
+                        'British passport applications',
+                        profile.services.applicationPassportGb,
+                        false,
+                        'completed application',
+                      ],
+                      [
+                        'Visa applications',
+                        profile.services.applicationVisa,
+                        false,
+                        'completed application',
+                      ],
+                    ] as Array<[string, CommissionRate, boolean?, string?]>
+                  ).map(([label, rate, packageRate, eventNoun]) => (
                     <div
                       key={label}
                       className="flex items-center justify-between gap-4 py-3 text-sm"
                     >
                       <span className="text-slate-500">{label}</span>
                       <span className="text-right font-black text-slate-800">
-                        {formatRate(rate, packageRate, profile.compensation.currency)}
+                        {formatRate(rate, packageRate, profile.compensation.currency, eventNoun)}
                       </span>
                     </div>
                   ))}

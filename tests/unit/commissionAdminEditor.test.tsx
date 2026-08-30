@@ -17,8 +17,10 @@ function adminData(): CommissionAdminData {
 
   return {
     schemaReady: true,
-    schemaVersion: 2026083002,
+    schemaVersion: 2026083005,
     mode: 'shadow',
+    packageIntegrationReady: true,
+    applicationIntegrationReady: true,
     employees: [
       {
         id: EMPLOYEE_ID,
@@ -49,6 +51,7 @@ function adminData(): CommissionAdminData {
       },
     ],
     exchangeRates: [],
+    sourceModules: [],
     exceptions: [],
     overview: {
       pendingEvents: 0,
@@ -80,6 +83,10 @@ describe('Admin Commission editor modes', () => {
       'Standard commission update',
     )
     expect((screen.getByLabelText('Branch scope') as HTMLSelectElement).value).toBe(LOCATION_ID)
+    expect(screen.getByRole('group', { name: 'NADRA applications' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Pakistani passport applications' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'British passport applications' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Visa applications' })).toBeTruthy()
 
     fireEvent.change(screen.getByLabelText(/Effective from/), {
       target: { value: '2026-08-01' },
@@ -103,6 +110,18 @@ describe('Admin Commission editor modes', () => {
       'New commission',
     )
     expect((screen.getByLabelText('Branch scope') as HTMLSelectElement).value).toBe('')
+  })
+
+  it('disables plan changes until the Application commission migration is installed', () => {
+    const data = adminData()
+    data.applicationIntegrationReady = false
+
+    render(<AdminCommissionClient initialData={data} />)
+
+    expect(
+      (screen.getByRole('button', { name: 'New commission' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(screen.getByText('Commission-plan database upgrade required')).toBeTruthy()
   })
 
   it('records an edit as a replacement rather than a copied commission', async () => {

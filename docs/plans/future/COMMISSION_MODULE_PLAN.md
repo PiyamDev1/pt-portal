@@ -4,24 +4,26 @@
 > boundaries; it is not a fixed product goal. New requirements and live evidence take precedence.
 > Commission remains the only module that may calculate employee pay outcomes, while
 > policies, ordinary commission calculations, employee-attributed sales-profit bonuses, shadow
-> reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
+> reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, Applications,
+> and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Phase 1 shadow capability, employee-owned agreements, and authoritative closed-Package
-  source integration implemented; month reconciliation pending
+- **Status:** Phase 1 shadow capability, employee-owned agreements, authoritative closed-Package
+  sources, and completed-Application sources implemented; month reconciliation pending
 - **Last updated:** August 30, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
 - **First delivery:** Employee-owned setup, Admin/HR reconciliation, and own-employee preview; no
   payable entries
 
-Implementation checkpoint on August 30, 2026: capability `2026083003` includes employee-owned GBP or
+Implementation checkpoint on August 30, 2026: capability `2026083005` includes employee-owned GBP or
 PKR compensation, audited monthly PKR-per-GBP book conversion, independent Ticket Assistance rates
 for each selected primary agent, optional Date Change marginal-tier volume, fixed Low Fare amounts,
 the complete supplier-fare-increase debit, and archive-safe marginal recalculation. The additive
 migrations retain employee-owned agreement snapshots, copy-on-create reuse, atomic per-service
 policies and assignments, effective-dated replacement, and cancellation of future changes. Closed,
-paid, reconciled Package folders now publish correction-linked source snapshots from database
+paid, reconciled Package folders and completed Application records now publish correction-linked
+source snapshots from database
 finance records. Shared family transport references feed the one physical `Group main transport`
 row without double-counting booked cost, and received supplier commission is used instead of the
 projected value. The calculation engine, typed
@@ -48,6 +50,8 @@ The first usable delivery is deliberately a **shadow foundation**:
 - Existing and new Ticketing source events calculate into signed, non-payable shadow entries.
 - Closed, reconciled Package sales calculate fixed-per-package, fixed-per-passenger, percentage-of-
   final-profit, or explicit-zero components into the same shadow ledger.
+- Completed NADRA, Pakistani passport, British passport, and Visa work calculates a distinct fixed
+  per-application or explicit-zero component for the responsible employee.
 - Monthly employee-attributed profit and sales-bonus results are reconciled internally.
 - Missing policies, inputs, or unsupported source states remain visible exceptions.
 - Employees receive a read-only view of their own agreement and clearly labelled calculation
@@ -254,6 +258,22 @@ A later reconciliation queue will let an authorised reviewer:
 3. Mark the provisional line as unpaid, already paid, replaced, or invalid.
 4. Compare it with the effective policy result.
 5. Post only through the live Commission workflow while retaining the original metadata evidence.
+
+### 4.5 Application facts
+
+Applications publish one immutable fact only when staff work reaches its operational terminal
+state: `Completed` for NADRA, British passport, and Visa records, and `Collected` for Pakistani
+passports. The employee stored on that application is the recipient; their current branch supplies
+the source location. Package-linked Visa processing remains separate application work and can earn
+its fixed Application rate without reusing Package profit.
+
+Application commission supports only fixed-per-completed-application or explicit zero. Mutable
+pricing tables are not a safe historical profit basis across all four Application services. A
+refund, cancellation, reopened status, employee reassignment, or deletion appends a superseding
+source fact and zeroes the prior active shadow earning before any corrected earning is created.
+Existing terminal Application rows are backfilled using their first recorded terminal status date
+where history exists, otherwise their recorded application date. They remain `needs_policy` until
+an applicable employee-owned plan covers that date.
 
 ## 5. Policy model
 

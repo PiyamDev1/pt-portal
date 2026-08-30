@@ -3,7 +3,7 @@ import { toErrorMessage } from '@/lib/api/error'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { COMMISSION_PRIVATE_RESPONSE, hasCommissionCapability } from '@/lib/commissions/api'
 import {
-  COMMISSION_PROFILE_CAPABILITY_VERSION,
+  COMMISSION_APPLICATION_CAPABILITY_VERSION,
   commissionProfileSchema,
   profileNeedsWholeMonths,
   toStoredCommissionProfile,
@@ -30,9 +30,9 @@ function databaseStatus(error: unknown) {
 export async function POST(request: Request) {
   const access = await requireCommissionManager()
   if (!access.authorized) return access.response
-  if (!(await hasCommissionCapability(COMMISSION_PROFILE_CAPABILITY_VERSION))) {
+  if (!(await hasCommissionCapability(COMMISSION_APPLICATION_CAPABILITY_VERSION))) {
     return apiError(
-      'The latest employee commission profile capability is not installed on this database',
+      'The latest employee and Application commission capability is not installed on this database',
       503,
       {},
       COMMISSION_PRIVATE_RESPONSE,

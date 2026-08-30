@@ -10,6 +10,7 @@ import {
   type CommissionEntryForAnalytics,
 } from '@/lib/commissions/analytics'
 import {
+  COMMISSION_APPLICATION_CAPABILITY_VERSION,
   COMMISSION_PROFILE_CAPABILITY_VERSION,
   COMMISSION_PACKAGE_CAPABILITY_VERSION,
   commissionProfileSchema,
@@ -124,7 +125,7 @@ export type CommissionMonthlyExchangeRate = {
 }
 
 export type CommissionSourceModuleStatus = {
-  sourceModule: 'ticketing' | 'packages'
+  sourceModule: 'ticketing' | 'packages' | 'applications'
   label: string
   pendingEvents: number
   processedEvents: number
@@ -140,6 +141,7 @@ export type CommissionAdminData = {
   schemaVersion: number
   mode: string
   packageIntegrationReady: boolean
+  applicationIntegrationReady: boolean
   employees: CommissionAdminEmployee[]
   profiles: CommissionAdminProfile[]
   exchangeRates: CommissionMonthlyExchangeRate[]
@@ -188,13 +190,18 @@ function profileDraft(value: Json | null | undefined): CommissionProfileInput | 
   const draft = jsonObject(value).draft
   const draftObject = jsonObject(draft as Json | null | undefined)
   const services = jsonObject(draftObject.services as Json | null | undefined)
+  const zeroRate = { kind: 'none', value: 0, tiers: [] }
   const compatibleDraft =
-    Object.keys(draftObject).length > 0 && !('packageSale' in services)
+    Object.keys(draftObject).length > 0
       ? {
           ...draftObject,
           services: {
+            packageSale: zeroRate,
+            applicationNadra: zeroRate,
+            applicationPassportPk: zeroRate,
+            applicationPassportGb: zeroRate,
+            applicationVisa: zeroRate,
             ...services,
-            packageSale: { kind: 'none', value: 0, tiers: [] },
           },
         }
       : draft
@@ -507,6 +514,7 @@ export async function loadCommissionAdminData(
       exchangeRates: [],
       sourceModules: [],
       packageIntegrationReady: false,
+      applicationIntegrationReady: false,
       exceptions: [],
       overview: EMPTY_OVERVIEW,
       lastRun: null,
@@ -515,6 +523,7 @@ export async function loadCommissionAdminData(
   if (profilesResult.error) throw profilesResult.error
 
   const packageIntegrationReady = schemaVersion >= COMMISSION_PACKAGE_CAPABILITY_VERSION
+  const applicationIntegrationReady = schemaVersion >= COMMISSION_APPLICATION_CAPABILITY_VERSION
   const [
     employeesResult,
     exceptionsResult,
@@ -552,9 +561,14 @@ export async function loadCommissionAdminData(
           .limit(24)
       : Promise.resolve({ data: [], error: null }),
     packageIntegrationReady
-      ? supabase.rpc('commission_source_module_overview_2026083003', {
-          p_actor_employee_id: actorEmployeeId,
-        })
+      ? supabase.rpc(
+          applicationIntegrationReady
+            ? 'commission_source_module_overview_2026083005'
+            : 'commission_source_module_overview_2026083003',
+          {
+            p_actor_employee_id: actorEmployeeId,
+          },
+        )
       : Promise.resolve({ data: [], error: null }),
   ])
   if (employeesResult.error) throw employeesResult.error
@@ -632,6 +646,7 @@ export async function loadCommissionAdminData(
     schemaVersion,
     mode: String(schemaStatus.mode || 'shadow'),
     packageIntegrationReady,
+    applicationIntegrationReady,
     employees,
     profiles,
     exchangeRates: (exchangeRatesResult.data || []).map((rate) => ({
@@ -645,7 +660,10 @@ export async function loadCommissionAdminData(
       (module) => {
         const item = jsonObject(module)
         return {
-          sourceModule: item.sourceModule === 'packages' ? 'packages' : 'ticketing',
+          sourceModule:
+            item.sourceModule === 'packages' || item.sourceModule === 'applications'
+              ? item.sourceModule
+              : 'ticketing',
           label: String(item.label || item.sourceModule || 'Source module'),
           pendingEvents: numeric(item.pendingEvents),
           processedEvents: numeric(item.processedEvents),

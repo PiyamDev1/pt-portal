@@ -41,8 +41,35 @@ const serviceLabels: Record<string, string> = {
   low_fare: 'Low-fare saving',
   higher_fare: 'Supplier fare increase adjustment',
   package_sale: 'Package sale',
+  application_nadra: 'NADRA application',
+  application_passport_pk: 'Pakistani passport application',
+  application_passport_gb: 'British passport application',
+  application_visa: 'Visa application',
   sales_bonus: 'Monthly sales bonus',
 }
+
+const assignmentServices = [
+  { code: 'tk_primary', sourceModule: 'ticketing', recipientRole: 'primary' },
+  { code: 'tk_assistance', sourceModule: 'ticketing', recipientRole: 'assistant' },
+  { code: 'dc', sourceModule: 'ticketing', recipientRole: 'primary' },
+  { code: 'r_er', sourceModule: 'ticketing', recipientRole: 'primary' },
+  { code: 'low_fare', sourceModule: 'ticketing', recipientRole: 'low_fare_actor' },
+  { code: 'higher_fare', sourceModule: 'ticketing', recipientRole: 'low_fare_actor' },
+  { code: 'package_sale', sourceModule: 'packages', recipientRole: 'package_sales' },
+  { code: 'application_nadra', sourceModule: 'applications', recipientRole: 'application_agent' },
+  {
+    code: 'application_passport_pk',
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
+  {
+    code: 'application_passport_gb',
+    sourceModule: 'applications',
+    recipientRole: 'application_agent',
+  },
+  { code: 'application_visa', sourceModule: 'applications', recipientRole: 'application_agent' },
+  { code: 'sales_bonus', sourceModule: 'ticketing', recipientRole: 'sales_bonus' },
+] as const
 
 const inputClass =
   'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-400'
@@ -428,7 +455,9 @@ function Policies({
               ? 'low_fare_actor'
               : template === 'assistant'
                 ? 'assistant'
-                : 'primary',
+                : template === 'application_event'
+                  ? 'application_agent'
+                  : 'primary',
           rateValue: rate,
           eligibleServices: [],
           config: {},
@@ -525,6 +554,7 @@ function Policies({
                 <option value="primary_event">Primary service per event</option>
                 <option value="assistant">Assistance per passenger-ticket</option>
                 <option value="low_fare">Low/higher Fare actor per event</option>
+                <option value="application_event">Application completion per case</option>
               </select>
             </Field>
             <Field label={template === 'primary_bonus' ? 'TK rate per ticket (£)' : 'Rate (£)'}>
@@ -657,6 +687,8 @@ function Assignments({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
+    const assignmentService = assignmentServices.find((service) => service.code === serviceCode)
+    if (!assignmentService) return
     void runMutation(
       () =>
         fetchJson('/api/commissions/assignments', {
@@ -668,7 +700,7 @@ function Assignments({
           body: JSON.stringify({
             employeeId,
             policyVersionId: versionId,
-            sourceModule: serviceCode === 'package_sale' ? 'packages' : 'ticketing',
+            sourceModule: assignmentService.sourceModule,
             serviceCode,
             recipientRole,
             locationId: locationId || null,
@@ -724,20 +756,17 @@ function Assignments({
               <select
                 className={inputClass}
                 value={serviceCode}
-                onChange={(event) => setServiceCode(event.target.value)}
+                onChange={(event) => {
+                  const nextService = assignmentServices.find(
+                    (service) => service.code === event.target.value,
+                  )
+                  setServiceCode(event.target.value)
+                  if (nextService) setRecipientRole(nextService.recipientRole)
+                }}
               >
-                {[
-                  'tk_primary',
-                  'tk_assistance',
-                  'dc',
-                  'r_er',
-                  'low_fare',
-                  'higher_fare',
-                  'package_sale',
-                  'sales_bonus',
-                ].map((code) => (
-                  <option key={code} value={code}>
-                    {code.replace(/_/g, ' ')}
+                {assignmentServices.map((service) => (
+                  <option key={service.code} value={service.code}>
+                    {serviceLabels[service.code] || service.code.replace(/_/g, ' ')}
                   </option>
                 ))}
               </select>
@@ -748,13 +777,18 @@ function Assignments({
                 value={recipientRole}
                 onChange={(event) => setRecipientRole(event.target.value)}
               >
-                {['primary', 'assistant', 'low_fare_actor', 'package_sales', 'sales_bonus'].map(
-                  (role) => (
-                    <option key={role} value={role}>
-                      {role.replace(/_/g, ' ')}
-                    </option>
-                  ),
-                )}
+                {[
+                  'primary',
+                  'assistant',
+                  'low_fare_actor',
+                  'package_sales',
+                  'application_agent',
+                  'sales_bonus',
+                ].map((role) => (
+                  <option key={role} value={role}>
+                    {role.replace(/_/g, ' ')}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>

@@ -108,14 +108,19 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-function rateLabel(rate: CommissionRate, packageRate = false, currency = 'GBP') {
+function rateLabel(
+  rate: CommissionRate,
+  packageRate = false,
+  currency = 'GBP',
+  eventNoun = 'booking',
+) {
   const formatter = moneyFormatter(currency)
   if (rate.kind === 'none') return `${formatter.format(0)} · explicitly off`
   if (rate.kind === 'full_difference') return 'Full supplier fare increase'
   if (rate.kind === 'percentage')
     return `${rate.value}% of ${packageRate ? 'final profit' : 'value'}`
   if (rate.kind === 'per_event')
-    return `${formatter.format(rate.value)} per ${packageRate ? 'package' : 'booking'}`
+    return `${formatter.format(rate.value)} per ${packageRate ? 'package' : eventNoun}`
   if (rate.kind === 'per_unit')
     return `${formatter.format(rate.value)} per ${packageRate ? 'passenger' : 'ticket'}`
   return `${rate.tiers.length} marginal tier${rate.tiers.length === 1 ? '' : 's'}`
@@ -240,6 +245,7 @@ function RateEditor({
   onChange,
   packageRate = false,
   noneLabel = 'No commission',
+  perEventLabel = 'Per booking / case',
   currency = 'GBP',
 }: {
   title: string
@@ -249,6 +255,7 @@ function RateEditor({
   onChange: (rate: CommissionRate) => void
   packageRate?: boolean
   noneLabel?: string
+  perEventLabel?: string
   currency?: 'GBP' | 'PKR'
 }) {
   const setKind = (kind: CommissionRateKind) => {
@@ -282,7 +289,11 @@ function RateEditor({
           >
             {COMMISSION_RATE_KINDS.filter((kind) => allowedKinds.includes(kind)).map((kind) => (
               <option key={kind} value={kind}>
-                {kind === 'none' ? noneLabel : KIND_LABELS[kind]}
+                {kind === 'none'
+                  ? noneLabel
+                  : kind === 'per_event'
+                    ? perEventLabel
+                    : KIND_LABELS[kind]}
               </option>
             ))}
           </select>
@@ -891,6 +902,58 @@ function AgreementEditor({
                   currency={draft.compensation.currency}
                 />
               </div>
+              <div className="space-y-4 rounded-[1.4rem] border border-blue-200 bg-blue-50/60 p-4 lg:col-span-2 sm:p-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-800">
+                    Applications
+                  </p>
+                  <h4 className="mt-1 text-base font-black text-slate-950">
+                    Fixed commission for completed application work
+                  </h4>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Each rate is paid once to the responsible employee. It is automatically reversed
+                    if the application is refunded, cancelled, reopened, reassigned, or deleted.
+                  </p>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <RateEditor
+                    title="NADRA applications"
+                    description="Paid when a NADRA application reaches Completed."
+                    rate={draft.services.applicationNadra}
+                    allowedKinds={['none', 'per_event']}
+                    onChange={(rate) => updateService('applicationNadra', rate)}
+                    perEventLabel="Fixed per completed application"
+                    currency={draft.compensation.currency}
+                  />
+                  <RateEditor
+                    title="Pakistani passport applications"
+                    description="Paid when a Pakistani passport reaches Collected."
+                    rate={draft.services.applicationPassportPk}
+                    allowedKinds={['none', 'per_event']}
+                    onChange={(rate) => updateService('applicationPassportPk', rate)}
+                    perEventLabel="Fixed per collected application"
+                    currency={draft.compensation.currency}
+                  />
+                  <RateEditor
+                    title="British passport applications"
+                    description="Paid when a British passport application reaches Completed."
+                    rate={draft.services.applicationPassportGb}
+                    allowedKinds={['none', 'per_event']}
+                    onChange={(rate) => updateService('applicationPassportGb', rate)}
+                    perEventLabel="Fixed per completed application"
+                    currency={draft.compensation.currency}
+                  />
+                  <RateEditor
+                    title="Visa applications"
+                    description="Paid when a visa application reaches Completed, including package-linked visa work."
+                    rate={draft.services.applicationVisa}
+                    allowedKinds={['none', 'per_event']}
+                    onChange={(rate) => updateService('applicationVisa', rate)}
+                    perEventLabel="Fixed per completed application"
+                    currency={draft.compensation.currency}
+                  />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -1067,7 +1130,7 @@ function ProfileSummary({
         Detailed rates are unavailable for this historical profile.
       </p>
     )
-  const rows: Array<[string, CommissionRate, boolean?]> = [
+  const rows: Array<[string, CommissionRate, boolean?, string?]> = [
     ['Ticket sales', config.services.tkPrimary],
     ['Ticket assistance', config.services.tkAssistance],
     ['Date changes', config.services.dateChange],
@@ -1075,17 +1138,31 @@ function ProfileSummary({
     ['Low-fare savings', config.services.lowFare],
     ['Supplier fare increase adjustment', config.services.higherFare],
     ['Package sales', config.services.packageSale, true],
+    ['NADRA applications', config.services.applicationNadra, false, 'completed application'],
+    [
+      'Pakistani passport applications',
+      config.services.applicationPassportPk,
+      false,
+      'collected application',
+    ],
+    [
+      'British passport applications',
+      config.services.applicationPassportGb,
+      false,
+      'completed application',
+    ],
+    ['Visa applications', config.services.applicationVisa, false, 'completed application'],
   ]
   return (
     <div className="grid gap-x-6 sm:grid-cols-2">
-      {rows.map(([label, rate, packageRate]) => (
+      {rows.map(([label, rate, packageRate, eventNoun]) => (
         <div
           key={label}
           className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm"
         >
           <span className="text-slate-500">{label}</span>
           <span className="text-right font-black text-slate-800">
-            {rateLabel(rate, packageRate, config.compensation.currency)}
+            {rateLabel(rate, packageRate, config.compensation.currency, eventNoun)}
           </span>
         </div>
       ))}
@@ -1171,6 +1248,7 @@ export default function AdminCommissionClient({
     selectedProfiles.find((profile) => profile.id === selectedEmployee?.scheduledProfileId) || null
   const selectedExceptions = data.exceptions.filter((item) => item.employeeId === selectedId)
   const sourceModules = data.sourceModules || []
+  const planEditorReady = data.schemaReady && data.applicationIntegrationReady
   const filteredEmployees = data.employees.filter((employee) => {
     const query = search.trim().toLowerCase()
     return (
@@ -1195,7 +1273,7 @@ export default function AdminCommissionClient({
     intent: CommissionEditorIntent,
     source: CommissionAdminProfile | null = null,
   ) => {
-    if (!selectedEmployee) return
+    if (!selectedEmployee || !planEditorReady) return
     if (intent === 'edit' && (!source?.configuration || source.id !== currentProfile?.id)) return
     const next = source?.configuration
       ? clone(source.configuration)
@@ -1428,15 +1506,15 @@ export default function AdminCommissionClient({
         </div>
       </section>
 
-      {!data.schemaReady && (
+      {!planEditorReady && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
-            <p className="text-sm font-black">Employee commission-plan upgrade required</p>
+            <p className="text-sm font-black">Commission-plan database upgrade required</p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
               The shadow engine is available, but database version {data.schemaVersion || 'unknown'}{' '}
-              does not yet include employee-owned profiles. Plan changes are disabled until the
-              additive migration is installed.
+              does not yet include the latest employee and Application commission structure. Plan
+              changes are disabled until the additive migration is installed.
             </p>
           </div>
         </div>
@@ -1511,20 +1589,21 @@ export default function AdminCommissionClient({
               Commission across operational modules
             </h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              Ticketing and closed Packages feed the same correction-safe preview ledger. Payroll
-              remains disconnected until shadow reconciliation is signed off.
+              Ticketing, closed Packages, and completed Applications feed the same correction-safe
+              preview ledger. Payroll remains disconnected until shadow reconciliation is signed
+              off.
             </p>
           </div>
-          {!data.packageIntegrationReady && (
+          {(!data.packageIntegrationReady || !data.applicationIntegrationReady) && (
             <span className="rounded-full bg-amber-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-amber-800">
-              Package database upgrade required
+              Commission database upgrade required
             </span>
           )}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           {sourceModules.length === 0 ? (
-            <p className="rounded-xl bg-slate-50 p-4 text-xs text-slate-500 md:col-span-2">
-              Source-module health becomes available after the package integration migration.
+            <p className="rounded-xl bg-slate-50 p-4 text-xs text-slate-500 md:col-span-3">
+              Source-module health becomes available after the Commission integration migrations.
             </p>
           ) : (
             sourceModules.map((module) => (
@@ -1550,12 +1629,18 @@ export default function AdminCommissionClient({
                   </span>
                   {module.closedRecordsMissingEvent > 0 && (
                     <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800">
-                      {module.closedRecordsMissingEvent} closed records need capture
+                      {module.closedRecordsMissingEvent}{' '}
+                      {module.sourceModule === 'applications'
+                        ? 'completed applications need capture'
+                        : 'closed records need capture'}
                     </span>
                   )}
                   {module.closedRecordsMissingOwner > 0 && (
                     <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-800">
-                      {module.closedRecordsMissingOwner} missing sales owner
+                      {module.closedRecordsMissingOwner}{' '}
+                      {module.sourceModule === 'applications'
+                        ? 'missing responsible staff'
+                        : 'missing sales owner'}
                     </span>
                   )}
                 </div>
@@ -1754,7 +1839,7 @@ export default function AdminCommissionClient({
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => startAgreement('new')}
-                      disabled={!data.schemaReady || Boolean(scheduledProfile)}
+                      disabled={!planEditorReady || Boolean(scheduledProfile)}
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8b1e2d] bg-white px-4 py-2.5 text-sm font-black text-[#8b1e2d] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <Plus className="h-4 w-4" /> New commission
@@ -1762,7 +1847,7 @@ export default function AdminCommissionClient({
                     {currentProfile && (
                       <button
                         onClick={() => startAgreement('edit', currentProfile)}
-                        disabled={!data.schemaReady || Boolean(scheduledProfile)}
+                        disabled={!planEditorReady || Boolean(scheduledProfile)}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         <Edit3 className="h-4 w-4" /> Edit commission
@@ -1796,7 +1881,7 @@ export default function AdminCommissionClient({
                     </div>
                     <button
                       onClick={() => startAgreement('edit', currentProfile)}
-                      disabled={Boolean(scheduledProfile)}
+                      disabled={!planEditorReady || Boolean(scheduledProfile)}
                       className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-40"
                     >
                       <Edit3 className="h-3.5 w-3.5" /> Edit commission
@@ -1818,7 +1903,7 @@ export default function AdminCommissionClient({
                   </p>
                   <button
                     onClick={() => startAgreement('new')}
-                    disabled={!data.schemaReady}
+                    disabled={!planEditorReady}
                     className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
                   >
                     <Sparkles className="h-4 w-4" /> New commission
@@ -1904,7 +1989,7 @@ export default function AdminCommissionClient({
                         {profile.configuration && (
                           <button
                             onClick={() => startAgreement('copy', profile)}
-                            disabled={Boolean(scheduledProfile)}
+                            disabled={!planEditorReady || Boolean(scheduledProfile)}
                             className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-[#8b1e2d] hover:bg-red-50 disabled:opacity-30"
                           >
                             <Copy className="h-3.5 w-3.5" /> Copy
