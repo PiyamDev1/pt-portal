@@ -1492,16 +1492,19 @@ export type Database = {
       commission_entries: {
         Row: {
           amount_gbp: number
+          amount_pay_currency: number
           basis_snapshot: Json
           component_id: string
           created_at: string
           earning_on: string
           entry_kind: string
           entry_mode: string
+          exchange_rate_units_per_gbp: number
           explanation: Json
           id: string
           idempotency_key: string
           location_id: string | null
+          pay_currency: string
           period_end: string
           period_start: string
           policy_version_id: string
@@ -1515,16 +1518,19 @@ export type Database = {
         }
         Insert: {
           amount_gbp: number
+          amount_pay_currency: number
           basis_snapshot: Json
           component_id: string
           created_at?: string
           earning_on: string
           entry_kind?: string
           entry_mode?: string
+          exchange_rate_units_per_gbp: number
           explanation: Json
           id?: string
           idempotency_key: string
           location_id?: string | null
+          pay_currency: string
           period_end: string
           period_start: string
           policy_version_id: string
@@ -1538,16 +1544,19 @@ export type Database = {
         }
         Update: {
           amount_gbp?: number
+          amount_pay_currency?: number
           basis_snapshot?: Json
           component_id?: string
           created_at?: string
           earning_on?: string
           entry_kind?: string
           entry_mode?: string
+          exchange_rate_units_per_gbp?: number
           explanation?: Json
           id?: string
           idempotency_key?: string
           location_id?: string | null
+          pay_currency?: string
           period_end?: string
           period_start?: string
           policy_version_id?: string
@@ -1691,6 +1700,41 @@ export type Database = {
             columns: ['source_event_id']
             isOneToOne: false
             referencedRelation: 'commission_source_events'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_monthly_exchange_rates: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          period_start: string
+          set_by: string
+          units_per_gbp: number
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          id?: string
+          period_start: string
+          set_by: string
+          units_per_gbp: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          period_start?: string
+          set_by?: string
+          units_per_gbp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_monthly_exchange_rates_set_by_fkey'
+            columns: ['set_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
             referencedColumns: ['id']
           },
         ]
@@ -12269,6 +12313,16 @@ export type Database = {
         }
         Returns: number
       }
+      commission_component_values_2026083001: {
+        Args: {
+          p_component_id: string
+          p_period_start?: string
+          p_prior_units?: number
+          p_units: number
+          p_variables: Json
+        }
+        Returns: Json
+      }
       commission_create_assignment_2026082901: {
         Args: {
           p_actor_employee_id: string
@@ -12315,6 +12369,10 @@ export type Database = {
           p_rule_id: string
         }
         Returns: Json
+      }
+      commission_exchange_rate_2026083001: {
+        Args: { p_currency: string; p_period_start: string }
+        Returns: number
       }
       commission_grant_access_2026082901: {
         Args: {
@@ -12388,6 +12446,16 @@ export type Database = {
         Returns: Json
       }
       commission_schema_status: { Args: never; Returns: Json }
+      commission_set_monthly_exchange_rate_2026083001: {
+        Args: {
+          p_actor_employee_id: string
+          p_currency: string
+          p_period_start: string
+          p_request_key: string
+          p_units_per_gbp: number
+        }
+        Returns: Json
+      }
       commission_sha256_2026082901: {
         Args: { p_value: string }
         Returns: string

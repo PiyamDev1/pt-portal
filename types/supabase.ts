@@ -100,80 +100,10 @@ type DatabaseFunctionOverrides = {
     }
     Returns: Json
   }
-  commission_set_monthly_exchange_rate_2026083001: {
-    Args: {
-      p_actor_employee_id: string
-      p_currency: string
-      p_period_start: string
-      p_units_per_gbp: number
-      p_request_key: string
-    }
-    Returns: Json
-  }
-}
-
-type GeneratedCommissionEntry = GeneratedDatabase['public']['Tables']['commission_entries']
-
-type DatabaseTableOverrides = {
-  commission_entries: {
-    Row: GeneratedCommissionEntry['Row'] & {
-      amount_pay_currency: number
-      pay_currency: string
-      exchange_rate_units_per_gbp: number
-    }
-    Insert: GeneratedCommissionEntry['Insert'] & {
-      amount_pay_currency?: number
-      pay_currency?: string
-      exchange_rate_units_per_gbp?: number
-    }
-    Update: GeneratedCommissionEntry['Update'] & {
-      amount_pay_currency?: number
-      pay_currency?: string
-      exchange_rate_units_per_gbp?: number
-    }
-    Relationships: GeneratedCommissionEntry['Relationships']
-  }
-  commission_monthly_exchange_rates: {
-    Row: {
-      id: string
-      currency: string
-      period_start: string
-      units_per_gbp: number
-      set_by: string
-      created_at: string
-    }
-    Insert: {
-      id?: string
-      currency: string
-      period_start: string
-      units_per_gbp: number
-      set_by: string
-      created_at?: string
-    }
-    Update: {
-      id?: string
-      currency?: string
-      period_start?: string
-      units_per_gbp?: number
-      set_by?: string
-      created_at?: string
-    }
-    Relationships: [
-      {
-        foreignKeyName: 'commission_monthly_exchange_rates_set_by_fkey'
-        columns: ['set_by']
-        isOneToOne: false
-        referencedRelation: 'employees'
-        referencedColumns: ['id']
-      },
-    ]
-  }
 }
 
 export type Database = Omit<GeneratedDatabase, 'public'> & {
-  public: Omit<GeneratedDatabase['public'], 'Tables' | 'Functions'> & {
-    Tables: Omit<GeneratedDatabase['public']['Tables'], keyof DatabaseTableOverrides> &
-      DatabaseTableOverrides
+  public: Omit<GeneratedDatabase['public'], 'Functions'> & {
     Functions: Omit<GeneratedDatabase['public']['Functions'], keyof DatabaseFunctionOverrides> &
       DatabaseFunctionOverrides
   }
