@@ -56,6 +56,11 @@ alter table public.commission_entries
   add column if not exists pay_currency text,
   add column if not exists exchange_rate_units_per_gbp numeric(18,6);
 
+-- Existing shadow rows are immutable business history. This one migration-only
+-- backfill derives additive GBP presentation columns while holding an exclusive
+-- table lock; the immutable trigger is restored before the transaction commits.
+alter table public.commission_entries
+  disable trigger commission_entries_immutable_2901;
 update public.commission_entries
 set amount_pay_currency = amount_gbp,
     pay_currency = 'GBP',
@@ -63,6 +68,8 @@ set amount_pay_currency = amount_gbp,
 where amount_pay_currency is null
    or pay_currency is null
    or exchange_rate_units_per_gbp is null;
+alter table public.commission_entries
+  enable trigger commission_entries_immutable_2901;
 
 alter table public.commission_entries
   alter column amount_pay_currency set not null,

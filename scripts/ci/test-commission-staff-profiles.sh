@@ -12,6 +12,7 @@ commission_assistance_scope="scripts/migrations/20260829_commission_staff_profil
 commission_compensation="scripts/migrations/20260830_commission_compensation_and_tiers.sql"
 assertions="tests/integration/commission_staff_profiles.sql"
 assistance_assertions="tests/integration/commission_assistance_scope.sql"
+compensation_legacy_fixture="tests/integration/commission_compensation_legacy_fixture.sql"
 compensation_assertions="tests/integration/commission_compensation_and_tiers.sql"
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture"
@@ -51,6 +52,7 @@ if [[ "$second_assistance_applied_at" != "$third_assistance_applied_at" ]]; then
 fi
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$assistance_assertions"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$compensation_legacy_fixture"
 
 first_compensation_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select applied_at from public.portal_schema_versions where component = 'commission'")"

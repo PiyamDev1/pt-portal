@@ -134,6 +134,17 @@ begin
   then
     raise exception 'Commission compensation capability 2026083001 is not ready';
   end if;
+  if not exists (
+    select 1
+    from public.commission_entries entry
+    where entry.idempotency_key = 'test-legacy-compensation-entry-0001'
+      and entry.amount_gbp = 12.34
+      and entry.amount_pay_currency = 12.34
+      and entry.pay_currency = 'GBP'
+      and entry.exchange_rate_units_per_gbp = 1
+  ) then
+    raise exception 'Legacy GBP Commission entry was not backfilled safely';
+  end if;
 
   perform public.commission_set_monthly_exchange_rate_2026083001(
     '42000000-0000-0000-0000-000000000001',
