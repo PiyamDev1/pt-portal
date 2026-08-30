@@ -171,6 +171,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const existing = existingData as unknown as TravelPackageFolder
   const update: Record<string, unknown> = {}
+  const requestedSalesEmployeeId = Object.prototype.hasOwnProperty.call(
+    body,
+    'salesResponsibleEmployeeId',
+  )
+    ? cleanOptionalId(body.salesResponsibleEmployeeId)
+    : existing.sales_responsible_employee_id || existing.sales_employee_id
 
   if (Object.prototype.hasOwnProperty.call(body, 'status')) {
     const status = cleanText(body.status) as TravelPackageFolderStatus
@@ -184,6 +190,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       !existing.cancellation_reason
     ) {
       return apiError('A cancellation reason is required', 400)
+    }
+    if (status === 'closed' && !requestedSalesEmployeeId) {
+      return apiError(
+        'Assign the package sales owner before closing it so earned Commission is attributable.',
+        400,
+      )
     }
     update.status = status
     Object.assign(update, getLifecycleTimestampUpdate(status))
@@ -219,7 +231,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     update.assigned_agent_id = cleanText(body.assignedAgentId) || null
   }
   if (Object.prototype.hasOwnProperty.call(body, 'salesResponsibleEmployeeId')) {
-    update.sales_responsible_employee_id = cleanOptionalId(body.salesResponsibleEmployeeId)
+    update.sales_responsible_employee_id = requestedSalesEmployeeId
     update.sales_employee_id = update.sales_responsible_employee_id
   }
   if (Object.prototype.hasOwnProperty.call(body, 'bookingResponsibleEmployeeId')) {

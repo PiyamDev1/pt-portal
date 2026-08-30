@@ -1187,6 +1187,26 @@ function Exceptions({
       next: 'Review the source details and policy configuration before retrying.',
     },
   }
+  const packageReasonLabels: Record<string, string> = {
+    package_not_closed: 'The package is not closed.',
+    missing_earned_date: 'The closed and earned dates are incomplete.',
+    missing_sales_employee: 'Assign the package sales owner.',
+    missing_package_location: 'Assign the package branch.',
+    missing_reservations: 'Add the package reservation records.',
+    unfinished_reservations: 'Finish or cancel every reservation.',
+    missing_passengers: 'Add the package passenger records.',
+    invalid_shared_transport_structure:
+      'Keep exactly one physical Group main transport for the family invoice references.',
+    missing_active_invoice: 'Create the package invoice.',
+    invoice_not_settled: 'Settle and finalise every active invoice.',
+    supplier_commission_not_reconciled:
+      'Reconcile received supplier commission between reservations and invoices.',
+    invoice_sales_not_reconciled: 'Reconcile invoice sales with the reservation totals.',
+    invoice_cost_not_reconciled: 'Reconcile invoice booked cost with the reservation totals.',
+    package_payment_not_paid: 'The package payment state must be paid.',
+    pending_package_payments: 'Resolve pending package payment records.',
+    non_gbp_package_source: 'Convert or reconcile all package source values to GBP.',
+  }
   const filtered = items.filter((item) => {
     const details = item.details && typeof item.details === 'object' ? item.details : {}
     const copy = `${item.employeeName || ''} ${item.code || ''} ${details.serviceCode || ''} ${details.reason || ''}`
@@ -1226,6 +1246,11 @@ function Exceptions({
               next: 'Review the source details before retrying.',
             }
             const serviceCode = typeof details.serviceCode === 'string' ? details.serviceCode : ''
+            const packageReasons: string[] = Array.isArray(details.reasons)
+              ? (details.reasons as unknown[]).filter(
+                  (reason: unknown): reason is string => typeof reason === 'string',
+                )
+              : []
             return (
               <article
                 key={item.id}
@@ -1248,6 +1273,15 @@ function Exceptions({
                       <p className="mt-2 rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
                         {details.reason}
                       </p>
+                    )}
+                    {packageReasons.length > 0 && (
+                      <ul className="mt-2 space-y-1 rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
+                        {packageReasons.map((reason) => (
+                          <li key={reason}>
+                            • {packageReasonLabels[reason] || reason.replace(/_/g, ' ')}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
                       <span className="text-[11px] text-slate-500">

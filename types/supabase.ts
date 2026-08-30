@@ -100,6 +100,10 @@ type DatabaseFunctionOverrides = {
     }
     Returns: Json
   }
+  commission_source_module_overview_2026083003: {
+    Args: { p_actor_employee_id: string }
+    Returns: Json
+  }
 }
 
 export type Database = Omit<GeneratedDatabase, 'public'> & {

@@ -380,8 +380,9 @@ function RateEditor({
       {packageRate && (
         <p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-amber-700">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Stored in the commission plan now; package earnings remain held until the authoritative
-          package-profit feed is enabled.
+          Package commission is calculated only after the package is closed, paid, invoiced, and
+          financially reconciled. It remains a non-payable preview while Commission is in shadow
+          mode.
         </p>
       )}
     </fieldset>
@@ -1169,6 +1170,7 @@ export default function AdminCommissionClient({
   const scheduledProfile =
     selectedProfiles.find((profile) => profile.id === selectedEmployee?.scheduledProfileId) || null
   const selectedExceptions = data.exceptions.filter((item) => item.employeeId === selectedId)
+  const sourceModules = data.sourceModules || []
   const filteredEmployees = data.employees.filter((employee) => {
     const query = search.trim().toLowerCase()
     return (
@@ -1497,6 +1499,70 @@ export default function AdminCommissionClient({
           note="Items requiring review or retry"
           icon={AlertTriangle}
         />
+      </section>
+
+      <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
+              Source coverage
+            </p>
+            <h2 className="mt-1 text-lg font-black text-slate-950">
+              Commission across operational modules
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Ticketing and closed Packages feed the same correction-safe preview ledger. Payroll
+              remains disconnected until shadow reconciliation is signed off.
+            </p>
+          </div>
+          {!data.packageIntegrationReady && (
+            <span className="rounded-full bg-amber-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-amber-800">
+              Package database upgrade required
+            </span>
+          )}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {sourceModules.length === 0 ? (
+            <p className="rounded-xl bg-slate-50 p-4 text-xs text-slate-500 md:col-span-2">
+              Source-module health becomes available after the package integration migration.
+            </p>
+          ) : (
+            sourceModules.map((module) => (
+              <article
+                key={module.sourceModule}
+                className="rounded-2xl border border-slate-200 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-slate-900">{module.label}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {module.processedEvents} processed · {module.pendingEvents} waiting ·{' '}
+                      {module.heldEvents} held
+                    </p>
+                  </div>
+                  <span className="rounded-xl bg-slate-950 px-3 py-2 text-sm font-black text-white">
+                    {money.format(module.totalGbp)}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wide">
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
+                    {module.activeEntries} active entries
+                  </span>
+                  {module.closedRecordsMissingEvent > 0 && (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800">
+                      {module.closedRecordsMissingEvent} closed records need capture
+                    </span>
+                  )}
+                  {module.closedRecordsMissingOwner > 0 && (
+                    <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-800">
+                      {module.closedRecordsMissingOwner} missing sales owner
+                    </span>
+                  )}
+                </div>
+              </article>
+            ))
+          )}
+        </div>
       </section>
 
       <form

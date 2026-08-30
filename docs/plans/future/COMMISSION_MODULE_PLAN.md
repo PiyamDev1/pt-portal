@@ -7,20 +7,24 @@
 > reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, and future
 > source modules publish immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Phase 1 shadow capability and employee-owned agreement workflow implemented; month
-  reconciliation pending
+- **Status:** Phase 1 shadow capability, employee-owned agreements, and authoritative closed-Package
+  source integration implemented; month reconciliation pending
 - **Last updated:** August 30, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
 - **First delivery:** Employee-owned setup, Admin/HR reconciliation, and own-employee preview; no
   payable entries
 
-Implementation checkpoint on August 30, 2026: capability `2026083001` adds employee-owned GBP or
+Implementation checkpoint on August 30, 2026: capability `2026083003` includes employee-owned GBP or
 PKR compensation, audited monthly PKR-per-GBP book conversion, independent Ticket Assistance rates
 for each selected primary agent, optional Date Change marginal-tier volume, fixed Low Fare amounts,
 the complete supplier-fare-increase debit, and archive-safe marginal recalculation. The additive
 migrations retain employee-owned agreement snapshots, copy-on-create reuse, atomic per-service
-policies and assignments, effective-dated replacement, and cancellation of future changes. The calculation engine, typed
+policies and assignments, effective-dated replacement, and cancellation of future changes. Closed,
+paid, reconciled Package folders now publish correction-linked source snapshots from database
+finance records. Shared family transport references feed the one physical `Group main transport`
+row without double-counting booked cost, and received supplier commission is used instead of the
+projected value. The calculation engine, typed
 exceptions, Admin/HR reconciliation console, and daily cron route remain the same audited shadow
 foundation. Active HR department membership in Staff Management is the HR access source.
 Scheduled runs use an explicit system audit actor and do not impersonate an employee. A complete
@@ -42,6 +46,8 @@ The first usable delivery is deliberately a **shadow foundation**:
 - Authorised Admin/HR users create one complete, independently versioned agreement around an
   employee. Copying an existing agreement is a one-time fork, never a shared mutable link.
 - Existing and new Ticketing source events calculate into signed, non-payable shadow entries.
+- Closed, reconciled Package sales calculate fixed-per-package, fixed-per-passenger, percentage-of-
+  final-profit, or explicit-zero components into the same shadow ledger.
 - Monthly employee-attributed profit and sales-bonus results are reconciled internally.
 - Missing policies, inputs, or unsupported source states remain visible exceptions.
 - Employees receive a read-only view of their own agreement and clearly labelled calculation
@@ -216,14 +222,26 @@ inventing refund treatment.
 
 ### 4.4 Package facts and interim metadata
 
-Future Packages source events must provide:
+The implemented closed-Package producer provides:
 
 - Package/reservation/group identity and type.
 - Primary sales responsible employee and any separately attributed recipients.
 - Passenger count for fixed-per-passenger rules.
-- Actual settled GBP revenue, costs, supplier commissions, discounts, refunds, ticket variances,
-  and final profit before employee commission.
+- Actual settled GBP revenue, costs, received supplier commissions, discounts, supplier/customer
+  refunds, and final profit before employee commission.
 - Earned date, package lifecycle/version, location, and correction lineage.
+
+The producer runs only for a closed package and treats the source as authoritative only when it has
+an active sales owner, branch, passenger rows, completed reservations, a settled active invoice,
+paid package state, no pending payment, and GBP financial rows. Missing readiness becomes
+`package_source_not_authoritative`; it is never silently treated as zero. Reservation, invoice,
+payment, passenger, or package corrections append a superseding source version and shadow entry
+revision. Existing closed records that pre-date event capture are surfaced in the Admin module
+coverage view rather than backfilled without review.
+
+Group package transport follows the Packages accounting model: family allocation rows are retained
+as invoice references, their sold/discount/refund/received-commission values roll into the single
+physical main transport row, and their allocated booked values are excluded from Package profit.
 
 The existing `provisionalAgentCommissions` package metadata remains audit evidence only. It may be
 currency-ambiguous, calculated with browser numbers, edited manually, or already settled outside
@@ -638,8 +656,9 @@ Implementation starts with all of the following:
 
 ### Phase 4: Packages and refunds
 
-- Add authoritative settled-GBP Package and Ticketing refund/cancellation producers.
-- Enable configured Package components only after producer validation.
+- Authoritative settled-GBP closed-Package production and configured Package components are now
+  enabled in shadow mode.
+- Add authoritative Ticketing refund/cancellation producers.
 - Add provisional package metadata reconciliation and duplicate-payment prevention.
 - Add refund/late-correction impacts through signed offsets without rewriting locked statements.
 
@@ -706,8 +725,8 @@ through historical shadow reconciliation.
 ## 13. First-delivery boundaries and success criteria
 
 The shadow foundation includes no payable entry, statement, balance, payment, payroll transfer,
-Manager money view, Ticketing target card, automatic Package posting, automatic exchange rate,
-public leaderboard, or hard deletion. The own-employee view is calculation evidence only.
+Manager money view, Ticketing target card, payable Package posting, automatic exchange rate, public
+leaderboard, or hard deletion. Automatic Package source capture creates calculation evidence only.
 
 It is successful when:
 
@@ -715,6 +734,8 @@ It is successful when:
 - HR receives narrowly scoped policy-management access through Staff Management department
   allocation without becoming a portal admin.
 - Ticketing facts process deterministically into explainable, signed, non-payable shadow entries.
+- Authoritative closed-Package facts process into correction-safe, explainable, non-payable shadow
+  entries without trusting browser commission metadata or double-counting group transport.
 - Recipient and profit owner remain distinct through primary, assistance, and Low Fare cases.
 - Monthly qualifying profit subtracts every ordinary commission cost attached to the employee's own
   sales and never includes the bonus being tested.

@@ -11,6 +11,7 @@ import {
 } from '@/lib/commissions/analytics'
 import {
   COMMISSION_PROFILE_CAPABILITY_VERSION,
+  COMMISSION_PACKAGE_CAPABILITY_VERSION,
   commissionProfileSchema,
   COMMISSION_SERVICE_LABELS,
   type CommissionProfileInput,
@@ -122,13 +123,27 @@ export type CommissionMonthlyExchangeRate = {
   setAt: string
 }
 
+export type CommissionSourceModuleStatus = {
+  sourceModule: 'ticketing' | 'packages'
+  label: string
+  pendingEvents: number
+  processedEvents: number
+  heldEvents: number
+  activeEntries: number
+  totalGbp: number
+  closedRecordsMissingEvent: number
+  closedRecordsMissingOwner: number
+}
+
 export type CommissionAdminData = {
   schemaReady: boolean
   schemaVersion: number
   mode: string
+  packageIntegrationReady: boolean
   employees: CommissionAdminEmployee[]
   profiles: CommissionAdminProfile[]
   exchangeRates: CommissionMonthlyExchangeRate[]
+  sourceModules: CommissionSourceModuleStatus[]
   exceptions: CommissionAdminException[]
   overview: {
     pendingEvents: number
@@ -490,6 +505,8 @@ export async function loadCommissionAdminData(
       employees: [],
       profiles: [],
       exchangeRates: [],
+      sourceModules: [],
+      packageIntegrationReady: false,
       exceptions: [],
       overview: EMPTY_OVERVIEW,
       lastRun: null,
@@ -497,42 +514,55 @@ export async function loadCommissionAdminData(
   }
   if (profilesResult.error) throw profilesResult.error
 
-  const [employeesResult, exceptionsResult, overviewResult, runsResult, exchangeRatesResult] =
-    await Promise.all([
-      supabase
-        .from('employees')
-        .select('id, full_name, email, is_active, roles(name), locations(id, name, branch_code)')
-        .eq('is_active', true)
-        .order('full_name'),
-      supabase
-        .from('commission_exceptions')
-        .select('id, employee_id, exception_code, status, details, retry_count, created_at')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(100),
-      supabase.rpc('commission_shadow_overview_2026082901', {
-        p_actor_employee_id: actorEmployeeId,
-      }),
-      supabase
-        .from('commission_calculation_runs')
-        .select(
-          'id, status, started_at, completed_at, source_event_count, entry_count, exception_count',
-        )
-        .order('started_at', { ascending: false })
-        .limit(1),
-      profileCapabilityReady
-        ? supabase
-            .from('commission_monthly_exchange_rates')
-            .select('id, currency, period_start, units_per_gbp, created_at')
-            .order('period_start', { ascending: false })
-            .limit(24)
-        : Promise.resolve({ data: [], error: null }),
-    ])
+  const packageIntegrationReady = schemaVersion >= COMMISSION_PACKAGE_CAPABILITY_VERSION
+  const [
+    employeesResult,
+    exceptionsResult,
+    overviewResult,
+    runsResult,
+    exchangeRatesResult,
+    sourceModulesResult,
+  ] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('id, full_name, email, is_active, roles(name), locations(id, name, branch_code)')
+      .eq('is_active', true)
+      .order('full_name'),
+    supabase
+      .from('commission_exceptions')
+      .select('id, employee_id, exception_code, status, details, retry_count, created_at')
+      .eq('status', 'open')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    supabase.rpc('commission_shadow_overview_2026082901', {
+      p_actor_employee_id: actorEmployeeId,
+    }),
+    supabase
+      .from('commission_calculation_runs')
+      .select(
+        'id, status, started_at, completed_at, source_event_count, entry_count, exception_count',
+      )
+      .order('started_at', { ascending: false })
+      .limit(1),
+    profileCapabilityReady
+      ? supabase
+          .from('commission_monthly_exchange_rates')
+          .select('id, currency, period_start, units_per_gbp, created_at')
+          .order('period_start', { ascending: false })
+          .limit(24)
+      : Promise.resolve({ data: [], error: null }),
+    packageIntegrationReady
+      ? supabase.rpc('commission_source_module_overview_2026083003', {
+          p_actor_employee_id: actorEmployeeId,
+        })
+      : Promise.resolve({ data: [], error: null }),
+  ])
   if (employeesResult.error) throw employeesResult.error
   if (exceptionsResult.error) throw exceptionsResult.error
   if (overviewResult.error) throw overviewResult.error
   if (runsResult.error) throw runsResult.error
   if (exchangeRatesResult.error) throw exchangeRatesResult.error
+  if (sourceModulesResult.error) throw sourceModulesResult.error
 
   const today = new Date().toISOString().slice(0, 10)
   const profiles: CommissionAdminProfile[] = (profilesResult.data || []).map((profile) => ({
@@ -601,6 +631,7 @@ export async function loadCommissionAdminData(
     schemaReady: profileCapabilityReady,
     schemaVersion,
     mode: String(schemaStatus.mode || 'shadow'),
+    packageIntegrationReady,
     employees,
     profiles,
     exchangeRates: (exchangeRatesResult.data || []).map((rate) => ({
@@ -610,6 +641,22 @@ export async function loadCommissionAdminData(
       unitsPerGbp: numeric(rate.units_per_gbp),
       setAt: rate.created_at,
     })),
+    sourceModules: (Array.isArray(sourceModulesResult.data) ? sourceModulesResult.data : []).map(
+      (module) => {
+        const item = jsonObject(module)
+        return {
+          sourceModule: item.sourceModule === 'packages' ? 'packages' : 'ticketing',
+          label: String(item.label || item.sourceModule || 'Source module'),
+          pendingEvents: numeric(item.pendingEvents),
+          processedEvents: numeric(item.processedEvents),
+          heldEvents: numeric(item.heldEvents),
+          activeEntries: numeric(item.activeEntries),
+          totalGbp: numeric(item.totalGbp),
+          closedRecordsMissingEvent: numeric(item.closedRecordsMissingEvent),
+          closedRecordsMissingOwner: numeric(item.closedRecordsMissingOwner),
+        }
+      },
+    ),
     exceptions,
     overview: {
       pendingEvents: numeric(overview.pendingEvents),
