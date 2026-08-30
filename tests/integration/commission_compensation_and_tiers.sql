@@ -145,6 +145,15 @@ begin
   ) then
     raise exception 'Legacy GBP Commission entry was not backfilled safely';
   end if;
+  if not exists (
+    select 1
+    from public.commission_source_events event
+    join public.commission_source_event_states state on state.event_id = event.id
+    where event.source_event_id = '44000000-0000-0000-0000-000000000001'
+      and state.processing_status = 'pending'
+  ) then
+    raise exception 'Previously processed archive event was not queued for reconciliation';
+  end if;
 
   perform public.commission_set_monthly_exchange_rate_2026083001(
     '42000000-0000-0000-0000-000000000001',

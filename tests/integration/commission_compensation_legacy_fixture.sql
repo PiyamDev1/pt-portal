@@ -9,6 +9,30 @@ declare
   policy_version_id_value uuid;
   component_id_value uuid;
 begin
+  perform public.append_commission_source_event(jsonb_build_object(
+    'source_module', 'ticketing',
+    'source_event_id', '44000000-0000-0000-0000-000000000001',
+    'source_fact_key', 'test:legacy-processed-archive',
+    'source_record_id', '44000000-0000-0000-0000-000000000002',
+    'event_type', 'ticket_entry_archived',
+    'contract_version', 1,
+    'event_version', 1,
+    'supersedes_event_id', null,
+    'employee_id', '42000000-0000-0000-0000-000000000002',
+    'owner_employee_id', '42000000-0000-0000-0000-000000000002',
+    'location_id', '30000000-0000-0000-0000-000000000001',
+    'occurred_at', clock_timestamp(),
+    'effective_on', current_date,
+    'source_path', '/ticketing/ledger/test',
+    'variables', jsonb_build_object('commission_scope', 'ticket', 'archived', true),
+    'idempotency_key', 'test-legacy-processed-archive-0001'
+  ));
+  update public.commission_source_event_states state
+  set processing_status = 'processed'
+  from public.commission_source_events event
+  where state.event_id = event.id
+    and event.source_event_id = '44000000-0000-0000-0000-000000000001';
+
   insert into public.commission_calculation_runs (
     run_mode, run_type, status, triggered_by, completed_at
   ) values (

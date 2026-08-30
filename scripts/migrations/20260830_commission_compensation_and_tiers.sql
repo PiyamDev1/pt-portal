@@ -760,6 +760,33 @@ grant execute on function
   public.commission_component_amount_2026082902(uuid,jsonb,integer,integer)
   to service_role;
 
+-- Existing archive facts may have been processed by the old lineage comparison.
+-- Queue each one once under the corrected processor so current entries become
+-- zero and every later marginal entry in the month is recalculated.
+do $queue_existing_archive_reconciliation$
+begin
+  if coalesce((
+    select details -> 'capabilities' ? 'archive-shadow-requeue-complete'
+    from public.portal_schema_versions
+    where component = 'commission'
+  ), false) then
+    return;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('commission:shadow-worker', 0));
+  update public.commission_source_event_states state
+  set processing_status = 'pending',
+      next_attempt_at = null,
+      last_error = null,
+      updated_at = clock_timestamp()
+  from public.commission_source_events event
+  where state.event_id = event.id
+    and event.source_module = 'ticketing'
+    and event.event_type = 'ticket_entry_archived'
+    and state.processing_status in ('processed', 'held', 'rejected');
+end
+$queue_existing_archive_reconciliation$;
+
 insert into public.portal_schema_versions (component, version, applied_at, details)
 values (
   'commission',
@@ -778,7 +805,8 @@ values (
       'fixed-low-fare-per-ticket',
       'optional-date-change-marginal-volume',
       'monthly-pkr-gbp-book-conversion',
-      'archive-safe-marginal-recalculation'
+      'archive-safe-marginal-recalculation',
+      'archive-shadow-requeue-complete'
     )
   )
 )
@@ -786,7 +814,15 @@ on conflict (component) do update
 set version = excluded.version,
     applied_at = excluded.applied_at,
     details = excluded.details
-where public.portal_schema_versions.version < excluded.version;
+where public.portal_schema_versions.version < excluded.version
+   or (
+     public.portal_schema_versions.version = excluded.version
+     and not coalesce(
+       public.portal_schema_versions.details -> 'capabilities'
+         ? 'archive-shadow-requeue-complete',
+       false
+     )
+   );
 
 create or replace function public.commission_schema_status()
 returns jsonb
