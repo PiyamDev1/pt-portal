@@ -418,12 +418,16 @@ declare
   old_fragment text;
   new_fragment text;
 begin
-  definition := pg_get_functiondef(signature);
+  -- Older production functions were installed through a Windows SQL path and
+  -- retained CRLF inside prosrc. Normalize only the rewrite buffer so guarded
+  -- semantic fragments match identically across deployment paths.
+  definition := replace(pg_get_functiondef(signature), E'\r\n', E'\n');
   if position('includeDateChangesInMarginalTiers' in definition) > 0
     and position('_commission_period_start' in definition) > 0
     and position('missing_exchange_rate' in definition) > 0
     and position('later_state.processing_status' in definition) > 0
     and position('newer.supersedes_event_id = event.source_event_id' in definition) = 0
+    and position('previous.source_event_id = event.supersedes_event_id' in definition) = 0
   then
     return;
   end if;
@@ -434,6 +438,15 @@ begin
   updated_definition := replace(updated_definition, old_fragment, new_fragment);
   if updated_definition = definition then
     raise exception 'Commission processor source-lineage upgrade did not match'
+      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+  end if;
+  definition := updated_definition;
+
+  old_fragment := $old$previous.source_event_id = event.supersedes_event_id$old$;
+  new_fragment := $new$previous.id = event.supersedes_event_id$new$;
+  updated_definition := replace(definition, old_fragment, new_fragment);
+  if updated_definition = definition then
+    raise exception 'Commission processor previous-event lineage upgrade did not match'
       using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
   end if;
   definition := updated_definition;
@@ -599,7 +612,7 @@ declare
     end,
     qualifying_value,$new$;
 begin
-  definition := pg_get_functiondef(signature);
+  definition := replace(pg_get_functiondef(signature), E'\r\n', E'\n');
   if position('commission_exchange_rate_2026083001' in definition) > 0
     and position('newer.supersedes_event_id = event.source_event_id' in definition) = 0
   then
