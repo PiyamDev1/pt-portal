@@ -667,18 +667,16 @@ declare
     'public.commission_process_shadow_2026082902(uuid,integer,text)'::regprocedure;
   definition text;
   updated_definition text;
-  old_fragment text;
-  new_fragment text;
 begin
   definition := replace(pg_get_functiondef(signature), E'\r\n', E'\n');
   if position('commission_process_application_shadow_event_2026083005' in definition) > 0 then
     return;
   end if;
 
-  old_fragment := $old$      elsif event.source_module <> 'ticketing' then
-        failure_code := 'package_source_not_authoritative';
-        failure_details := jsonb_build_object('sourceModule', event.source_module);$old$;
-  new_fragment := $new$      elsif event.source_module = 'applications' then
+  updated_definition := regexp_replace(
+    definition,
+    $pattern$(elsif[[:space:]]+event[[:space:]]*\.[[:space:]]*source_module[[:space:]]*<>[[:space:]]*'ticketing'[[:space:]]+then[[:space:]]+failure_code[[:space:]]*:=[[:space:]]*'package_source_not_authoritative'[[:space:]]*;[[:space:]]+failure_details[[:space:]]*:=[[:space:]]*jsonb_build_object\([[:space:]]*'sourceModule'[[:space:]]*,[[:space:]]*event[[:space:]]*\.[[:space:]]*source_module[[:space:]]*\)[[:space:]]*;)$pattern$,
+    $replacement$elsif event.source_module = 'applications' then
         package_result := public.commission_process_application_shadow_event_2026083005(
           run_id_value, event.id
         );
@@ -686,12 +684,16 @@ begin
         failure_details := coalesce(package_result -> 'failureDetails', '{}'::jsonb);
         entry_count_value := entry_count_value
           + coalesce((package_result ->> 'entryCount')::integer, 0);
-      elsif event.source_module <> 'ticketing' then
-        failure_code := 'package_source_not_authoritative';
-        failure_details := jsonb_build_object('sourceModule', event.source_module);$new$;
-  updated_definition := replace(definition, old_fragment, new_fragment);
+      \1$replacement$
+  );
   if updated_definition = definition then
     raise exception 'Commission application processor branch upgrade did not match'
+      using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+  end if;
+  if position('commission_process_application_shadow_event_2026083005' in updated_definition) = 0
+    or updated_definition !~ $pattern$elsif[[:space:]]+event[[:space:]]*\.[[:space:]]*source_module[[:space:]]*=[[:space:]]*'applications'[[:space:]]+then$pattern$
+  then
+    raise exception 'Commission application processor branch upgrade is incomplete'
       using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
   end if;
 

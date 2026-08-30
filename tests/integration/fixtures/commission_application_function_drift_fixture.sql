@@ -37,3 +37,26 @@ begin
   execute updated_definition;
 end
 $application_profile_function_drift$;
+
+do $application_processor_function_drift$
+declare
+  signature constant regprocedure :=
+    'public.commission_process_shadow_2026082902(uuid,integer,text)'::regprocedure;
+  definition text;
+  updated_definition text;
+begin
+  definition := replace(pg_get_functiondef(signature), E'\r\n', E'\n');
+  updated_definition := regexp_replace(
+    definition,
+    $pattern$elsif[[:space:]]+event[[:space:]]*\.[[:space:]]*source_module[[:space:]]*<>[[:space:]]*'ticketing'[[:space:]]+then[[:space:]]+failure_code[[:space:]]*:=[[:space:]]*'package_source_not_authoritative'[[:space:]]*;[[:space:]]+failure_details[[:space:]]*:=[[:space:]]*jsonb_build_object\([[:space:]]*'sourceModule'[[:space:]]*,[[:space:]]*event[[:space:]]*\.[[:space:]]*source_module[[:space:]]*\)[[:space:]]*;$pattern$,
+    $replacement$elsif  event.source_module<>'ticketing'  then
+        failure_code:='package_source_not_authoritative';
+        failure_details:=jsonb_build_object( 'sourceModule' , event.source_module );$replacement$
+  );
+
+  if updated_definition = definition then
+    raise exception 'Application processor drift fixture did not alter the function definition';
+  end if;
+  execute updated_definition;
+end
+$application_processor_function_drift$;
