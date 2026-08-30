@@ -1689,7 +1689,7 @@ export default function AdminCommissionClient({
               href="/dashboard/admin-commission/engine"
               className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-xs font-black text-white hover:bg-white/15"
             >
-              <Settings2 className="h-4 w-4" /> Advanced engine
+              <Settings2 className="h-4 w-4" /> Shadow Console
             </Link>
             <button
               onClick={runCalculations}
@@ -2277,7 +2277,7 @@ export default function AdminCommissionClient({
           href="/dashboard/admin-commission/engine"
           className="inline-flex shrink-0 items-center gap-2 text-xs font-black text-[#8b1e2d]"
         >
-          Open reconciliation tools <ArrowRight className="h-4 w-4" />
+          Open Shadow Console <ArrowRight className="h-4 w-4" />
         </Link>
       </section>
 

@@ -6,8 +6,8 @@ import CommissionConsole from '@/app/dashboard/commissions/CommissionConsole'
 import { getCommissionPageIdentity, requireCommissionManager } from '@/lib/commissions/server'
 
 export const metadata: Metadata = {
-  title: 'Commission engine - PT Portal',
-  description: 'Advanced shadow-engine diagnostics and reconciliation',
+  title: 'Commission Shadow Console - PT Portal',
+  description: 'Non-payable Commission diagnostics and reconciliation',
 }
 
 export const dynamic = 'force-dynamic'

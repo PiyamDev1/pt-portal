@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BadgePoundSterling,
+  BookOpenCheck,
   Calculator,
   CircleCheck,
   FileClock,
@@ -196,7 +197,7 @@ export default function CommissionConsole() {
             <ShieldCheck className="h-4 w-4" /> Internal financial control
           </div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Commission reconciliation
+            Commission Shadow Console
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
             Reconcile company-wide preview calculations before payroll adoption. Employees can see
@@ -205,6 +206,12 @@ export default function CommissionConsole() {
           </p>
         </div>
         <div className="flex gap-2 self-start">
+          <Link
+            href="/dashboard/admin-commission/engine/guide"
+            className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20"
+          >
+            <BookOpenCheck className="h-4 w-4" /> Detailed guide
+          </Link>
           <button
             className={buttonClass}
             onClick={() =>
@@ -252,6 +259,22 @@ export default function CommissionConsole() {
             </button>
           )
         })}
+      </div>
+
+      <div className="mb-6 flex flex-col justify-between gap-3 rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-4 sm:flex-row sm:items-center">
+        <div>
+          <p className="text-sm font-semibold text-cyan-100">New to the Shadow Console?</p>
+          <p className="mt-1 text-xs leading-5 text-cyan-200/75">
+            Shadow uses real operational records but produces non-payable preview entries. Read the
+            guide before processing or retrying company-wide events.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/admin-commission/engine/guide"
+          className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-cyan-100"
+        >
+          Read operating instructions <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
 
       {error && <Message tone="error">{error}</Message>}

@@ -49,7 +49,12 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
     title: 'Commission menu',
     items: [
       { href: '/dashboard/admin-commission', label: 'Employee agreements', icon: UsersRound },
-      { href: '/dashboard/admin-commission/engine', label: 'Advanced engine', icon: Calculator },
+      { href: '/dashboard/admin-commission/engine', label: 'Shadow Console', icon: Calculator },
+      {
+        href: '/dashboard/admin-commission/engine/guide',
+        label: 'Shadow Console guide',
+        icon: BookOpen,
+      },
       { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
     ],
   },
