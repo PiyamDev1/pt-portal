@@ -72,6 +72,7 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 | `20260829_ticketing_fare_check_observations.sql`          | append-only no-change supplier-fare observations, complete Low Fare owner options, no Commission event, and capability `2026082904`                                                                                                    |
 | `20260830_ticketing_archive_commission_tombstones.sql`    | complete booking-derived Commission tombstones for archived Ticketing rows, historical ghost repair, nullable archive reason compatibility, and capability `2026083001`                                                                |
 | `20260830_commission_compensation_and_tiers.sql`          | per-primary-agent assistance rates, PKR compensation and audited monthly GBP conversion, full fare-increase debit, fixed Low Fare rate, optional Date Change tier volume, archive-safe tier recalculation, and capability `2026083001` |
+| `20260830_commission_profile_effective_dates.sql`         | safe past Commission effective dates, timeline conflict detection, calculated-history protection, and capability `2026083002`                                                                                                          |
 
 Apply unapplied files in filename order and track which migrations have already run. Every
 versioned Ticketing capability migration begins with a forward-version guard: the foundation supports a fresh

@@ -4,7 +4,7 @@ Commission has an employee-owned read surface and a separate Admin/HR control su
 derives the actor from the active staff session and returns private, non-cacheable data. The self
 route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
 Commission authority or live HR department membership. Employee-profile mutations require database
-capability `2026083001`; the advanced shadow engine requires `2026082903`. All calculated values in
+capability `2026083002`; the advanced shadow engine requires `2026082903`. All calculated values in
 this release are non-payable shadow evidence.
 
 ### GET `/api/commissions/me`
@@ -53,7 +53,8 @@ creates no live link. Current agreements close at the new start date; a current-
 triggers a bounded shadow-processing attempt.
 
 **Errors:** `400` for malformed or unsafe setup; `401`/`403` for access failure; `404` for a missing
-employee/location/copy source; `409` for an effective-date conflict; `503` when `2026083001` is not
+employee/location/copy source; `409` when the date overlaps a completed/later plan or protected
+calculated history; `503` when `2026083002` is not
 installed; `500` for an unexpected transactional failure.
 
 ### POST `/api/commissions/admin/exchange-rates`

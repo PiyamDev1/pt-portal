@@ -86,6 +86,20 @@ function nextMonthStart() {
     .slice(0, 10)
 }
 
+function conflictingCommissionProfile(
+  draft: CommissionProfileInput,
+  profiles: CommissionAdminProfile[],
+) {
+  return profiles.find(
+    (profile) =>
+      profile.employeeId === draft.employeeId &&
+      profile.locationId === draft.locationId &&
+      profile.cancelledAt === null &&
+      (profile.effectiveFrom >= draft.effectiveFrom ||
+        (profile.effectiveTo !== null && profile.effectiveTo >= draft.effectiveFrom)),
+  )
+}
+
 function currentMonthStart() {
   return `${todayIso().slice(0, 7)}-01`
 }
@@ -542,6 +556,7 @@ function AgreementEditor({
 }) {
   const employeeNames = new Map(employees.map((item) => [item.id, item.fullName]))
   const templates = profiles.filter((profile) => profile.configuration)
+  const dateConflict = conflictingCommissionProfile(draft, profiles)
   const updateService = (key: ServiceKey, rate: CommissionRate) => {
     setDraft({ ...draft, services: { ...draft.services, [key]: rate } })
   }
@@ -652,13 +667,13 @@ function AgreementEditor({
               <input
                 type="date"
                 value={draft.effectiveFrom}
-                min={employee.currentProfileId ? todayIso() : undefined}
                 onChange={(event) => setDraft({ ...draft, effectiveFrom: event.target.value })}
                 required
                 className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
               />
               <span className="mt-1.5 block font-normal leading-4 text-slate-400">
-                Tiered rates and monthly bonuses start on the first of a month.
+                Past dates are allowed when they do not conflict with an existing plan. Tiered
+                rates, salary, PKR pay, and monthly bonuses start on the first of a month.
               </span>
             </label>
             <label className="text-xs font-bold text-slate-600">
@@ -687,6 +702,17 @@ function AgreementEditor({
                 placeholder="Why is this commission plan being created or changed?"
               />
             </label>
+            {dateConflict && (
+              <div
+                role="alert"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900 sm:col-span-2"
+              >
+                <span className="font-black">Effective-date conflict:</span> {dateConflict.label}{' '}
+                already covers or begins after this date ({dateLabel(dateConflict.effectiveFrom)} to{' '}
+                {dateLabel(dateConflict.effectiveTo)}). Choose a date after that plan begins so it
+                can end the day before, or remove the conflicting scheduled plan first.
+              </div>
+            )}
           </section>
 
           <section className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50 p-5">
@@ -1006,7 +1032,7 @@ function AgreementEditor({
           </button>
           <button
             type="submit"
-            disabled={working}
+            disabled={working || Boolean(dateConflict)}
             className="inline-flex items-center gap-2 rounded-xl bg-[#8b1e2d] px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-red-950/15 hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {working ? (

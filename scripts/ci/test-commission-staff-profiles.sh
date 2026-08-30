@@ -10,10 +10,12 @@ commission_access="scripts/migrations/20260829_commission_hr_department_access.s
 commission_profiles="scripts/migrations/20260829_commission_staff_profiles.sql"
 commission_assistance_scope="scripts/migrations/20260829_commission_staff_profiles_assistance_scope.sql"
 commission_compensation="scripts/migrations/20260830_commission_compensation_and_tiers.sql"
+commission_profile_dates="scripts/migrations/20260830_commission_profile_effective_dates.sql"
 assertions="tests/integration/commission_staff_profiles.sql"
 assistance_assertions="tests/integration/commission_assistance_scope.sql"
 compensation_legacy_fixture="tests/integration/commission_compensation_legacy_fixture.sql"
 compensation_assertions="tests/integration/commission_compensation_and_tiers.sql"
+profile_date_assertions="tests/integration/commission_profile_effective_dates.sql"
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$source_foundation"
@@ -73,10 +75,29 @@ fi
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$compensation_assertions"
 
+first_profile_dates_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select applied_at from public.portal_schema_versions where component = 'commission'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$commission_profile_dates"
+second_profile_dates_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select applied_at from public.portal_schema_versions where component = 'commission'")"
+if [[ "$first_profile_dates_applied_at" == "$second_profile_dates_applied_at" ]]; then
+  echo "Commission profile effective-date migration did not advance the capability timestamp"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$commission_profile_dates"
+third_profile_dates_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select applied_at from public.portal_schema_versions where component = 'commission'")"
+if [[ "$second_profile_dates_applied_at" != "$third_profile_dates_applied_at" ]]; then
+  echo "Idempotent Commission profile effective-date rerun changed the capability timestamp"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$profile_date_assertions"
+
 future_marker='future-commission-profile-sentinel'
 psql "$database_url" -v ON_ERROR_STOP=1 -c "
   update public.portal_schema_versions
-  set version = 2026083002,
+  set version = 2026083003,
       details = jsonb_build_object('migration', '$future_marker')
   where component = 'commission';
 " >/dev/null
@@ -85,7 +106,7 @@ future_state_before="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
    from public.portal_schema_versions where component = 'commission'")"
 future_replay_output="$(mktemp)"
 trap 'rm -f "$future_replay_output"' EXIT
-for historical_migration in "$commission_profiles" "$commission_assistance_scope" "$commission_compensation"; do
+for historical_migration in "$commission_profiles" "$commission_assistance_scope" "$commission_compensation" "$commission_profile_dates"; do
   if psql "$database_url" -v ON_ERROR_STOP=1 -f "$historical_migration" \
     >"$future_replay_output" 2>&1; then
     echo "Historical Commission profile migration ran over a future capability"
@@ -100,7 +121,7 @@ done
 future_state_after="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select version::text || '|' || (details ->> 'migration')
    from public.portal_schema_versions where component = 'commission'")"
-if [[ "$future_state_before" != "2026083002|$future_marker" \
+if [[ "$future_state_before" != "2026083003|$future_marker" \
   || "$future_state_after" != "$future_state_before" ]]; then
   echo "Blocked historical Commission replay changed future schema state"
   exit 1

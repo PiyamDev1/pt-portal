@@ -114,7 +114,8 @@ Commission has two deliberate front doors:
   or a one-time copy of another agreement. **Edit commission** is a distinct workflow that loads
   only the employee's current values and saves an effective-dated immutable replacement. **New
   commission** starts blank or from a one-time template copy and never changes its source profile.
-  Both operations remain local to the target employee.
+  Both operations remain local to the target employee. Past effective dates are accepted when they
+  do not overlap a completed or later plan and do not rewrite already-calculated history.
 - `/dashboard/my-commissions` is available to every active employee and exposes only that
   employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and recent
   calculated entries.

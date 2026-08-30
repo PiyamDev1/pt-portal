@@ -17,7 +17,7 @@ function adminData(): CommissionAdminData {
 
   return {
     schemaReady: true,
-    schemaVersion: 2026083001,
+    schemaVersion: 2026083002,
     mode: 'shadow',
     employees: [
       {
@@ -80,6 +80,19 @@ describe('Admin Commission editor modes', () => {
       'Standard commission update',
     )
     expect((screen.getByLabelText('Branch scope') as HTMLSelectElement).value).toBe(LOCATION_ID)
+
+    fireEvent.change(screen.getByLabelText(/Effective from/), {
+      target: { value: '2026-08-01' },
+    })
+    expect(screen.getByRole('alert').textContent).toContain('Effective-date conflict')
+    expect(
+      (screen.getByRole('button', { name: 'Save edited commission' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+    fireEvent.change(screen.getByLabelText(/Effective from/), {
+      target: { value: '2026-09-01' },
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close commission plan editor' }))
     fireEvent.click(screen.getByRole('button', { name: 'New commission' }))
