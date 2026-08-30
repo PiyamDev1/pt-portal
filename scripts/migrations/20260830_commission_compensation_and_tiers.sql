@@ -539,7 +539,7 @@ begin
         from public.commission_source_events later_event,
           public.commission_source_events archived_event
         where later_state.event_id = later_event.id
-          and archived_event.source_event_id = event.supersedes_event_id
+          and archived_event.id = event.supersedes_event_id
           and later_state.processing_status = 'processed'
           and later_event.source_module = 'ticketing'
           and later_event.event_type = 'ticket_issued'

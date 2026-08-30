@@ -63,7 +63,7 @@ begin
     select 1
     from public.commission_source_events archive_event
     join public.commission_source_events adjustment_event
-      on adjustment_event.source_event_id = archive_event.supersedes_event_id
+      on adjustment_event.id = archive_event.supersedes_event_id
     where archive_event.event_type = 'ticket_entry_archived'
       and adjustment_event.variables ->> 'booking_id' = booking_id_value::text
       and adjustment_event.source_fact_key like 'fare-adjustment:%'
