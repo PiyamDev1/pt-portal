@@ -293,9 +293,11 @@ begin
     and assignment.service_code = 'tk_primary';
 
   if not exists (
-    select 1 from public.commission_entries entry
+    select 1
+    from public.commission_entries entry
+    join public.commission_source_events source_event on source_event.id = entry.source_event_id
     where entry.component_id = ticket_component_id
-      and entry.source_event_id = '43000000-0000-0000-0000-000000000003'
+      and source_event.source_event_id = '43000000-0000-0000-0000-000000000003'
       and entry.amount_pay_currency = 300
       and entry.basis_snapshot ->> 'priorMarginalUnits' = '2'
   ) then
@@ -353,9 +355,11 @@ begin
     raise exception 'Archived ticket retained Commission or marginal-tier volume';
   end if;
   if not exists (
-    select 1 from public.commission_entries entry
+    select 1
+    from public.commission_entries entry
+    join public.commission_source_events source_event on source_event.id = entry.source_event_id
     where entry.component_id = ticket_component_id
-      and entry.source_event_id = '43000000-0000-0000-0000-000000000003'
+      and source_event.source_event_id = '43000000-0000-0000-0000-000000000003'
       and entry.amount_pay_currency = 100
       and entry.basis_snapshot ->> 'priorMarginalUnits' = '1'
       and not exists (

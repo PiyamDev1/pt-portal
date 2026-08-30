@@ -28,7 +28,7 @@ $migration_guard$;
 create or replace function public.ticketing_archive_booking(
   p_actor_employee_id uuid,
   p_booking_id uuid,
-  p_reason text
+  p_reason text default null
 )
 returns jsonb
 language plpgsql
