@@ -245,7 +245,8 @@ begin
       where newer.entry_mode = entry.entry_mode and newer.supersedes_entry_id = entry.id
     );
   if active_count <> 1 or active_amount <> 45.50 then
-    raise exception 'Corrected package Commission did not leave one active 45.50 entry';
+    raise exception 'Corrected package Commission left % active entries at %, processor %',
+      active_count, active_amount, process_result;
   end if;
   if not exists (
     select 1 from public.commission_entries entry
