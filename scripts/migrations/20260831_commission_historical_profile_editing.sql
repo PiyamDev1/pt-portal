@@ -43,6 +43,9 @@ begin
     or to_regprocedure(
       'public.commission_create_assignment_2026082901(uuid,uuid,uuid,text,text,text,uuid,date,date,text)'
     ) is null
+    or to_regprocedure(
+      'public.commission_record_exception_2026082902(uuid,uuid,uuid,text,jsonb)'
+    ) is null
   then
     raise exception 'Commission profile editing prerequisites are not installed'
       using errcode = '55000';
@@ -64,6 +67,90 @@ alter table public.commission_exceptions
     'package_source_not_authoritative', 'bonus_period_incomplete',
     'calculation_failed'
   ));
+
+-- One source event can have only one current blocker. When recalculation
+-- discovers a different blocker (for example, a valid redirected policy whose
+-- PKR month lacks a book rate), retire the obsolete warning before recording
+-- the new one.
+create or replace function public.commission_record_exception_2026082902(
+  p_run_id uuid,
+  p_source_event_id uuid,
+  p_employee_id uuid,
+  p_exception_code text,
+  p_details jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+set row_security = off
+as $function$
+declare resolver_employee_id uuid;
+begin
+  select run.triggered_by into resolver_employee_id
+  from public.commission_calculation_runs run
+  where run.id = p_run_id;
+  resolver_employee_id := coalesce(resolver_employee_id, p_employee_id);
+
+  update public.commission_exceptions exception
+  set status = 'resolved',
+      resolved_by = resolver_employee_id,
+      resolved_at = clock_timestamp(),
+      resolution_note = left(
+        'Superseded by current exception: ' || p_exception_code,
+        500
+      )
+  where exception.source_event_id = p_source_event_id
+    and exception.status = 'open'
+    and exception.exception_code <> p_exception_code;
+
+  insert into public.commission_exceptions (
+    run_id, source_event_id, employee_id, exception_code, details
+  ) values (
+    p_run_id, p_source_event_id, p_employee_id, p_exception_code,
+    coalesce(p_details, '{}'::jsonb)
+  )
+  on conflict (source_event_id, exception_code)
+    where status = 'open' and source_event_id is not null
+  do update set
+    run_id = excluded.run_id,
+    employee_id = excluded.employee_id,
+    details = excluded.details;
+end
+$function$;
+
+-- Repair rows produced before the invariant above was installed. The newest
+-- open exception remains actionable; older blockers become resolved evidence.
+update public.commission_exceptions older
+set status = 'resolved',
+    resolved_by = coalesce((
+      select run.triggered_by
+      from public.commission_calculation_runs run
+      where run.id = newer.run_id
+    ), older.employee_id),
+    resolved_at = clock_timestamp(),
+    resolution_note = left(
+      'Superseded by current exception: ' || newer.exception_code,
+      500
+    )
+from (
+  select distinct on (exception.source_event_id)
+    exception.id,
+    exception.source_event_id,
+    exception.run_id,
+    exception.exception_code,
+    exception.created_at
+  from public.commission_exceptions exception
+  where exception.status = 'open' and exception.source_event_id is not null
+  order by exception.source_event_id, exception.created_at desc, exception.id desc
+) newer
+where older.source_event_id = newer.source_event_id
+  and older.status = 'open'
+  and older.id <> newer.id
+  and (
+    newer.created_at > older.created_at
+    or (newer.created_at = older.created_at and newer.id > older.id)
+  );
 
 create or replace function public.commission_replace_employee_profile_2026083008(
   p_actor_employee_id uuid,
@@ -376,7 +463,8 @@ values (
         where component = 'commission' and jsonb_typeof(details -> 'capabilities') = 'array'
       ), '[]'::jsonb) || jsonb_build_array(
         'historical-employee-profile-editing',
-        'missing-exchange-rate-exception'
+        'missing-exchange-rate-exception',
+        'current-source-exception-only'
       )
     )
 )
@@ -389,6 +477,8 @@ where public.portal_schema_versions.version < excluded.version
            ? 'historical-employee-profile-editing', false)
          or not coalesce(public.portal_schema_versions.details -> 'capabilities'
            ? 'missing-exchange-rate-exception', false)
+         or not coalesce(public.portal_schema_versions.details -> 'capabilities'
+           ? 'current-source-exception-only', false)
        ));
 
 create or replace function public.commission_schema_status()

@@ -195,3 +195,71 @@ begin
   end;
 end
 $assert_historical_profile_editing$;
+
+do $assert_current_exception_supersedes_stale_blocker$
+declare
+  source_event_id_value uuid := '44000000-0000-0000-0000-000000000081';
+  run_id_value uuid := '44000000-0000-0000-0000-000000000082';
+begin
+  if position(
+    'Superseded by current exception'
+    in pg_get_functiondef(
+      'public.commission_record_exception_2026082902(uuid,uuid,uuid,text,jsonb)'::regprocedure
+    )
+  ) = 0 then
+    raise exception 'Commission exception supersession logic is not installed';
+  end if;
+
+  insert into public.commission_source_events (
+    id, source_module, source_event_id, source_fact_key, source_record_id,
+    event_type, contract_version, event_version, supersedes_event_id,
+    employee_id, owner_employee_id, location_id, occurred_at, effective_on,
+    source_path, variables, idempotency_key
+  ) values (
+    source_event_id_value, 'applications', gen_random_uuid(),
+    'historical-edit-exception-test', gen_random_uuid(), 'application_completed',
+    1, 1, null, '42000000-0000-0000-0000-000000000008',
+    '42000000-0000-0000-0000-000000000008', null, clock_timestamp(),
+    current_date, '/test/commission-historical-editing', '{}'::jsonb,
+    'historical-edit-exception-test-v1'
+  );
+  insert into public.commission_calculation_runs (
+    id, run_mode, run_type, status, triggered_by, completed_at
+  ) values (
+    run_id_value, 'shadow', 'reprocess', 'completed',
+    '42000000-0000-0000-0000-000000000001', clock_timestamp()
+  );
+
+  perform public.commission_record_exception_2026082902(
+    run_id_value, source_event_id_value,
+    '42000000-0000-0000-0000-000000000008',
+    'needs_policy', jsonb_build_object('stage', 'before')
+  );
+  perform public.commission_record_exception_2026082902(
+    run_id_value, source_event_id_value,
+    '42000000-0000-0000-0000-000000000008',
+    'missing_exchange_rate', jsonb_build_object('stage', 'after')
+  );
+
+  if (
+    select count(*) from public.commission_exceptions
+    where source_event_id = source_event_id_value and status = 'open'
+  ) <> 1
+    or not exists (
+      select 1 from public.commission_exceptions
+      where source_event_id = source_event_id_value
+        and status = 'open'
+        and exception_code = 'missing_exchange_rate'
+    )
+    or not exists (
+      select 1 from public.commission_exceptions
+      where source_event_id = source_event_id_value
+        and status = 'resolved'
+        and exception_code = 'needs_policy'
+        and resolution_note = 'Superseded by current exception: missing_exchange_rate'
+    )
+  then
+    raise exception 'A current exception did not supersede the stale blocker';
+  end if;
+end
+$assert_current_exception_supersedes_stale_blocker$;

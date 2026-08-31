@@ -35,6 +35,8 @@ jobs:
           mkdir -p supabase/migrations
           cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
             supabase/migrations/20260831000800_commission_historical_profile_editing.sql
+          cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
+            supabase/migrations/20260831000801_commission_historical_profile_editing.sql
 
       - name: Apply capability 2026083008
         run: npx --yes supabase@latest db push --linked --yes
