@@ -81,8 +81,8 @@ export type TicketFareInput = {
   passengerType: TicketPassengerType
   quantity: number
   unitSupplierCost: number
-  unitSalePrice: number
-  unitDiscount: number
+  unitSalePrice: number | null
+  unitDiscount: number | null
 }
 
 export type CreateTkTicketInput = {

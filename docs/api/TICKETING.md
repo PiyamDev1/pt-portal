@@ -48,7 +48,13 @@ assistants. The database repeats the active-role/employee checks.
 `serviceType: "TK"`, `operationalStatus` (`held` or `issued`), `bookingDate`, branch-local
 `timeLimitAt` for Held or date-only `issuedAt` for Issued, `currency: "GBP"`, one to four unique
 `fares` (`passengerType` ADT/YTH/CHD/INF, positive integer `quantity`, non-negative
-`unitSupplierCost`, optional `unitSalePrice`, and `unitDiscount`), and optional `confirmDuplicate`.
+`unitSupplierCost`, and pricing fields), and optional `confirmDuplicate`. Standalone Issued fares
+require `unitSalePrice` and `unitDiscount` (send zero when no discount applies). For an exact
+package-reservation PNR match, omit every sale/discount value: the database uses the accepted
+quotation's passenger-level flight prices and ignores client-supplied sale values. A newly Held
+booking also omits both pricing values because its sale price is not final. All fare groups must be
+priced or omitted together.
+
 Admin callers may also provide `responsibleEmployeeId`, up to ten unique
 `assistantEmployeeIds` that exclude the responsible employee, and nullable `attributionReason`.
 The responsible employee defaults to the authenticated actor. A non-empty reason is required when
@@ -511,9 +517,10 @@ policy. An unavailable package returns `404` before internal Ticketing data is q
 
 **Input:** Package UUID path segment; no query or body.
 
-**Success:** A bounded package-workspace projection of exact PNR-linked tickets, latest fare
-variance, refunds, and vouchers, including active linked-group matches. It does not mutate released
-package finances.
+**Success:** A bounded package-workspace projection of active, non-archived exact PNR-linked
+tickets, latest fare variance, refunds, and vouchers, including active linked-group matches. The
+package UI presents this evidence in **Reservations** against the matched flight reservation. It
+does not mutate released package finances.
 
 **Errors:** `400` for an invalid UUID; `401` when signed out; `404` when the package is not visible;
 `503` until capability `2026082903` is installed; `500` if linked lifecycle data cannot be loaded.

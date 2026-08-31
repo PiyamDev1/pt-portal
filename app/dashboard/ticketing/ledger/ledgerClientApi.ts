@@ -56,7 +56,7 @@ export async function loadTicketLedger(
 }
 
 export type CreateTkTicketResult =
-  | { kind: 'created' }
+  | { kind: 'created'; pricingSource?: 'unpriced_held' | 'ticketing_ledger' | 'package_quote' }
   | { kind: 'duplicate'; existing: DuplicateTkRecord }
 
 export async function createTkTicket(
@@ -71,7 +71,9 @@ export async function createTkTicket(
     },
     body: JSON.stringify(input),
   })
-  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload & {
+    pricingSource?: 'unpriced_held' | 'ticketing_ledger' | 'package_quote'
+  }
 
   if (response.status === 409 && payload.code === 'DUPLICATE_TK' && payload.existing?.pnr) {
     return { kind: 'duplicate', existing: payload.existing }
@@ -85,7 +87,7 @@ export async function createTkTicket(
     )
   }
 
-  return { kind: 'created' }
+  return { kind: 'created', pricingSource: payload.pricingSource }
 }
 
 export async function correctTicketAttribution(

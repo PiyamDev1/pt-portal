@@ -59,7 +59,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
       resolution_method, detected_at,
       ticket_bookings!inner(
         id, pnr, customer_name, operational_status, payment_status, departure_date,
-        return_date, commission_scope, package_match_status,
+        return_date, commission_scope, package_match_status, archived_at,
         airlines!inner(id, iata_code, name),
         owner_employee:employees!ticket_bookings_owner_employee_id_fkey(id, full_name),
         ticket_transactions!inner(
@@ -72,6 +72,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     `,
     )
     .is('retired_at', null)
+    .is('ticket_bookings.archived_at', null)
     .eq('match_status', 'matched')
     .or(linkFilter.join(','))
     .order('detected_at', { ascending: false })

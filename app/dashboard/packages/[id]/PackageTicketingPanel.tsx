@@ -15,6 +15,13 @@ type PackageTicketingItem = {
   returnDate: string | null
   issuedAt: string | null
   commissionScope: string
+  match: {
+    packageId: string | null
+    reservationId: string | null
+    groupId: string | null
+    packageType: string | null
+    resolutionMethod: string
+  }
   passengers: Array<{
     allocationId: string
     ticketNumber: string | null
@@ -58,7 +65,13 @@ function gbp(value: string | number | null) {
   return Number.isFinite(amount) ? `£${amount.toFixed(2)}` : 'Unavailable'
 }
 
-export default function PackageTicketingPanel({ packageId }: { packageId: string }) {
+export default function PackageTicketingPanel({
+  packageId,
+  reservationLabels = {},
+}: {
+  packageId: string
+  reservationLabels?: Record<string, string>
+}) {
   const [data, setData] = useState<PackageTicketingResponse>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -83,6 +96,16 @@ export default function PackageTicketingPanel({ packageId }: { packageId: string
 
   useEffect(() => {
     void load()
+    const refreshVisiblePackage = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    window.addEventListener('focus', refreshVisiblePackage)
+    document.addEventListener('visibilitychange', refreshVisiblePackage)
+
+    return () => {
+      window.removeEventListener('focus', refreshVisiblePackage)
+      document.removeEventListener('visibilitychange', refreshVisiblePackage)
+    }
     // The package route controls the stable identifier for this panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packageId])
@@ -101,8 +124,8 @@ export default function PackageTicketingPanel({ packageId }: { packageId: string
             </p>
             <h2 className="text-lg font-black text-slate-950">Linked package tickets</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Ticketing classifies an exact matching flight PNR as a package item automatically.
-              This view is operational only and does not alter released package figures.
+              Ticketing classifies an exact matching flight PNR against the reservation below.
+              Returning to this page refreshes new links automatically.
             </p>
           </div>
         </div>
@@ -157,6 +180,12 @@ export default function PackageTicketingPanel({ packageId }: { packageId: string
                   <p className="mt-1 text-xs font-bold text-slate-600">
                     {item.airline?.iataCode || 'Airline'} · {item.customerName} ·{' '}
                     {item.owner?.fullName || 'Owner unavailable'}
+                  </p>
+                  <p className="mt-1 text-xs font-black text-violet-800">
+                    Matched to:{' '}
+                    {item.match.reservationId
+                      ? reservationLabels[item.match.reservationId] || 'Flight reservation'
+                      : 'Linked package group'}
                   </p>
                 </div>
                 <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black uppercase text-violet-800">

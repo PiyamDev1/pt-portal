@@ -10,6 +10,7 @@ export const TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION = 2026082802
 export const TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION =
   TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION
 export const TICKET_ARCHIVE_COMMISSION_TOMBSTONE_CAPABILITY_VERSION = 2026083001
+export const TICKET_UNPRICED_HELD_CAPABILITY_VERSION = 2026083101
 export const TICKET_QUICK_ENTRY_STATUSES = ['held', 'issued'] as const
 export const TICKET_DETAILS_STATUSES = ['needs_details', 'complete', 'recorded'] as const
 export const TICKET_SUPPLIER_CODES = [
@@ -73,14 +74,29 @@ export const ticketingQuickFareSchema = z
     passengerType: z.enum(TICKET_PASSENGER_TYPES),
     quantity: z.number().int().min(1).max(99),
     unitSupplierCost: z.number().finite().min(0).max(99_999_999.99),
-    unitSalePrice: z.number().finite().min(0).max(99_999_999.99),
-    unitDiscount: z.number().finite().min(0).max(99_999_999.99),
+    unitSalePrice: z.number().finite().min(0).max(99_999_999.99).nullable(),
+    unitDiscount: z.number().finite().min(0).max(99_999_999.99).nullable(),
   })
   .strict()
-  .refine((fare) => fare.unitDiscount <= fare.unitSalePrice, {
-    path: ['unitDiscount'],
-    message: 'Discount cannot exceed the sale price',
-  })
+  .refine(
+    (fare) =>
+      (fare.unitSalePrice === null && fare.unitDiscount === null) ||
+      (fare.unitSalePrice !== null && fare.unitDiscount !== null),
+    {
+      path: ['unitDiscount'],
+      message: 'Sale price and discount must either both be supplied or both be omitted',
+    },
+  )
+  .refine(
+    (fare) =>
+      fare.unitSalePrice === null ||
+      fare.unitDiscount === null ||
+      fare.unitDiscount <= fare.unitSalePrice,
+    {
+      path: ['unitDiscount'],
+      message: 'Discount cannot exceed the sale price',
+    },
+  )
 
 export const ticketingQuickTkSchema = z
   .object({
@@ -113,6 +129,15 @@ export const ticketingQuickTkSchema = z
   })
   .strict()
   .superRefine((entry, context) => {
+    const unpricedFareCount = entry.fares.filter((fare) => fare.unitSalePrice === null).length
+    if (unpricedFareCount > 0 && unpricedFareCount < entry.fares.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['fares'],
+        message: 'Sale prices must all be supplied or all be omitted for package pricing',
+      })
+    }
+
     if (entry.operationalStatus === 'held' && !entry.timeLimitAt) {
       context.addIssue({
         code: 'custom',
@@ -254,5 +279,6 @@ export type TicketingQuickTkResult = {
   paymentStatus: 'unpaid'
   passengerCount: number
   packageMatchStatus: 'unmatched' | 'matched' | 'ambiguous'
+  pricingSource: 'unpriced_held' | 'ticketing_ledger' | 'package_quote'
   idempotentReplay: boolean
 }

@@ -101,6 +101,55 @@ describe('TicketQuickEntryForm', () => {
     expect((screen.getByLabelText('Airline') as HTMLInputElement).value).toBe('TK')
   })
 
+  it('shows sale price by default and reveals discount only when selected', () => {
+    render(
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('ADT unit sale price')).toBeTruthy()
+    expect(screen.queryByLabelText('ADT unit discount')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('ADT has discount'))
+
+    expect(screen.getByLabelText('ADT unit discount')).toBeTruthy()
+  })
+
+  it('submits blank Issued sale values for package quotation pricing', async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { bookingId: 'booking-package', pricingSource: 'package_quote' },
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
+    )
+
+    fillRequiredIssuedFields()
+    fireEvent.change(screen.getByLabelText('ADT unit sale price'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save TK' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).fares[0]).toMatchObject({
+      unitSalePrice: null,
+      unitDiscount: null,
+    })
+    expect(toastMocks.success).toHaveBeenCalledWith(
+      'TK ticket saved using package quotation prices',
+    )
+  })
+
   it('saves with Ctrl+Enter and resolves the Airline supplier label from the selected code', async () => {
     const fetchMock = vi.fn(async () => Response.json({ bookingId: 'booking-1' }, { status: 201 }))
     vi.stubGlobal('fetch', fetchMock)
@@ -142,6 +191,11 @@ describe('TicketQuickEntryForm', () => {
 
     fillRequiredIssuedFields()
     fireEvent.change(screen.getByLabelText('Ticket state'), { target: { value: 'held' } })
+    expect(screen.queryByLabelText('ADT unit sale price')).toBeNull()
+    expect(screen.queryByLabelText('ADT has discount')).toBeNull()
+    expect(
+      screen.getAllByText('Sale price and discount are added after this Held booking is issued.'),
+    ).toHaveLength(4)
     fireEvent.click(screen.getByRole('button', { name: 'Save TK' }))
 
     expect(screen.getByText('A held booking needs an airline time limit.')).toBeTruthy()
@@ -159,6 +213,7 @@ describe('TicketQuickEntryForm', () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
     expect(body.timeLimitAt).toBe('2026-09-01T16:30')
     expect(body.issuedAt).toBeNull()
+    expect(body.fares[0]).toMatchObject({ unitSalePrice: null, unitDiscount: null })
   })
 
   it('rejects a held deadline before the booking date', () => {

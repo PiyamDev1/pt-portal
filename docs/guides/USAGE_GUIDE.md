@@ -83,6 +83,21 @@ Packages is an implemented quote-to-operations workflow:
 
 Customer views show sale totals and allocations, never internal component costs. Visa cost is allocated to the affected passenger without exposing the agent's underlying visa cost. See [Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
 
+## Ticketing
+
+Fast Entry records a TK booking's passenger mix and supplier cost. For an **Issued** booking, enter
+the sale price for each used passenger type only when it is a standalone ticket. For a package PNR,
+leave every sale price blank: the accepted quotation supplies the passenger-level flight prices and
+the ledger cannot override them. The discount control stays hidden unless **Discount applied** is
+selected; leave it unticked when a standalone customer received no discount. For an initial
+**Held** booking, enter the airline time limit but do not enter a sale price or discount. Those
+amounts are deliberately left unpriced until the booking is issued.
+
+When a Ticketing PNR exactly matches a package flight reservation PNR, the ticket is classified as
+a package item automatically. Open the package's **Reservations** tab to see **Exact PNR matches**
+and the reservation each ticket matched. The panel refreshes when the tab is opened, when the
+browser returns to it, or when **Refresh** is selected. Archived Ticketing records are excluded.
+
 ## Bookings
 
 Bookings provides branch/service-aware availability, day/week/list operations, drafts, saved preferences, waitlist, create/edit/reschedule/status flows, manual time overrides, email confirmations/resends/reminders, attendance links, no-show tracking, history, CSV export, and reporting.

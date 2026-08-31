@@ -2703,7 +2703,6 @@ Please enter the access code and accept the data handling terms before downloadi
                   onInvoiceChange={handleOperationsInvoiceChange}
                 />
               </section>
-              <PackageTicketingPanel packageId={packageId} />
             </>
           )}
 
@@ -3456,7 +3455,17 @@ Please enter the access code and accept the data handling terms before downloadi
           )}
 
           {activePackageTab === 'reservations' && (
-            <div
+            <>
+              <div className="mb-6">
+                <PackageTicketingPanel
+                  packageId={packageId}
+                  reservationLabels={Object.fromEntries(
+                    reservations.map((reservation) => [reservation.id, reservation.title]),
+                  )}
+                />
+              </div>
+              {/* prettier-ignore */}
+              <div
               id="package-reservations"
               className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
             >
@@ -5258,6 +5267,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 )}
               </div>
             </div>
+            </>
           )}
 
           {activePackageTab === 'invoice' && (

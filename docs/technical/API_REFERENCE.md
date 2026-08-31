@@ -267,7 +267,10 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 The My Sales Ledger endpoint verifies an active Ticketing department member or Ticketing oversight
 role; regular staff receive their own records and Admin/Master Admin/Super Admin receive the bounded
 team ledger. Quick TK creation is one retry-safe database operation, snapshots the chosen supplier,
-and performs duplicate confirmation and package-PNR matching atomically. The detail route lazily
+and performs duplicate confirmation and package-PNR matching atomically. Standalone Issued quick
+entries require a sale price and reveal the discount amount only when a discount is selected;
+package matches use the accepted quotation's passenger flight prices, while initial Held entries
+remain unpriced until issue. The detail route lazily
 loads and atomically completes customer, journey, grouped sale/payment, and passenger-slot details
 with optimistic versions and retry-safe conflict handling. Posted sale values remain locked for
 staff; the same admin roles use a separate audited correction boundary.
@@ -287,7 +290,8 @@ deadline history; same-airline replacement use is enforced server-side. Refund r
 cancellation formula snapshot and replacement choice, then append actual customer settlement,
 airline recovery, and cost evidence until final P&L is known. Low Fare records both changed fares
 and append-only no-change checks, with complete owner filter options and no no-change Commission
-event. Exact PNR-linked ticket/refund/voucher status is also visible inside the package workspace.
+event. Active, non-archived exact PNR-linked ticket/refund/voucher status is visible against the
+matched flight reservation in the package Reservations workspace.
 
 Flight Monitoring remains intentionally shared across agents but exposes only operational flight,
 passenger, contact, owner, schedule-case, and provider-observation context. AeroDataBox automation

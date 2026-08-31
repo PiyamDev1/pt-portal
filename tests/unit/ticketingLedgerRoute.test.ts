@@ -147,7 +147,7 @@ describe('/api/ticketing/ledger', () => {
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
+          data: { ready: true, version: 2026083101, requiredVersion: 2026083101 },
           error: null,
         }
       }
@@ -163,6 +163,7 @@ describe('/api/ticketing/ledger', () => {
             passengerTicketCount: 1,
           },
           packageMatch: { status: 'unmatched' },
+          pricingSource: 'unpriced_held',
           idempotentReplay: false,
         },
         error: null,
@@ -621,6 +622,65 @@ describe('/api/ticketing/ledger', () => {
     expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
+  it('accepts a Held quick entry without sale or discount values', async () => {
+    const response = await POST(
+      postRequest({
+        ...validEntry(),
+        fares: [
+          {
+            passengerType: 'ADT',
+            quantity: 1,
+            unitSupplierCost: 400,
+            unitSalePrice: null,
+            unitDiscount: null,
+          },
+        ],
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_create_quick_tk_supplied',
+      expect.objectContaining({
+        p_entry: expect.objectContaining({
+          operationalStatus: 'held',
+          fares: [expect.objectContaining({ unitSalePrice: null, unitDiscount: null })],
+        }),
+      }),
+    )
+  })
+
+  it('accepts an Issued quick entry without sale values for database package-quote resolution', async () => {
+    const response = await POST(
+      postRequest({
+        ...validEntry(),
+        operationalStatus: 'issued',
+        timeLimitAt: null,
+        issuedAt: '2026-08-22',
+        fares: [
+          {
+            passengerType: 'ADT',
+            quantity: 1,
+            unitSupplierCost: 400,
+            unitSalePrice: null,
+            unitDiscount: null,
+          },
+        ],
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_create_quick_tk_supplied',
+      expect.objectContaining({
+        p_entry: expect.objectContaining({
+          operationalStatus: 'issued',
+          fares: [expect.objectContaining({ unitSalePrice: null, unitDiscount: null })],
+        }),
+      }),
+    )
+  })
+
   it('rejects an aggregate passenger count above the quick-entry limit', async () => {
     const response = await POST(
       postRequest({
@@ -930,7 +990,7 @@ describe('/api/ticketing/ledger', () => {
 
   it('accepts a singleton array from the schema status RPC', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: [{ ready: true, version: 2026082802, requiredVersion: 2026082802 }],
+      data: [{ ready: true, version: 2026083101, requiredVersion: 2026083101 }],
       error: null,
     })
 

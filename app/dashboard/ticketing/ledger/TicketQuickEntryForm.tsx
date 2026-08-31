@@ -19,7 +19,13 @@ const MONEY_PATTERN = /^\d+(?:\.\d{1,2})?$/
 
 type FareDraft = Record<
   TicketPassengerType,
-  { quantity: string; unitSupplierCost: string; unitSalePrice: string; unitDiscount: string }
+  {
+    quantity: string
+    unitSupplierCost: string
+    unitSalePrice: string
+    hasDiscount: boolean
+    unitDiscount: string
+  }
 >
 
 type QuickEntryDraft = {
@@ -70,10 +76,34 @@ function initialDraft(
     timeLimitAt: '',
     issuedAt: today,
     fares: {
-      ADT: { quantity: '1', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
-      YTH: { quantity: '0', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
-      CHD: { quantity: '0', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
-      INF: { quantity: '0', unitSupplierCost: '', unitSalePrice: '', unitDiscount: '0' },
+      ADT: {
+        quantity: '1',
+        unitSupplierCost: '',
+        unitSalePrice: '',
+        hasDiscount: false,
+        unitDiscount: '0',
+      },
+      YTH: {
+        quantity: '0',
+        unitSupplierCost: '',
+        unitSalePrice: '',
+        hasDiscount: false,
+        unitDiscount: '0',
+      },
+      CHD: {
+        quantity: '0',
+        unitSupplierCost: '',
+        unitSalePrice: '',
+        hasDiscount: false,
+        unitDiscount: '0',
+      },
+      INF: {
+        quantity: '0',
+        unitSupplierCost: '',
+        unitSalePrice: '',
+        hasDiscount: false,
+        unitDiscount: '0',
+      },
     },
     responsibleEmployeeId,
     assistantEmployeeIds: [],
@@ -223,27 +253,40 @@ export function TicketQuickEntryForm({
           'Fare cost is above the allowed limit.'
         return []
       }
-      if (!MONEY_PATTERN.test(fare.unitSalePrice)) {
-        nextErrors[`fare.${passengerType}.unitSalePrice`] =
-          'Enter the sale price per ticket with up to 2 decimals.'
-        return []
-      }
-      if (!MONEY_PATTERN.test(fare.unitDiscount)) {
-        nextErrors[`fare.${passengerType}.unitDiscount`] =
-          'Enter the discount per ticket with up to 2 decimals.'
-        return []
-      }
-      const unitSalePrice = Number(fare.unitSalePrice)
-      const unitDiscount = Number(fare.unitDiscount)
-      if (unitSalePrice > 99_999_999.99 || unitDiscount > unitSalePrice) {
-        nextErrors[`fare.${passengerType}.unitDiscount`] =
-          unitDiscount > unitSalePrice
-            ? 'Discount cannot exceed the sale price.'
-            : 'Sale price is above the allowed limit.'
-        return []
+      let unitSalePrice: number | null = null
+      let unitDiscount: number | null = null
+      if (draft.operationalStatus === 'issued' && fare.unitSalePrice.trim()) {
+        if (!MONEY_PATTERN.test(fare.unitSalePrice.trim())) {
+          nextErrors[`fare.${passengerType}.unitSalePrice`] =
+            'Enter the sale price per ticket with up to 2 decimals.'
+          return []
+        }
+        const discountInput = fare.hasDiscount ? fare.unitDiscount : '0'
+        if (!MONEY_PATTERN.test(discountInput)) {
+          nextErrors[`fare.${passengerType}.unitDiscount`] =
+            'Enter the discount per ticket with up to 2 decimals.'
+          return []
+        }
+        unitSalePrice = Number(fare.unitSalePrice)
+        unitDiscount = Number(discountInput)
+        if (unitSalePrice > 99_999_999.99 || unitDiscount > unitSalePrice) {
+          nextErrors[`fare.${passengerType}.unitDiscount`] =
+            unitDiscount > unitSalePrice
+              ? 'Discount cannot exceed the sale price.'
+              : 'Sale price is above the allowed limit.'
+          return []
+        }
       }
       return [{ passengerType, quantity, unitSupplierCost, unitSalePrice, unitDiscount }]
     })
+
+    if (draft.operationalStatus === 'issued') {
+      const pricedFareCount = fares.filter((fare) => fare.unitSalePrice !== null).length
+      if (pricedFareCount > 0 && pricedFareCount < fares.length) {
+        nextErrors.fares =
+          'Enter every standalone sale price, or leave every sale price blank for a package PNR.'
+      }
+    }
 
     if (fares.length === 0 && !Object.keys(nextErrors).some((key) => key.startsWith('fare.'))) {
       nextErrors.fares = 'Add at least one ADT, YTH, CHD, or INF passenger.'
@@ -284,7 +327,11 @@ export function TicketQuickEntryForm({
         return
       }
 
-      toast.success('TK ticket saved to the sales ledger')
+      toast.success(
+        result.pricingSource === 'package_quote'
+          ? 'TK ticket saved using package quotation prices'
+          : 'TK ticket saved to the sales ledger',
+      )
       reset(true)
       void onCreated()
     } catch (error) {
@@ -537,8 +584,14 @@ export function TicketQuickEntryForm({
 
           <fieldset aria-describedby={errors.fares ? 'ticket-fares-error' : undefined}>
             <legend className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-              Passenger mix and unit fare cost
+              Passenger mix and pricing
             </legend>
+            {draft.operationalStatus === 'issued' && (
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Package PNR: leave every sale price blank; the accepted quotation supplies each
+                passenger rate. Standalone ticket: enter every sale price below.
+              </p>
+            )}
             <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {PASSENGER_TYPES.map((passengerType) => {
                 const fare = draft.fares[passengerType]
@@ -580,6 +633,10 @@ export function TicketQuickEntryForm({
                                     Number(event.target.value) === 0
                                       ? ''
                                       : current.fares[passengerType].unitSalePrice,
+                                  hasDiscount:
+                                    Number(event.target.value) === 0
+                                      ? false
+                                      : current.fares[passengerType].hasDiscount,
                                   unitDiscount:
                                     Number(event.target.value) === 0
                                       ? '0'
@@ -620,56 +677,99 @@ export function TicketQuickEntryForm({
                           placeholder={disabled ? 'Not used' : '0.00'}
                         />
                       </label>
-                      <label className="text-[11px] font-bold text-slate-600">
-                        Sale price (£)
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={fare.unitSalePrice}
-                          disabled={disabled || isSaving}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              fares: {
-                                ...current.fares,
-                                [passengerType]: {
-                                  ...current.fares[passengerType],
-                                  unitSalePrice: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                          aria-label={`${passengerType} unit sale price`}
-                          aria-invalid={Boolean(saleError)}
-                          className={fieldClass(Boolean(saleError))}
-                          placeholder={disabled ? 'Not used' : '0.00'}
-                        />
-                      </label>
-                      <label className="text-[11px] font-bold text-slate-600">
-                        Discount (£)
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={fare.unitDiscount}
-                          disabled={disabled || isSaving}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              fares: {
-                                ...current.fares,
-                                [passengerType]: {
-                                  ...current.fares[passengerType],
-                                  unitDiscount: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                          aria-label={`${passengerType} unit discount`}
-                          aria-invalid={Boolean(discountError)}
-                          className={fieldClass(Boolean(discountError))}
-                          placeholder="0.00"
-                        />
-                      </label>
+                      {draft.operationalStatus === 'issued' ? (
+                        <>
+                          <label className="text-[11px] font-bold text-slate-600">
+                            Sale price (£) — standalone only
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={fare.unitSalePrice}
+                              disabled={disabled || isSaving}
+                              onChange={(event) =>
+                                updateDraft((current) => ({
+                                  ...current,
+                                  fares: {
+                                    ...current.fares,
+                                    [passengerType]: {
+                                      ...current.fares[passengerType],
+                                      unitSalePrice: event.target.value,
+                                      hasDiscount: event.target.value.trim()
+                                        ? current.fares[passengerType].hasDiscount
+                                        : false,
+                                      unitDiscount: event.target.value.trim()
+                                        ? current.fares[passengerType].unitDiscount
+                                        : '0',
+                                    },
+                                  },
+                                }))
+                              }
+                              aria-label={`${passengerType} unit sale price`}
+                              aria-invalid={Boolean(saleError)}
+                              className={fieldClass(Boolean(saleError))}
+                              placeholder={disabled ? 'Not used' : 'Package quote or 0.00'}
+                            />
+                          </label>
+                          <div className="text-[11px] font-bold text-slate-600">
+                            <label className="mt-1 flex min-h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5">
+                              <input
+                                type="checkbox"
+                                checked={fare.hasDiscount}
+                                disabled={disabled || isSaving}
+                                onChange={(event) =>
+                                  updateDraft((current) => ({
+                                    ...current,
+                                    fares: {
+                                      ...current.fares,
+                                      [passengerType]: {
+                                        ...current.fares[passengerType],
+                                        hasDiscount: event.target.checked,
+                                        unitDiscount: event.target.checked
+                                          ? current.fares[passengerType].unitDiscount
+                                          : '0',
+                                      },
+                                    },
+                                  }))
+                                }
+                                aria-label={`${passengerType} has discount`}
+                                className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                              />
+                              Discount applied
+                            </label>
+                          </div>
+                          {fare.hasDiscount && (
+                            <label className="col-span-2 text-[11px] font-bold text-slate-600">
+                              Discount per ticket (£)
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={fare.unitDiscount}
+                                disabled={disabled || isSaving}
+                                onChange={(event) =>
+                                  updateDraft((current) => ({
+                                    ...current,
+                                    fares: {
+                                      ...current.fares,
+                                      [passengerType]: {
+                                        ...current.fares[passengerType],
+                                        unitDiscount: event.target.value,
+                                      },
+                                    },
+                                  }))
+                                }
+                                aria-label={`${passengerType} unit discount`}
+                                aria-invalid={Boolean(discountError)}
+                                className={fieldClass(Boolean(discountError))}
+                                placeholder="0.00"
+                              />
+                            </label>
+                          )}
+                        </>
+                      ) : (
+                        <p className="col-span-2 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-3 py-2.5 text-[11px] font-bold text-amber-900">
+                          Sale price and discount are added after this Held booking is issued.
+                        </p>
+                      )}
                     </div>
                     {(quantityError || costError || saleError || discountError) && (
                       <p id={fareErrorId} className="mt-2 text-xs font-semibold text-red-700">

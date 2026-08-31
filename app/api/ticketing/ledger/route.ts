@@ -9,7 +9,7 @@ import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { type TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
 import {
   ticketingQuickTkSchema,
-  TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION,
+  TICKET_UNPRICED_HELD_CAPABILITY_VERSION,
   type TicketingAirlineOption,
   type TicketingLedgerFare,
   type TicketingLedgerItem,
@@ -23,7 +23,7 @@ import {
 } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_RUNTIME_VERSION = TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION
+const TICKETING_RUNTIME_VERSION = TICKET_UNPRICED_HELD_CAPABILITY_VERSION
 const LEDGER_MAX_LIMIT = 100
 
 const ledgerCursorSchema = z
@@ -173,6 +173,7 @@ type TicketingQuickTkRpcResult = {
     passengerTicketCount?: number
   }
   packageMatch?: { status?: string }
+  pricingSource?: string
   idempotentReplay?: boolean
 }
 
@@ -339,6 +340,13 @@ function mutationError(error: TicketingRpcError) {
     return apiError('A reason is required when changing ticket attribution.', 400, {
       code: 'ATTRIBUTION_REASON_REQUIRED',
     })
+  }
+  if (hint === 'TICKETING_STANDALONE_SALE_REQUIRED') {
+    return apiError(
+      'No package quotation price matched this PNR. Enter every standalone sale price.',
+      400,
+      { code: 'STANDALONE_SALE_REQUIRED' },
+    )
   }
   if (error.code === '22023' && /employees? (?:is|are) invalid or inactive/i.test(message)) {
     return apiError('Select active employees for the responsible and assistant roles.', 400, {
@@ -615,13 +623,16 @@ export async function POST(request: NextRequest) {
 
   const packageMatchStatus = rpcResult.packageMatch?.status
   const operationalStatus = rpcResult.transaction.operationalStatus
+  const pricingSource = rpcResult.pricingSource
   if (
     !['held', 'issued'].includes(String(operationalStatus || '')) ||
-    !['unmatched', 'matched', 'ambiguous'].includes(String(packageMatchStatus || ''))
+    !['unmatched', 'matched', 'ambiguous'].includes(String(packageMatchStatus || '')) ||
+    !['unpriced_held', 'ticketing_ledger', 'package_quote'].includes(String(pricingSource || ''))
   ) {
     console.error('[ticketing] quick entry RPC returned invalid ticket status data', {
       operationalStatus,
       packageMatchStatus,
+      pricingSource,
     })
     return apiError('Ticketing returned an invalid save result.', 500)
   }
@@ -634,6 +645,7 @@ export async function POST(request: NextRequest) {
     paymentStatus: 'unpaid',
     passengerCount: Number(rpcResult.transaction.passengerTicketCount || 0),
     packageMatchStatus: packageMatchStatus as TicketingQuickTkResult['packageMatchStatus'],
+    pricingSource: pricingSource as TicketingQuickTkResult['pricingSource'],
     idempotentReplay: rpcResult.idempotentReplay === true,
   }
 
