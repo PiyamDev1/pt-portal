@@ -211,6 +211,10 @@ update public.travel_package_reservations
 set sold_price_total = 200
 where id = '70000000-0000-0000-0000-000000000102';
 
+update public.travel_package_invoices
+set total_sold = 700
+where id = '72000000-0000-0000-0000-000000000101';
+
 do $assert_correction$
 declare source_event public.commission_source_events%rowtype;
 declare process_result jsonb;
@@ -224,7 +228,7 @@ begin
     and event.source_fact_key = 'package-sale:60000000-0000-0000-0000-000000000101'
   order by event.event_version desc
   limit 1;
-  if source_event.event_version <> 2
+  if source_event.event_version <> 3
     or source_event.supersedes_event_id is null
     or (source_event.variables ->> 'package_profit_gbp')::numeric <> 455
   then raise exception 'Package correction lineage or recalculated profit is wrong: %', source_event; end if;
