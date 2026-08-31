@@ -532,13 +532,15 @@ The directory is delivered through the authenticated staff route; `anon` and `au
 not receive direct table access.
 
 **Input:** Optional strict `q` search of 1–80 letters, numbers, spaces, or hyphens across the IATA
-prefix, airport name, and city. Optional `limit` is `1`–`100` and defaults to `50`. Repeated or
-unknown query keys are rejected.
+prefix, airport name, and city. Existing itineraries may instead send a comma-separated `codes`
+batch containing up to 24 three-letter IATA codes. `q` and `codes` are mutually exclusive.
+Optional `limit` is `1`–`100` and defaults to `50`. Repeated or unknown query keys are rejected.
 
 **Success:** `200` with `items`, ordered by IATA code. Every active item contains `iataCode`,
 `name`, `city`, two-letter `countryCode`, and the authoritative IANA `timezone`. The timezone is
 display context only; itinerary mutations submit the airport code and the database derives the
-stored timezone and UTC instant.
+stored timezone and UTC instant. The ledger performs bounded, debounced lookups and retains
+completed query results in the browser session instead of loading the full airport directory.
 
 **Errors:** `400` for malformed filters; `401`/`403` for access failures; `429` when rate limited;
 `503` when capability `2026082602` is absent; `500` when the directory cannot be loaded or mapped

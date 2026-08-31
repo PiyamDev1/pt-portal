@@ -13,6 +13,7 @@ import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
+const MAX_CODE_LOOKUP = 24
 
 const airportQuerySchema = z
   .object({
@@ -23,7 +24,24 @@ const airportQuerySchema = z
       .max(80)
       .regex(/^[\p{L}\p{N} -]+$/u, 'Use letters or numbers to search airports')
       .optional(),
+    codes: z
+      .string()
+      .trim()
+      .min(3)
+      .max(MAX_CODE_LOOKUP * 4 - 1)
+      .transform((value) => [...new Set(value.split(',').map((code) => code.trim().toUpperCase()))])
+      .refine(
+        (codes) =>
+          codes.length >= 1 &&
+          codes.length <= MAX_CODE_LOOKUP &&
+          codes.every((code) => /^[A-Z]{3}$/.test(code)),
+        'Use valid three-letter airport codes',
+      )
+      .optional(),
     limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
+  })
+  .refine((value) => !(value.q && value.codes), {
+    message: 'Search by text or airport codes, not both',
   })
   .strict()
 
@@ -43,8 +61,9 @@ function privateError(message: string, status: number) {
 function parseQuery(request: NextRequest) {
   const keys = [...request.nextUrl.searchParams.keys()]
   if (
-    keys.some((key) => key !== 'q' && key !== 'limit') ||
+    keys.some((key) => key !== 'q' && key !== 'codes' && key !== 'limit') ||
     request.nextUrl.searchParams.getAll('q').length > 1 ||
+    request.nextUrl.searchParams.getAll('codes').length > 1 ||
     request.nextUrl.searchParams.getAll('limit').length > 1
   ) {
     return null
@@ -52,6 +71,7 @@ function parseQuery(request: NextRequest) {
 
   return airportQuerySchema.safeParse({
     q: request.nextUrl.searchParams.get('q') || undefined,
+    codes: request.nextUrl.searchParams.get('codes') || undefined,
     limit: request.nextUrl.searchParams.get('limit') || undefined,
   })
 }
@@ -93,9 +113,7 @@ export async function GET(request: NextRequest) {
   if (!rateLimit.allowed) return rateLimit.response
 
   const supabase = getServiceSupabaseClient()
-  const { data: capability, error: capabilityError } = await supabase.rpc(
-    'ticketing_schema_status',
-  )
+  const { data: capability, error: capabilityError } = await supabase.rpc('ticketing_schema_status')
   if (
     capabilityError ||
     !hasTicketingSchemaCapability(capability, TICKET_ITINERARY_CAPABILITY_VERSION)
@@ -108,7 +126,9 @@ export async function GET(request: NextRequest) {
     .select('iata_code, name, city, country_code, timezone, is_active')
     .eq('is_active', true)
 
-  if (parsedQuery.data.q) {
+  if (parsedQuery.data.codes) {
+    query = query.in('iata_code', parsedQuery.data.codes)
+  } else if (parsedQuery.data.q) {
     const search = parsedQuery.data.q
     query = query.or(
       `iata_code.ilike.${search.toUpperCase()}%,name.ilike.%${search}%,city.ilike.%${search}%`,

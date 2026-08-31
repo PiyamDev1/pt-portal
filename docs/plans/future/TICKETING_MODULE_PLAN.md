@@ -872,6 +872,9 @@ All routes must:
   including city, country code, state/region name, coordinates, and source-provided IANA timezones.
   Airline import extracts and deduplicates the nested carrier codes from the separately provided
   route JSON rather than silently vendoring an unlicensed source repository.
+- **Implemented:** itinerary airport fields use independent debounced directory searches, a bounded
+  exact-code batch for saved sectors, and a browser-session result cache instead of downloading the
+  full airport table or remaining limited to its first IATA-sorted page.
 - **Implemented:** Flight Monitoring responsible-agent and local departure-date filters applied to
   both rows and summary counts, with opaque cursors bound to the selected filters.
 - **Implemented:** bounded team-ledger PNR/customer search and opaque keyset pagination with a

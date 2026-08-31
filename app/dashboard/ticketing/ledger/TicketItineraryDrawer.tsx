@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -110,6 +110,111 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   )
 }
 
+function AirportCodeField({
+  label,
+  value,
+  airport,
+  listId,
+  ariaLabel,
+  errorId,
+  errorMessage,
+  onChange,
+  onAirportsLoaded,
+}: {
+  label: string
+  value: string
+  airport?: TicketingAirportOption
+  listId: string
+  ariaLabel: string
+  errorId: string
+  errorMessage?: string
+  onChange: (value: string) => void
+  onAirportsLoaded: (airports: TicketingAirportOption[]) => void
+}) {
+  const [isSearching, setIsSearching] = useState(false)
+  const [lookupError, setLookupError] = useState('')
+  const hintId = `${errorId}-hint`
+
+  useEffect(() => {
+    const query = value.trim().toUpperCase()
+    if (query.length < 2 || airport?.iataCode === query) return
+
+    const controller = new AbortController()
+    const timeout = window.setTimeout(
+      () => {
+        void loadTicketAirports({ query, limit: 20 }, controller.signal)
+          .then((options) => {
+            onAirportsLoaded(options)
+            if (query.length === 3 && !options.some((option) => option.iataCode === query)) {
+              setLookupError(`No active airport found for ${query}.`)
+            } else if (options.length === 0) {
+              setLookupError(`No airports found starting with ${query}.`)
+            }
+          })
+          .catch((caught) => {
+            if (controller.signal.aborted) return
+            setLookupError(
+              caught instanceof TicketItineraryApiError
+                ? caught.message
+                : 'Unable to search the airport directory.',
+            )
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setIsSearching(false)
+          })
+      },
+      query.length === 3 ? 0 : 250,
+    )
+
+    return () => {
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [airport?.iataCode, onAirportsLoaded, value])
+
+  const hint = airport
+    ? `${airport.city} · ${airport.timezone}`
+    : isSearching
+      ? 'Searching the stored airport directory…'
+      : lookupError ||
+        (value.length < 2
+          ? 'Type at least two letters of the IATA code.'
+          : 'Choose a matching three-letter airport code.')
+
+  return (
+    <label className="text-xs font-bold text-slate-700">
+      {label}
+      <input
+        list={listId}
+        value={value}
+        onChange={(event) => {
+          const nextValue = event.target.value
+            .toUpperCase()
+            .replace(/[^A-Z]/g, '')
+            .slice(0, 3)
+          setLookupError('')
+          setIsSearching(nextValue.length >= 2 && airport?.iataCode !== nextValue)
+          onChange(nextValue)
+        }}
+        maxLength={3}
+        autoComplete="off"
+        spellCheck={false}
+        required
+        aria-label={ariaLabel}
+        aria-busy={isSearching}
+        aria-invalid={Boolean(errorMessage)}
+        aria-describedby={`${hintId}${errorMessage ? ` ${errorId}` : ''}`}
+        className={`${fieldClass(Boolean(errorMessage))} font-mono uppercase`}
+        placeholder={label === 'Origin airport' ? 'LHR' : 'IST'}
+      />
+      <span id={hintId} className="mt-1 block text-[11px] font-semibold text-slate-500">
+        {hint}
+      </span>
+      <FieldError id={errorId} message={errorMessage} />
+    </label>
+  )
+}
+
 function validLocalDateTime(value: string) {
   const match = LOCAL_DATE_TIME_PATTERN.exec(value)
   if (!match) return false
@@ -143,6 +248,15 @@ function mergeAirlines(
   return [...airlines.values()].sort((a, b) => a.iataCode.localeCompare(b.iataCode))
 }
 
+function mergeAirports(
+  current: TicketingAirportOption[],
+  incoming: TicketingAirportOption[],
+): TicketingAirportOption[] {
+  const airports = new Map(current.map((airport) => [airport.iataCode, airport]))
+  for (const airport of incoming) airports.set(airport.iataCode, airport)
+  return [...airports.values()].sort((left, right) => left.iataCode.localeCompare(right.iataCode))
+}
+
 export function TicketItineraryDrawer({
   item,
   airlines: ledgerAirlines,
@@ -168,6 +282,9 @@ export function TicketItineraryDrawer({
   const requestId = useRef(newRequestId())
   const formRef = useRef<HTMLFormElement>(null)
   const airportListId = useId()
+  const mergeLoadedAirports = useCallback((options: TicketingAirportOption[]) => {
+    setAirports((current) => mergeAirports(current, options))
+  }, [])
 
   useEffect(() => {
     if (!item) {
@@ -191,11 +308,17 @@ export function TicketItineraryDrawer({
     setSaveError('')
     requestId.current = newRequestId()
 
-    void Promise.all([
-      loadTicketItinerary(item.bookingId, controller.signal),
-      loadTicketAirports(controller.signal),
-    ])
-      .then(([response, airportOptions]) => {
+    void loadTicketItinerary(item.bookingId, controller.signal)
+      .then(async (response) => {
+        const codes = [
+          ...new Set(
+            response.sectors.flatMap((sector) => [sector.originIata, sector.destinationIata]),
+          ),
+        ]
+        const airportOptions = await loadTicketAirports({ codes }, controller.signal)
+        return { response, airportOptions }
+      })
+      .then(({ response, airportOptions }) => {
         const nextDraft = draftFromResponse(response)
         setDetail(response)
         setAirports(airportOptions)
@@ -682,95 +805,45 @@ export function TicketItineraryDrawer({
                         />
                       </label>
 
-                      <label className="text-xs font-bold text-slate-700">
-                        Origin airport
-                        <input
-                          list={airportListId}
-                          value={sector.originIata}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              sectors: current.sectors.map((candidate, candidateIndex) =>
-                                candidateIndex === index
-                                  ? {
-                                      ...candidate,
-                                      originIata: event.target.value
-                                        .toUpperCase()
-                                        .replace(/[^A-Z]/g, '')
-                                        .slice(0, 3),
-                                    }
-                                  : candidate,
-                              ),
-                            }))
-                          }
-                          maxLength={3}
-                          autoComplete="off"
-                          spellCheck={false}
-                          required
-                          aria-label={`Flight sector ${index + 1} origin airport`}
-                          aria-invalid={Boolean(errors[`${prefix}.originIata`])}
-                          aria-describedby={
-                            errors[`${prefix}.originIata`] ? `${idPrefix}-origin-error` : undefined
-                          }
-                          className={`${fieldClass(Boolean(errors[`${prefix}.originIata`]))} font-mono uppercase`}
-                          placeholder="LHR"
-                        />
-                        <span className="mt-1 block text-[11px] font-semibold text-slate-500">
-                          {originAirport
-                            ? `${originAirport.city} · ${originAirport.timezone}`
-                            : 'Choose from the airport lookup.'}
-                        </span>
-                        <FieldError
-                          id={`${idPrefix}-origin-error`}
-                          message={errors[`${prefix}.originIata`]}
-                        />
-                      </label>
+                      <AirportCodeField
+                        label="Origin airport"
+                        value={sector.originIata}
+                        airport={originAirport}
+                        listId={airportListId}
+                        ariaLabel={`Flight sector ${index + 1} origin airport`}
+                        errorId={`${idPrefix}-origin-error`}
+                        errorMessage={errors[`${prefix}.originIata`]}
+                        onAirportsLoaded={mergeLoadedAirports}
+                        onChange={(originIata) =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sectors: current.sectors.map((candidate, candidateIndex) =>
+                              candidateIndex === index ? { ...candidate, originIata } : candidate,
+                            ),
+                          }))
+                        }
+                      />
 
-                      <label className="text-xs font-bold text-slate-700">
-                        Destination airport
-                        <input
-                          list={airportListId}
-                          value={sector.destinationIata}
-                          onChange={(event) =>
-                            updateDraft((current) => ({
-                              ...current,
-                              sectors: current.sectors.map((candidate, candidateIndex) =>
-                                candidateIndex === index
-                                  ? {
-                                      ...candidate,
-                                      destinationIata: event.target.value
-                                        .toUpperCase()
-                                        .replace(/[^A-Z]/g, '')
-                                        .slice(0, 3),
-                                    }
-                                  : candidate,
-                              ),
-                            }))
-                          }
-                          maxLength={3}
-                          autoComplete="off"
-                          spellCheck={false}
-                          required
-                          aria-label={`Flight sector ${index + 1} destination airport`}
-                          aria-invalid={Boolean(errors[`${prefix}.destinationIata`])}
-                          aria-describedby={
-                            errors[`${prefix}.destinationIata`]
-                              ? `${idPrefix}-destination-error`
-                              : undefined
-                          }
-                          className={`${fieldClass(Boolean(errors[`${prefix}.destinationIata`]))} font-mono uppercase`}
-                          placeholder="IST"
-                        />
-                        <span className="mt-1 block text-[11px] font-semibold text-slate-500">
-                          {destinationAirport
-                            ? `${destinationAirport.city} · ${destinationAirport.timezone}`
-                            : 'Choose from the airport lookup.'}
-                        </span>
-                        <FieldError
-                          id={`${idPrefix}-destination-error`}
-                          message={errors[`${prefix}.destinationIata`]}
-                        />
-                      </label>
+                      <AirportCodeField
+                        label="Destination airport"
+                        value={sector.destinationIata}
+                        airport={destinationAirport}
+                        listId={airportListId}
+                        ariaLabel={`Flight sector ${index + 1} destination airport`}
+                        errorId={`${idPrefix}-destination-error`}
+                        errorMessage={errors[`${prefix}.destinationIata`]}
+                        onAirportsLoaded={mergeLoadedAirports}
+                        onChange={(destinationIata) =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sectors: current.sectors.map((candidate, candidateIndex) =>
+                              candidateIndex === index
+                                ? { ...candidate, destinationIata }
+                                : candidate,
+                            ),
+                          }))
+                        }
+                      />
 
                       <label className="text-xs font-bold text-slate-700">
                         Departure local time
@@ -873,8 +946,8 @@ export function TicketItineraryDrawer({
 
             <p className="flex items-start gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              Airport locations determine the correct local time automatically, including daylight
-              saving changes.
+              Type at least two letters of an IATA code. Matching airports are pulled from the
+              stored directory, and their locations determine local time automatically.
             </p>
           </form>
         ) : null}

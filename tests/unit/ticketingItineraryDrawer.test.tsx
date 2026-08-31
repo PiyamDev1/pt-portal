@@ -110,7 +110,16 @@ function setupFetch(
 ) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
-    if (url.includes('/api/ticketing/airports')) return Response.json(AIRPORTS)
+    if (url.includes('/api/ticketing/airports')) {
+      const parameters = new URL(url, 'http://localhost').searchParams
+      const query = parameters.get('q')?.toUpperCase()
+      const codes = new Set((parameters.get('codes') || '').split(',').filter(Boolean))
+      return Response.json({
+        items: AIRPORTS.items.filter((airport) =>
+          query ? airport.iataCode.startsWith(query) : codes.has(airport.iataCode),
+        ),
+      })
+    }
     if (init?.method === 'PUT') return Response.json(saved)
     return Response.json(initial)
   })
@@ -120,6 +129,39 @@ function setupFetch(
 
 describe('TicketItineraryDrawer', () => {
   beforeEach(() => vi.restoreAllMocks())
+
+  it('searches the stored directory by IATA code instead of loading the first alphabetic page', async () => {
+    const fetchMock = setupFetch()
+    render(
+      <TicketItineraryDrawer
+        item={ITEM}
+        airlines={[AIRLINE]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'ABC123 itinerary' })).toBeTruthy()
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input).includes('/api/ticketing/airports')),
+    ).toHaveLength(0)
+
+    fireEvent.change(screen.getByLabelText('Flight sector 1 origin airport'), {
+      target: { value: 'lhr' },
+    })
+    fireEvent.change(screen.getByLabelText('Flight sector 1 destination airport'), {
+      target: { value: 'isb' },
+    })
+
+    expect(await screen.findByText('London · Europe/London')).toBeTruthy()
+    expect(await screen.findByText('Islamabad · Asia/Karachi')).toBeTruthy()
+    const airportUrls = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes('/api/ticketing/airports'))
+    expect(airportUrls).toContain('/api/ticketing/airports?q=LHR&limit=20')
+    expect(airportUrls).toContain('/api/ticketing/airports?q=ISB&limit=20')
+    expect(airportUrls).not.toContain('/api/ticketing/airports?limit=100')
+  })
 
   it('saves an empty itinerary with airport-derived local inputs and dedicated version zero', async () => {
     const fetchMock = setupFetch()
@@ -150,8 +192,8 @@ describe('TicketItineraryDrawer', () => {
       target: { value: '2026-09-01T14:30' },
     })
 
-    expect(screen.getByText('London · Europe/London')).toBeTruthy()
-    expect(screen.getByText('Istanbul · Europe/Istanbul')).toBeTruthy()
+    expect(await screen.findByText('London · Europe/London')).toBeTruthy()
+    expect(await screen.findByText('Istanbul · Europe/Istanbul')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Save itinerary' }))
 
     await waitFor(() =>
@@ -274,6 +316,7 @@ describe('TicketItineraryDrawer', () => {
     fireEvent.change(screen.getByLabelText('Flight sector 1 departure local time'), {
       target: { value: '2026-09-01T14:30' },
     })
+    await waitFor(() => expect(screen.getAllByText('London · Europe/London')).toHaveLength(2))
     fireEvent.click(screen.getByRole('button', { name: 'Save itinerary' }))
 
     expect(screen.getByText('Destination must be different from origin.')).toBeTruthy()
@@ -303,6 +346,7 @@ describe('TicketItineraryDrawer', () => {
     fireEvent.change(screen.getByLabelText('Flight sector 1 departure local time'), {
       target: { value: '2026-09-01T14:30' },
     })
+    expect(await screen.findByText('Istanbul · Europe/Istanbul')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Save itinerary' }))
 
     expect(screen.getByText('Choose an origin from the airport directory.')).toBeTruthy()

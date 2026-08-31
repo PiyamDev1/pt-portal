@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => {
   const airportQuery: Record<string, ReturnType<typeof vi.fn>> & {
     then?: PromiseLike<{ data: unknown; error: unknown }>['then']
   } = {}
-  for (const method of ['select', 'eq', 'or', 'order', 'limit']) {
+  for (const method of ['select', 'eq', 'in', 'or', 'order', 'limit']) {
     airportQuery[method] = vi.fn(() => airportQuery)
   }
   airportQuery.then = (onFulfilled, onRejected) =>
@@ -160,10 +160,22 @@ describe('GET /api/ticketing/airports', () => {
     expect(mocks.airportQuery.limit).toHaveBeenCalledWith(12)
   })
 
+  it('resolves existing itinerary airport codes in one bounded database query', async () => {
+    const response = await GET(request('codes=lhr,isb,lhr&limit=2'))
+
+    expect(response.status).toBe(200)
+    expect(mocks.airportQuery.in).toHaveBeenCalledWith('iata_code', ['LHR', 'ISB'])
+    expect(mocks.airportQuery.or).not.toHaveBeenCalled()
+    expect(mocks.airportQuery.limit).toHaveBeenCalledWith(2)
+  })
+
   it('rejects unknown, duplicate, malformed, and oversized query values before database work', async () => {
     for (const query of [
       'owner=staff',
       'q=LHR&q=IST',
+      'codes=LHR&codes=ISB',
+      'q=LHR&codes=ISB',
+      'codes=LHR,INVALID',
       'limit=1&limit=2',
       'q=%25%2Cis_active.eq.false',
       'limit=0',

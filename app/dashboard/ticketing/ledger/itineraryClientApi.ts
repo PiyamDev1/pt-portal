@@ -22,6 +22,23 @@ export class TicketItineraryApiError extends Error {
   }
 }
 
+type TicketAirportLookup = {
+  query?: string
+  codes?: string[]
+  limit?: number
+}
+
+const AIRPORT_LOOKUP_CACHE_LIMIT = 100
+const airportLookupCache = new Map<string, TicketingAirportOption[]>()
+
+function rememberAirportLookup(key: string, items: TicketingAirportOption[]) {
+  if (airportLookupCache.size >= AIRPORT_LOOKUP_CACHE_LIMIT) {
+    const oldestKey = airportLookupCache.keys().next().value
+    if (oldestKey) airportLookupCache.delete(oldestKey)
+  }
+  airportLookupCache.set(key, items)
+}
+
 export async function loadTicketItinerary(
   bookingId: string,
   signal?: AbortSignal,
@@ -55,8 +72,28 @@ export async function loadTicketItinerary(
   return payload as TicketingItineraryResponse
 }
 
-export async function loadTicketAirports(signal?: AbortSignal): Promise<TicketingAirportOption[]> {
-  const response = await fetch('/api/ticketing/airports?limit=100', {
+export async function loadTicketAirports(
+  lookup: TicketAirportLookup,
+  signal?: AbortSignal,
+): Promise<TicketingAirportOption[]> {
+  const query = lookup.query?.trim()
+  const codes = [
+    ...new Set((lookup.codes || []).map((code) => code.trim().toUpperCase()).filter(Boolean)),
+  ]
+  if (!query && codes.length === 0) return []
+  if (query && codes.length > 0) {
+    throw new TicketItineraryApiError('Search by text or airport codes, not both.')
+  }
+
+  const parameters = new URLSearchParams()
+  if (query) parameters.set('q', query)
+  if (codes.length > 0) parameters.set('codes', codes.join(','))
+  parameters.set('limit', String(lookup.limit || (codes.length > 0 ? codes.length : 20)))
+  const requestUrl = `/api/ticketing/airports?${parameters.toString()}`
+  const cached = airportLookupCache.get(requestUrl)
+  if (cached) return cached
+
+  const response = await fetch(requestUrl, {
     cache: 'no-store',
     signal,
   })
@@ -70,7 +107,7 @@ export async function loadTicketAirports(signal?: AbortSignal): Promise<Ticketin
   if (!Array.isArray(payload.items)) {
     throw new TicketItineraryApiError('Airport lookup returned an invalid result. Try again.')
   }
-
+  rememberAirportLookup(requestUrl, payload.items)
   return payload.items
 }
 
