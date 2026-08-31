@@ -58,10 +58,13 @@ describe('PageHeader', () => {
       '/dashboard/my-performance',
     )
     expect(screen.getByRole('link', { name: 'Activity' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance#activity',
+      '/dashboard/my-performance?view=activity',
+    )
+    expect(screen.getByRole('link', { name: 'Attendance' }).getAttribute('href')).toBe(
+      '/dashboard/my-performance?view=attendance',
     )
     expect(screen.getByRole('link', { name: 'Earnings & commission' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance#commissions',
+      '/dashboard/my-performance?view=earnings',
     )
   })
 })

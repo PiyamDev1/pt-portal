@@ -14,5 +14,5 @@ export default async function LegacyMyCommissionsRedirect() {
   if (!access.authorized) {
     redirect(access.response.status === 401 ? '/login' : '/dashboard')
   }
-  redirect('/dashboard/my-performance#commissions')
+  redirect('/dashboard/my-performance?view=earnings')
 }

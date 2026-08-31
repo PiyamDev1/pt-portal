@@ -50,6 +50,11 @@ entries. Every shadow figure is labelled non-payable; it is not a payslip or pay
 creates a complete agreement around one employee. Copying another agreement is only a starting
 point, and future edits never change the source employee or historical versions.
 
+The Activity, Attendance, and Earnings & commission tabs are separate URL-addressable views. Only
+the selected tab's section is shown, so operational evidence, timeclock records, and pay information
+do not create one long page. Opening My performance without a tab starts on Activity; old My
+commissions bookmarks open Earnings & commission.
+
 Activity counts current operational evidence rather than old ledger snapshots. Tickets are counted
 when issued, assistance is reported separately, and a linked Package group counts once only after
 every resolved Package file remains closed and reconciled; its passengers are counted once across

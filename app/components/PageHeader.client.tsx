@@ -62,7 +62,7 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
         icon: BookOpen,
       },
       {
-        href: '/dashboard/my-performance#commissions',
+        href: '/dashboard/my-performance?view=earnings',
         label: 'My earnings & commission',
         icon: ChartNoAxesColumnIncreasing,
       },
@@ -73,13 +73,17 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
     title: 'My performance',
     items: [
       {
-        href: '/dashboard/my-performance#activity',
+        href: '/dashboard/my-performance?view=activity',
         label: 'Activity',
         icon: ChartNoAxesColumnIncreasing,
       },
-      { href: '/dashboard/my-performance#attendance', label: 'Attendance', icon: Clock3 },
       {
-        href: '/dashboard/my-performance#commissions',
+        href: '/dashboard/my-performance?view=attendance',
+        label: 'Attendance',
+        icon: Clock3,
+      },
+      {
+        href: '/dashboard/my-performance?view=earnings',
         label: 'Earnings & commission',
         icon: BadgePoundSterling,
       },
