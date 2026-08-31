@@ -45,6 +45,8 @@ fare_check_observations_migration="scripts/migrations/20260829_ticketing_fare_ch
 fare_check_observations_assertions="tests/integration/ticketing_fare_check_observations.sql"
 archive_tombstones_migration="scripts/migrations/20260830_ticketing_archive_commission_tombstones.sql"
 archive_tombstones_assertions="tests/integration/ticketing_archive_commission_tombstones.sql"
+unpriced_held_migration="scripts/migrations/20260831_ticketing_unpriced_held_quick_entry.sql"
+unpriced_held_assertions="tests/integration/ticketing_unpriced_held_quick_entry.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2436,6 +2438,17 @@ if [[ "$(ticketing_schema_fingerprint)" != "$archive_tombstones_first_fingerprin
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$archive_tombstones_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$unpriced_held_migration"
+unpriced_held_first_fingerprint="$(ticketing_schema_fingerprint)"
+unpriced_held_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$unpriced_held_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$unpriced_held_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$unpriced_held_first_applied_at" ]]; then
+  echo "Idempotent unpriced-Held migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$unpriced_held_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"
