@@ -5,6 +5,7 @@ import { parseBodyWithSchema } from '@/lib/api/request'
 import { COMMISSION_PRIVATE_RESPONSE, hasCommissionCapability } from '@/lib/commissions/api'
 import {
   COMMISSION_APPLICATION_CAPABILITY_VERSION,
+  COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION,
   commissionProfileSchema,
   profileNeedsWholeMonths,
   toStoredCommissionProfile,
@@ -36,7 +37,7 @@ function databaseStatus(error: unknown) {
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   const access = await requireCommissionManager()
   if (!access.authorized) return access.response
-  if (!(await hasCommissionCapability(COMMISSION_APPLICATION_CAPABILITY_VERSION))) {
+  if (!(await hasCommissionCapability(COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION))) {
     return apiError(
       'The latest Commission plan editing capability is not installed',
       503,
@@ -123,7 +124,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const token = requestToken(request)
   try {
     const { data, error } = await access.supabase.rpc(
-      'commission_replace_employee_profile_2026083006',
+      'commission_replace_employee_profile_2026083008',
       {
         p_actor_employee_id: access.employee.id,
         p_profile_id: id,

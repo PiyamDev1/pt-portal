@@ -3,10 +3,11 @@
 Commission has an employee-owned read surface and a separate Admin/HR control surface. Every route
 derives the actor from the active staff session and returns private, non-cacheable data. The self
 route is hard-scoped to the caller's employee ID. Management routes additionally require Admin
-Commission authority or live HR department membership. Employee-profile mutations require database
-capability `2026083007`, including completed Application commission sources and recipient routing;
-the advanced shadow
-engine requires `2026082903`. All calculated values in this release are non-payable shadow evidence.
+Commission authority or live HR department membership. Employee-profile creation and removal
+require database capability `2026083007`, including completed Application commission sources and
+recipient routing. Safe editing of a closed previous plan requires `2026083008`; the advanced
+shadow engine requires `2026082903`. All calculated values in this release are non-payable shadow
+evidence.
 
 ### GET `/api/commissions/me`
 
@@ -72,14 +73,15 @@ installed; `500` for an unexpected transactional failure.
 **Input:** Profile UUID, valid `Idempotency-Key`, and the same strict complete agreement JSON used
 to create a profile. The employee and branch scope must still identify the selected plan.
 
-**Success:** `200` after one transaction archives the old immutable snapshot, restores its timeline,
-creates the edited employee-owned plan, re-queues affected source facts, and attempts a bounded
-shadow recalculation. Existing accounting evidence remains auditable but the overwritten plan is
+**Success:** `200` after one transaction archives the old immutable snapshot, creates the edited
+employee-owned plan, re-queues affected source facts, and attempts a bounded shadow recalculation.
+For a closed previous plan, its original start and end dates are mandatory and the following plan
+is left untouched. Existing accounting evidence remains auditable but the overwritten snapshot is
 removed from operational history.
 
 **Errors:** `400` for invalid data or a branch-scope change; `401`/`403` for access failure; `404`
 for a missing active profile; `409` for an effective-date conflict; `503` when capability
-`2026083007` is absent; and `500` for an unexpected transactional failure.
+`2026083008` is absent; and `500` for an unexpected transactional failure.
 
 ### DELETE `/api/commissions/admin/profiles/[id]`
 

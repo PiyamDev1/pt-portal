@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import {
   COMMISSION_RATE_KINDS,
+  COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION,
   commissionProfileSchema,
   createDefaultCommissionProfile,
   type CommissionProfileInput,
@@ -68,7 +69,11 @@ const dateFormatter = new Intl.DateTimeFormat('en-GB', {
 })
 
 type ServiceKey = keyof CommissionProfileInput['services']
-type CommissionEditorIntent = 'new' | 'edit' | 'copy'
+type CommissionEditorIntent = 'new' | 'edit' | 'edit_previous' | 'copy'
+
+function isEditIntent(intent: CommissionEditorIntent) {
+  return intent === 'edit' || intent === 'edit_previous'
+}
 
 function dateLabel(value: string | null) {
   if (!value) return 'Open-ended'
@@ -601,7 +606,10 @@ function AgreementEditor({
     (candidate) => candidate.id !== draft.employeeId,
   )
   const templates = profiles.filter((profile) => profile.configuration)
-  const dateConflict = conflictingCommissionProfile(draft, profiles, editingProfileId)
+  const editingPrevious = intent === 'edit_previous'
+  const dateConflict = editingPrevious
+    ? undefined
+    : conflictingCommissionProfile(draft, profiles, editingProfileId)
   const updateService = (key: ServiceKey, rate: CommissionRate) => {
     setDraft({ ...draft, services: { ...draft.services, [key]: rate } })
   }
@@ -620,19 +628,27 @@ function AgreementEditor({
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 py-5 backdrop-blur sm:rounded-t-[1.75rem] sm:px-7">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1e2d]">
-              {intent === 'edit' ? 'Editing current commission' : 'Creating new commission'}
+              {editingPrevious
+                ? 'Correcting previous commission'
+                : intent === 'edit'
+                  ? 'Editing current commission'
+                  : 'Creating new commission'}
             </p>
             <h2 id="agreement-title" className="mt-1 text-2xl font-black text-slate-950">
-              {intent === 'edit'
-                ? `Edit commission for ${employee.fullName}`
-                : intent === 'copy'
-                  ? `New commission from a copy for ${employee.fullName}`
-                  : `New commission for ${employee.fullName}`}
+              {editingPrevious
+                ? `Edit previous policy for ${employee.fullName}`
+                : intent === 'edit'
+                  ? `Edit commission for ${employee.fullName}`
+                  : intent === 'copy'
+                    ? `New commission from a copy for ${employee.fullName}`
+                    : `New commission for ${employee.fullName}`}
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              {intent === 'edit'
-                ? 'The current values are loaded below. Saving overwrites this plan. Existing calculation evidence remains archived and is recalculated against the edited plan.'
-                : 'Start with a blank commission or copy another profile once. The new commission remains independent after it is saved.'}
+              {editingPrevious
+                ? 'The selected historical period stays fixed. Saving archives its old policy snapshot, installs the corrected values for the same dates, and queues that period for recalculation.'
+                : intent === 'edit'
+                  ? 'The current values are loaded below. Saving overwrites this plan. Existing calculation evidence remains archived and is recalculated against the edited plan.'
+                  : 'Start with a blank commission or copy another profile once. The new commission remains independent after it is saved.'}
             </p>
           </div>
           <button
@@ -646,17 +662,20 @@ function AgreementEditor({
         </div>
 
         <div className="space-y-6 p-5 sm:p-7">
-          {intent === 'edit' ? (
+          {isEditIntent(intent) ? (
             <section className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-3">
                 <Edit3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
                 <div>
                   <p className="text-sm font-black text-amber-950">
-                    Editing the current commission
+                    {editingPrevious
+                      ? 'Editing a previous commission policy'
+                      : 'Editing the current commission'}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-amber-800">
-                    Change any values or the effective date, then save to replace this plan. New
-                    commission creates a separate effective-dated plan instead.
+                    {editingPrevious
+                      ? `Change the policy values only. This correction remains bounded to ${dateLabel(draft.effectiveFrom)} and the following plan keeps its existing start date.`
+                      : 'Change any values or the effective date, then save to replace this plan. New commission creates a separate effective-dated plan instead.'}
                   </p>
                 </div>
               </div>
@@ -713,12 +732,14 @@ function AgreementEditor({
                 type="date"
                 value={draft.effectiveFrom}
                 onChange={(event) => setDraft({ ...draft, effectiveFrom: event.target.value })}
+                disabled={editingPrevious}
                 required
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               />
               <span className="mt-1.5 block font-normal leading-4 text-slate-400">
-                Past dates are allowed when they do not conflict with an existing plan. Monthly
-                ticket tiers, salary, PKR pay, and monthly bonuses start on the first of a month.
+                {editingPrevious
+                  ? 'Locked so this correction cannot create a gap or overlap in the employee timeline.'
+                  : 'Past dates are allowed when they do not conflict with an existing plan. Monthly ticket tiers, salary, PKR pay, and monthly bonuses start on the first of a month.'}
               </span>
             </label>
             <label className="text-xs font-bold text-slate-600">
@@ -726,7 +747,8 @@ function AgreementEditor({
               <select
                 value={draft.locationId || ''}
                 onChange={(event) => setDraft({ ...draft, locationId: event.target.value || null })}
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                disabled={editingPrevious}
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               >
                 <option value="">All branches</option>
                 {employee.location && (
@@ -1241,11 +1263,13 @@ function AgreementEditor({
             ) : (
               <ShieldCheck className="h-4 w-4" />
             )}
-            {intent === 'edit'
-              ? 'Save edited commission'
-              : intent === 'copy'
-                ? 'Create copied commission'
-                : 'Create new commission'}
+            {editingPrevious
+              ? 'Save previous policy correction'
+              : intent === 'edit'
+                ? 'Save edited commission'
+                : intent === 'copy'
+                  ? 'Create copied commission'
+                  : 'Create new commission'}
           </button>
         </div>
       </form>
@@ -1425,7 +1449,10 @@ export default function AdminCommissionClient({
     selectedProfiles.find((profile) => profile.id === selectedEmployee?.scheduledProfileId) || null
   const selectedExceptions = data.exceptions.filter((item) => item.employeeId === selectedId)
   const sourceModules = data.sourceModules || []
-  const planEditorReady = data.schemaReady && data.applicationIntegrationReady
+  const planEditorReady =
+    data.schemaReady &&
+    data.applicationIntegrationReady &&
+    data.schemaVersion >= COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION
   const filteredEmployees = data.employees.filter((employee) => {
     const query = search.trim().toLowerCase()
     return (
@@ -1451,7 +1478,16 @@ export default function AdminCommissionClient({
     source: CommissionAdminProfile | null = null,
   ) => {
     if (!selectedEmployee || !planEditorReady) return
+    const editingPrevious = intent === 'edit_previous'
     if (intent === 'edit' && (!source?.configuration || source.id !== currentProfile?.id)) return
+    if (
+      editingPrevious &&
+      (!source?.configuration ||
+        source.cancelledAt !== null ||
+        source.effectiveTo === null ||
+        source.effectiveTo >= todayIso())
+    )
+      return
     const next = source?.configuration
       ? clone(source.configuration)
       : createDefaultCommissionProfile(selectedEmployee.id)
@@ -1474,36 +1510,35 @@ export default function AdminCommissionClient({
         next.assistanceScope = { mode: 'all', employeeIds: [], agentRates: [] }
       }
     }
-    next.locationId = intent === 'edit' ? next.locationId : null
+    next.locationId = isEditIntent(intent) ? next.locationId : null
     next.effectiveFrom =
-      intent === 'edit' && source
+      isEditIntent(intent) && source
         ? source.effectiveFrom
         : currentProfile
           ? nextMonthStart()
           : next.effectiveFrom
     next.label =
-      intent === 'edit' && source
+      isEditIntent(intent) && source
         ? source.label
         : source
           ? `${source.label} copy`
           : 'New commission'
-    next.changeReason =
-      intent === 'edit'
+    next.changeReason = isEditIntent(intent)
+      ? ''
+      : source
         ? ''
-        : source
-          ? ''
-          : currentProfile
-            ? 'New employee commission'
-            : 'Initial employee commission'
+        : currentProfile
+          ? 'New employee commission'
+          : 'Initial employee commission'
     setEditorIntent(intent)
-    setEditingProfileId(intent === 'edit' ? source?.id || null : null)
+    setEditingProfileId(isEditIntent(intent) ? source?.id || null : null)
     setDraft(next)
     setError('')
     setNotice('')
   }
 
   const applyTemplate = (profileId: string) => {
-    if (!draft || !selectedEmployee || editorIntent === 'edit') return
+    if (!draft || !selectedEmployee || isEditIntent(editorIntent)) return
     const template = data.profiles.find((profile) => profile.id === profileId)
     const next = template?.configuration
       ? clone(template.configuration)
@@ -1552,11 +1587,11 @@ export default function AdminCommissionClient({
         )
       }
       await fetchJson(
-        editorIntent === 'edit' && editingProfileId
+        isEditIntent(editorIntent) && editingProfileId
           ? `/api/commissions/admin/profiles/${editingProfileId}`
           : '/api/commissions/admin/profiles',
         {
-          method: editorIntent === 'edit' ? 'PUT' : 'POST',
+          method: isEditIntent(editorIntent) ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey('profile') },
           body: JSON.stringify(parsed.data),
         },
@@ -1565,9 +1600,11 @@ export default function AdminCommissionClient({
       setDraft(null)
       setEditingProfileId(null)
       setNotice(
-        editorIntent === 'edit'
-          ? 'The commission plan was overwritten and its calculations were queued for refresh.'
-          : 'The new commission was saved independently for this employee.',
+        editorIntent === 'edit_previous'
+          ? 'The previous policy was corrected for its original dates and that period was queued for recalculation.'
+          : editorIntent === 'edit'
+            ? 'The commission plan was overwritten and its calculations were queued for refresh.'
+            : 'The new commission was saved independently for this employee.',
       )
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save commission plan')
@@ -1714,8 +1751,8 @@ export default function AdminCommissionClient({
             <p className="text-sm font-black">Commission-plan database upgrade required</p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
               The shadow engine is available, but database version {data.schemaVersion || 'unknown'}{' '}
-              does not yet include the latest employee and Application commission structure. Plan
-              changes are disabled until the additive migration is installed.
+              does not yet include safe previous-policy editing. Plan changes are disabled until
+              the additive migration is installed.
             </p>
           </div>
         </div>
@@ -2197,6 +2234,18 @@ export default function AdminCommissionClient({
                               <Copy className="h-3.5 w-3.5" /> Copy
                             </button>
                           )}
+                          {profile.configuration &&
+                            !profile.cancelledAt &&
+                            profile.effectiveTo !== null &&
+                            profile.effectiveTo < todayIso() && (
+                              <button
+                                onClick={() => startAgreement('edit_previous', profile)}
+                                disabled={!planEditorReady}
+                                className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" /> Edit previous policy
+                              </button>
+                            )}
                           {!profile.cancelledAt && (
                             <button
                               onClick={() => {

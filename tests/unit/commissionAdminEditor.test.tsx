@@ -8,6 +8,7 @@ import type { CommissionAdminData } from '@/lib/commissions/server'
 
 const EMPLOYEE_ID = '11111111-1111-4111-8111-111111111111'
 const PROFILE_ID = '22222222-2222-4222-8222-222222222222'
+const PREVIOUS_PROFILE_ID = '22222222-2222-4222-8222-222222222223'
 const LOCATION_ID = '33333333-3333-4333-8333-333333333333'
 
 function adminData(): CommissionAdminData {
@@ -17,7 +18,7 @@ function adminData(): CommissionAdminData {
 
   return {
     schemaReady: true,
-    schemaVersion: 2026083005,
+    schemaVersion: 2026083008,
     mode: 'shadow',
     packageIntegrationReady: true,
     applicationIntegrationReady: true,
@@ -28,13 +29,31 @@ function adminData(): CommissionAdminData {
         email: 'agent@example.com',
         role: 'Agent',
         location: { id: LOCATION_ID, name: 'Bradford', branchCode: 'BRD' },
-        profileCount: 1,
+        profileCount: 2,
         currentProfileId: PROFILE_ID,
         scheduledProfileId: null,
         openExceptionCount: 0,
       },
     ],
     profiles: [
+      {
+        id: PREVIOUS_PROFILE_ID,
+        employeeId: EMPLOYEE_ID,
+        label: 'Commission 2025',
+        effectiveFrom: '2025-01-01',
+        effectiveTo: '2026-01-31',
+        locationId: LOCATION_ID,
+        copiedFromProfileId: null,
+        changeReason: 'Previous commission',
+        createdAt: '2025-01-01T00:00:00Z',
+        cancelledAt: null,
+        cancellationReason: null,
+        configuration: {
+          ...configuration,
+          label: 'Commission 2025',
+          effectiveFrom: '2025-01-01',
+        },
+      },
       {
         id: PROFILE_ID,
         employeeId: EMPLOYEE_ID,
@@ -80,22 +99,19 @@ describe('Admin Commission editor modes', () => {
     expect(screen.getByRole('heading', { name: 'Edit commission for Agent One' })).toBeTruthy()
     expect(screen.queryByLabelText('Start the new commission from')).toBeNull()
     expect((screen.getByLabelText('Commission plan name') as HTMLInputElement).value).toBe(
-      'Standard commission update',
+      'Standard commission',
     )
     expect((screen.getByLabelText('Branch scope') as HTMLSelectElement).value).toBe(LOCATION_ID)
-    expect(screen.getByRole('group', { name: 'NADRA applications' })).toBeTruthy()
-    expect(screen.getByRole('group', { name: 'Pakistani passport applications' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'NADRA applications - normal' })).toBeTruthy()
+    expect(
+      screen.getByRole('group', { name: 'NADRA applications - urgent / executive' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('group', { name: 'Pakistani passport applications - normal' }),
+    ).toBeTruthy()
     expect(screen.getByRole('group', { name: 'British passport applications' })).toBeTruthy()
     expect(screen.getByRole('group', { name: 'Visa applications' })).toBeTruthy()
 
-    fireEvent.change(screen.getByLabelText(/Effective from/), {
-      target: { value: '2026-08-01' },
-    })
-    expect(screen.getByRole('alert').textContent).toContain('Effective-date conflict')
-    expect(
-      (screen.getByRole('button', { name: 'Save edited commission' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true)
     fireEvent.change(screen.getByLabelText(/Effective from/), {
       target: { value: '2026-09-01' },
     })
@@ -140,15 +156,44 @@ describe('Admin Commission editor modes', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/commissions/admin/profiles',
-        expect.objectContaining({ method: 'POST' }),
+        `/api/commissions/admin/profiles/${PROFILE_ID}`,
+        expect.objectContaining({ method: 'PUT' }),
       )
     })
     const profileRequest = fetchMock.mock.calls.find(
-      ([url]) => url === '/api/commissions/admin/profiles',
+      ([url]) => url === `/api/commissions/admin/profiles/${PROFILE_ID}`,
     )
     const body = JSON.parse(String(profileRequest?.[1]?.body)) as { copiedFromProfileId?: string }
 
     expect(body.copiedFromProfileId).toBeNull()
+  })
+
+  it('edits a previous policy without allowing its timeline boundaries to move', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => adminData(),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<AdminCommissionClient initialData={adminData()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit previous policy' }))
+
+    expect(screen.getByRole('heading', { name: 'Edit previous policy for Agent One' })).toBeTruthy()
+    expect((screen.getByLabelText(/Effective from/) as HTMLInputElement).value).toBe('2025-01-01')
+    expect((screen.getByLabelText(/Effective from/) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Branch scope') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('Reason for this commission plan'), {
+      target: { value: 'Correct historical application recipient' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save previous policy correction' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/commissions/admin/profiles/${PREVIOUS_PROFILE_ID}`,
+        expect.objectContaining({ method: 'PUT' }),
+      )
+    })
   })
 })

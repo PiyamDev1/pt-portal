@@ -5,6 +5,7 @@ export const COMMISSION_PROFILE_CAPABILITY_VERSION = 2026083002
 export const COMMISSION_PACKAGE_CAPABILITY_VERSION = 2026083003
 export const COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION = 2026083004
 export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083007
+export const COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION = 2026083008
 
 export const commissionSourceModules = ['ticketing', 'packages', 'applications'] as const
 export const commissionServiceCodes = [

@@ -437,8 +437,10 @@ export default async function ShadowConsoleGuidePage() {
                   <Step number={1} title="Manage the employee plan in Admin commission">
                     Use the employee-owned plan editor for normal work. Confirm service rates,
                     currency, assistance scope, Application routing, branch scope, and effective
-                    date. Use New commission for a future change; use Edit only to correct or
-                    overwrite the selected plan.
+                    date. Use New commission for a future change, Edit commission to correct the
+                    current plan, or Edit previous policy in plan history to correct a closed
+                    period. A previous-policy correction keeps both historical date boundaries
+                    locked and leaves the following plan untouched.
                   </Step>
                   <Step number={2} title="Complete the operational source record">
                     Ticketing events need valid attribution and financial variables. Packages need
@@ -760,6 +762,10 @@ export default async function ShadowConsoleGuidePage() {
                     [
                       'Why is a PKR employee shown in GBP?',
                       'The console is a company reconciliation view and displays GBP book value. The employee-facing sheet retains pay currency.',
+                    ],
+                    [
+                      'Why does redirected Application work need an exchange rate?',
+                      'The recipient’s plan controls the commission rate and pay currency. If work is redirected to a PKR employee, enter that earning month’s PKR-to-GBP book rate before processing can complete.',
                     ],
                     [
                       'Why can I still see an old corrected row?',
