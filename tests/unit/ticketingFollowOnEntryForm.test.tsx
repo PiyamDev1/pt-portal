@@ -21,6 +21,7 @@ function bookingOption(
     rootBookingDate: string
     departureDate: string
     returnDate: string | null
+    commercialTreatment: 'standard' | 'staff_family' | 'commission_waived'
   }> = {},
 ) {
   return {
@@ -37,6 +38,10 @@ function bookingOption(
     operationalStatus: 'issued',
     airline: { id: AIRLINE_ID, iataCode: 'TK', name: 'Turkish Airlines' },
     packageMatchStatus: 'unmatched',
+    commercialTreatment: overrides.commercialTreatment || ('standard' as const),
+    commissionWaiverReason:
+      overrides.commercialTreatment === 'staff_family' ? 'Agent family booking' : null,
+    staffFamilyChangeFeeGbp: 25,
     fares: [
       { passengerType: 'ADT', quantity: 2 },
       { passengerType: 'CHD', quantity: 1 },
@@ -159,6 +164,51 @@ describe('TicketFollowOnEntryForm', () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
     expect(toastMocks.success).toHaveBeenCalledWith('DC date change saved to your ledger')
     expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
+  })
+
+  it('locks a staff/family date change to airline cost plus the £25 admin fee', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [bookingOption({ commercialTreatment: 'staff_family' })],
+          hasMore: false,
+          nextCursor: null,
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ transactionId: 'child-1' }, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <TicketFollowOnEntryForm serviceType="DC" timezone="Europe/London" onCreated={vi.fn()} />,
+    )
+
+    findPnr()
+    expect(await screen.findByText('Aisha Khan')).toBeTruthy()
+    selectAllPassengers()
+    fireEvent.change(screen.getByLabelText('ADT unit service cost'), {
+      target: { value: '10.00' },
+    })
+    fireEvent.change(screen.getByLabelText('CHD affected quantity'), { target: { value: '0' } })
+
+    const customerCharge = screen.getByLabelText('ADT unit customer charge') as HTMLInputElement
+    expect(customerCharge.disabled).toBe(true)
+    expect(customerCharge.value).toBe('35.00')
+    expect(
+      screen.getByText(/No ordinary DC\/R-ER commission/i).closest('div')?.textContent,
+    ).toContain('£25.00 per affected ticket')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save DC' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const body = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(body.fares).toEqual([
+      {
+        passengerType: 'ADT',
+        quantity: 2,
+        unitSupplierCost: 10,
+        unitSalePrice: 35,
+      },
+    ])
   })
 
   it('requires an explicit choice when the same PNR has multiple own issued records', async () => {

@@ -443,4 +443,75 @@ describe('TicketCancellationCalculator', () => {
     )
     expect(await screen.findByText(/Prefilled CHD #1/)).toBeTruthy()
   })
+
+  it('locks a staff/family refund to airline fee plus the £25 admin fee', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json({
+            items: [
+              {
+                bookingId: 'booking-family',
+                transactionId: 'transaction-family',
+                pnr: 'FAMILY1',
+                customerName: 'Family Passenger',
+                airline: { iataCode: 'PK', name: 'Pakistan International Airlines' },
+                serviceType: 'TK',
+                operationalStatus: 'issued',
+                commercialTreatment: 'staff_family',
+                staffFamilyRefundFeeGbp: 25,
+                fares: [
+                  {
+                    passengerType: 'ADT',
+                    quantity: 1,
+                    unitSupplierCost: '100.00',
+                    unitSalePrice: '100.00',
+                  },
+                ],
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            detail: {
+              passengers: [
+                {
+                  passengerType: 'ADT',
+                  position: 1,
+                  fullName: 'Family Passenger',
+                  ticketNumber: '1234567890001',
+                },
+              ],
+            },
+          }),
+        ),
+    )
+    render(<TicketCancellationCalculator />)
+
+    fireEvent.change(screen.getByLabelText('Exact PNR for cancellation'), {
+      target: { value: 'FAMILY1' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Find ticket' }))
+
+    expect(
+      await screen.findByText(/supplier charge and retained commission are £0.00/i),
+    ).toBeTruthy()
+    const supplierCharge = screen.getByLabelText('Supplier cancellation charge') as HTMLInputElement
+    const retainedCommission = screen.getByLabelText(
+      'Retained agent commission',
+    ) as HTMLInputElement
+    const adminFee = screen.getByLabelText('Desired company markup') as HTMLInputElement
+    expect(supplierCharge.value).toBe('0.00')
+    expect(supplierCharge.disabled).toBe(true)
+    expect(retainedCommission.value).toBe('0.00')
+    expect(retainedCommission.disabled).toBe(true)
+    expect(adminFee.value).toBe('25.00')
+    expect(adminFee.disabled).toBe(true)
+    expect((screen.getByLabelText('Airline cancellation fee') as HTMLInputElement).disabled).toBe(
+      false,
+    )
+  })
 })

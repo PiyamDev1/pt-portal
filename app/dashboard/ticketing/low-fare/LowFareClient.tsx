@@ -243,9 +243,9 @@ export function LowFareClient() {
               How the difference is recorded
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              A positive difference means the replacement supplier fare is lower. A higher
-              replacement fare is recorded as an increase. Commission handles the agent policy
-              separately; this operational queue does not calculate an agent amount.
+              A positive difference means the replacement supplier fare is lower. Staff/family
+              bookings pay no agent commission: the configured company percentage is charged on the
+              saving and the remaining saving reduces the customer&apos;s final ticket price.
             </p>
           </div>
         </div>

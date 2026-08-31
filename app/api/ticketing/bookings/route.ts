@@ -5,10 +5,11 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { TICKET_STAFF_FAMILY_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_SERVICE_TRANSACTION_VERSION = 2026082304
+const TICKETING_SERVICE_TRANSACTION_VERSION = TICKET_STAFF_FAMILY_CAPABILITY_VERSION
 const MATCH_PAGE_SIZE = 10
 const PASSENGER_TYPES = ['ADT', 'YTH', 'CHD', 'INF'] as const
 const PACKAGE_MATCH_STATUSES = ['unmatched', 'matched', 'ambiguous', 'manually_resolved'] as const
@@ -58,7 +59,11 @@ type RootTransactionRow = {
   ticket_transaction_passengers: Array<{
     passenger_id: string
     position: number | string
-    ticket_passengers: Related<{ id: string; passenger_type: (typeof PASSENGER_TYPES)[number]; full_name: string | null }>
+    ticket_passengers: Related<{
+      id: string
+      passenger_type: (typeof PASSENGER_TYPES)[number]
+      full_name: string | null
+    }>
   }> | null
 }
 
@@ -73,6 +78,8 @@ type BookingRow = {
   return_date: string | null
   operational_status: string
   package_match_status: string
+  commercial_treatment: 'standard' | 'staff_family' | 'commission_waived'
+  commission_waiver_reason: string | null
   archived_at: string | null
   airlines: Related<AirlineRow>
   ticket_transactions: Related<RootTransactionRow>
@@ -108,7 +115,7 @@ function fareOrder(passengerType: (typeof PASSENGER_TYPES)[number]) {
   return PASSENGER_TYPES.indexOf(passengerType)
 }
 
-function bookingItem(row: BookingRow) {
+function bookingItem(row: BookingRow, staffFamilyChangeFeeGbp: number) {
   const airline = firstRelated(row.airlines)
   const rootTransaction = firstRelated(row.ticket_transactions)
   const bookingVersion = Number(row.version)
@@ -189,6 +196,9 @@ function bookingItem(row: BookingRow) {
     operationalStatus: 'issued' as const,
     airline: { id: airline.id, iataCode: airline.iata_code, name: airline.name },
     packageMatchStatus,
+    commercialTreatment: row.commercial_treatment,
+    commissionWaiverReason: row.commission_waiver_reason,
+    staffFamilyChangeFeeGbp,
     fares,
     passengers,
   }
@@ -250,6 +260,8 @@ export async function GET(request: NextRequest) {
         return_date,
         operational_status,
         package_match_status,
+        commercial_treatment,
+        commission_waiver_reason,
         archived_at,
         airlines!inner(id, iata_code, name),
         ticket_transactions!inner(
@@ -285,15 +297,29 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const { data, error } = await query
-    .order('updated_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(MATCH_PAGE_SIZE + 1)
+  const [bookingsResult, policyResult] = await Promise.all([
+    query
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(MATCH_PAGE_SIZE + 1),
+    supabase
+      .from('ticketing_staff_family_policy')
+      .select('change_admin_fee_gbp')
+      .eq('id', true)
+      .single(),
+  ])
 
-  if (error) return privateError('Unable to find that ticket right now.', 500)
+  if (bookingsResult.error || policyResult.error) {
+    return privateError('Unable to find that ticket right now.', 500)
+  }
 
-  const rows = (data || []) as unknown as BookingRow[]
-  const items = rows.map(bookingItem)
+  const staffFamilyChangeFeeGbp = Number(policyResult.data?.change_admin_fee_gbp)
+  if (!Number.isFinite(staffFamilyChangeFeeGbp) || staffFamilyChangeFeeGbp < 0) {
+    return privateError('Staff/family ticket policy is invalid.', 500)
+  }
+
+  const rows = (bookingsResult.data || []) as unknown as BookingRow[]
+  const items = rows.map((row) => bookingItem(row, staffFamilyChangeFeeGbp))
   if (items.some((item) => item === null)) {
     return privateError('Unable to load that ticket safely.', 500)
   }

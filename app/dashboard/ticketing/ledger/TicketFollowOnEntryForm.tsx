@@ -81,6 +81,12 @@ function fieldClass(hasError: boolean) {
   }`
 }
 
+function staffFamilyUnitCharge(unitSupplierCost: string, adminFeeGbp: number) {
+  if (!MONEY_PATTERN.test(unitSupplierCost)) return ''
+  const totalPence = Math.round(Number(unitSupplierCost) * 100) + Math.round(adminFeeGbp * 100)
+  return (totalPence / 100).toFixed(2)
+}
+
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null
   return (
@@ -103,7 +109,10 @@ function initialFares(booking: TicketServiceBookingOption, retained: FareDraft =
               ? String(Math.min(Math.max(retainedQuantity, 0), fare.quantity))
               : String(fare.quantity),
           unitSupplierCost: previous?.unitSupplierCost || '',
-          unitSalePrice: previous?.unitSalePrice || '',
+          unitSalePrice:
+            booking.commercialTreatment === 'staff_family' && previous?.unitSupplierCost
+              ? staffFamilyUnitCharge(previous.unitSupplierCost, booking.staffFamilyChangeFeeGbp)
+              : previous?.unitSalePrice || '',
         },
       ]
     }),
@@ -275,12 +284,16 @@ export function TicketFollowOnEntryForm({
         nextErrors[`fare.${sourceFare.passengerType}.unitSupplierCost`] =
           'Enter the unit service cost.'
       }
-      if (!MONEY_PATTERN.test(draft?.unitSalePrice || '')) {
+      const unitSalePriceInput =
+        selected?.commercialTreatment === 'staff_family'
+          ? staffFamilyUnitCharge(draft?.unitSupplierCost || '', selected.staffFamilyChangeFeeGbp)
+          : draft?.unitSalePrice || ''
+      if (!MONEY_PATTERN.test(unitSalePriceInput)) {
         nextErrors[`fare.${sourceFare.passengerType}.unitSalePrice`] =
           'Enter the unit customer charge.'
       }
       const unitSupplierCost = Number(draft?.unitSupplierCost)
-      const unitSalePrice = Number(draft?.unitSalePrice)
+      const unitSalePrice = Number(unitSalePriceInput)
       if (unitSupplierCost > 99_999_999.99) {
         nextErrors[`fare.${sourceFare.passengerType}.unitSupplierCost`] =
           'Service cost is above the allowed limit.'
@@ -602,6 +615,14 @@ export function TicketFollowOnEntryForm({
               </div>
             </div>
 
+            {selected.commercialTreatment === 'staff_family' && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold leading-5 text-amber-900">
+                Staff/family policy: customer charge is locked to the airline/supplier cost plus{' '}
+                <strong>£{selected.staffFamilyChangeFeeGbp.toFixed(2)} per affected ticket</strong>.
+                No ordinary DC/R-ER commission is created.
+              </div>
+            )}
+
             <fieldset className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
               <legend className="text-xs font-black uppercase tracking-[0.14em] text-sky-900">
                 Select affected passengers
@@ -808,6 +829,13 @@ export function TicketFollowOnEntryForm({
                                 [passengerType]: {
                                   ...fare,
                                   unitSupplierCost: event.target.value,
+                                  unitSalePrice:
+                                    selected.commercialTreatment === 'staff_family'
+                                      ? staffFamilyUnitCharge(
+                                          event.target.value,
+                                          selected.staffFamilyChangeFeeGbp,
+                                        )
+                                      : fare.unitSalePrice,
                                 },
                               }))
                               setErrors({})
@@ -821,12 +849,18 @@ export function TicketFollowOnEntryForm({
                           />
                         </label>
                         <label className="text-[11px] font-bold text-slate-600">
-                          Unit charge (£)
+                          {selected.commercialTreatment === 'staff_family'
+                            ? `Cost + £${selected.staffFamilyChangeFeeGbp.toFixed(2)}`
+                            : 'Unit charge (£)'}
                           <input
                             type="text"
                             inputMode="decimal"
                             value={fare.unitSalePrice}
-                            disabled={disabled || isSaving}
+                            disabled={
+                              disabled ||
+                              isSaving ||
+                              selected.commercialTreatment === 'staff_family'
+                            }
                             onChange={(event) => {
                               setFares((current) => ({
                                 ...current,

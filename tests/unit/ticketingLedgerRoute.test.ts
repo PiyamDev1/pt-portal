@@ -34,11 +34,18 @@ const mocks = vi.hoisted(() => {
   )
   const employeeSelect = vi.fn(() => ({ eq: employeeEq }))
 
+  const staffFamilyPolicySingle = vi.fn()
+  const staffFamilyPolicyEq = vi.fn(() => ({ single: staffFamilyPolicySingle }))
+  const staffFamilyPolicySelect = vi.fn(() => ({ eq: staffFamilyPolicyEq }))
+
   const rpc = vi.fn()
   const from = vi.fn((table: string) => {
     if (table === 'ticket_transactions') return { select: transactionSelect }
     if (table === 'airlines') return { select: airlineSelect }
     if (table === 'employees') return { select: employeeSelect }
+    if (table === 'ticketing_staff_family_policy') {
+      return { select: staffFamilyPolicySelect }
+    }
     throw new Error(`Unexpected table: ${table}`)
   })
   const getServiceSupabaseClient = vi.fn(() => ({ from, rpc }))
@@ -59,6 +66,7 @@ const mocks = vi.hoisted(() => {
     attributionEmployeeOrder,
     employeeEq,
     employeeSelect,
+    staffFamilyPolicySingle,
     rpc,
     from,
     getServiceSupabaseClient,
@@ -144,10 +152,14 @@ describe('/api/ticketing/ledger', () => {
       error: null,
     })
     mocks.attributionEmployeeOrder.mockResolvedValue({ data: [], error: null })
+    mocks.staffFamilyPolicySingle.mockResolvedValue({
+      data: { change_admin_fee_gbp: '25.00', refund_admin_fee_gbp: '25.00' },
+      error: null,
+    })
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026083101, requiredVersion: 2026083101 },
+          data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
           error: null,
         }
       }
@@ -207,6 +219,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            commercial_treatment: 'standard',
+            commission_waiver_reason: null,
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
@@ -321,6 +335,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            commercial_treatment: 'standard',
+            commission_waiver_reason: null,
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
@@ -457,6 +473,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: '2026-09-01',
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            commercial_treatment: 'standard',
+            commission_waiver_reason: null,
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
@@ -527,6 +545,8 @@ describe('/api/ticketing/ledger', () => {
             departure_date: null,
             package_match_status: 'unmatched',
             commission_scope: 'ticket',
+            commercial_treatment: 'standard',
+            commission_waiver_reason: null,
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
@@ -640,7 +660,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_create_quick_tk_supplied',
+      'ticketing_create_quick_tk_commercial',
       expect.objectContaining({
         p_entry: expect.objectContaining({
           operationalStatus: 'held',
@@ -671,7 +691,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_create_quick_tk_supplied',
+      'ticketing_create_quick_tk_commercial',
       expect.objectContaining({
         p_entry: expect.objectContaining({
           operationalStatus: 'issued',
@@ -726,7 +746,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_create_quick_tk_supplied',
+      'ticketing_create_quick_tk_commercial',
       expect.objectContaining({
         p_entry: expect.objectContaining({
           fares: [
@@ -749,7 +769,7 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(201)
     expect(body.bookingId).toBe('booking-1')
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_supplied', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_commercial', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'save-click-1',
       p_entry: expect.objectContaining({
@@ -779,7 +799,7 @@ describe('/api/ticketing/ledger', () => {
     )
 
     expect(response.status).toBe(201)
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_supplied', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_commercial', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'agent-assistance-1',
       p_entry: expect.objectContaining({
@@ -839,7 +859,7 @@ describe('/api/ticketing/ledger', () => {
     const response = await POST(postRequest(override, 'admin-cover-1'))
 
     expect(response.status).toBe(201)
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_supplied', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_create_quick_tk_commercial', {
       p_actor_employee_id: ACTOR_ID,
       p_idempotency_key: 'admin-cover-1',
       p_entry: expect.objectContaining({
@@ -990,7 +1010,7 @@ describe('/api/ticketing/ledger', () => {
 
   it('accepts a singleton array from the schema status RPC', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: [{ ready: true, version: 2026083101, requiredVersion: 2026083101 }],
+      data: [{ ready: true, version: 2026083102, requiredVersion: 2026083102 }],
       error: null,
     })
 

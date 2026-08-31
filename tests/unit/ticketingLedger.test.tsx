@@ -73,6 +73,8 @@ describe('TicketQuickEntryForm', () => {
       operationalStatus: 'issued',
       timeLimitAt: null,
       currency: 'GBP',
+      commercialTreatment: 'standard',
+      commissionWaiverReason: null,
       fares: [
         {
           passengerType: 'ADT',
@@ -320,6 +322,48 @@ describe('TicketQuickEntryForm', () => {
     expect((screen.getByLabelText('ADT quantity') as HTMLInputElement).value).toBe('1')
   })
 
+  it('records a staff/family booking at cost with ordinary commission waived', async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ bookingId: 'booking-family' }, { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <TicketQuickEntryForm
+        airlines={AIRLINES}
+        timezone="Europe/London"
+        {...NON_ADMIN_ATTRIBUTION_PROPS}
+        onCreated={vi.fn()}
+      />,
+    )
+
+    fillRequiredIssuedFields()
+    fireEvent.change(screen.getByLabelText('Commission treatment'), {
+      target: { value: 'staff_family' },
+    })
+    fireEvent.change(screen.getByLabelText('Commission waiver reason'), {
+      target: { value: 'Father - staff family concession' },
+    })
+
+    const salePrice = screen.getByLabelText('ADT unit sale price') as HTMLInputElement
+    expect(salePrice.value).toBe('450.25')
+    expect(salePrice.disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Save TK' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      commercialTreatment: 'staff_family',
+      commissionWaiverReason: 'Father - staff family concession',
+      fares: [
+        {
+          passengerType: 'ADT',
+          unitSupplierCost: 450.25,
+          unitSalePrice: 450.25,
+          unitDiscount: 0,
+        },
+      ],
+    })
+  })
+
   it('requires confirmation and retries the same request after a duplicate TK response', async () => {
     const onCreated = vi.fn(async () => undefined)
     const fetchMock = vi
@@ -384,6 +428,10 @@ describe('TicketLedgerList', () => {
       passengerCount: 2,
       packageMatchStatus: 'matched',
       commissionScope: 'package',
+      commercialTreatment: 'standard',
+      commissionWaiverReason: null,
+      staffFamilyChangeFeeGbp: 25,
+      staffFamilyRefundFeeGbp: 25,
       detailsStatus: 'needs_details',
       responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
       assistantEmployees: [{ id: 'employee-assistant', fullName: 'Assistant One' }],
@@ -440,6 +488,10 @@ describe('TicketLedgerList', () => {
       passengerCount: 2,
       packageMatchStatus: 'unmatched',
       commissionScope: 'ticket',
+      commercialTreatment: 'standard',
+      commissionWaiverReason: null,
+      staffFamilyChangeFeeGbp: 25,
+      staffFamilyRefundFeeGbp: 25,
       detailsStatus: 'recorded',
       responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
       assistantEmployees: [],
@@ -486,6 +538,10 @@ describe('TicketLedgerList', () => {
       issuedAt: '2026-08-22',
       passengerCount: 1,
       packageMatchStatus: 'unmatched',
+      commercialTreatment: 'standard',
+      commissionWaiverReason: null,
+      staffFamilyChangeFeeGbp: 25,
+      staffFamilyRefundFeeGbp: 25,
       detailsStatus: 'complete',
       responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
       assistantEmployees: [],

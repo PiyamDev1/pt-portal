@@ -21,6 +21,16 @@ export type LowFareLatestAdjustment = {
   effectiveDate: string
   actingEmployeeId: string
   createdAt: string
+  staffFamilyReprice: LowFareStaffFamilyReprice | null
+}
+
+export type LowFareStaffFamilyReprice = {
+  companyFeePercent: LowFareMoney
+  customerPriceBeforeGbp: LowFareMoney
+  companyFeeGbp: LowFareMoney
+  customerCreditGbp: LowFareMoney
+  customerAdditionalChargeGbp: LowFareMoney
+  customerPriceAfterGbp: LowFareMoney
 }
 
 export type LowFareLatestCheck = {
@@ -46,6 +56,9 @@ export type LowFareQueueItem = {
   issuedDate: string
   initialSupplierFareGbp: LowFareMoney
   currentSupplierFareGbp: LowFareMoney
+  commercialTreatment: 'standard' | 'staff_family' | 'commission_waived'
+  currentCustomerPriceGbp: LowFareMoney | null
+  staffFamilyCompanyFeePercent: LowFareMoney | null
   latestAdjustment: LowFareLatestAdjustment | null
   latestCheck: LowFareLatestCheck | null
   packageMatchStatus: string
@@ -119,4 +132,5 @@ export type LowFareAdjustmentResult = {
   packageMatchStatus: string
   createdAt: string
   idempotentReplay: boolean
+  staffFamilyReprice: LowFareStaffFamilyReprice | null
 }

@@ -108,6 +108,11 @@ export function LowFareQueue({
                     {item.owner.fullName}
                   </p>
                   <p className="mt-1 text-[11px] font-semibold text-slate-500">Ticket owner</p>
+                  {item.commercialTreatment === 'staff_family' && (
+                    <span className="mt-1.5 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-800 ring-1 ring-violet-200">
+                      Staff/family · no commission
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -156,6 +161,11 @@ export function LowFareQueue({
                       <p className="mt-0.5 text-[11px] text-slate-400">
                         Last adjusted {formatDate(latest.createdAt, true)}
                       </p>
+                      {latest.staffFamilyReprice && (
+                        <p className="mt-1 text-[11px] font-black text-violet-800">
+                          Final price {formatGbp(latest.staffFamilyReprice.customerPriceAfterGbp)}
+                        </p>
+                      )}
                     </>
                   ) : (
                     <span className="text-xs font-semibold text-slate-400">Never adjusted</span>

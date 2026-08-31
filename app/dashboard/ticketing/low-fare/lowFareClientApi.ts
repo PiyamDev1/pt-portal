@@ -8,6 +8,7 @@ import type {
   LowFareQueueFilters,
   LowFareQueueItem,
   LowFareQueuePage,
+  LowFareStaffFamilyReprice,
 } from './types'
 
 type ApiErrorPayload = {
@@ -57,7 +58,20 @@ function isLatestAdjustment(value: unknown): value is LowFareLatestAdjustment {
     isMoney(value.differenceGbp) &&
     typeof value.effectiveDate === 'string' &&
     typeof value.actingEmployeeId === 'string' &&
-    typeof value.createdAt === 'string'
+    typeof value.createdAt === 'string' &&
+    (value.staffFamilyReprice === null || isStaffFamilyReprice(value.staffFamilyReprice))
+  )
+}
+
+function isStaffFamilyReprice(value: unknown): value is LowFareStaffFamilyReprice {
+  return (
+    isRecord(value) &&
+    isMoney(value.companyFeePercent) &&
+    isMoney(value.customerPriceBeforeGbp) &&
+    isMoney(value.companyFeeGbp) &&
+    isMoney(value.customerCreditGbp) &&
+    isMoney(value.customerAdditionalChargeGbp) &&
+    isMoney(value.customerPriceAfterGbp)
   )
 }
 
@@ -77,6 +91,13 @@ function isQueueItem(value: unknown): value is LowFareQueueItem {
   if (!isRecord(value) || !isRecord(value.airline) || !isRecord(value.owner)) return false
   if (value.latestAdjustment !== null && !isLatestAdjustment(value.latestAdjustment)) return false
   if (value.latestCheck !== null && !isLatestCheck(value.latestCheck)) return false
+  const isStaffFamily = value.commercialTreatment === 'staff_family'
+  if (
+    isStaffFamily !==
+    (value.currentCustomerPriceGbp !== null && value.staffFamilyCompanyFeePercent !== null)
+  ) {
+    return false
+  }
 
   return (
     typeof value.bookingId === 'string' &&
@@ -95,6 +116,9 @@ function isQueueItem(value: unknown): value is LowFareQueueItem {
     typeof value.issuedDate === 'string' &&
     isMoney(value.initialSupplierFareGbp) &&
     isMoney(value.currentSupplierFareGbp) &&
+    ['standard', 'staff_family', 'commission_waived'].includes(String(value.commercialTreatment)) &&
+    (value.currentCustomerPriceGbp === null || isMoney(value.currentCustomerPriceGbp)) &&
+    (value.staffFamilyCompanyFeePercent === null || isMoney(value.staffFamilyCompanyFeePercent)) &&
     typeof value.packageMatchStatus === 'string' &&
     typeof value.updatedAt === 'string'
   )
@@ -118,7 +142,8 @@ function isAdjustmentResult(value: unknown): value is LowFareAdjustmentResult {
     typeof value.effectiveDate === 'string' &&
     typeof value.packageMatchStatus === 'string' &&
     typeof value.createdAt === 'string' &&
-    typeof value.idempotentReplay === 'boolean'
+    typeof value.idempotentReplay === 'boolean' &&
+    (value.staffFamilyReprice === null || isStaffFamilyReprice(value.staffFamilyReprice))
   )
 }
 

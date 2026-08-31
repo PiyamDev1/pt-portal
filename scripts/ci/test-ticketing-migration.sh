@@ -47,6 +47,8 @@ archive_tombstones_migration="scripts/migrations/20260830_ticketing_archive_comm
 archive_tombstones_assertions="tests/integration/ticketing_archive_commission_tombstones.sql"
 unpriced_held_migration="scripts/migrations/20260831_ticketing_unpriced_held_quick_entry.sql"
 unpriced_held_assertions="tests/integration/ticketing_unpriced_held_quick_entry.sql"
+staff_family_migration="scripts/migrations/20260831_ticketing_waiver_staff_family_commercial_policy.sql"
+staff_family_assertions="tests/integration/ticketing_staff_family_commercial_policy.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2449,6 +2451,17 @@ if [[ "$(ticketing_schema_fingerprint)" != "$unpriced_held_first_fingerprint" ]]
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$unpriced_held_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_family_migration"
+staff_family_first_fingerprint="$(ticketing_schema_fingerprint)"
+staff_family_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_family_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$staff_family_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$staff_family_first_applied_at" ]]; then
+  echo "Idempotent staff/family commercial-policy migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_family_assertions"
 
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const TICKET_FARE_ADJUSTMENT_CAPABILITY_VERSION = 2026082904
+export const TICKET_FARE_ADJUSTMENT_CAPABILITY_VERSION = 2026083102
 export const TICKET_FARE_ADJUSTMENT_MAX_FARE_GBP = 99_999_999.99
 export const TICKET_FARE_ADJUSTMENT_MAX_NOTES_LENGTH = 1_000
 
@@ -53,6 +53,16 @@ export type TicketingFareAdjustmentLatest = {
   effectiveDate: string
   actingEmployeeId: string
   createdAt: string
+  staffFamilyReprice: TicketingStaffFamilyReprice | null
+}
+
+export type TicketingStaffFamilyReprice = {
+  companyFeePercent: number
+  customerPriceBeforeGbp: number
+  companyFeeGbp: number
+  customerCreditGbp: number
+  customerAdditionalChargeGbp: number
+  customerPriceAfterGbp: number
 }
 
 export const ticketingRecordFareCheckSchema = z
@@ -111,6 +121,9 @@ export type TicketingFareAdjustmentQueueItem = {
   issuedDate: string
   initialSupplierFareGbp: number
   currentSupplierFareGbp: number
+  commercialTreatment: 'standard' | 'staff_family' | 'commission_waived'
+  currentCustomerPriceGbp: number | null
+  staffFamilyCompanyFeePercent: number | null
   latestAdjustment: TicketingFareAdjustmentLatest | null
   latestCheck: TicketingFareCheckLatest | null
   packageMatchStatus: 'unmatched' | 'matched' | 'ambiguous' | 'manually_resolved'
@@ -143,4 +156,5 @@ export type TicketingAppendFareAdjustmentResult = {
   packageMatchStatus: 'unmatched' | 'matched' | 'ambiguous' | 'manually_resolved'
   createdAt: string
   idempotentReplay: boolean
+  staffFamilyReprice: TicketingStaffFamilyReprice | null
 }

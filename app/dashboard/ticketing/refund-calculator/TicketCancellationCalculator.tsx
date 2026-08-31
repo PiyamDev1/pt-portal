@@ -264,6 +264,7 @@ export function TicketCancellationCalculator() {
     ticket.fares.map((fare) => ({ ticket, fare, key: fareSelectionKey(ticket, fare) })),
   )
   const selectedFare = fareOptions.find((option) => option.key === selectedFareKey) || null
+  const isStaffFamilyBooking = selectedFare?.ticket.commercialTreatment === 'staff_family'
 
   const selectedPassenger =
     passengerOptions.find(
@@ -293,6 +294,13 @@ export function TicketCancellationCalculator() {
       ...current,
       ...(salePrice === null ? {} : { ticketSalePrice: salePrice }),
       ...(supplierCost === null ? {} : { supplierTicketCost: supplierCost }),
+      ...(option.ticket.commercialTreatment === 'staff_family'
+        ? {
+            supplierCancellationCharge: '0.00',
+            retainedAgentCommission: '0.00',
+            desiredCompanyMarkup: option.ticket.staffFamilyRefundFeeGbp.toFixed(2),
+          }
+        : { retainedAgentCommission: '0.00', desiredCompanyMarkup: '0.00' }),
     }))
     setErrors((current) => ({
       ...current,
@@ -751,6 +759,14 @@ export function TicketCancellationCalculator() {
                         </p>
                       </div>
                     )}
+                    {isStaffFamilyBooking && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold leading-5 text-amber-900">
+                        Staff/family policy: supplier charge and retained commission are £0.00. The
+                        refund admin fee is locked to{' '}
+                        <strong>£{selectedFare.ticket.staffFamilyRefundFeeGbp.toFixed(2)}</strong>{' '}
+                        per passenger ticket; only the airline cancellation fee is added.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -789,6 +805,14 @@ export function TicketCancellationCalculator() {
                         inputMode="decimal"
                         autoComplete="off"
                         value={draft[field.name]}
+                        disabled={
+                          isStaffFamilyBooking &&
+                          [
+                            'supplierCancellationCharge',
+                            'retainedAgentCommission',
+                            'desiredCompanyMarkup',
+                          ].includes(field.name)
+                        }
                         onChange={(event) => {
                           const value = event.target.value
                           setDraft((current) => ({ ...current, [field.name]: value }))
@@ -798,7 +822,7 @@ export function TicketCancellationCalculator() {
                         aria-label={field.label}
                         aria-invalid={Boolean(error)}
                         aria-describedby={error ? errorId : hintId}
-                        className={`w-full rounded-xl border bg-white py-2.5 pl-7 pr-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 ${
+                        className={`w-full rounded-xl border bg-white py-2.5 pl-7 pr-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 ${
                           error
                             ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-300 focus:border-[#8b1e2d] focus:ring-red-100'

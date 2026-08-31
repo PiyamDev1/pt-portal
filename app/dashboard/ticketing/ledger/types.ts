@@ -24,6 +24,8 @@ export type TicketSupplier = {
   name: string
 }
 
+export type TicketCommercialTreatment = 'standard' | 'staff_family' | 'commission_waived'
+
 export type TicketAttributionEmployee = TicketingAttributionEmployee
 
 export type TicketLedgerFare = {
@@ -53,6 +55,10 @@ export type TicketLedgerItem = {
   passengerCount: number
   packageMatchStatus: string
   commissionScope?: string
+  commercialTreatment: TicketCommercialTreatment
+  commissionWaiverReason: string | null
+  staffFamilyChangeFeeGbp: number
+  staffFamilyRefundFeeGbp: number
   detailsStatus?: TicketDetailsStatus
   fares: TicketLedgerFare[]
   responsibleEmployee: TicketAttributionEmployee
@@ -68,6 +74,8 @@ export type TicketLedgerContext = {
   canManageAttribution: boolean
   canManageRecords: boolean
   attributionEmployees: TicketAttributionEmployee[]
+  staffFamilyChangeFeeGbp: number
+  staffFamilyRefundFeeGbp: number
 }
 
 export type TicketLedgerPayload = {
@@ -97,6 +105,8 @@ export type CreateTkTicketInput = {
   issuedAt: string | null
   currency: 'GBP'
   fares: TicketFareInput[]
+  commercialTreatment: TicketCommercialTreatment
+  commissionWaiverReason: string | null
   responsibleEmployeeId?: string
   assistantEmployeeIds?: string[]
   attributionReason?: string | null
@@ -119,6 +129,9 @@ export type TicketServiceBookingOption = {
   operationalStatus: 'issued'
   airline: TicketAirlineOption
   packageMatchStatus: string
+  commercialTreatment: TicketCommercialTreatment
+  commissionWaiverReason: string | null
+  staffFamilyChangeFeeGbp: number
   fares: Array<{
     passengerType: TicketPassengerType
     quantity: number

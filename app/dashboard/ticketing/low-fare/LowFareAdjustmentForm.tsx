@@ -64,6 +64,30 @@ export function LowFareAdjustmentForm({
   const nextFarePence = parsePence(newFare)
   const differencePence =
     currentFarePence !== null && nextFarePence !== null ? currentFarePence - nextFarePence : null
+  const currentCustomerPricePence =
+    item.currentCustomerPriceGbp === null ? null : parsePence(item.currentCustomerPriceGbp)
+  const staffFamilyFeePercent = Number(item.staffFamilyCompanyFeePercent)
+  const staffFamilyPreview =
+    item.commercialTreatment === 'staff_family' &&
+    differencePence !== null &&
+    differencePence !== 0 &&
+    currentCustomerPricePence !== null &&
+    Number.isFinite(staffFamilyFeePercent)
+      ? (() => {
+          const companyFeePence =
+            differencePence > 0 ? Math.round((differencePence * staffFamilyFeePercent) / 100) : 0
+          const customerCreditPence = differencePence > 0 ? differencePence - companyFeePence : 0
+          const customerAdditionalChargePence = differencePence < 0 ? Math.abs(differencePence) : 0
+          return {
+            isSupplierSaving: differencePence > 0,
+            companyFeePence,
+            customerCreditPence,
+            customerAdditionalChargePence,
+            finalCustomerPricePence:
+              currentCustomerPricePence - customerCreditPence + customerAdditionalChargePence,
+          }
+        })()
+      : null
 
   const updateDraft = (update: () => void) => {
     if (isSaving) return
@@ -118,10 +142,13 @@ export function LowFareAdjustmentForm({
               idempotencyKey.current,
             )
       if ('differenceGbp' in result) {
+        const finalPrice = result.staffFamilyReprice?.customerPriceAfterGbp
         toast.success(
-          Number(result.differenceGbp) > 0
-            ? 'Lower supplier fare recorded'
-            : 'Supplier fare increase recorded',
+          finalPrice !== undefined
+            ? `Staff/family final price recorded as ${formatGbp(Number(finalPrice))}`
+            : Number(result.differenceGbp) > 0
+              ? 'Lower supplier fare recorded'
+              : 'Supplier fare increase recorded',
         )
       } else {
         toast.success('Fare checked — no change recorded')
@@ -232,6 +259,71 @@ export function LowFareAdjustmentForm({
           )}
         </label>
       </div>
+
+      {item.commercialTreatment === 'staff_family' && (
+        <section className="mt-4 rounded-2xl border border-violet-200 bg-white p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-800">
+                Staff/family final price
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                No agent commission is paid. The company keeps {staffFamilyFeePercent}% of any
+                supplier saving and the rest reduces the family&apos;s final price.
+              </p>
+            </div>
+            <span className="mt-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-900 ring-1 ring-violet-200 sm:mt-0">
+              Current customer price {formatGbp((currentCustomerPricePence || 0) / 100)}
+            </span>
+          </div>
+
+          {staffFamilyPreview ? (
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <dt className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  New supplier fare
+                </dt>
+                <dd className="mt-1 text-base font-black text-slate-950">
+                  {formatGbp((nextFarePence || 0) / 100)}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-3">
+                <dt className="text-[10px] font-black uppercase tracking-wide text-amber-800">
+                  Company fee
+                </dt>
+                <dd className="mt-1 text-base font-black text-amber-950">
+                  {formatGbp(staffFamilyPreview.companyFeePence / 100)}
+                </dd>
+                <p className="mt-0.5 text-[11px] text-amber-800">
+                  {staffFamilyPreview.isSupplierSaving
+                    ? `${staffFamilyFeePercent}% of supplier saving`
+                    : 'No fee on an increase'}
+                </p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-3">
+                <dt className="text-[10px] font-black uppercase tracking-wide text-emerald-800">
+                  Family saving
+                </dt>
+                <dd className="mt-1 text-base font-black text-emerald-950">
+                  {formatGbp(staffFamilyPreview.customerCreditPence / 100)}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-200">
+                <dt className="text-[10px] font-black uppercase tracking-wide text-violet-800">
+                  Final customer price
+                </dt>
+                <dd className="mt-1 text-xl font-black text-violet-950">
+                  {formatGbp(staffFamilyPreview.finalCustomerPricePence / 100)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-3 text-xs font-semibold text-slate-500">
+              Enter the replacement supplier fare to preview the final price.
+            </p>
+          )}
+        </section>
+      )}
 
       <div className="mt-4 flex flex-col gap-3 border-t border-sky-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div aria-live="polite" className="min-h-6 text-sm font-black">

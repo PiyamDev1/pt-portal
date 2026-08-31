@@ -162,6 +162,13 @@ export function TicketLedgerList({
                     <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[9px] font-black text-white">
                       {item.serviceType}
                     </span>
+                    {item.commercialTreatment !== 'standard' && (
+                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-900 ring-1 ring-amber-200">
+                        {item.commercialTreatment === 'staff_family'
+                          ? 'Staff/family'
+                          : 'No commission'}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 text-xs font-bold text-slate-500">
                     {item.airline.iataCode} · {item.airline.name}

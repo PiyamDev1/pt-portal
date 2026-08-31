@@ -10,6 +10,7 @@ import type {
   DuplicateTkRecord,
   TicketAirlineOption,
   TicketAttributionEmployee,
+  TicketCommercialTreatment,
   TicketPassengerType,
   TicketSupplierCode,
 } from './types'
@@ -38,6 +39,8 @@ type QuickEntryDraft = {
   timeLimitAt: string
   issuedAt: string
   fares: FareDraft
+  commercialTreatment: TicketCommercialTreatment
+  commissionWaiverReason: string
   responsibleEmployeeId: string
   assistantEmployeeIds: string[]
   attributionReason: string
@@ -105,6 +108,8 @@ function initialDraft(
         unitDiscount: '0',
       },
     },
+    commercialTreatment: 'standard',
+    commissionWaiverReason: '',
     responsibleEmployeeId,
     assistantEmployeeIds: [],
     attributionReason: '',
@@ -162,6 +167,7 @@ export function TicketQuickEntryForm({
   const idempotencyKey = useRef(newIdempotencyKey())
   const customerInput = useRef<HTMLInputElement>(null)
   const attributionOverride = canManageAttribution && draft.responsibleEmployeeId !== employeeId
+  const isStaffFamilyBooking = draft.commercialTreatment === 'staff_family'
   const selectedAssistantEmployees = draft.assistantEmployeeIds.flatMap((id) => {
     const employee = attributionEmployees.find((option) => option.id === id)
     return employee ? [employee] : []
@@ -234,6 +240,16 @@ export function TicketQuickEntryForm({
       nextErrors.assistantEmployeeIds = 'Choose valid assistants who are not the responsible agent.'
     }
 
+    if (
+      draft.commercialTreatment !== 'standard' &&
+      draft.commissionWaiverReason.trim().length < 3
+    ) {
+      nextErrors.commissionWaiverReason =
+        'Enter the family relationship or reason for waiving commission.'
+    } else if (draft.commissionWaiverReason.trim().length > 500) {
+      nextErrors.commissionWaiverReason = 'Keep the commission waiver reason to 500 characters.'
+    }
+
     const fares = PASSENGER_TYPES.flatMap((passengerType) => {
       const fare = draft.fares[passengerType]
       const quantity = Number(fare.quantity)
@@ -255,19 +271,26 @@ export function TicketQuickEntryForm({
       }
       let unitSalePrice: number | null = null
       let unitDiscount: number | null = null
-      if (draft.operationalStatus === 'issued' && fare.unitSalePrice.trim()) {
-        if (!MONEY_PATTERN.test(fare.unitSalePrice.trim())) {
+      const effectiveSalePrice = isStaffFamilyBooking
+        ? fare.unitSupplierCost.trim()
+        : fare.unitSalePrice.trim()
+      if (draft.operationalStatus === 'issued' && effectiveSalePrice) {
+        if (!MONEY_PATTERN.test(effectiveSalePrice)) {
           nextErrors[`fare.${passengerType}.unitSalePrice`] =
             'Enter the sale price per ticket with up to 2 decimals.'
           return []
         }
-        const discountInput = fare.hasDiscount ? fare.unitDiscount : '0'
+        const discountInput = isStaffFamilyBooking
+          ? '0'
+          : fare.hasDiscount
+            ? fare.unitDiscount
+            : '0'
         if (!MONEY_PATTERN.test(discountInput)) {
           nextErrors[`fare.${passengerType}.unitDiscount`] =
             'Enter the discount per ticket with up to 2 decimals.'
           return []
         }
-        unitSalePrice = Number(fare.unitSalePrice)
+        unitSalePrice = Number(effectiveSalePrice)
         unitDiscount = Number(discountInput)
         if (unitSalePrice > 99_999_999.99 || unitDiscount > unitSalePrice) {
           nextErrors[`fare.${passengerType}.unitDiscount`] =
@@ -310,6 +333,9 @@ export function TicketQuickEntryForm({
         issuedAt: draft.operationalStatus === 'issued' ? draft.issuedAt : null,
         currency: 'GBP',
         fares,
+        commercialTreatment: draft.commercialTreatment,
+        commissionWaiverReason:
+          draft.commercialTreatment === 'standard' ? null : draft.commissionWaiverReason.trim(),
         responsibleEmployeeId: draft.responsibleEmployeeId,
         assistantEmployeeIds: draft.assistantEmployeeIds,
         attributionReason: attributionOverride ? draft.attributionReason.trim() : null,
@@ -666,6 +692,18 @@ export function TicketQuickEntryForm({
                                 [passengerType]: {
                                   ...current.fares[passengerType],
                                   unitSupplierCost: event.target.value,
+                                  unitSalePrice:
+                                    current.commercialTreatment === 'staff_family'
+                                      ? event.target.value
+                                      : current.fares[passengerType].unitSalePrice,
+                                  hasDiscount:
+                                    current.commercialTreatment === 'staff_family'
+                                      ? false
+                                      : current.fares[passengerType].hasDiscount,
+                                  unitDiscount:
+                                    current.commercialTreatment === 'staff_family'
+                                      ? '0'
+                                      : current.fares[passengerType].unitDiscount,
                                 },
                               },
                             }))
@@ -685,7 +723,7 @@ export function TicketQuickEntryForm({
                               type="text"
                               inputMode="decimal"
                               value={fare.unitSalePrice}
-                              disabled={disabled || isSaving}
+                              disabled={disabled || isSaving || isStaffFamilyBooking}
                               onChange={(event) =>
                                 updateDraft((current) => ({
                                   ...current,
@@ -707,37 +745,51 @@ export function TicketQuickEntryForm({
                               aria-label={`${passengerType} unit sale price`}
                               aria-invalid={Boolean(saleError)}
                               className={fieldClass(Boolean(saleError))}
-                              placeholder={disabled ? 'Not used' : 'Package quote or 0.00'}
+                              placeholder={
+                                disabled
+                                  ? 'Not used'
+                                  : isStaffFamilyBooking
+                                    ? 'Matches fare cost'
+                                    : 'Package quote or 0.00'
+                              }
                             />
                           </label>
-                          <div className="col-span-2 text-[11px] font-bold text-slate-600">
-                            <label className="mt-1 flex min-h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5">
-                              <input
-                                type="checkbox"
-                                checked={fare.hasDiscount}
-                                disabled={disabled || isSaving}
-                                onChange={(event) =>
-                                  updateDraft((current) => ({
-                                    ...current,
-                                    fares: {
-                                      ...current.fares,
-                                      [passengerType]: {
-                                        ...current.fares[passengerType],
-                                        hasDiscount: event.target.checked,
-                                        unitDiscount: event.target.checked
-                                          ? current.fares[passengerType].unitDiscount
-                                          : '0',
+                          {isStaffFamilyBooking ? (
+                            <p className="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] font-bold leading-4 text-emerald-900">
+                              At-cost staff/family fare. Ordinary commission is waived; Low Fare
+                              reprices the ticket under the staff/family fee policy and is never
+                              paid as commission.
+                            </p>
+                          ) : (
+                            <div className="col-span-2 text-[11px] font-bold text-slate-600">
+                              <label className="mt-1 flex min-h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5">
+                                <input
+                                  type="checkbox"
+                                  checked={fare.hasDiscount}
+                                  disabled={disabled || isSaving}
+                                  onChange={(event) =>
+                                    updateDraft((current) => ({
+                                      ...current,
+                                      fares: {
+                                        ...current.fares,
+                                        [passengerType]: {
+                                          ...current.fares[passengerType],
+                                          hasDiscount: event.target.checked,
+                                          unitDiscount: event.target.checked
+                                            ? current.fares[passengerType].unitDiscount
+                                            : '0',
+                                        },
                                       },
-                                    },
-                                  }))
-                                }
-                                aria-label={`${passengerType} has discount`}
-                                className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
-                              />
-                              Discount applied
-                            </label>
-                          </div>
-                          {fare.hasDiscount && (
+                                    }))
+                                  }
+                                  aria-label={`${passengerType} has discount`}
+                                  className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                                />
+                                Discount applied
+                              </label>
+                            </div>
+                          )}
+                          {!isStaffFamilyBooking && fare.hasDiscount && (
                             <label className="col-span-2 text-[11px] font-bold text-slate-600">
                               Discount per ticket (£)
                               <input
@@ -781,6 +833,89 @@ export function TicketQuickEntryForm({
               })}
             </div>
             <FieldError id="ticket-fares-error" message={errors.fares} />
+          </fieldset>
+
+          <fieldset className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+            <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-amber-900">
+              Commission treatment
+            </legend>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <label className="text-xs font-bold text-slate-700">
+                Booking treatment
+                <select
+                  value={draft.commercialTreatment}
+                  onChange={(event) => {
+                    const commercialTreatment = event.target.value as TicketCommercialTreatment
+                    updateDraft((current) => ({
+                      ...current,
+                      commercialTreatment,
+                      commissionWaiverReason:
+                        commercialTreatment === 'standard' ? '' : current.commissionWaiverReason,
+                      fares:
+                        commercialTreatment === 'staff_family'
+                          ? (Object.fromEntries(
+                              PASSENGER_TYPES.map((passengerType) => [
+                                passengerType,
+                                {
+                                  ...current.fares[passengerType],
+                                  unitSalePrice: current.fares[passengerType].unitSupplierCost,
+                                  hasDiscount: false,
+                                  unitDiscount: '0',
+                                },
+                              ]),
+                            ) as FareDraft)
+                          : current.fares,
+                    }))
+                  }}
+                  disabled={isSaving}
+                  aria-label="Commission treatment"
+                  className={fieldClass(false)}
+                >
+                  <option value="standard">Standard commission</option>
+                  <option value="staff_family">Staff/family — no ordinary commission</option>
+                  <option value="commission_waived">Other no-commission booking</option>
+                </select>
+                <span className="mt-1 block text-[11px] font-medium leading-4 text-slate-500">
+                  Staff/family bookings are sold at cost. A later Low Fare reprices the ticket using
+                  the configured company fee; it does not create commission.
+                </span>
+              </label>
+
+              {draft.commercialTreatment !== 'standard' && (
+                <label className="text-xs font-bold text-slate-700">
+                  {isStaffFamilyBooking ? 'Relationship / reason' : 'Waiver reason'}
+                  <textarea
+                    value={draft.commissionWaiverReason}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        commissionWaiverReason: event.target.value,
+                      }))
+                    }
+                    maxLength={500}
+                    rows={2}
+                    disabled={isSaving}
+                    aria-label="Commission waiver reason"
+                    aria-invalid={Boolean(errors.commissionWaiverReason)}
+                    aria-describedby={
+                      errors.commissionWaiverReason
+                        ? 'ticket-commission-waiver-reason-error'
+                        : undefined
+                    }
+                    className={fieldClass(Boolean(errors.commissionWaiverReason))}
+                    placeholder={
+                      isStaffFamilyBooking
+                        ? 'For example: father — staff family concession'
+                        : 'Explain why no ordinary commission applies'
+                    }
+                  />
+                  <FieldError
+                    id="ticket-commission-waiver-reason-error"
+                    message={errors.commissionWaiverReason}
+                  />
+                </label>
+              )}
+            </div>
           </fieldset>
 
           <fieldset className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">

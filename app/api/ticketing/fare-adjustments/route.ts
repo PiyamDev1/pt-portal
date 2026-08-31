@@ -16,6 +16,7 @@ import {
   type TicketingFareCheckLatest,
   type TicketingFareAdjustmentLatest,
   type TicketingFareAdjustmentQueueItem,
+  type TicketingStaffFamilyReprice,
 } from '@/lib/ticketing/fareAdjustmentContracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 
@@ -114,6 +115,7 @@ type RootTransactionRow = {
   currency: string
   supplier_cost_source: number | string | null
   supplier_cost_gbp: number | string | null
+  sale_price_gbp: number | string | null
 }
 
 type BookingRow = {
@@ -127,6 +129,7 @@ type BookingRow = {
   operational_status: string
   package_match_status: string
   commission_scope: string
+  commercial_treatment: string
   updated_at: string
   archived_at: string | null
   airlines: Related<AirlineRow>
@@ -155,6 +158,21 @@ type CurrentAdjustmentRow = {
   package_match_status: string
   commission_scope: string
   created_at: string
+  staff_family_company_fee_percent: number | string | null
+  staff_family_customer_price_before_gbp: number | string | null
+  staff_family_company_fee_gbp: number | string | null
+  staff_family_customer_credit_gbp: number | string | null
+  staff_family_customer_additional_charge_gbp: number | string | null
+  staff_family_customer_price_after_gbp: number | string | null
+}
+
+type StaffFamilyDefaultPolicyRow = {
+  low_fare_company_fee_percent: number | string
+}
+
+type StaffFamilyEmployeePolicyRow = {
+  employee_id: string
+  low_fare_company_fee_percent: number | string
 }
 
 type CurrentFareCheckRow = {
@@ -176,6 +194,7 @@ type FilterOwnerRow = {
 }
 
 type FareAdjustmentRpcResult = {
+  commercialTreatment?: string
   booking?: {
     id?: string
     version?: number | string
@@ -225,6 +244,15 @@ type FareAdjustmentRpcResult = {
   }
   auditEventId?: string
   idempotentReplay?: boolean
+  staffFamilyReprice?: {
+    companyFeePercent?: number | string | null
+    supplierDifferenceGbp?: number | string | null
+    customerPriceBeforeGbp?: number | string | null
+    companyFeeGbp?: number | string | null
+    customerCreditGbp?: number | string | null
+    customerAdditionalChargeGbp?: number | string | null
+    customerPriceAfterGbp?: number | string | null
+  } | null
 }
 
 type TicketingRpcError = {
@@ -253,6 +281,7 @@ function integer(value: unknown, minimum = 1) {
 }
 
 function money(value: unknown, options: { signed?: boolean; allowZero?: boolean } = {}) {
+  if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   const minimum = options.allowZero ? 0 : Number.MIN_VALUE
   if (
@@ -395,6 +424,15 @@ function latestAdjustment(
     sequenceNumber === 1
       ? row.previous_adjustment_id === null
       : sequenceNumber !== null && isUuid(row.previous_adjustment_id)
+  const staffFamilyReprice = parsedStaffFamilyReprice({
+    companyFeePercent: row.staff_family_company_fee_percent,
+    supplierDifferenceGbp: row.difference_gbp,
+    customerPriceBeforeGbp: row.staff_family_customer_price_before_gbp,
+    companyFeeGbp: row.staff_family_company_fee_gbp,
+    customerCreditGbp: row.staff_family_customer_credit_gbp,
+    customerAdditionalChargeGbp: row.staff_family_customer_additional_charge_gbp,
+    customerPriceAfterGbp: row.staff_family_customer_price_after_gbp,
+  })
 
   if (
     !isUuid(row.id) ||
@@ -423,7 +461,8 @@ function latestAdjustment(
     passengerCount !== integer(root.passenger_ticket_count) ||
     !ticketingFareAdjustmentDateSchema.safeParse(row.effective_on).success ||
     !adjustmentSnapshot ||
-    !isTimestampWithTimezone(row.created_at)
+    !isTimestampWithTimezone(row.created_at) ||
+    (booking.commercial_treatment === 'staff_family') !== Boolean(staffFamilyReprice)
   ) {
     return null
   }
@@ -438,6 +477,7 @@ function latestAdjustment(
     effectiveDate: row.effective_on,
     actingEmployeeId: row.acting_employee_id,
     createdAt: row.created_at,
+    staffFamilyReprice,
   }
   return adjustment
 }
@@ -475,6 +515,7 @@ function queueItem(
   row: BookingRow,
   adjustmentRow: CurrentAdjustmentRow | undefined,
   fareCheckRow: CurrentFareCheckRow | undefined,
+  staffFamilyCompanyFeePercent: number | null,
 ) {
   const airline = exactlyOneRelated(row.airlines)
   const owner = exactlyOneRelated(row.owner)
@@ -487,6 +528,7 @@ function queueItem(
   const returnDate = optionalDate(row.return_date)
   const initialSourceFareGbp = money(root?.supplier_cost_source, { allowZero: true })
   const initialSupplierFareGbp = money(root?.supplier_cost_gbp, { allowZero: true })
+  const initialCustomerPriceGbp = money(root?.sale_price_gbp, { allowZero: true })
   const snapshot = packageSnapshot(row.package_match_status, row.commission_scope)
   const issuedDate =
     root?.issued_at && location ? branchDate(root.issued_at, location.timezone) : null
@@ -525,7 +567,12 @@ function queueItem(
     returnDate === undefined ||
     (departureDate && returnDate && returnDate < departureDate) ||
     !snapshot ||
-    !issuedDate
+    !issuedDate ||
+    !['standard', 'staff_family', 'commission_waived'].includes(row.commercial_treatment) ||
+    (row.commercial_treatment === 'staff_family' &&
+      (initialCustomerPriceGbp === null ||
+        staffFamilyCompanyFeePercent === null ||
+        moneyCents(initialCustomerPriceGbp) !== moneyCents(initialSupplierFareGbp)))
   ) {
     return null
   }
@@ -535,6 +582,10 @@ function queueItem(
   const check = fareCheckRow ? latestFareCheck(fareCheckRow, row, root) : null
   if (fareCheckRow && !check) return null
   const expectedCurrentFare = latest?.newSupplierFareGbp ?? initialSupplierFareGbp
+  const currentCustomerPriceGbp =
+    row.commercial_treatment === 'staff_family'
+      ? (latest?.staffFamilyReprice?.customerPriceAfterGbp ?? initialCustomerPriceGbp)
+      : null
   if (
     check &&
     (check.currentAdjustmentId !== (latest?.adjustmentId ?? null) ||
@@ -564,12 +615,76 @@ function queueItem(
     issuedDate,
     initialSupplierFareGbp,
     currentSupplierFareGbp: expectedCurrentFare,
+    commercialTreatment:
+      row.commercial_treatment as TicketingFareAdjustmentQueueItem['commercialTreatment'],
+    currentCustomerPriceGbp,
+    staffFamilyCompanyFeePercent:
+      row.commercial_treatment === 'staff_family' ? staffFamilyCompanyFeePercent : null,
     latestAdjustment: latest,
     latestCheck: check,
     packageMatchStatus: snapshot.packageMatchStatus,
     updatedAt: row.updated_at,
   }
   return item
+}
+
+function parsedStaffFamilyReprice(
+  value: FareAdjustmentRpcResult['staffFamilyReprice'] | undefined,
+) {
+  if (value === null || value === undefined) return null
+  const companyFeePercent = money(value.companyFeePercent, { allowZero: true })
+  const supplierDifferenceGbp = money(value.supplierDifferenceGbp, {
+    signed: true,
+    allowZero: true,
+  })
+  const customerPriceBeforeGbp = money(value.customerPriceBeforeGbp, { allowZero: true })
+  const companyFeeGbp = money(value.companyFeeGbp, { allowZero: true })
+  const customerCreditGbp = money(value.customerCreditGbp, { allowZero: true })
+  const customerAdditionalChargeGbp = money(value.customerAdditionalChargeGbp, {
+    allowZero: true,
+  })
+  const customerPriceAfterGbp = money(value.customerPriceAfterGbp, { allowZero: true })
+  if (
+    companyFeePercent === null ||
+    companyFeePercent > 100 ||
+    supplierDifferenceGbp === null ||
+    supplierDifferenceGbp === 0 ||
+    customerPriceBeforeGbp === null ||
+    companyFeeGbp === null ||
+    customerCreditGbp === null ||
+    customerAdditionalChargeGbp === null ||
+    customerPriceAfterGbp === null
+  ) {
+    return null
+  }
+
+  const differencePence = moneyCents(supplierDifferenceGbp)
+  const beforePence = moneyCents(customerPriceBeforeGbp)
+  const feePence = moneyCents(companyFeeGbp)
+  const creditPence = moneyCents(customerCreditGbp)
+  const additionalPence = moneyCents(customerAdditionalChargeGbp)
+  const afterPence = moneyCents(customerPriceAfterGbp)
+  const valid =
+    differencePence > 0
+      ? additionalPence === 0 &&
+        feePence === Math.round((differencePence * companyFeePercent) / 100) &&
+        feePence + creditPence === differencePence &&
+        afterPence === beforePence - creditPence
+      : feePence === 0 &&
+        creditPence === 0 &&
+        additionalPence === -differencePence &&
+        afterPence === beforePence + additionalPence
+  if (!valid) return null
+
+  const reprice: TicketingStaffFamilyReprice = {
+    companyFeePercent,
+    customerPriceBeforeGbp,
+    companyFeeGbp,
+    customerCreditGbp,
+    customerAdditionalChargeGbp,
+    customerPriceAfterGbp,
+  }
+  return reprice
 }
 
 function parsedConflictDetails(details: string | null | undefined) {
@@ -741,6 +856,12 @@ function mappedMutationResult(
       (sequenceNumber !== null &&
         sequenceNumber > 1 &&
         entry.expectedPreviousAdjustmentId !== null))
+  const commercialTreatment = ['standard', 'staff_family', 'commission_waived'].includes(
+    String(result?.commercialTreatment),
+  )
+    ? String(result?.commercialTreatment)
+    : null
+  const staffFamilyReprice = parsedStaffFamilyReprice(result?.staffFamilyReprice)
 
   if (
     result?.booking?.id !== entry.bookingId ||
@@ -791,7 +912,12 @@ function mappedMutationResult(
     result.sourceEvent.eventType !== expectedEventType ||
     integer(result.sourceEvent.eventVersion) !== 1 ||
     !isUuid(result.auditEventId) ||
-    typeof result.idempotentReplay !== 'boolean'
+    typeof result.idempotentReplay !== 'boolean' ||
+    !commercialTreatment ||
+    (commercialTreatment === 'staff_family') !== Boolean(staffFamilyReprice) ||
+    (staffFamilyReprice !== null &&
+      moneyCents(differenceGbp) !==
+        moneyCents(Number(result.staffFamilyReprice?.supplierDifferenceGbp)))
   ) {
     return null
   }
@@ -813,6 +939,7 @@ function mappedMutationResult(
     packageMatchStatus: snapshot.packageMatchStatus,
     createdAt: result.adjustment.createdAt,
     idempotentReplay: result.idempotentReplay,
+    staffFamilyReprice,
   }
   return mapped
 }
@@ -851,6 +978,7 @@ export async function GET(request: NextRequest) {
         operational_status,
         package_match_status,
         commission_scope,
+        commercial_treatment,
         updated_at,
         archived_at,
         airlines!inner(id, iata_code, name),
@@ -867,7 +995,8 @@ export async function GET(request: NextRequest) {
           passenger_ticket_count,
           currency,
           supplier_cost_source,
-          supplier_cost_gbp
+          supplier_cost_gbp,
+          sale_price_gbp
         )
       `,
     )
@@ -935,7 +1064,13 @@ export async function GET(request: NextRequest) {
           effective_on,
           package_match_status,
           commission_scope,
-          created_at
+          created_at,
+          staff_family_company_fee_percent,
+          staff_family_customer_price_before_gbp,
+          staff_family_company_fee_gbp,
+          staff_family_customer_credit_gbp,
+          staff_family_customer_additional_charge_gbp,
+          staff_family_customer_price_after_gbp
         `,
       )
       .in(
@@ -990,8 +1125,63 @@ export async function GET(request: NextRequest) {
     checkByBookingId.set(check.booking_id, check)
   }
 
+  let defaultStaffFamilyFeePercent: number | null = null
+  const staffFamilyFeeByOwnerId = new Map<string, number>()
+  const staffFamilyOwnerIds = [
+    ...new Set(
+      pageRows
+        .filter((row) => row.commercial_treatment === 'staff_family')
+        .map((row) => row.owner_employee_id),
+    ),
+  ]
+  if (staffFamilyOwnerIds.length > 0) {
+    const defaultPolicyResult = await supabase
+      .from('ticketing_staff_family_policy')
+      .select('low_fare_company_fee_percent')
+      .eq('id', true)
+      .single()
+    if (defaultPolicyResult.error || !defaultPolicyResult.data) {
+      return privateError('Unable to load the staff/family fare policy.', 500)
+    }
+    const defaultPolicy = defaultPolicyResult.data as unknown as StaffFamilyDefaultPolicyRow
+    defaultStaffFamilyFeePercent = money(defaultPolicy.low_fare_company_fee_percent, {
+      allowZero: true,
+    })
+    if (defaultStaffFamilyFeePercent === null || defaultStaffFamilyFeePercent > 100) {
+      return privateError('Unable to load the staff/family fare policy safely.', 500)
+    }
+
+    const employeePolicyResult = await supabase
+      .from('ticketing_staff_family_employee_policies')
+      .select('employee_id, low_fare_company_fee_percent')
+      .in('employee_id', staffFamilyOwnerIds)
+    if (employeePolicyResult.error) {
+      return privateError('Unable to load the staff/family agent policy.', 500)
+    }
+    for (const policy of (employeePolicyResult.data ||
+      []) as unknown as StaffFamilyEmployeePolicyRow[]) {
+      const percent = money(policy.low_fare_company_fee_percent, { allowZero: true })
+      if (
+        !staffFamilyOwnerIds.includes(policy.employee_id) ||
+        staffFamilyFeeByOwnerId.has(policy.employee_id) ||
+        percent === null ||
+        percent > 100
+      ) {
+        return privateError('Unable to load the staff/family agent policy safely.', 500)
+      }
+      staffFamilyFeeByOwnerId.set(policy.employee_id, percent)
+    }
+  }
+
   const items = pageRows.map((row) =>
-    queueItem(row, adjustmentByBookingId.get(row.id), checkByBookingId.get(row.id)),
+    queueItem(
+      row,
+      adjustmentByBookingId.get(row.id),
+      checkByBookingId.get(row.id),
+      row.commercial_treatment === 'staff_family'
+        ? (staffFamilyFeeByOwnerId.get(row.owner_employee_id) ?? defaultStaffFamilyFeePercent)
+        : null,
+    ),
   )
   if (items.some((item) => item === null)) {
     return privateError('Unable to load the Low Fare queue safely.', 500)
@@ -1073,7 +1263,7 @@ export async function POST(request: NextRequest) {
     newFareGbp: newSupplierFareGbp,
     effectiveOn: effectiveDate,
   }
-  const { data, error } = await supabase.rpc('ticketing_append_fare_adjustment', {
+  const { data, error } = await supabase.rpc('ticketing_append_fare_adjustment_commercial', {
     p_actor_employee_id: access.employee.id,
     p_booking_id: bookingId,
     p_idempotency_key: idempotencyKey,

@@ -74,7 +74,7 @@ const mocks = vi.hoisted(() => {
   })
   const rpc = vi.fn(async (functionName: string) => {
     if (functionName === 'ticketing_schema_status') return state.capability
-    if (functionName === 'ticketing_append_fare_adjustment') return state.append
+    if (functionName === 'ticketing_append_fare_adjustment_commercial') return state.append
     throw new Error(`Unexpected RPC: ${functionName}`)
   })
   const getServiceSupabaseClient = vi.fn(() => ({ from, rpc }))
@@ -125,6 +125,7 @@ function bookingRow(
     operational_status: 'issued',
     package_match_status: 'matched',
     commission_scope: 'package',
+    commercial_treatment: 'standard',
     updated_at: '2026-08-24T12:00:00.000Z',
     archived_at: null,
     airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
@@ -142,6 +143,7 @@ function bookingRow(
       currency: 'GBP',
       supplier_cost_source: '500.00',
       supplier_cost_gbp: '500.00',
+      sale_price_gbp: '600.00',
     },
   }
 }
@@ -167,6 +169,12 @@ function currentAdjustmentRow() {
     package_match_status: 'matched',
     commission_scope: 'package',
     created_at: '2026-08-24T13:00:00.000Z',
+    staff_family_company_fee_percent: null,
+    staff_family_customer_price_before_gbp: null,
+    staff_family_company_fee_gbp: null,
+    staff_family_customer_credit_gbp: null,
+    staff_family_customer_additional_charge_gbp: null,
+    staff_family_customer_price_after_gbp: null,
   }
 }
 
@@ -187,6 +195,7 @@ function appendResult(options: { replay?: boolean; difference?: number } = {}) {
   const difference = options.difference ?? 50
   const newFare = 500 - difference
   return {
+    commercialTreatment: 'standard',
     booking: {
       id: BOOKING_ID,
       version: 5,
@@ -236,6 +245,7 @@ function appendResult(options: { replay?: boolean; difference?: number } = {}) {
     },
     auditEventId: AUDIT_EVENT_ID,
     idempotentReplay: options.replay === true,
+    staffFamilyReprice: null,
   }
 }
 
@@ -270,7 +280,7 @@ describe('/api/ticketing/fare-adjustments', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082904, requiredVersion: 2026082904 },
+      data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
       error: null,
     }
     mocks.state.bookings = { data: [bookingRow()], error: null }
@@ -444,7 +454,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     ).toBe(503)
 
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082904, requiredVersion: 2026082904 }],
+      data: [{ ready: true, version: 2026083102, requiredVersion: 2026083102 }],
       error: null,
     }
     expect(
@@ -452,7 +462,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     ).toBe(200)
 
     mocks.state.capability = {
-      data: { ready: true, version: 2026082904, requiredVersion: 2026082904 },
+      data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
       error: null,
     }
     mocks.state.bookings = { data: null, error: { message: 'query failed' } }
@@ -548,7 +558,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     )
     expect((await POST(postRequest(validEntry(), null))).status).toBe(400)
     expect(mocks.rpc).not.toHaveBeenCalledWith(
-      'ticketing_append_fare_adjustment',
+      'ticketing_append_fare_adjustment_commercial',
       expect.anything(),
     )
   })
@@ -568,7 +578,7 @@ describe('/api/ticketing/fare-adjustments', () => {
         identities: [`user:${ACTOR_ID}`, 'ip:127.0.0.1'],
       }),
     )
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_append_fare_adjustment', {
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_append_fare_adjustment_commercial', {
       p_actor_employee_id: ACTOR_ID,
       p_booking_id: BOOKING_ID,
       p_idempotency_key: 'low-fare-save-1',
@@ -599,6 +609,7 @@ describe('/api/ticketing/fare-adjustments', () => {
       packageMatchStatus: 'matched',
       createdAt: '2026-08-24T13:00:00.000Z',
       idempotentReplay: false,
+      staffFamilyReprice: null,
     })
     expect(JSON.stringify(body)).not.toMatch(
       /owner|actor|location|sale|commission|profit|margin|earnings|sourceEvent|auditEvent/i,
@@ -700,7 +711,7 @@ describe('/api/ticketing/fare-adjustments', () => {
     expect((await POST(postRequest(validEntry()))).status).toBe(503)
 
     mocks.state.capability = {
-      data: { ready: true, version: 2026082904, requiredVersion: 2026082904 },
+      data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
       error: null,
     }
     mocks.state.append = {

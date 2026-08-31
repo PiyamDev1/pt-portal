@@ -9,7 +9,7 @@ import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { type TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
 import {
   ticketingQuickTkSchema,
-  TICKET_UNPRICED_HELD_CAPABILITY_VERSION,
+  TICKET_STAFF_FAMILY_CAPABILITY_VERSION,
   type TicketingAirlineOption,
   type TicketingLedgerFare,
   type TicketingLedgerItem,
@@ -23,7 +23,7 @@ import {
 } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_RUNTIME_VERSION = TICKET_UNPRICED_HELD_CAPABILITY_VERSION
+const TICKETING_RUNTIME_VERSION = TICKET_STAFF_FAMILY_CAPABILITY_VERSION
 const LEDGER_MAX_LIMIT = 100
 
 const ledgerCursorSchema = z
@@ -109,11 +109,18 @@ type BookingRow = {
   departure_date: string | null
   package_match_status: string
   commission_scope: string
+  commercial_treatment: 'standard' | 'staff_family' | 'commission_waived'
+  commission_waiver_reason: string | null
   supplier_code: 'unknown' | 'sabre_polani' | 'amadeus_piyam' | 'sabre_bt' | 'ptap' | 'airline'
   supplier_name: string
   archived_at: string | null
   airlines: Related<AirlineRow>
   ticket_booking_attribution_versions: AttributionVersionRow[] | null
+}
+
+type StaffFamilyPolicyRow = {
+  change_admin_fee_gbp: number | string
+  refund_admin_fee_gbp: number | string
 }
 
 type FareRow = {
@@ -231,6 +238,7 @@ function ledgerItem(
   row: TransactionRow,
   actorEmployeeId: string,
   actorName: string,
+  staffFamilyPolicy: { changeFeeGbp: number; refundFeeGbp: number },
 ): TicketingLedgerItem | null {
   const booking = firstRelated(row.ticket_bookings)
   const airline = booking ? firstRelated(booking.airlines) : null
@@ -277,6 +285,10 @@ function ledgerItem(
     passengerCount: row.passenger_ticket_count,
     packageMatchStatus: booking.package_match_status,
     commissionScope: booking.commission_scope,
+    commercialTreatment: booking.commercial_treatment,
+    commissionWaiverReason: booking.commission_waiver_reason,
+    staffFamilyChangeFeeGbp: staffFamilyPolicy.changeFeeGbp,
+    staffFamilyRefundFeeGbp: staffFamilyPolicy.refundFeeGbp,
     detailsStatus:
       row.service_type === 'TK'
         ? ticketingDetailsStatus({
@@ -432,6 +444,8 @@ export async function GET(request: NextRequest) {
             departure_date,
             package_match_status,
             commission_scope,
+            commercial_treatment,
+            commission_waiver_reason,
             supplier_code,
             supplier_name,
             archived_at,
@@ -491,38 +505,64 @@ export async function GET(request: NextRequest) {
     .eq('is_active', true)
     .order('full_name', { ascending: true })
 
-  const [transactionsResult, airlinesResult, employeeResult, attributionEmployeesResult] =
-    await Promise.all([
-      transactionsQuery
-        .is('ticket_bookings.archived_at', null)
-        .order('created_at', { ascending: false })
-        .limit(limit + 1),
-      supabase
-        .from('airlines')
-        .select('id, iata_code, name')
-        .eq('is_active', true)
-        .order('iata_code', { ascending: true }),
-      supabase
-        .from('employees')
-        .select('locations(name, branch_code, timezone)')
-        .eq('id', access.employee.id)
-        .maybeSingle(),
-      attributionEmployeesPromise,
-    ])
+  const staffFamilyPolicyPromise = supabase
+    .from('ticketing_staff_family_policy')
+    .select('change_admin_fee_gbp, refund_admin_fee_gbp')
+    .eq('id', true)
+    .single()
+
+  const [
+    transactionsResult,
+    airlinesResult,
+    employeeResult,
+    attributionEmployeesResult,
+    staffFamilyPolicyResult,
+  ] = await Promise.all([
+    transactionsQuery
+      .is('ticket_bookings.archived_at', null)
+      .order('created_at', { ascending: false })
+      .limit(limit + 1),
+    supabase
+      .from('airlines')
+      .select('id, iata_code, name')
+      .eq('is_active', true)
+      .order('iata_code', { ascending: true }),
+    supabase
+      .from('employees')
+      .select('locations(name, branch_code, timezone)')
+      .eq('id', access.employee.id)
+      .maybeSingle(),
+    attributionEmployeesPromise,
+    staffFamilyPolicyPromise,
+  ])
 
   if (
     transactionsResult.error ||
     airlinesResult.error ||
     employeeResult.error ||
-    attributionEmployeesResult.error
+    attributionEmployeesResult.error ||
+    staffFamilyPolicyResult.error
   ) {
     return apiError('Unable to load the ticket ledger right now.', 500)
   }
 
   const transactionRows = (transactionsResult.data || []) as unknown as TransactionRow[]
+  const staffFamilyPolicyRow = staffFamilyPolicyResult.data as StaffFamilyPolicyRow
+  const staffFamilyPolicy = {
+    changeFeeGbp: Number(staffFamilyPolicyRow.change_admin_fee_gbp),
+    refundFeeGbp: Number(staffFamilyPolicyRow.refund_admin_fee_gbp),
+  }
+  if (
+    !Number.isFinite(staffFamilyPolicy.changeFeeGbp) ||
+    !Number.isFinite(staffFamilyPolicy.refundFeeGbp) ||
+    staffFamilyPolicy.changeFeeGbp < 0 ||
+    staffFamilyPolicy.refundFeeGbp < 0
+  ) {
+    return apiError('Ticketing staff/family policy is invalid.', 500)
+  }
   const pageRows = transactionRows.slice(0, limit)
   const items = pageRows
-    .map((row) => ledgerItem(row, access.employee.id, access.employee.fullName))
+    .map((row) => ledgerItem(row, access.employee.id, access.employee.fullName, staffFamilyPolicy))
     .filter((item): item is TicketingLedgerItem => Boolean(item))
   const airlines = ((airlinesResult.data || []) as AirlineRow[]).map(airlineOption)
   const employee = employeeResult.data as unknown as EmployeeLocationRow | null
@@ -552,6 +592,8 @@ export async function GET(request: NextRequest) {
         canManageAttribution,
         canManageRecords: canManageAttribution,
         attributionEmployees,
+        staffFamilyChangeFeeGbp: staffFamilyPolicy.changeFeeGbp,
+        staffFamilyRefundFeeGbp: staffFamilyPolicy.refundFeeGbp,
       },
     },
     PRIVATE_RESPONSE,
@@ -598,7 +640,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getServiceSupabaseClient()
-  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_supplied', {
+  const { data, error } = await supabase.rpc('ticketing_create_quick_tk_commercial', {
     p_actor_employee_id: access.employee.id,
     p_idempotency_key: idempotencyKey,
     p_entry: {

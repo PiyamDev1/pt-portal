@@ -21,6 +21,7 @@ commission_applications="scripts/migrations/20260830_commission_application_shad
 commission_urgent_applications="scripts/migrations/20260830_commission_urgent_applications_and_plan_mutations.sql"
 commission_application_routing="scripts/migrations/20260830_commission_application_recipient_routing.sql"
 commission_historical_editing="scripts/migrations/20260831_commission_historical_profile_editing.sql"
+commission_ticketing_waivers="scripts/migrations/20260831_commission_ticketing_waivers.sql"
 staff_performance_read_model="scripts/migrations/20260831_create_staff_performance_source_facts.sql"
 assertions="tests/integration/commission_staff_profiles.sql"
 assistance_assertions="tests/integration/commission_assistance_scope.sql"
@@ -32,6 +33,7 @@ application_assertions="tests/integration/commission_application_shadow_integrat
 urgent_application_assertions="tests/integration/commission_urgent_applications_and_plan_mutations.sql"
 application_routing_assertions="tests/integration/commission_application_recipient_routing.sql"
 historical_editing_assertions="tests/integration/commission_historical_profile_editing.sql"
+ticketing_waiver_assertions="tests/integration/commission_ticketing_waivers.sql"
 staff_performance_assertions="tests/integration/staff_performance_source_facts.sql"
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture"
@@ -225,6 +227,24 @@ if [[ "$second_historical_editing_applied_at" != "$third_historical_editing_appl
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$historical_editing_assertions"
 
+first_ticketing_waiver_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select applied_at from public.portal_schema_versions where component = 'commission'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$commission_ticketing_waivers"
+second_ticketing_waiver_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select applied_at from public.portal_schema_versions where component = 'commission'")"
+if [[ "$first_ticketing_waiver_applied_at" == "$second_ticketing_waiver_applied_at" ]]; then
+  echo "Commission ticketing-waiver migration did not advance the capability timestamp"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$commission_ticketing_waivers"
+third_ticketing_waiver_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select applied_at from public.portal_schema_versions where component = 'commission'")"
+if [[ "$second_ticketing_waiver_applied_at" != "$third_ticketing_waiver_applied_at" ]]; then
+  echo "Idempotent Commission ticketing-waiver rerun changed the capability timestamp"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$ticketing_waiver_assertions"
+
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_performance_read_model"
 first_performance_definition="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select md5(pg_get_functiondef('public.staff_performance_source_facts_2026083101(uuid,date,date)'::regprocedure))
@@ -242,7 +262,7 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_performance_assertions"
 future_marker='future-commission-profile-sentinel'
 psql "$database_url" -v ON_ERROR_STOP=1 -c "
   update public.portal_schema_versions
-  set version = 2026083009,
+  set version = 2026083102,
       details = jsonb_build_object('migration', '$future_marker')
   where component = 'commission';
 " >/dev/null
@@ -251,7 +271,7 @@ future_state_before="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
    from public.portal_schema_versions where component = 'commission'")"
 future_replay_output="$(mktemp)"
 trap 'rm -f "$future_replay_output"' EXIT
-for historical_migration in "$commission_profiles" "$commission_assistance_scope" "$commission_compensation" "$commission_profile_dates" "$commission_packages" "$commission_package_readiness" "$commission_applications" "$commission_urgent_applications" "$commission_application_routing" "$commission_historical_editing"; do
+for historical_migration in "$commission_profiles" "$commission_assistance_scope" "$commission_compensation" "$commission_profile_dates" "$commission_packages" "$commission_package_readiness" "$commission_applications" "$commission_urgent_applications" "$commission_application_routing" "$commission_historical_editing" "$commission_ticketing_waivers"; do
   if psql "$database_url" -v ON_ERROR_STOP=1 -f "$historical_migration" \
     >"$future_replay_output" 2>&1; then
     echo "Historical Commission profile migration ran over a future capability"
@@ -266,7 +286,7 @@ done
 future_state_after="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select version::text || '|' || (details ->> 'migration')
    from public.portal_schema_versions where component = 'commission'")"
-if [[ "$future_state_before" != "2026083009|$future_marker" \
+if [[ "$future_state_before" != "2026083102|$future_marker" \
   || "$future_state_after" != "$future_state_before" ]]; then
   echo "Blocked historical Commission replay changed future schema state"
   exit 1

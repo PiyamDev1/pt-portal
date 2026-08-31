@@ -27,6 +27,9 @@ const ITEM: LowFareQueueItem = {
   issuedDate: '2026-08-22',
   initialSupplierFareGbp: '420.00',
   currentSupplierFareGbp: '420.00',
+  commercialTreatment: 'standard',
+  currentCustomerPriceGbp: null,
+  staffFamilyCompanyFeePercent: null,
   latestAdjustment: null,
   latestCheck: null,
   packageMatchStatus: 'unmatched',
@@ -46,7 +49,18 @@ const ADJUSTED_ITEM: LowFareQueueItem = {
     effectiveDate: '2026-08-23',
     actingEmployeeId: '11111111-1111-4111-8111-111111111111',
     createdAt: '2026-08-23T12:00:00.000Z',
+    staffFamilyReprice: null,
   },
+}
+
+const STAFF_FAMILY_ITEM: LowFareQueueItem = {
+  ...ITEM,
+  pnr: 'FAMILY1',
+  initialSupplierFareGbp: '100.00',
+  currentSupplierFareGbp: '100.00',
+  commercialTreatment: 'staff_family',
+  currentCustomerPriceGbp: '100.00',
+  staffFamilyCompanyFeePercent: '30.00',
 }
 
 function queueResponse(items: LowFareQueueItem[] = [ITEM], hasMore = false) {
@@ -80,6 +94,7 @@ function saveResponse() {
       packageMatchStatus: 'unmatched',
       createdAt: '2026-08-24T12:00:00.000Z',
       idempotentReplay: false,
+      staffFamilyReprice: null,
     }),
     { status: 201, headers: { 'Content-Type': 'application/json' } },
   )
@@ -235,5 +250,25 @@ describe('LowFareClient', () => {
       notes: null,
     })
     expect(toastMocks.success).toHaveBeenCalledWith('Fare checked — no change recorded')
+  })
+
+  it('shows £79 as the final staff/family price for a £70 fare and 30% company fee', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => queueResponse([STAFF_FAMILY_ITEM])),
+    )
+
+    render(<LowFareClient />)
+
+    expect(await screen.findByText('FAMILY1')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Record fare for FAMILY1' }))
+    fireEvent.change(screen.getByLabelText('New supplier fare for FAMILY1'), {
+      target: { value: '70.00' },
+    })
+
+    expect(screen.getByText('£9.00')).toBeTruthy()
+    expect(screen.getByText('£21.00')).toBeTruthy()
+    expect(screen.getByText('£79.00')).toBeTruthy()
+    expect(screen.getByText('30% of supplier saving')).toBeTruthy()
   })
 })

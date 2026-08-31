@@ -11,8 +11,14 @@ export const TICKET_YOUTH_ASSISTANCE_ARCHIVE_CAPABILITY_VERSION =
   TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION
 export const TICKET_ARCHIVE_COMMISSION_TOMBSTONE_CAPABILITY_VERSION = 2026083001
 export const TICKET_UNPRICED_HELD_CAPABILITY_VERSION = 2026083101
+export const TICKET_STAFF_FAMILY_CAPABILITY_VERSION = 2026083102
 export const TICKET_QUICK_ENTRY_STATUSES = ['held', 'issued'] as const
 export const TICKET_DETAILS_STATUSES = ['needs_details', 'complete', 'recorded'] as const
+export const TICKET_COMMERCIAL_TREATMENTS = [
+  'standard',
+  'staff_family',
+  'commission_waived',
+] as const
 export const TICKET_SUPPLIER_CODES = [
   'sabre_polani',
   'amadeus_piyam',
@@ -111,6 +117,8 @@ export const ticketingQuickTkSchema = z
     issuedAt: isoDateSchema.nullable(),
     currency: z.literal('GBP'),
     fares: z.array(ticketingQuickFareSchema).min(1).max(4),
+    commercialTreatment: z.enum(TICKET_COMMERCIAL_TREATMENTS).optional().default('standard'),
+    commissionWaiverReason: z.string().trim().min(3).max(500).nullable().optional().default(null),
     confirmDuplicate: z.boolean().optional().default(false),
     responsibleEmployeeId: z.string().uuid().optional(),
     assistantEmployeeIds: z
@@ -129,6 +137,42 @@ export const ticketingQuickTkSchema = z
   })
   .strict()
   .superRefine((entry, context) => {
+    if (entry.commercialTreatment === 'standard' && entry.commissionWaiverReason !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['commissionWaiverReason'],
+        message: 'A standard booking cannot include a commission waiver reason',
+      })
+    }
+
+    if (entry.commercialTreatment !== 'standard' && !entry.commissionWaiverReason) {
+      context.addIssue({
+        code: 'custom',
+        path: ['commissionWaiverReason'],
+        message: 'Explain why ordinary commission is waived for this booking',
+      })
+    }
+
+    if (entry.commercialTreatment === 'staff_family' && entry.operationalStatus === 'issued') {
+      for (const fare of entry.fares) {
+        const netSale =
+          fare.unitSalePrice === null || fare.unitDiscount === null
+            ? null
+            : fare.unitSalePrice - fare.unitDiscount
+        if (
+          netSale === null ||
+          Math.round(netSale * 100) !== Math.round(fare.unitSupplierCost * 100)
+        ) {
+          context.addIssue({
+            code: 'custom',
+            path: ['fares'],
+            message: 'Staff/family tickets must be sold at the recorded supplier cost',
+          })
+          break
+        }
+      }
+    }
+
     const unpricedFareCount = entry.fares.filter((fare) => fare.unitSalePrice === null).length
     if (unpricedFareCount > 0 && unpricedFareCount < entry.fares.length) {
       context.addIssue({
@@ -249,6 +293,10 @@ export type TicketingLedgerItem = {
   passengerCount: number
   packageMatchStatus: string
   commissionScope: string
+  commercialTreatment: (typeof TICKET_COMMERCIAL_TREATMENTS)[number]
+  commissionWaiverReason: string | null
+  staffFamilyChangeFeeGbp: number
+  staffFamilyRefundFeeGbp: number
   detailsStatus: (typeof TICKET_DETAILS_STATUSES)[number]
   fares: TicketingLedgerFare[]
   createdAt: string
@@ -268,6 +316,8 @@ export type TicketingLedgerResponse = {
     canManageAttribution: boolean
     canManageRecords: boolean
     attributionEmployees: TicketingAttributionEmployee[]
+    staffFamilyChangeFeeGbp: number
+    staffFamilyRefundFeeGbp: number
   }
 }
 

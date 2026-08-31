@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => {
   const bookingPnrEq = vi.fn(() => ({ eq: bookingStatusEq }))
   const bookingOwnerEq = vi.fn(() => ({ eq: bookingPnrEq }))
   const bookingSelect = vi.fn(() => ({ eq: bookingOwnerEq }))
+  const policySingle = vi.fn()
+  const policyEq = vi.fn(() => ({ single: policySingle }))
+  const policySelect = vi.fn(() => ({ eq: policyEq }))
   const state: { capability: { data: unknown; error: unknown } } = {
     capability: { data: null, error: null },
   }
@@ -33,6 +36,7 @@ const mocks = vi.hoisted(() => {
   })
   const from = vi.fn((table: string) => {
     if (table === 'ticket_bookings') return { select: bookingSelect }
+    if (table === 'ticketing_staff_family_policy') return { select: policySelect }
     throw new Error(`Unexpected table: ${table}`)
   })
   const getServiceSupabaseClient = vi.fn(() => ({ from, rpc }))
@@ -52,6 +56,7 @@ const mocks = vi.hoisted(() => {
     bookingPnrEq,
     bookingOwnerEq,
     bookingSelect,
+    policySingle,
     state,
     rpc,
     from,
@@ -84,6 +89,8 @@ function bookingRow(id = BOOKING_ID, pnr = 'ABC123') {
     return_date: '2026-09-10',
     operational_status: 'issued',
     package_match_status: 'matched',
+    commercial_treatment: 'standard',
+    commission_waiver_reason: null,
     archived_at: null,
     airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
     ticket_transactions: {
@@ -126,10 +133,11 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082304, requiredVersion: 2026082304 },
+      data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
       error: null,
     }
     mocks.bookingLimit.mockResolvedValue({ data: [bookingRow()], error: null })
+    mocks.policySingle.mockResolvedValue({ data: { change_admin_fee_gbp: '25.00' }, error: null })
   })
 
   it('authenticates before rate limiting or creating a service-role client', async () => {
@@ -184,6 +192,9 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
           operationalStatus: 'issued',
           airline: { id: AIRLINE_ID, iataCode: 'TK', name: 'Turkish Airlines' },
           packageMatchStatus: 'matched',
+          commercialTreatment: 'standard',
+          commissionWaiverReason: null,
+          staffFamilyChangeFeeGbp: 25,
           fares: [
             { passengerType: 'ADT', quantity: 2 },
             { passengerType: 'CHD', quantity: 1 },
@@ -192,7 +203,7 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
         },
       ],
     })
-    expect(JSON.stringify(body)).not.toMatch(/supplier|sale|commission|profit|margin|earnings/i)
+    expect(JSON.stringify(body)).not.toMatch(/supplier|sale|profit|margin|earnings/i)
   })
 
   it('allows multiple own matches while making no match and hidden other-owner results identical', async () => {
@@ -289,7 +300,7 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
 
   it('accepts a singleton-array DC/R-ER lookup capability response', async () => {
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082304, requiredVersion: 2026082304 }],
+      data: [{ ready: true, version: 2026083102, requiredVersion: 2026083102 }],
       error: null,
     }
 
