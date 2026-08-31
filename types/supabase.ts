@@ -143,6 +143,44 @@ type DatabaseFunctionOverrides = {
     Args: { p_actor_employee_id: string }
     Returns: Json
   }
+  staff_performance_source_facts_2026083101: {
+    Args: {
+      p_employee_id: string
+      p_effective_from: string
+      p_effective_to: string
+    }
+    Returns: {
+      id: string
+      source_module: string
+      source_fact_key: string
+      source_record_id: string
+      event_type: string
+      event_version: number
+      employee_id: string
+      owner_employee_id: string | null
+      effective_on: string
+      source_path: string
+      variables: Json
+      created_at: string
+    }[]
+  }
+  staff_performance_timeclock_events_2026083101: {
+    Args: {
+      p_employee_id: string
+      p_effective_from: string
+      p_effective_to: string
+    }
+    Returns: {
+      id: string
+      event_type: string
+      punch_type: string
+      scanned_at: string | null
+      adjusted_scanned_at: string | null
+      device_ts: string | null
+      adjusted_device_ts: string | null
+      effective_at: string
+    }[]
+  }
 }
 
 export type Database = Omit<GeneratedDatabase, 'public'> & {

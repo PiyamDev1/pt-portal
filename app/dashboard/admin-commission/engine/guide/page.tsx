@@ -323,7 +323,8 @@ export default async function ShadowConsoleGuidePage() {
                   “Shadow” does not mean sample data or a disposable test. It means the calculation
                   runs beside the operational system using real records, while remaining separated
                   from payroll. Employees may see their own result in{' '}
-                  <strong>My commissions</strong>, but it is still labelled as a preview.
+                  <strong>My performance</strong> under Earnings, but it is still labelled as a
+                  preview.
                 </p>
                 <p className="mt-3">
                   The console is needed because a saved rate alone does not prove that the correct
@@ -423,8 +424,8 @@ export default async function ShadowConsoleGuidePage() {
                 </div>
                 <p className="mt-4">
                   Access is restricted to Admin, HR, or staff explicitly granted Commission-policy
-                  management access. Ordinary staff use <strong>My commissions</strong> and cannot
-                  inspect company-wide financial controls.
+                  management access. Ordinary staff use the <strong>My performance</strong> earnings
+                  section and cannot inspect company-wide financial controls.
                 </p>
               </GuideSection>
 
@@ -468,7 +469,7 @@ export default async function ShadowConsoleGuidePage() {
                   </Step>
                   <Step number={7} title="Reconcile monthly bonuses and staff previews">
                     Incomplete bonus periods must be resolved before month-end. Compare the engine’s
-                    GBP book value with the employee’s pay-currency view in My commissions.
+                    GBP book value with the employee’s pay-currency view in My performance.
                   </Step>
                   <Step number={8} title="Record unresolved anomalies instead of forcing them">
                     If a source lineage or value is genuinely uncertain, leave the event held and
@@ -647,7 +648,7 @@ export default async function ShadowConsoleGuidePage() {
                     <p className="mt-2 text-slate-400">
                       Staff earning in PKR retain their PKR salary and commission values. The
                       monthly exchange rate supplies a GBP book value for company reconciliation.
-                      The Shadow Console’s result table shows GBP; My commissions shows the
+                      The Shadow Console’s result table shows GBP; My performance shows the
                       employee-facing pay currency and the applicable conversion state.
                     </p>
                   </article>
@@ -718,7 +719,7 @@ export default async function ShadowConsoleGuidePage() {
                     'Incomplete bonus periods are zero before treating bonus outcomes as final.',
                     'PKR months have the agreed conversion rate and the GBP book totals reconcile to remittance records.',
                     'Calculated result spot checks agree with source passenger counts, profit, rates, and effective dates.',
-                    'My commissions matches the employee-facing result expected from the reconciled engine.',
+                    'My performance earnings match the employee-facing result expected from the reconciled engine.',
                   ].map((item) => (
                     <li
                       key={item}

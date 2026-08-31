@@ -36,4 +36,14 @@ describe('mobile navigation preferences', () => {
     expect(adminIds).toContain('commissions')
     expect(adminIds).toContain('my-commissions')
   })
+
+  it('keeps the stored My commissions ID while opening the renamed performance module', () => {
+    const [moduleItem] = resolveMobileShortcutModules(['my-commissions'])
+
+    expect(moduleItem).toMatchObject({
+      id: 'my-commissions',
+      title: 'My performance',
+      href: '/dashboard/my-performance',
+    })
+  })
 })

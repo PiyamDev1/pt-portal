@@ -170,10 +170,11 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     iconKey: 'ticket',
   },
   {
+    // Keep this persisted ID so existing favourites and mobile shortcuts survive the rename.
     id: 'my-commissions',
-    title: 'My commissions',
-    desc: 'Your agreement, earnings and breakdown',
-    href: '/dashboard/my-commissions',
+    title: 'My performance',
+    desc: 'Your activity, attendance and earnings',
+    href: '/dashboard/my-performance',
     group: 'staff',
     accent: 'from-[#8b1e2d] to-[#4b0f16] text-white',
     iconTone: 'from-[#8b1e2d] via-[#a32234] to-[#4b0f16] text-white shadow-red-950/25',

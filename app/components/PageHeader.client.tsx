@@ -16,6 +16,8 @@ import {
   BookOpen,
   Building2,
   Calculator,
+  ChartNoAxesColumnIncreasing,
+  Clock3,
   Database,
   FileText,
   Home,
@@ -38,7 +40,11 @@ type MenuItem = {
 
 const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
+  {
+    href: '/dashboard/my-performance',
+    label: 'My performance',
+    icon: ChartNoAxesColumnIncreasing,
+  },
   { href: '/dashboard/accounting', label: 'Accounting', icon: BadgePoundSterling },
   { href: '/dashboard/settings?tab=security', label: 'My Account', icon: UserRound },
 ]
@@ -55,14 +61,28 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
         label: 'Shadow Console guide',
         icon: BookOpen,
       },
-      { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
+      {
+        href: '/dashboard/my-performance#commissions',
+        label: 'My earnings & commission',
+        icon: ChartNoAxesColumnIncreasing,
+      },
     ],
   },
   {
-    match: '/dashboard/my-commissions',
-    title: 'Commission menu',
+    match: '/dashboard/my-performance',
+    title: 'My performance',
     items: [
-      { href: '/dashboard/my-commissions', label: 'My commissions', icon: BadgePoundSterling },
+      {
+        href: '/dashboard/my-performance#activity',
+        label: 'Activity',
+        icon: ChartNoAxesColumnIncreasing,
+      },
+      { href: '/dashboard/my-performance#attendance', label: 'Attendance', icon: Clock3 },
+      {
+        href: '/dashboard/my-performance#commissions',
+        label: 'Earnings & commission',
+        icon: BadgePoundSterling,
+      },
     ],
   },
   {

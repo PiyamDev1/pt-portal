@@ -201,7 +201,7 @@ export default function CommissionConsole() {
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
             Reconcile company-wide preview calculations before payroll adoption. Employees can see
-            only their own non-payable preview in My commissions; this workspace remains restricted
+            only their own non-payable preview in My performance; this workspace remains restricted
             to Admin and HR.
           </p>
         </div>

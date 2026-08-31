@@ -50,6 +50,7 @@ const DIRECTORY_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   lms: 'Accounts',
   'my-commissions': 'My commissions',
+  'my-performance': 'My performance',
   nadra: 'NADRA Services',
   packages: 'Packages',
   passports: 'Pakistani Passports',

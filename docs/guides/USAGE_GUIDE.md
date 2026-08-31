@@ -1,6 +1,6 @@
 # Usage Guide
 
-Last verified against the repository: August 16, 2026.
+Last verified against the repository: August 31, 2026.
 
 PT-Portal is an internal operations application. Navigation and available actions depend on the signed-in employee's role, departments, location, and feature-specific permissions.
 
@@ -41,14 +41,24 @@ The two modes are intentionally not identical. The computer layout keeps the ful
 
 The dashboard presents enabled modules and a notice board. A user can personalize dashboard module visibility and the three configurable phone-navigation slots; administrators manage shared notice slides. On mobile, a notice appears as an accessible first-visit sheet and can be dismissed for the day; on computers it rotates in the fixed-width dashboard rail. Portrait artwork is shown uncropped in a 1504:2816 display area, so the rail grows vertically rather than widening. Notice images accept JPEG, PNG, or WebP up to 5 MB and are delivered through an authenticated portal stream after the saved slide is verified. Common routes include Applications, Bookings, Packages, LMS, Accounting, Pricing, Timeclock, Training, Employee Module, Settings, and Account.
 
-Commission is split into **My commissions** for every active employee and **Admin commission** for
-authorised Admin/HR staff. My commissions shows the employee's own effective agreement, monthly and
-year-to-date calculation preview, local salary/commission view, audited GBP book equivalent,
-six-month chart, service breakdown, and recent entries. Every
-shadow figure is labelled non-payable; it is not a payslip or payment promise. Admin commission
+**My performance** is available to every active employee. It keeps source-attributed activity,
+timeclock attendance, and earnings deliberately separate: work follows the employee who completed
+or owned it, while commission follows the recipient in the effective agreement. Its earnings section
+shows the employee's own effective agreement, monthly and year-to-date calculation preview, local
+salary/commission view, audited GBP book equivalent, six-month chart, service breakdown, and recent
+entries. Every shadow figure is labelled non-payable; it is not a payslip or payment promise. Admin commission
 creates a complete agreement around one employee. Copying another agreement is only a starting
-point, and future edits never change the source employee or historical versions. The advanced
-engine remains available to authorised staff for reconciliation, exceptions, and synthetic tests.
+point, and future edits never change the source employee or historical versions.
+
+Activity counts current operational evidence rather than old ledger snapshots. Tickets are counted
+when issued, assistance is reported separately, and a linked Package group counts once only after
+every resolved Package file remains closed and reconciled; its passengers are counted once across
+the group. Reversed, deleted, archived, reopened, or superseded work drops out. Attendance uses the
+adjusted punch time where one exists, totals only valid IN-to-OUT pairs, splits overnight work at the
+London month boundary, and flags unmatched punches without estimating missing hours.
+
+The advanced engine remains available to authorised staff for reconciliation, exceptions, and
+synthetic tests.
 
 ## Applications and receipts
 

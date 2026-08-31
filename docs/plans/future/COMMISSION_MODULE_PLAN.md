@@ -126,9 +126,9 @@ Commission has two deliberate front doors:
   commission** starts blank or from a one-time template copy and never changes its source profile.
   Both operations remain local to the target employee. Past effective dates are accepted when they
   do not overlap a completed or later plan and do not rewrite already-calculated history.
-- `/dashboard/my-commissions` is available to every active employee and exposes only that
-  employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and recent
-  calculated entries.
+- `/dashboard/my-performance` is available to every active employee. Its earnings section exposes
+  only that employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and
+  recent calculated entries. `/dashboard/my-commissions` remains a compatibility redirect.
 - `/dashboard/admin-commission/engine` retains the advanced policy, assignment, synthetic preview,
   shadow-entry, bonus-period, exception, and reconciliation tools.
 - `/dashboard/commissions` remains only as a role-aware compatibility redirect.
@@ -155,8 +155,9 @@ Future live visibility is:
 - Manager: read-only results for their direct/indirect reporting subtree.
 - Admin/authorised finance roles: company-wide review and statement operations.
 
-Dashboard navigation contains **My commissions** for all active employees and **Admin commission**
-only when the database-backed Commission management capability succeeds.
+Dashboard navigation contains **My performance** for all active employees and **Admin commission**
+only when the database-backed Commission management capability succeeds. The persisted dashboard
+module ID remains `my-commissions` so existing favourites and mobile shortcuts survive the rename.
 
 ## 4. Source-event and attribution contract
 

@@ -19,5 +19,5 @@ export default async function LegacyCommissionsRedirect() {
     { p_employee_id: access.employee.id },
   )
 
-  redirect(canManage === true ? '/dashboard/admin-commission' : '/dashboard/my-commissions')
+  redirect(canManage === true ? '/dashboard/admin-commission' : '/dashboard/my-performance')
 }

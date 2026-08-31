@@ -10,6 +10,7 @@ const MOBILE_LABELS: Record<string, string> = {
   applications: 'Apps',
   'gb-passport': 'GB Passports',
   'hrms-transfer': 'HRMS',
+  'my-commissions': 'Performance',
   timeclock: 'Clock',
 }
 

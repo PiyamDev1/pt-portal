@@ -182,6 +182,46 @@ function numeric(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function londonDate(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value)
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+async function loadCommissionEntryRows(
+  supabase: CommissionClient,
+  employeeId: string,
+  selection: string,
+  earningFrom: string,
+) {
+  const rows: CommissionEntryRow[] = []
+  const pageSize = 1000
+
+  for (let offset = 0; ; offset += pageSize) {
+    const result = await supabase
+      .from('commission_entries')
+      .select(selection)
+      .eq('recipient_employee_id', employeeId)
+      .gte('earning_on', earningFrom)
+      .order('earning_on', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+    if (result.error) return { data: null, error: result.error }
+
+    const page = (result.data || []) as unknown as CommissionEntryRow[]
+    rows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  return { data: rows, error: null }
+}
+
 function jsonObject(value: Json | null | undefined): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -279,9 +319,21 @@ export async function getCommissionPageIdentity(
   }
 }
 
-export async function loadMyCommissionData(employeeId: string): Promise<MyCommissionData> {
+export async function loadMyCommissionData(
+  employeeId: string,
+  now = new Date(),
+): Promise<MyCommissionData> {
   const supabase = commissionClient()
-  const currentPeriodStart = `${new Date().toISOString().slice(0, 7)}-01`
+  const today = londonDate(now)
+  const analyticsNow = new Date(`${today}T12:00:00Z`)
+  const reportingYear = Number(today.slice(0, 4))
+  const reportingMonthIndex = Number(today.slice(5, 7)) - 1
+  const currentPeriodStart = `${today.slice(0, 7)}-01`
+  const sixMonthStart = new Date(Date.UTC(reportingYear, reportingMonthIndex - 5, 1))
+  const yearStart = new Date(Date.UTC(reportingYear, 0, 1))
+  const analyticsFrom = (sixMonthStart < yearStart ? sixMonthStart : yearStart)
+    .toISOString()
+    .slice(0, 10)
   const schemaResult = await supabase.rpc('commission_schema_status')
   if (schemaResult.error && !isSchemaMissing(schemaResult.error)) throw schemaResult.error
   const profileCapabilityReady =
@@ -297,12 +349,7 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
         .eq('employee_id', employeeId)
         .is('cancelled_at', null)
         .order('effective_from', { ascending: false }),
-      supabase
-        .from('commission_entries')
-        .select(entrySelection)
-        .eq('recipient_employee_id', employeeId)
-        .order('earning_on', { ascending: false })
-        .limit(500),
+      loadCommissionEntryRows(supabase, employeeId, entrySelection, analyticsFrom),
       supabase
         .from('commission_exceptions')
         .select('id', { count: 'exact', head: true })
@@ -329,7 +376,7 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
       schemaReady: false,
       profile: null,
       scheduledProfile: null,
-      analytics: buildCommissionAnalytics([]),
+      analytics: buildCommissionAnalytics([], analyticsNow),
       compensation: {
         currency: 'GBP',
         monthlySalary: 0,
@@ -349,7 +396,7 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
       schemaReady: false,
       profile: null,
       scheduledProfile: null,
-      analytics: buildCommissionAnalytics([]),
+      analytics: buildCommissionAnalytics([], analyticsNow),
       compensation: {
         currency: 'GBP',
         monthlySalary: 0,
@@ -373,11 +420,12 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
     new Set(entryRows.map((entry) => entry.source_event_id).filter((id): id is string => !!id)),
   )
   const sourcePaths = new Map<string, string>()
-  if (sourceIds.length > 0) {
+  const sourcePageSize = 500
+  for (let offset = 0; offset < sourceIds.length; offset += sourcePageSize) {
     const { data: sourceEvents, error } = await supabase
       .from('commission_source_events')
       .select('id, source_path')
-      .in('id', sourceIds)
+      .in('id', sourceIds.slice(offset, offset + sourcePageSize))
     if (error) throw error
     for (const source of sourceEvents || []) sourcePaths.set(source.id, source.source_path)
   }
@@ -414,7 +462,6 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
     }
   })
 
-  const today = new Date().toISOString().slice(0, 10)
   const profiles = profilesResult.data || []
   const current = profiles.find(
     (profile) =>
@@ -482,7 +529,7 @@ export async function loadMyCommissionData(employeeId: string): Promise<MyCommis
     scheduledProfile: scheduled
       ? { id: scheduled.id, label: scheduled.label, effectiveFrom: scheduled.effective_from }
       : null,
-    analytics: buildCommissionAnalytics(entries),
+    analytics: buildCommissionAnalytics(entries, analyticsNow),
     compensation: {
       currency: payCurrency,
       monthlySalary,

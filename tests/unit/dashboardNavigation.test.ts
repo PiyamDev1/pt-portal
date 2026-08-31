@@ -12,6 +12,7 @@ describe('dashboard parent navigation', () => {
     '/dashboard/frappe-transfer',
     '/dashboard/lms',
     '/dashboard/my-commissions',
+    '/dashboard/my-performance',
     '/dashboard/packages',
     '/dashboard/pricing',
     '/dashboard/settings',

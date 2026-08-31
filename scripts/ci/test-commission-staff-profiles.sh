@@ -21,6 +21,7 @@ commission_applications="scripts/migrations/20260830_commission_application_shad
 commission_urgent_applications="scripts/migrations/20260830_commission_urgent_applications_and_plan_mutations.sql"
 commission_application_routing="scripts/migrations/20260830_commission_application_recipient_routing.sql"
 commission_historical_editing="scripts/migrations/20260831_commission_historical_profile_editing.sql"
+staff_performance_read_model="scripts/migrations/20260831_create_staff_performance_source_facts.sql"
 assertions="tests/integration/commission_staff_profiles.sql"
 assistance_assertions="tests/integration/commission_assistance_scope.sql"
 compensation_legacy_fixture="tests/integration/commission_compensation_legacy_fixture.sql"
@@ -31,6 +32,7 @@ application_assertions="tests/integration/commission_application_shadow_integrat
 urgent_application_assertions="tests/integration/commission_urgent_applications_and_plan_mutations.sql"
 application_routing_assertions="tests/integration/commission_application_recipient_routing.sql"
 historical_editing_assertions="tests/integration/commission_historical_profile_editing.sql"
+staff_performance_assertions="tests/integration/staff_performance_source_facts.sql"
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$package_fixture"
@@ -222,6 +224,20 @@ if [[ "$second_historical_editing_applied_at" != "$third_historical_editing_appl
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$historical_editing_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_performance_read_model"
+first_performance_definition="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select md5(pg_get_functiondef('public.staff_performance_source_facts_2026083101(uuid,date,date)'::regprocedure))
+      || '|' || md5(pg_get_functiondef('public.staff_performance_timeclock_events_2026083101(uuid,timestamptz,timestamptz)'::regprocedure))")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_performance_read_model"
+second_performance_definition="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
+  "select md5(pg_get_functiondef('public.staff_performance_source_facts_2026083101(uuid,date,date)'::regprocedure))
+      || '|' || md5(pg_get_functiondef('public.staff_performance_timeclock_events_2026083101(uuid,timestamptz,timestamptz)'::regprocedure))")"
+if [[ "$first_performance_definition" != "$second_performance_definition" ]]; then
+  echo "Idempotent staff performance read-model rerun changed its function definition"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_performance_assertions"
 
 future_marker='future-commission-profile-sentinel'
 psql "$database_url" -v ON_ERROR_STOP=1 -c "

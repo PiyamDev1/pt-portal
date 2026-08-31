@@ -1,0 +1,44 @@
+name: Deploy My Performance read model 2026083101
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-performance-2026083101
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: ckubfbjfjbhuotyfwmac
+
+jobs:
+  migrate:
+    name: Apply employee performance read model
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate Supabase CLI
+        run: npx --yes supabase@latest login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+
+      - name: Link production project
+        run: |
+          npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+
+      - name: Stage audited migrations
+        run: |
+          mkdir -p supabase/migrations
+          cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
+            supabase/migrations/20260831000800_commission_historical_profile_editing.sql
+          cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
+            supabase/migrations/20260831000801_commission_historical_profile_editing.sql
+          cp scripts/migrations/20260831_create_staff_performance_source_facts.sql \
+            supabase/migrations/20260831000900_staff_performance_source_facts.sql
+
+      - name: Apply performance read model
+        run: npx --yes supabase@latest db push --linked --yes

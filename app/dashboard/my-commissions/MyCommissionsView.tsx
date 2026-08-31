@@ -154,22 +154,25 @@ function MonthlyChart({ data }: { data: MyCommissionData['analytics']['monthly']
 function EmptyState({
   schemaReady,
   scheduledProfile,
+  embedded,
 }: {
   schemaReady: boolean
   scheduledProfile: MyCommissionData['scheduledProfile']
+  embedded: boolean
 }) {
+  const Heading = embedded ? 'h3' : 'h2'
   return (
     <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-[#8b1e2d]">
         <Clock3 className="h-7 w-7" />
       </div>
-      <h2 className="mt-5 text-xl font-black text-slate-950">
+      <Heading className="mt-5 text-xl font-black text-slate-950">
         {scheduledProfile
           ? 'Your commission plan is scheduled'
           : schemaReady
             ? 'Your commission plan is being prepared'
             : 'Commission setup is being upgraded'}
-      </h2>
+      </Heading>
       <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
         {scheduledProfile
           ? `${scheduledProfile.label} starts ${formatDate(scheduledProfile.effectiveFrom)}. Calculated activity will appear here after it becomes effective.`
@@ -184,45 +187,76 @@ function EmptyState({
 export default function MyCommissionsView({
   data,
   employeeName,
+  embedded = false,
 }: {
   data: MyCommissionData
   employeeName: string
+  embedded?: boolean
 }) {
   const { analytics } = data
-  const preview = analytics.mode !== 'live'
+  const preview = Boolean(data.profile) && analytics.mode === 'shadow'
+  const live = Boolean(data.profile) && analytics.mode === 'live'
+  const statusLabel = live
+    ? 'Live'
+    : preview
+      ? 'Preview only'
+      : data.schemaReady
+        ? 'No calculations yet'
+        : 'Unavailable'
+  const statusClass = live
+    ? 'bg-emerald-300 text-emerald-950'
+    : preview
+      ? 'bg-amber-300 text-amber-950'
+      : 'bg-slate-200 text-slate-700'
   const firstName = employeeName.split(/\s+/)[0] || 'there'
   const profile = data.profile?.configuration
+  const SectionHeading = embedded ? 'h3' : 'h2'
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[1.8rem] bg-[#4b0f16] px-6 py-7 text-white shadow-xl shadow-red-950/15 sm:px-8">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#d14b57]/25 blur-3xl" />
-        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-red-100">
-                My commissions
+      {!embedded && (
+        <section className="relative overflow-hidden rounded-[1.8rem] bg-[#4b0f16] px-6 py-7 text-white shadow-xl shadow-red-950/15 sm:px-8">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#d14b57]/25 blur-3xl" />
+          <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-red-100">
+                  My commissions
+                </p>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${statusClass}`}
+                >
+                  {statusLabel}
+                </span>
+              </div>
+              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                Your earnings, clearly explained.
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-red-50/80">
+                Hi {firstName}. See what contributed to your commission and the plan used to
+                calculate it.
               </p>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${preview ? 'bg-amber-300 text-amber-950' : 'bg-emerald-300 text-emerald-950'}`}
-              >
-                {preview ? 'Preview only' : 'Live'}
-              </span>
             </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-              Your earnings, clearly explained.
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-red-50/80">
-              Hi {firstName}. See what contributed to your commission and the plan used to calculate
-              it.
-            </p>
+            <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-xs text-red-50">
+              <Clock3 className="h-4 w-4" />
+              Updated {formatDate(data.lastCalculatedAt)}
+            </div>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-xs text-red-50">
-            <Clock3 className="h-4 w-4" />
-            Updated {formatDate(data.lastCalculatedAt)}
-          </div>
+        </section>
+      )}
+
+      {embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <span
+            className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${statusClass}`}
+          >
+            {statusLabel}
+          </span>
+          <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+            <Clock3 className="h-4 w-4" /> Updated {formatDate(data.lastCalculatedAt)}
+          </span>
         </div>
-      </section>
+      )}
 
       {preview && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
@@ -238,7 +272,11 @@ export default function MyCommissionsView({
       )}
 
       {!data.profile ? (
-        <EmptyState schemaReady={data.schemaReady} scheduledProfile={data.scheduledProfile} />
+        <EmptyState
+          schemaReady={data.schemaReady}
+          scheduledProfile={data.scheduledProfile}
+          embedded={embedded}
+        />
       ) : (
         <>
           <section className="rounded-[1.6rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-6">
@@ -247,9 +285,9 @@ export default function MyCommissionsView({
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
                   This month&apos;s local pay view
                 </p>
-                <h2 className="mt-1 text-xl font-black text-emerald-950">
+                <SectionHeading className="mt-1 text-xl font-black text-emerald-950">
                   Salary and commission in {data.compensation.currency}
-                </h2>
+                </SectionHeading>
                 <p className="mt-1 text-xs leading-5 text-emerald-800">
                   Your agreed local amounts stay unchanged. The GBP figure is the accounting value
                   produced from the administrator&apos;s month-end remittance rate.
@@ -336,9 +374,9 @@ export default function MyCommissionsView({
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                     Six-month view
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                  <SectionHeading className="mt-1 text-xl font-black text-slate-950">
                     Calculated earnings · GBP book view
-                  </h2>
+                  </SectionHeading>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
                   <span className="flex items-center gap-1.5">
@@ -358,7 +396,9 @@ export default function MyCommissionsView({
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                 Breakdown
               </p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Where it came from</h2>
+              <SectionHeading className="mt-1 text-xl font-black text-slate-950">
+                Where it came from
+              </SectionHeading>
               <div className="mt-6 space-y-5">
                 {analytics.breakdown.length === 0 ? (
                   <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -397,7 +437,9 @@ export default function MyCommissionsView({
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                     Your commission plan
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-slate-950">{data.profile.label}</h2>
+                  <SectionHeading className="mt-1 text-xl font-black text-slate-950">
+                    {data.profile.label}
+                  </SectionHeading>
                 </div>
                 <FileText className="h-6 w-6 text-slate-300" />
               </div>
@@ -527,7 +569,9 @@ export default function MyCommissionsView({
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                   Activity
                 </p>
-                <h2 className="mt-1 text-xl font-black text-slate-950">Recent calculations</h2>
+                <SectionHeading className="mt-1 text-xl font-black text-slate-950">
+                  Recent calculations
+                </SectionHeading>
               </div>
               {analytics.recent.length === 0 ? (
                 <div className="px-6 py-12 text-center text-sm text-slate-500">

@@ -47,4 +47,21 @@ describe('PageHeader', () => {
       '/dashboard/settings?tab=notice-board',
     )
   })
+
+  it('uses My performance as the canonical staff activity and earnings destination', () => {
+    mocks.pathname = '/dashboard/my-performance'
+    render(<PageHeader employeeName="Amina" role="Employee" location={{ name: 'Bradford' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+
+    expect(screen.getByRole('link', { name: 'My performance' }).getAttribute('href')).toBe(
+      '/dashboard/my-performance',
+    )
+    expect(screen.getByRole('link', { name: 'Activity' }).getAttribute('href')).toBe(
+      '/dashboard/my-performance#activity',
+    )
+    expect(screen.getByRole('link', { name: 'Earnings & commission' }).getAttribute('href')).toBe(
+      '/dashboard/my-performance#commissions',
+    )
+  })
 })

@@ -9,7 +9,46 @@ alter table public.travel_packages
   add column if not exists payment_status text not null default 'not_requested',
   add column if not exists earned_at timestamptz,
   add column if not exists closed_at timestamptz,
+  add column if not exists archived_at timestamptz,
   add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+alter table public.travel_package_groups
+  add column if not exists archived_at timestamptz,
+  add column if not exists customer_package_id uuid references public.travel_packages(id),
+  add column if not exists lead_package_id uuid references public.travel_packages(id),
+  add column if not exists lead_quote_id uuid;
+
+create table if not exists public.travel_package_quotes (
+  id uuid primary key default gen_random_uuid(),
+  converted_package_id uuid references public.travel_packages(id)
+);
+
+alter table public.travel_package_groups
+  drop constraint if exists commission_test_group_lead_quote_fkey;
+alter table public.travel_package_groups
+  add constraint commission_test_group_lead_quote_fkey
+  foreign key (lead_quote_id) references public.travel_package_quotes(id);
+
+create table if not exists public.travel_package_group_members (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.travel_package_groups(id) on delete cascade,
+  package_id uuid references public.travel_packages(id),
+  quote_id uuid references public.travel_package_quotes(id),
+  is_lead_family boolean not null default false,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.timeclock_events (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid not null references public.employees(id),
+  event_type text not null default 'IN',
+  punch_type text not null default 'IN',
+  scanned_at timestamptz,
+  adjusted_scanned_at timestamptz,
+  device_ts timestamptz,
+  adjusted_device_ts timestamptz
+);
 
 alter table public.travel_package_reservations
   add column if not exists currency text not null default 'GBP',
