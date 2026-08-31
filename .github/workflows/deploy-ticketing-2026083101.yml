@@ -33,6 +33,12 @@ jobs:
       - name: Stage the audited migration
         run: |
           mkdir -p supabase/migrations
+          cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
+            supabase/migrations/20260831000800_commission_historical_profile_editing.sql
+          cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
+            supabase/migrations/20260831000801_commission_historical_profile_editing.sql
+          cp scripts/migrations/20260831_create_staff_performance_source_facts.sql \
+            supabase/migrations/20260831000900_staff_performance_source_facts.sql
           cp scripts/migrations/20260831_ticketing_unpriced_held_quick_entry.sql \
             supabase/migrations/20260831001000_ticketing_unpriced_held_quick_entry.sql
 
