@@ -216,6 +216,7 @@ declare source_event public.commission_source_events%rowtype;
 declare process_result jsonb;
 declare active_amount numeric;
 declare active_count integer;
+declare exception_result jsonb;
 begin
   select * into source_event
   from public.commission_source_events event
@@ -245,8 +246,16 @@ begin
       where newer.entry_mode = entry.entry_mode and newer.supersedes_entry_id = entry.id
     );
   if active_count <> 1 or active_amount <> 45.50 then
-    raise exception 'Corrected package Commission left % active entries at %, processor %',
-      active_count, active_amount, process_result;
+    select jsonb_build_object(
+      'code', exception.exception_code,
+      'details', exception.details
+    ) into exception_result
+    from public.commission_exceptions exception
+    where exception.source_event_id = source_event.id and exception.status = 'open'
+    order by exception.created_at desc
+    limit 1;
+    raise exception 'Corrected package Commission left % active entries at %, processor %, exception %',
+      active_count, active_amount, process_result, exception_result;
   end if;
   if not exists (
     select 1 from public.commission_entries entry
