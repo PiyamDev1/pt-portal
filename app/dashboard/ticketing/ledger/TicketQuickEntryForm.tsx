@@ -119,7 +119,7 @@ function newIdempotencyKey() {
 }
 
 function fieldClass(hasError: boolean) {
-  return `mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
+  return `mt-1 min-w-0 w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
     hasError
       ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
       : 'border-slate-300 focus:border-[#8b1e2d] focus:ring-red-100'
@@ -607,8 +607,8 @@ export function TicketQuickEntryForm({
                     className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                   >
                     <p className="text-sm font-black text-slate-900">{passengerType}</p>
-                    <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
-                      <label className="text-[11px] font-bold text-slate-600">
+                    <div className="mt-2 grid grid-cols-[minmax(4.75rem,0.7fr)_minmax(0,1.3fr)] gap-2">
+                      <label className="min-w-0 text-[11px] font-bold text-slate-600">
                         Quantity
                         <input
                           type="number"
@@ -651,7 +651,7 @@ export function TicketQuickEntryForm({
                           className={fieldClass(Boolean(quantityError))}
                         />
                       </label>
-                      <label className="text-[11px] font-bold text-slate-600">
+                      <label className="min-w-0 text-[11px] font-bold text-slate-600">
                         Unit fare cost (£)
                         <input
                           type="text"
@@ -679,7 +679,7 @@ export function TicketQuickEntryForm({
                       </label>
                       {draft.operationalStatus === 'issued' ? (
                         <>
-                          <label className="text-[11px] font-bold text-slate-600">
+                          <label className="col-span-2 min-w-0 text-[11px] font-bold text-slate-600">
                             Sale price (£) — standalone only
                             <input
                               type="text"
@@ -710,7 +710,7 @@ export function TicketQuickEntryForm({
                               placeholder={disabled ? 'Not used' : 'Package quote or 0.00'}
                             />
                           </label>
-                          <div className="text-[11px] font-bold text-slate-600">
+                          <div className="col-span-2 text-[11px] font-bold text-slate-600">
                             <label className="mt-1 flex min-h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5">
                               <input
                                 type="checkbox"

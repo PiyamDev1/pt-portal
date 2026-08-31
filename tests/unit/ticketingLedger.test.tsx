@@ -112,6 +112,9 @@ describe('TicketQuickEntryForm', () => {
     )
 
     expect(screen.getByLabelText('ADT unit sale price')).toBeTruthy()
+    expect(screen.getByLabelText('ADT unit sale price').closest('label')?.className).toContain(
+      'col-span-2',
+    )
     expect(screen.queryByLabelText('ADT unit discount')).toBeNull()
 
     fireEvent.click(screen.getByLabelText('ADT has discount'))
