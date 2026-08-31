@@ -1,5 +1,5 @@
 -- Forward-only Ticketing capability 2026083101.
--- Allows Held quick-entry bookings to remain unpriced and exact package matches to use the
+-- Allows Held quick-entry bookings to keep sale values unpriced and exact package matches to use the
 -- accepted quotation's passenger-level flight prices instead of client-entered sale values.
 
 begin;

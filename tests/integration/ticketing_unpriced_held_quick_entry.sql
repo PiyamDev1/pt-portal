@@ -104,8 +104,8 @@ begin
         and (
           fare.unit_gross_sale_price_source is not null
           or fare.unit_gross_sale_price_gbp is not null
-          or fare.unit_discount_source is not null
-          or fare.unit_discount_gbp is not null
+          or fare.unit_discount_source <> 0
+          or fare.unit_discount_gbp <> 0
           or fare.unit_sale_price_source is not null
           or fare.unit_sale_price_gbp is not null
         )
