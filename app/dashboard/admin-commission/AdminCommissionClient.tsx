@@ -2286,6 +2286,11 @@ export default function AdminCommissionClient({
                           <p className="text-sm font-black text-slate-800">
                             {item.code.replace(/_/g, ' ')}
                           </p>
+                          {item.message && (
+                            <p className="mt-1 text-xs font-semibold text-amber-800">
+                              {item.message}
+                            </p>
+                          )}
                           <p className="mt-1 text-xs text-slate-400">
                             {item.serviceCode?.replace(/_/g, ' ') || 'Source event'} ·{' '}
                             {dateLabel(item.createdAt.slice(0, 10))} · {item.retryCount} retries

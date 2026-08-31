@@ -115,6 +115,7 @@ export type CommissionAdminException = {
   createdAt: string
   retryCount: number
   serviceCode: string | null
+  message: string | null
 }
 
 export type CommissionMonthlyExchangeRate = {
@@ -630,6 +631,7 @@ export async function loadCommissionAdminData(
       createdAt: item.created_at,
       retryCount: item.retry_count,
       serviceCode: typeof details.serviceCode === 'string' ? details.serviceCode : null,
+      message: typeof details.message === 'string' ? details.message : null,
     }
   })
 
