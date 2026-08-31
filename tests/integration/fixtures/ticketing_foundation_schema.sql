@@ -74,7 +74,9 @@ create table public.travel_packages (
   id uuid primary key default gen_random_uuid(),
   package_reference text not null unique,
   package_type text not null default 'umrah',
-  status text not null default 'selected'
+  status text not null default 'selected',
+  selected_quote_snapshot jsonb not null default '{}'::jsonb,
+  archived_at timestamptz
 );
 
 create table public.travel_package_groups (
@@ -87,8 +89,10 @@ create table public.travel_package_reservations (
   id uuid primary key default gen_random_uuid(),
   package_id uuid not null references public.travel_packages(id),
   reservation_type text not null default 'other',
+  title text,
   booking_reference text,
-  status text not null default 'not_started'
+  status text not null default 'not_started',
+  metadata jsonb not null default '{}'::jsonb
 );
 
 create table public.packages (
