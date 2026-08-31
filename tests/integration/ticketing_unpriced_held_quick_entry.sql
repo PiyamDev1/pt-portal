@@ -2,7 +2,7 @@ insert into public.travel_packages (
   id, package_reference, package_type, status, selected_quote_snapshot
 )
 values (
-  '97000000-0000-0000-0000-000000000001',
+  '9f100000-0000-0000-0000-000000000001',
   'PKG-QUOTE-PRICE-1',
   'umrah',
   'selected',
@@ -35,8 +35,8 @@ insert into public.travel_package_reservations (
   id, package_id, reservation_type, title, booking_reference, status, metadata
 )
 values (
-  '97100000-0000-0000-0000-000000000001',
-  '97000000-0000-0000-0000-000000000001',
+  '9f200000-0000-0000-0000-000000000001',
+  '9f100000-0000-0000-0000-000000000001',
   'flight',
   'Quotation priced flight',
   'PKGPRICE1',
