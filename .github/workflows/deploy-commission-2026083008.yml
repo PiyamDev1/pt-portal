@@ -1,0 +1,40 @@
+name: Deploy Commission capability 2026083008
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-commission-2026083008
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: ckubfbjfjbhuotyfwmac
+
+jobs:
+  migrate:
+    name: Apply historical Commission editing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate Supabase CLI
+        run: npx --yes supabase@latest login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+
+      - name: Link production project
+        run: |
+          npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+
+      - name: Stage the audited migration
+        run: |
+          mkdir -p supabase/migrations
+          cp scripts/migrations/20260831_commission_historical_profile_editing.sql \
+            supabase/migrations/20260831000800_commission_historical_profile_editing.sql
+
+      - name: Apply capability 2026083008
+        run: npx --yes supabase@latest db push --linked --yes
