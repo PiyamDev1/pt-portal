@@ -260,8 +260,8 @@ export function FlightMonitoringPanel() {
       className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm"
     >
       <div className="border-b border-slate-200 p-4 md:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-end">
+          <div className="lg:self-start">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
                 Flight Monitoring
@@ -278,109 +278,114 @@ export function FlightMonitoringPanel() {
             </p>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(14rem,1fr)_11rem_11rem_11rem_11rem_auto]">
-            <label className="relative">
-              <span className="sr-only">Search upcoming flights</span>
-              <Search
-                className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search PNR, passenger, route or agent"
-                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-              />
-            </label>
-            <label>
-              <span className="sr-only">Filter flights by status</span>
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+          <div className="min-w-0 space-y-3">
+            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                { label: 'Upcoming', value: counts.upcoming, icon: PlaneTakeoff },
+                { label: 'Changes marked', value: counts.changeMarked, icon: CalendarClock },
+                {
+                  label: 'Awaiting finalisation',
+                  value: counts.awaitingFinalisation,
+                  icon: UsersRound,
+                },
+              ].map((summary) => {
+                const Icon = summary.icon
+                return (
+                  <div
+                    key={summary.label}
+                    className="min-w-0 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100"
+                  >
+                    <dt className="flex items-start gap-1 text-[10px] font-black uppercase leading-4 tracking-wide text-slate-500">
+                      <Icon className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>{summary.label}</span>
+                    </dt>
+                    <dd className="mt-1 text-xl font-black text-slate-950">{summary.value}</dd>
+                  </div>
+                )
+              })}
+            </dl>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(13rem,1.35fr)_minmax(7.75rem,0.85fr)_minmax(7.75rem,0.85fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_auto]">
+              <label className="relative min-w-0">
+                <span className="sr-only">Search upcoming flights</span>
+                <Search
+                  className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search PNR, passenger, route or agent"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                />
+              </label>
+              <label className="min-w-0">
+                <span className="sr-only">Filter flights by status</span>
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                >
+                  <option value="all">All statuses</option>
+                  {statuses.map((option) => (
+                    <option key={option} value={option}>
+                      {titleCase(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="min-w-0">
+                <span className="sr-only">Filter flights by agent</span>
+                <select
+                  value={ownerEmployeeId}
+                  onChange={(event) => setOwnerEmployeeId(event.target.value)}
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                >
+                  <option value="all">All agents</option>
+                  {owners.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="min-w-0">
+                <span className="sr-only">Departing from</span>
+                <input
+                  type="date"
+                  aria-label="Departing from"
+                  value={departureFrom}
+                  onChange={(event) => setDepartureFrom(event.target.value)}
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                />
+              </label>
+              <label className="min-w-0">
+                <span className="sr-only">Departing to</span>
+                <input
+                  type="date"
+                  aria-label="Departing to"
+                  value={departureTo}
+                  onChange={(event) => setDepartureTo(event.target.value)}
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void load('refresh')}
+                disabled={isLoading || isRefreshing || isLoadingMore}
+                aria-label="Refresh upcoming flights"
+                className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                <option value="all">All statuses</option>
-                {statuses.map((option) => (
-                  <option key={option} value={option}>
-                    {titleCase(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="sr-only">Filter flights by agent</span>
-              <select
-                value={ownerEmployeeId}
-                onChange={(event) => setOwnerEmployeeId(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-              >
-                <option value="all">All agents</option>
-                {owners.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="sr-only">Departing from</span>
-              <input
-                type="date"
-                aria-label="Departing from"
-                value={departureFrom}
-                onChange={(event) => setDepartureFrom(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-              />
-            </label>
-            <label>
-              <span className="sr-only">Departing to</span>
-              <input
-                type="date"
-                aria-label="Departing to"
-                value={departureTo}
-                onChange={(event) => setDepartureTo(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => void load('refresh')}
-              disabled={isLoading || isRefreshing || isLoadingMore}
-              aria-label="Refresh upcoming flights"
-              className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`}
-                aria-hidden="true"
-              />
-              <span className="sm:sr-only">Refresh</span>
-            </button>
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+                <span className="sm:sr-only">Refresh</span>
+              </button>
+            </div>
           </div>
         </div>
-
-        <dl className="mt-4 grid grid-cols-3 gap-2 md:max-w-xl md:gap-3">
-          {[
-            { label: 'Upcoming', value: counts.upcoming, icon: PlaneTakeoff },
-            { label: 'Changes marked', value: counts.changeMarked, icon: CalendarClock },
-            {
-              label: 'Awaiting finalisation',
-              value: counts.awaitingFinalisation,
-              icon: UsersRound,
-            },
-          ].map((summary) => {
-            const Icon = summary.icon
-            return (
-              <div key={summary.label} className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-                <dt className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                  {summary.label}
-                </dt>
-                <dd className="mt-1 text-xl font-black text-slate-950">{summary.value}</dd>
-              </div>
-            )
-          })}
-        </dl>
       </div>
 
       {error && (
