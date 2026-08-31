@@ -8,13 +8,20 @@ loadEnvConfig(process.cwd())
 
 const argumentsList = process.argv.slice(2)
 const dryRun = argumentsList.includes('--dry-run')
-const sourcePath = argumentsList.find((argument) => argument !== '--dry-run')
-if (!sourcePath) throw new Error('Pass the path to an authorised airline-codes airlines.json file')
+const sourcePath =
+  argumentsList.find((argument) => argument !== '--dry-run') || 'airline_routes.json'
 const source = JSON.parse(await readFile(resolve(process.cwd(), sourcePath), 'utf8'))
-if (!Array.isArray(source)) throw new Error('The airline source must be a JSON array')
+const sourceRows = Array.isArray(source)
+  ? source
+  : source && typeof source === 'object'
+    ? Object.values(source)
+    : null
+if (!sourceRows) throw new Error('The airline source must be a JSON array or object')
 
 const unique = new Map()
-for (const airline of source) {
+let carrierReferences = 0
+function addAirline(airline) {
+  carrierReferences += 1
   const iataCode = String(airline?.iata || airline?.iataCode || '')
     .trim()
     .toUpperCase()
@@ -24,11 +31,24 @@ for (const airline of source) {
   }
 }
 
+for (const sourceRow of sourceRows) {
+  if (!Array.isArray(sourceRow?.routes)) {
+    addAirline(sourceRow)
+    continue
+  }
+  for (const route of sourceRow.routes) {
+    if (!Array.isArray(route?.carriers)) continue
+    for (const carrier of route.carriers) addAirline(carrier)
+  }
+}
+
 const values = [...unique.values()].sort((left, right) =>
   left.iataCode.localeCompare(right.iataCode),
 )
 if (dryRun) {
-  process.stdout.write(`Validated ${values.length} airlines; no rows imported.\n`)
+  process.stdout.write(
+    `Validated ${values.length} airlines from ${carrierReferences} carrier references; no rows imported.\n`,
+  )
   process.exit(0)
 }
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL

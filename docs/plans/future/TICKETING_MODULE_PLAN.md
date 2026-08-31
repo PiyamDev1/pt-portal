@@ -868,9 +868,10 @@ All routes must:
   records each consumed API unit and outcome, and flags provider differences without silently
   replacing the operational itinerary. Admin settings expose enablement, cadence, limits, usage,
   remaining allowance, and recent calls; the API key remains an environment secret.
-- **Implemented:** the user-provided OurAirports CSVs can be imported in bounded server-side batches,
-  including country/region metadata and derived IANA timezones. Airline import accepts a separately
-  authorised JSON dataset rather than silently vendoring an unlicensed source repository.
+- **Implemented:** the user-provided airport JSON can be imported in bounded server-side batches,
+  including city, country code, state/region name, coordinates, and source-provided IANA timezones.
+  Airline import extracts and deduplicates the nested carrier codes from the separately provided
+  route JSON rather than silently vendoring an unlicensed source repository.
 - **Implemented:** Flight Monitoring responsible-agent and local departure-date filters applied to
   both rows and summary counts, with opaque cursors bound to the selected filters.
 - **Implemented:** bounded team-ledger PNR/customer search and opaque keyset pagination with a
