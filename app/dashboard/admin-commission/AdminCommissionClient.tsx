@@ -1751,8 +1751,8 @@ export default function AdminCommissionClient({
             <p className="text-sm font-black">Commission-plan database upgrade required</p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
               The shadow engine is available, but database version {data.schemaVersion || 'unknown'}{' '}
-              does not yet include safe previous-policy editing. Plan changes are disabled until
-              the additive migration is installed.
+              does not yet include safe previous-policy editing. Plan changes are disabled until the
+              additive migration is installed.
             </p>
           </div>
         </div>
