@@ -229,7 +229,13 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$historical_editing_assertions"
 
 first_ticketing_waiver_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select applied_at from public.portal_schema_versions where component = 'commission'")"
-psql "$database_url" -v ON_ERROR_STOP=1 -f "$commission_ticketing_waivers"
+crlf_ticketing_waiver="$(mktemp)"
+sed 's/$/\r/' "$commission_ticketing_waivers" >"$crlf_ticketing_waiver"
+if ! psql "$database_url" -v ON_ERROR_STOP=1 -f "$crlf_ticketing_waiver"; then
+  rm -f "$crlf_ticketing_waiver"
+  exit 1
+fi
+rm -f "$crlf_ticketing_waiver"
 second_ticketing_waiver_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c \
   "select applied_at from public.portal_schema_versions where component = 'commission'")"
 if [[ "$first_ticketing_waiver_applied_at" == "$second_ticketing_waiver_applied_at" ]]; then

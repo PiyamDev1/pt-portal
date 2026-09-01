@@ -31,25 +31,38 @@ do $upgrade_commission_ticketing_waivers$
 declare
   signature constant regprocedure :=
     'public.commission_process_shadow_2026082902(uuid,integer,text)'::regprocedure;
+  unsupported_event_anchor constant text :=
+    '      elsif event.event_type not in (';
   definition text;
   updated_definition text;
+  waiver_branch text;
+  anchor_count integer;
 begin
   definition := replace(pg_get_functiondef(signature), E'\r\n', E'\n');
 
   if definition !~ $pattern$event\.source_module[[:space:]]*=[[:space:]]*'ticketing'[[:space:]]+and[[:space:]]+event\.variables[[:space:]]*->>[[:space:]]*'commission_waived'[[:space:]]*=[[:space:]]*'true'$pattern$
   then
+    anchor_count := (
+      length(definition)
+        - length(replace(definition, unsupported_event_anchor, ''))
+    ) / length(unsupported_event_anchor);
+
+    if anchor_count <> 1 then
+      raise exception 'Commission ticketing-waiver processor upgrade found % unsupported-event anchors',
+        anchor_count
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+
+    waiver_branch :=
+        '      elsif event.source_module = ''ticketing''' || E'\n'
+      || '        and event.variables ->> ''commission_waived'' = ''true''' || E'\n'
+      || '      then' || E'\n'
+      || '        null;' || E'\n';
+
     updated_definition := replace(
       definition,
-      $original$      elsif event.event_type in ('ticket_paid') then
-        null;
-      elsif event.event_type not in ($original$,
-      $replacement$      elsif event.event_type in ('ticket_paid') then
-        null;
-      elsif event.source_module = 'ticketing'
-        and event.variables ->> 'commission_waived' = 'true'
-      then
-        null;
-      elsif event.event_type not in ($replacement$
+      unsupported_event_anchor,
+      waiver_branch || unsupported_event_anchor
     );
     if updated_definition = definition then
       raise exception 'Commission ticketing-waiver processor upgrade did not match'
