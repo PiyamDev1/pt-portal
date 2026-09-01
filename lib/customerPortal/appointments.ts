@@ -20,7 +20,7 @@ const PORTAL_ORIGIN = process.env.CUSTOMER_PORTAL_ALLOWED_ORIGIN || 'https://por
 
 interface ServiceRow {
   id: string
-  location_id: string
+  location_id: string | null
   name: string
   duration_minutes: number
   buffer_minutes: number
@@ -36,6 +36,12 @@ interface ServiceRow {
   customer_description: string | null
   customer_max_group_size: number
   customer_modification_cutoff_hours: number
+}
+
+type BookableServiceRow = ServiceRow & { location_id: string }
+
+function hasBookableLocation(row: ServiceRow): row is BookableServiceRow {
+  return typeof row.location_id === 'string' && row.location_id.length > 0
 }
 
 interface LocationRow {
@@ -165,6 +171,7 @@ export async function customerBookingCatalog() {
     .select('*')
     .eq('is_active', true)
     .eq('customer_visible', true)
+    .not('location_id', 'is', null)
     .order('name')
   if (error) {
     throw new CustomerIntegrationError(
@@ -173,7 +180,9 @@ export async function customerBookingCatalog() {
       503,
     )
   }
-  const serviceRows = (services ?? []) as ServiceRow[]
+  // The database constraint prevents customer-visible global services, while
+  // this defensive filter also protects the public contract during rollouts.
+  const serviceRows = ((services ?? []) as ServiceRow[]).filter(hasBookableLocation)
   const locationIds = [...new Set(serviceRows.map((row) => row.location_id).filter(Boolean))]
   const { data: locations, error: locationError } = locationIds.length
     ? await service

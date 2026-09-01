@@ -82,6 +82,26 @@ begin
   ) then
     raise exception 'Customer loyalty function ACL bypasses the source-aware API';
   end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'booking_services_customer_visible_requires_location'
+      and conrelid = 'public.booking_services'::regclass
+      and convalidated
+  ) then
+    raise exception 'Customer-visible appointment services do not require a branch';
+  end if;
+
+  if (
+    select column_default
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'booking_services'
+      and column_name = 'customer_visible'
+  ) <> 'false'::text then
+    raise exception 'Appointment services are customer-visible by default';
+  end if;
 end
 $gateway_structure$;
 

@@ -26,7 +26,8 @@ create table public.locations (
 
 create table public.booking_services (
   id uuid primary key,
-  name text not null
+  name text not null,
+  location_id uuid references public.locations(id) on delete cascade
 );
 
 create table public.bookings (
@@ -77,8 +78,12 @@ create table public.ticket_refunds (
 insert into public.locations (id, name)
 values ('10000000-0000-0000-0000-000000000001', 'Test branch');
 
-insert into public.booking_services (id, name)
-values ('20000000-0000-0000-0000-000000000001', 'Test service');
+insert into public.booking_services (id, name, location_id)
+values (
+  '20000000-0000-0000-0000-000000000001',
+  'Test service',
+  '10000000-0000-0000-0000-000000000001'
+);
 
 -- Proves the gateway migration backfills references on existing appointments.
 insert into public.bookings (id, contact_name)
