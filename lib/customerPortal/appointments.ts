@@ -7,6 +7,12 @@ import { defaultTemplate, sendBookingEmail } from '@/lib/bookingEmail'
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import {
+  buildAvailabilityCandidates,
+  CUSTOMER_AVAILABLE_DATE_WINDOW_DAYS,
+  serviceDurationMinutes,
+  type AvailabilityScheduleOverride,
+} from './appointmentAvailability'
+import {
   createCustomerAccessGrant,
   getOrCreateResourceAlias,
   resolveResourceAlias,
@@ -15,7 +21,6 @@ import {
 import { CustomerIntegrationError } from './http'
 import { createCustomerOtpChallenge, verifyCustomerOtpChallenge } from './otp'
 
-const SLOT_STEP_MINUTES = 5
 const PORTAL_ORIGIN = process.env.CUSTOMER_PORTAL_ALLOWED_ORIGIN || 'https://portal.piyamtravel.com'
 
 interface ServiceRow {
@@ -66,79 +71,6 @@ function address(location: LocationRow) {
     .map((value) => value?.trim())
     .filter(Boolean)
     .join(', ')
-}
-
-function servicePersonUnits(service: ServiceRow, groupSize: number) {
-  return service.person_count_excludes_family_head ? groupSize : Math.max(0, groupSize - 1)
-}
-
-function serviceDuration(service: ServiceRow, groupSize: number) {
-  return (
-    service.duration_minutes +
-    servicePersonUnits(service, groupSize) *
-      Math.max(0, service.duration_per_additional_person_minutes)
-  )
-}
-
-function timeToMinutes(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours! * 60 + minutes!
-}
-
-function maxTime(left: string | null, right: string | null) {
-  if (!left) return right
-  if (!right) return left
-  return timeToMinutes(left) >= timeToMinutes(right) ? left : right
-}
-
-function minTime(left: string | null, right: string | null) {
-  if (!left) return right
-  if (!right) return left
-  return timeToMinutes(left) <= timeToMinutes(right) ? left : right
-}
-
-function minutesToIso(date: string, minutes: number) {
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  return new Date(
-    `${date}T${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00Z`,
-  ).toISOString()
-}
-
-function overlapsBreak(
-  start: number,
-  occupiedUntil: number,
-  breakStart: string | null,
-  breakEnd: string | null,
-  tolerance: number,
-) {
-  if (!breakStart || !breakEnd) return false
-  const rangeStart = timeToMinutes(breakStart)
-  const rangeEnd = timeToMinutes(breakEnd)
-  if (occupiedUntil <= rangeStart || start >= rangeEnd) return false
-  if (start >= rangeStart && start < rangeEnd) return true
-  return occupiedUntil - rangeStart > tolerance
-}
-
-function occupiedUntilMs(booking: Record<string, unknown>) {
-  const end = new Date(String(booking.end_time)).getTime()
-  const relation = Array.isArray(booking.booking_services)
-    ? booking.booking_services[0]
-    : booking.booking_services
-  const buffer = Number((relation as { buffer_minutes?: number } | null)?.buffer_minutes ?? 0)
-  return end + Math.max(0, buffer) * 60_000
-}
-
-function countOverlaps(
-  bookings: Record<string, unknown>[],
-  startIso: string,
-  occupiedUntilIso: string,
-) {
-  const start = Date.parse(startIso)
-  const end = Date.parse(occupiedUntilIso)
-  return bookings.filter(
-    (booking) => Date.parse(String(booking.start_time)) < end && occupiedUntilMs(booking) > start,
-  ).length
 }
 
 async function serviceAndLocation(service: SupabaseClient, serviceId: string, locationId: string) {
@@ -266,9 +198,6 @@ export async function customerAvailability(input: {
     )
   }
   const day = requestedDate.getUTCDay()
-  if (serviceRow.available_days?.length && !serviceRow.available_days.includes(day)) {
-    return []
-  }
   const [{ data: settingsRow, error: settingsError }, { data: override, error: overrideError }] =
     await Promise.all([
       service
@@ -291,16 +220,6 @@ export async function customerAvailability(input: {
       503,
     )
   }
-  const settings = settingsRow ?? buildDefaultBranchSchedule(day)
-  if (settings.is_closed || override?.is_closed) return []
-  const open = maxTime(override?.open_time ?? settings.open_time, serviceRow.service_start_time)
-  const close = minTime(override?.close_time ?? settings.close_time, serviceRow.service_end_time)
-  if (!open || !close || open >= close) return []
-  const lunchStart = override?.lunch_start_time ?? settings.lunch_start_time
-  const lunchEnd = override?.lunch_end_time ?? settings.lunch_end_time
-  const prayerStart = override?.prayer_start_time ?? settings.prayer_start_time
-  const prayerEnd = override?.prayer_end_time ?? settings.prayer_end_time
-  const capacity = Math.max(1, override?.concurrent_staff ?? settings.concurrent_staff)
   const startOfDay = new Date(`${input.date}T00:00:00.000Z`).toISOString()
   const endOfDay = new Date(`${input.date}T23:59:59.999Z`).toISOString()
   const { data: existing, error: bookingsError } = await service
@@ -317,53 +236,15 @@ export async function customerAvailability(input: {
       503,
     )
   }
-  const duration = serviceDuration(serviceRow, input.groupSize)
-  const occupancy = duration + Math.max(0, serviceRow.buffer_minutes)
-  const tolerance = Math.max(0, serviceRow.close_overrun_tolerance_minutes)
-  const candidates: Array<{
-    service_id: string
-    location_id: string
-    starts_at: string
-    ends_at: string
-    occupied_until: string
-    group_size: number
-    capacity: number
-    expires_at: string
-    available: number
-  }> = []
-  let current = timeToMinutes(open)
-  const closeMinutes = timeToMinutes(close)
-  while (current + duration <= closeMinutes + tolerance) {
-    const occupiedUntilMinutes = current + occupancy
-    if (occupiedUntilMinutes > closeMinutes + tolerance) break
-    if (
-      overlapsBreak(current, occupiedUntilMinutes, lunchStart, lunchEnd, tolerance) ||
-      overlapsBreak(current, occupiedUntilMinutes, prayerStart, prayerEnd, tolerance)
-    ) {
-      current += SLOT_STEP_MINUTES
-      continue
-    }
-    const startsAt = minutesToIso(input.date, current)
-    const endsAt = minutesToIso(input.date, current + duration)
-    const occupiedUntil = minutesToIso(input.date, occupiedUntilMinutes)
-    const available =
-      capacity -
-      countOverlaps((existing ?? []) as Record<string, unknown>[], startsAt, occupiedUntil)
-    if (available > 0 && Date.parse(startsAt) > Date.now()) {
-      candidates.push({
-        service_id: serviceRow.id,
-        location_id: branchAlias.internalId,
-        starts_at: startsAt,
-        ends_at: endsAt,
-        occupied_until: occupiedUntil,
-        group_size: input.groupSize,
-        capacity,
-        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        available,
-      })
-    }
-    current += SLOT_STEP_MINUTES
-  }
+  const candidates = buildAvailabilityCandidates({
+    service: serviceRow,
+    locationId: branchAlias.internalId,
+    date: input.date,
+    groupSize: input.groupSize,
+    settings: settingsRow ?? buildDefaultBranchSchedule(day),
+    override: override as AvailabilityScheduleOverride,
+    bookings: (existing ?? []) as Record<string, unknown>[],
+  })
   if (!candidates.length) return []
   const { data: stored, error: slotError } = await service
     .from('customer_portal_availability_slots')
@@ -382,6 +263,89 @@ export async function customerAvailability(input: {
     endsAt: slot.ends_at,
     availableCapacity: candidates[index]!.available,
   }))
+}
+
+export async function customerAvailableDates(input: {
+  servicePublicId: string
+  branchPublicId: string
+  groupSize: number
+}) {
+  const service = getServiceSupabaseClient()
+  const [serviceAlias, branchAlias] = await Promise.all([
+    resolveResourceAlias('service', input.servicePublicId),
+    resolveResourceAlias('branch', input.branchPublicId),
+  ])
+  const { serviceRow } = await serviceAndLocation(
+    service,
+    serviceAlias.internalId,
+    branchAlias.internalId,
+  )
+  if (input.groupSize > serviceRow.customer_max_group_size) {
+    throw new CustomerIntegrationError(
+      'validation_failed',
+      'Group size exceeds the service limit.',
+      400,
+    )
+  }
+
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const dates = Array.from({ length: CUSTOMER_AVAILABLE_DATE_WINDOW_DAYS }, (_, index) =>
+    new Date(today.getTime() + index * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  )
+  const startOfWindow = `${dates[0]}T00:00:00.000Z`
+  const endOfWindow = `${dates.at(-1)}T23:59:59.999Z`
+  const [settingsResult, overridesResult, bookingsResult] = await Promise.all([
+    service.from('branch_settings').select('*').eq('location_id', branchAlias.internalId),
+    service
+      .from('branch_schedule_overrides')
+      .select('*')
+      .eq('location_id', branchAlias.internalId)
+      .gte('date', dates[0]!)
+      .lte('date', dates.at(-1)!),
+    service
+      .from('bookings')
+      .select('id,start_time,end_time,booking_services:service_id(buffer_minutes)')
+      .eq('location_id', branchAlias.internalId)
+      .gte('start_time', startOfWindow)
+      .lte('start_time', endOfWindow)
+      .neq('status', 'cancelled'),
+  ])
+  if (settingsResult.error || overridesResult.error || bookingsResult.error) {
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Appointment schedule is unavailable.',
+      503,
+    )
+  }
+
+  const settingsByDay = new Map(
+    (settingsResult.data ?? []).map((row) => [Number(row.day_of_week), row]),
+  )
+  const overridesByDate = new Map(
+    (overridesResult.data ?? []).map((row) => [String(row.date), row]),
+  )
+  const bookingsByDate = new Map<string, Record<string, unknown>[]>()
+  for (const booking of (bookingsResult.data ?? []) as Record<string, unknown>[]) {
+    const bookingDate = new Date(String(booking.start_time)).toISOString().slice(0, 10)
+    const dayBookings = bookingsByDate.get(bookingDate) ?? []
+    dayBookings.push(booking)
+    bookingsByDate.set(bookingDate, dayBookings)
+  }
+
+  return dates.flatMap((date) => {
+    const day = new Date(`${date}T00:00:00.000Z`).getUTCDay()
+    const candidates = buildAvailabilityCandidates({
+      service: serviceRow,
+      locationId: branchAlias.internalId,
+      date,
+      groupSize: input.groupSize,
+      settings: settingsByDay.get(day) ?? buildDefaultBranchSchedule(day),
+      override: (overridesByDate.get(date) ?? null) as AvailabilityScheduleOverride,
+      bookings: bookingsByDate.get(date) ?? [],
+    })
+    return candidates.length ? [{ date, availableTimeCount: candidates.length }] : []
+  })
 }
 
 async function bookingSummary(bookingId: string) {
@@ -780,7 +744,7 @@ export async function updateCustomerAppointment(input: {
     occupiedUntil = slot.occupied_until
     capacity = slot.capacity
   } else if (nextGroupSize !== booking.person_count) {
-    const duration = serviceDuration(bookingService, nextGroupSize)
+    const duration = serviceDurationMinutes(bookingService, nextGroupSize)
     endsAt = new Date(Date.parse(startsAt) + duration * 60_000).toISOString()
     occupiedUntil = new Date(
       Date.parse(endsAt) + Math.max(0, bookingService.buffer_minutes) * 60_000,
