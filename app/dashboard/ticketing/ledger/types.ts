@@ -73,6 +73,7 @@ export type TicketLedgerContext = {
   timezone: string
   canManageAttribution: boolean
   canManageRecords: boolean
+  canArchiveRecords: boolean
   attributionEmployees: TicketAttributionEmployee[]
   staffFamilyChangeFeeGbp: number
   staffFamilyRefundFeeGbp: number

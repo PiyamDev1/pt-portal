@@ -9,13 +9,14 @@ import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { type TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
 import {
   ticketingQuickTkSchema,
+  TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
   TICKET_STAFF_FAMILY_CAPABILITY_VERSION,
   type TicketingAirlineOption,
   type TicketingLedgerFare,
   type TicketingLedgerItem,
   type TicketingQuickTkResult,
 } from '@/lib/ticketing/contracts'
-import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import { ticketingDetailsStatus } from '@/lib/ticketing/completionContracts'
 import {
   hasTicketingSchemaCapability,
@@ -23,7 +24,10 @@ import {
 } from '@/lib/ticketing/schemaCapability'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
-const TICKETING_RUNTIME_VERSION = TICKET_STAFF_FAMILY_CAPABILITY_VERSION
+const TICKETING_RUNTIME_VERSION = Math.max(
+  TICKET_STAFF_FAMILY_CAPABILITY_VERSION,
+  TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
+)
 const LEDGER_MAX_LIMIT = 100
 
 const ledgerCursorSchema = z
@@ -198,6 +202,10 @@ function attributionEmployee(row: EmployeeNameRow, fallbackName?: string) {
 }
 
 function canManageTicketingAttribution(role: string) {
+  return canManageTicketingRecords(role)
+}
+
+function canArchiveTicketingRecords(role: string) {
   const normalizeRole = (value: string) => value.trim().toLowerCase().replace(/[_-]+/g, ' ')
   const normalizedRole = normalizeRole(role)
   return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
@@ -591,6 +599,7 @@ export async function GET(request: NextRequest) {
         timezone: location?.timezone || 'Europe/London',
         canManageAttribution,
         canManageRecords: canManageAttribution,
+        canArchiveRecords: canArchiveTicketingRecords(access.employee.role),
         attributionEmployees,
         staffFamilyChangeFeeGbp: staffFamilyPolicy.changeFeeGbp,
         staffFamilyRefundFeeGbp: staffFamilyPolicy.refundFeeGbp,

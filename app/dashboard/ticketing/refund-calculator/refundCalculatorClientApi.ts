@@ -146,7 +146,8 @@ export async function loadTicketRefunds(
   if (
     !Array.isArray(payload.items) ||
     !('nextCursor' in payload) ||
-    typeof payload.context?.canManage !== 'boolean'
+    typeof payload.context?.canManage !== 'boolean' ||
+    typeof payload.context?.canConfirm !== 'boolean'
   ) {
     throw new RefundCalculatorLookupError('Saved Refunds returned an invalid response.')
   }

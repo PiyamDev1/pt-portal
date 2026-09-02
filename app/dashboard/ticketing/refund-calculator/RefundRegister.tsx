@@ -29,6 +29,7 @@ const EVENT_LABELS: Record<TicketingRefundEventType, string> = {
   airline_recovery: 'Airline recovery received',
   other_cost: 'Additional cost paid',
   recovery_finalised: 'Airline recovery finalised',
+  confirmed_correct: 'Mark Refund correct',
   closed: 'Close record',
   voided: 'Void erroneous record',
 }
@@ -51,12 +52,17 @@ function gbp(value: string | number | null) {
 
 function RefundEventForm({
   refund,
+  canManage,
   onUpdated,
 }: {
   refund: TicketingRefundItem
+  canManage: boolean
   onUpdated: () => Promise<void>
 }) {
-  const [eventType, setEventType] = useState<TicketingRefundEventType>('customer_settlement')
+  const canConfirmRefund = refund.airlineRecoveryFinal && !refund.confirmedCorrectAt
+  const [eventType, setEventType] = useState<TicketingRefundEventType>(
+    canManage ? 'customer_settlement' : 'confirmed_correct',
+  )
   const [amount, setAmount] = useState('')
   const [eventDate, setEventDate] = useState(today())
   const [reference, setReference] = useState('')
@@ -64,6 +70,14 @@ function RefundEventForm({
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const idempotencyKey = useRef(key())
+
+  const updateDraft = (update: () => void) => {
+    if (isSaving) return
+    update()
+    setError('')
+    idempotencyKey.current = key()
+  }
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -90,10 +104,11 @@ function RefundEventForm({
           notes: notes.trim() || null,
           overrideReason: reason.trim() || null,
         },
-        key(),
+        idempotencyKey.current,
       )
       toast.success('Refund lifecycle updated.')
       await onUpdated()
+      idempotencyKey.current = key()
     } catch (caught) {
       setError(
         caught instanceof RefundCalculatorLookupError
@@ -109,14 +124,23 @@ function RefundEventForm({
     <form onSubmit={save} className="mt-4 space-y-3 border-t border-slate-200 pt-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-xs font-bold text-slate-700 sm:col-span-2">
-          Settlement event
+          Refund event
           <select
             value={eventType}
-            onChange={(event) => setEventType(event.target.value as TicketingRefundEventType)}
+            onChange={(event) =>
+              updateDraft(() => setEventType(event.target.value as TicketingRefundEventType))
+            }
             className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-2"
           >
-            {TICKET_REFUND_EVENT_TYPES.map((type) => (
-              <option key={type} value={type}>
+            {TICKET_REFUND_EVENT_TYPES.filter((type) => {
+              if (!canManage && type !== 'confirmed_correct') return false
+              return type !== 'closed' || Boolean(refund.confirmedCorrectAt)
+            }).map((type) => (
+              <option
+                key={type}
+                value={type}
+                disabled={type === 'confirmed_correct' && !canConfirmRefund}
+              >
                 {EVENT_LABELS[type]}
               </option>
             ))}
@@ -128,7 +152,7 @@ function RefundEventForm({
             type="date"
             value={eventDate}
             max={today()}
-            onChange={(event) => setEventDate(event.target.value)}
+            onChange={(event) => updateDraft(() => setEventDate(event.target.value))}
             className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-2"
           />
         </label>
@@ -138,7 +162,7 @@ function RefundEventForm({
           Amount in GBP
           <input
             value={amount}
-            onChange={(event) => setAmount(event.target.value)}
+            onChange={(event) => updateDraft(() => setAmount(event.target.value))}
             inputMode="decimal"
             placeholder="0.00"
             className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3"
@@ -151,7 +175,7 @@ function RefundEventForm({
           <input
             value={reference}
             maxLength={200}
-            onChange={(event) => setReference(event.target.value)}
+            onChange={(event) => updateDraft(() => setReference(event.target.value))}
             className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3"
           />
         </label>
@@ -161,7 +185,7 @@ function RefundEventForm({
             <input
               value={reason}
               maxLength={500}
-              onChange={(event) => setReason(event.target.value)}
+              onChange={(event) => updateDraft(() => setReason(event.target.value))}
               className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3"
             />
           </label>
@@ -173,18 +197,18 @@ function RefundEventForm({
           value={notes}
           maxLength={2000}
           rows={2}
-          onChange={(event) => setNotes(event.target.value)}
+          onChange={(event) => updateDraft(() => setNotes(event.target.value))}
           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
         />
       </label>
       {error && <p className="text-xs font-semibold text-red-700">{error}</p>}
       <button
         type="submit"
-        disabled={isSaving}
+        disabled={isSaving || (eventType === 'confirmed_correct' && !canConfirmRefund)}
         className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-xs font-black text-white disabled:opacity-50"
       >
         {isSaving && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
-        Save settlement event
+        {eventType === 'confirmed_correct' ? 'Confirm Refund' : 'Save settlement event'}
       </button>
     </form>
   )
@@ -200,6 +224,7 @@ export function RefundRegister() {
   })
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [canManage, setCanManage] = useState(false)
+  const [canConfirm, setCanConfirm] = useState(false)
   const [expandedId, setExpandedId] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -218,6 +243,7 @@ export function RefundRegister() {
         setItems((current) => (options.append ? [...current, ...page.items] : page.items))
         setNextCursor(page.nextCursor)
         setCanManage(page.context.canManage)
+        setCanConfirm(page.context.canConfirm)
         setError('')
       } catch (caught) {
         if (requestId === sequence.current) {
@@ -309,6 +335,9 @@ export function RefundRegister() {
         <div className="grid gap-3 xl:grid-cols-2">
           {items.map((refund) => {
             const expanded = refund.id === expandedId
+            const confirmationAvailable =
+              canConfirm && refund.airlineRecoveryFinal && !refund.confirmedCorrectAt
+            const canUpdate = canManage || confirmationAvailable
             return (
               <article
                 key={refund.id}
@@ -324,9 +353,18 @@ export function RefundRegister() {
                     <p className="mt-1 text-xs text-slate-500">Owner: {refund.owner.fullName}</p>
                   </div>
                   <div className="text-right">
-                    <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black uppercase text-amber-800 ring-1 ring-amber-200">
-                      {STATUS_LABELS[refund.status]}
+                    <span
+                      className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ring-1 ${
+                        refund.confirmedCorrectAt
+                          ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+                          : 'bg-amber-50 text-amber-800 ring-amber-200'
+                      }`}
+                    >
+                      {refund.confirmedCorrectAt ? 'Confirmed correct' : 'Provisional'}
                     </span>
+                    <p className="mt-2 text-[10px] font-black uppercase text-slate-500">
+                      {STATUS_LABELS[refund.status]}
+                    </p>
                     <p className="mt-2 text-[10px] font-black uppercase text-slate-500">
                       {refund.commissionScope === 'package' ? 'Package item' : 'Standard ticket'}
                     </p>
@@ -346,11 +384,31 @@ export function RefundRegister() {
                     <p className="font-black">{gbp(refund.airlineRecoveredGbp)}</p>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-2 ring-1 ring-slate-200">
-                    <span className="text-slate-500">Actual result</span>
-                    <p className="font-black">{gbp(refund.actualCompanyResultGbp)}</p>
+                    <span className="text-slate-500">
+                      {refund.confirmedCorrectAt ? 'Actual result' : 'Provisional result'}
+                    </span>
+                    <p className="font-black">
+                      {gbp(
+                        refund.confirmedCorrectAt
+                          ? refund.actualCompanyResultGbp
+                          : refund.provisionalCompanyResultGbp,
+                      )}
+                    </p>
                   </div>
                 </div>
-                {canManage && !['closed', 'voided'].includes(refund.status) && (
+                {!refund.confirmedCorrectAt && (
+                  <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900 ring-1 ring-amber-200">
+                    This Refund remains provisional until the airline or supplier recovery is
+                    finalised and the responsible agent or an administrator confirms it is correct.
+                  </p>
+                )}
+                {refund.confirmedCorrectAt && (
+                  <p className="mt-3 text-xs font-semibold text-emerald-800">
+                    Confirmed by {refund.confirmedCorrectBy?.fullName || 'authorised staff'} on{' '}
+                    {new Date(refund.confirmedCorrectAt).toLocaleDateString('en-GB')}.
+                  </p>
+                )}
+                {canUpdate && !['closed', 'voided'].includes(refund.status) && (
                   <button
                     type="button"
                     onClick={() => setExpandedId(expanded ? '' : refund.id)}
@@ -361,10 +419,21 @@ export function RefundRegister() {
                     ) : (
                       <ChevronDown className="h-4 w-4" />
                     )}
-                    {expanded ? 'Hide settlement form' : 'Record settlement'}
+                    {expanded
+                      ? 'Hide Refund update'
+                      : canManage
+                        ? 'Record settlement'
+                        : 'Confirm Refund'}
                   </button>
                 )}
-                {expanded && <RefundEventForm refund={refund} onUpdated={() => load(applied)} />}
+                {expanded && canUpdate && (
+                  <RefundEventForm
+                    key={`${refund.id}:${refund.version}`}
+                    refund={refund}
+                    canManage={canManage}
+                    onUpdated={() => load(applied)}
+                  />
+                )}
               </article>
             )
           })}

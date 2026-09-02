@@ -545,31 +545,41 @@ export function TicketCompletionDrawer({
                   Your signed-in account is recorded as the acting employee. Ticket responsibility
                   and staff attribution stay with the responsible agent.
                 </p>
-                <label className="mt-3 block text-xs font-bold text-slate-700">
-                  On-behalf reason
-                  <textarea
-                    autoFocus
-                    value={draft.onBehalfReason}
-                    onChange={(event) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        onBehalfReason: event.target.value,
-                      }))
-                    }
-                    maxLength={500}
-                    rows={2}
-                    required={onBehalfReasonRequired}
-                    disabled={isSaving || draft.paymentStatus === 'part_paid'}
-                    aria-label="On-behalf completion reason"
-                    aria-invalid={Boolean(errors.onBehalfReason)}
-                    aria-describedby={
-                      errors.onBehalfReason ? 'ticket-on-behalf-reason-error' : undefined
-                    }
-                    className={fieldClass(Boolean(errors.onBehalfReason))}
-                    placeholder="For example: completing the record while the agent is off sick"
-                  />
-                  <FieldError id="ticket-on-behalf-reason-error" message={errors.onBehalfReason} />
-                </label>
+                {onBehalfReasonRequired ? (
+                  <label className="mt-3 block text-xs font-bold text-slate-700">
+                    On-behalf reason
+                    <textarea
+                      autoFocus
+                      value={draft.onBehalfReason}
+                      onChange={(event) =>
+                        updateDraft((current) => ({
+                          ...current,
+                          onBehalfReason: event.target.value,
+                        }))
+                      }
+                      maxLength={500}
+                      rows={2}
+                      required
+                      disabled={isSaving || draft.paymentStatus === 'part_paid'}
+                      aria-label="On-behalf completion reason"
+                      aria-invalid={Boolean(errors.onBehalfReason)}
+                      aria-describedby={
+                        errors.onBehalfReason ? 'ticket-on-behalf-reason-error' : undefined
+                      }
+                      className={fieldClass(Boolean(errors.onBehalfReason))}
+                      placeholder="For example: completing the record while the agent is off sick"
+                    />
+                    <FieldError
+                      id="ticket-on-behalf-reason-error"
+                      message={errors.onBehalfReason}
+                    />
+                  </label>
+                ) : (
+                  <p className="mt-3 text-xs font-semibold text-sky-800">
+                    No typed reason is required. The system records this Super Admin action in the
+                    ticket audit trail.
+                  </p>
+                )}
               </section>
             )}
 

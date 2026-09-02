@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
-import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
@@ -17,22 +16,12 @@ function privateError(message: string, status: number) {
   return apiError(message, status, {}, PRIVATE_RESPONSE)
 }
 
-function normalizeRole(value: string) {
-  return value.trim().toLowerCase().replace(/[_-]+/g, ' ')
-}
-
-function canManageRefunds(role: string) {
-  const normalized = normalizeRole(role)
-  return ADMIN_ROLES.some((allowed) => normalizeRole(allowed) === normalized)
-}
-
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ refundId: string }> },
 ) {
   const access = await requireTicketingAccess()
   if (!access.authorized) return access.response
-  if (!canManageRefunds(access.employee.role)) return privateError('Forbidden', 403)
 
   const rateLimit = await enforceRateLimit(request, {
     scope: 'ticketing.refund-event',
@@ -68,7 +57,7 @@ export async function POST(
     return privateError('Saved Refunds are not installed.', 503)
   }
 
-  const result = await supabase.rpc('ticketing_append_refund_event_2026082903', {
+  const result = await supabase.rpc('ticketing_append_refund_event_2026090201', {
     p_actor_employee_id: access.employee.id,
     p_refund_id: refundId,
     p_expected_version: input.expectedVersion,
@@ -83,6 +72,21 @@ export async function POST(
   if (result.error) {
     if (result.error.code === '42501') return privateError('Forbidden', 403)
     if (result.error.code === 'P0002') return privateError('Refund not found.', 404)
+    if (result.error.hint === 'TICKETING_IDEMPOTENCY_CONFLICT') {
+      return privateError('This save key was already used for a different Refund update.', 409)
+    }
+    if (result.error.hint === 'TICKETING_REFUND_CONFIRMATION_NOT_READY') {
+      return privateError(
+        'Record and finalise the airline or supplier recovery before confirming this Refund.',
+        409,
+      )
+    }
+    if (result.error.hint === 'TICKETING_REFUND_CONFIRMATION_REQUIRED') {
+      return privateError('Confirm this Refund is correct before closing it.', 409)
+    }
+    if (result.error.hint === 'TICKETING_REFUND_ALREADY_CONFIRMED') {
+      return privateError('This Refund is already confirmed correct.', 409)
+    }
     if (
       result.error.hint === 'TICKETING_REFUND_VERSION_CONFLICT' ||
       result.error.code === '40001'

@@ -5,7 +5,11 @@ import { ArrowRightLeft, Save, UserRoundCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalBase } from '@/components'
 import { correctTicketAttribution, TicketLedgerApiError } from './ledgerClientApi'
-import type { TicketAttributionEmployee, TicketLedgerItem } from './types'
+import type {
+  TicketAttributionEmployee,
+  TicketCommercialTreatment,
+  TicketLedgerItem,
+} from './types'
 
 function newIdempotencyKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -36,6 +40,12 @@ export function TicketAttributionDialog({
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState(item.responsibleEmployee.id)
   const [assistantEmployeeIds, setAssistantEmployeeIds] = useState(
     item.assistantEmployees.map((employee) => employee.id),
+  )
+  const [commercialTreatment, setCommercialTreatment] = useState<TicketCommercialTreatment>(
+    item.commercialTreatment,
+  )
+  const [commissionWaiverReason, setCommissionWaiverReason] = useState(
+    item.commissionWaiverReason || '',
   )
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
@@ -80,14 +90,28 @@ export function TicketAttributionDialog({
       setError('Keep the correction reason to 500 characters or fewer.')
       return
     }
+    const cleanWaiverReason = commissionWaiverReason.trim()
+    if (commercialTreatment !== 'standard' && cleanWaiverReason.length < 3) {
+      setError('Enter why this ticket does not use standard commission.')
+      return
+    }
+    if (cleanWaiverReason.length > 500) {
+      setError('Keep the commission treatment reason to 500 characters or fewer.')
+      return
+    }
 
     const currentAssistantIds = item.assistantEmployees.map((employee) => employee.id).sort()
     const nextAssistantIds = [...assistantEmployeeIds].sort()
+    const treatmentChanged =
+      commercialTreatment !== item.commercialTreatment ||
+      (commercialTreatment === 'standard' ? null : cleanWaiverReason) !==
+        item.commissionWaiverReason
     if (
       responsibleEmployeeId === item.responsibleEmployee.id &&
-      currentAssistantIds.join('|') === nextAssistantIds.join('|')
+      currentAssistantIds.join('|') === nextAssistantIds.join('|') &&
+      !treatmentChanged
     ) {
-      setError('Change the responsible agent or assistant list before saving.')
+      setError('Change the staff attribution or commission treatment before saving.')
       return
     }
 
@@ -100,12 +124,14 @@ export function TicketAttributionDialog({
           expectedBookingVersion: item.bookingVersion,
           responsibleEmployeeId,
           assistantEmployeeIds,
+          commercialTreatment,
+          commissionWaiverReason: commercialTreatment === 'standard' ? null : cleanWaiverReason,
           reason: cleanReason,
         },
         idempotencyKey.current,
       )
       await onSaved()
-      toast.success(`Attribution corrected for ${item.pnr}`)
+      toast.success(`Staff and commission treatment corrected for ${item.pnr}`)
       onClose()
     } catch (caught) {
       if (caught instanceof TicketLedgerApiError && caught.code === 'VERSION_CONFLICT') {
@@ -135,7 +161,7 @@ export function TicketAttributionDialog({
       isOpen
       onClose={onClose}
       title="Correct staff attribution"
-      description="Update who is responsible for this ticket and record any independent assistance."
+      description="Update the responsible staff, independent assistance, and commission treatment together."
       isLoading={isSaving}
       size="md"
       className="overflow-hidden rounded-2xl"
@@ -246,6 +272,56 @@ export function TicketAttributionDialog({
           )}
         </div>
 
+        <fieldset className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+          <legend className="px-1 text-xs font-black uppercase tracking-[0.12em] text-amber-900">
+            Commission treatment
+          </legend>
+          <label className="text-xs font-bold text-slate-700">
+            Booking treatment
+            <select
+              value={commercialTreatment}
+              onChange={(event) => {
+                const treatment = event.target.value as TicketCommercialTreatment
+                updateDraft(() => {
+                  setCommercialTreatment(treatment)
+                  if (treatment === 'standard') setCommissionWaiverReason('')
+                })
+              }}
+              disabled={isSaving}
+              aria-label="Correct commission treatment"
+              className={fieldClass(false)}
+            >
+              <option value="standard">Standard commission</option>
+              <option value="staff_family">Staff/family — no ordinary commission</option>
+              <option value="commission_waived">Other no-commission booking</option>
+            </select>
+          </label>
+          {commercialTreatment !== 'standard' && (
+            <label className="mt-3 block text-xs font-bold text-slate-700">
+              {commercialTreatment === 'staff_family' ? 'Relationship / reason' : 'Waiver reason'}
+              <textarea
+                value={commissionWaiverReason}
+                onChange={(event) =>
+                  updateDraft(() => setCommissionWaiverReason(event.target.value))
+                }
+                maxLength={500}
+                rows={2}
+                disabled={isSaving}
+                aria-label="Correct commission waiver reason"
+                className={fieldClass(false)}
+                placeholder={
+                  commercialTreatment === 'staff_family'
+                    ? 'For example: father — staff family concession'
+                    : 'Explain why ordinary commission does not apply'
+                }
+              />
+            </label>
+          )}
+          <p className="mt-2 text-[11px] font-medium leading-4 text-amber-800">
+            Changing this setting corrects the Commission source facts for this booking.
+          </p>
+        </fieldset>
+
         <label className="text-xs font-bold text-slate-700">
           Correction reason
           <textarea
@@ -287,7 +363,7 @@ export function TicketAttributionDialog({
             className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-5 text-sm font-black text-white hover:bg-[#6f1422] disabled:opacity-50"
           >
             <Save className="h-4 w-4" aria-hidden="true" />
-            {isSaving ? 'Saving…' : 'Save attribution'}
+            {isSaving ? 'Saving…' : 'Save correction'}
           </button>
         </div>
       </form>

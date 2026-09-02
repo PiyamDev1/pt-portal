@@ -23,12 +23,16 @@ describe('ticketing attribution contracts', () => {
         expectedBookingVersion: 4,
         responsibleEmployeeId: PRIMARY_ID,
         assistantEmployeeIds: [ASSISTANT_ID],
+        commercialTreatment: 'staff_family',
+        commissionWaiverReason: 'Parent booking',
         reason: '  Corrected after an administrator covered the ticket  ',
       }),
     ).toEqual({
       expectedBookingVersion: 4,
       responsibleEmployeeId: PRIMARY_ID,
       assistantEmployeeIds: [ASSISTANT_ID],
+      commercialTreatment: 'staff_family',
+      commissionWaiverReason: 'Parent booking',
       reason: 'Corrected after an administrator covered the ticket',
     })
   })
@@ -59,8 +63,23 @@ describe('ticketing attribution contracts', () => {
         expectedBookingVersion: 4,
         responsibleEmployeeId: PRIMARY_ID,
         assistantEmployeeIds: [ASSISTANT_ID],
+        commercialTreatment: 'standard',
+        commissionWaiverReason: null,
         reason: 'Correction reason',
         ...patch,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('requires a reason for commission-free correction treatments', () => {
+    expect(
+      ticketingCorrectAttributionSchema.safeParse({
+        expectedBookingVersion: 4,
+        responsibleEmployeeId: PRIMARY_ID,
+        assistantEmployeeIds: [],
+        commercialTreatment: 'commission_waived',
+        commissionWaiverReason: null,
+        reason: 'Correct treatment',
       }).success,
     ).toBe(false)
   })

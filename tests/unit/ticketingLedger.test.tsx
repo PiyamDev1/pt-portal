@@ -196,6 +196,7 @@ describe('TicketQuickEntryForm', () => {
 
     fillRequiredIssuedFields()
     fireEvent.change(screen.getByLabelText('Ticket state'), { target: { value: 'held' } })
+    fireEvent.change(screen.getByLabelText('Booking date'), { target: { value: '2026-09-01' } })
     expect(screen.queryByLabelText('ADT unit sale price')).toBeNull()
     expect(screen.queryByLabelText('ADT has discount')).toBeNull()
     expect(

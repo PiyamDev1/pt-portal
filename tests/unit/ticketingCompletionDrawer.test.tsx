@@ -234,6 +234,26 @@ describe('TicketCompletionDrawer', () => {
     expect(onSaved).toHaveBeenCalledOnce()
   })
 
+  it('does not render a typed on-behalf reason field for an exempt Super Admin', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        completionResponse(DETAIL, {
+          ...ON_BEHALF_COMPLETION_CONTEXT,
+          onBehalfReasonRequired: false,
+        }),
+      ),
+    )
+
+    renderDrawer()
+    await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
+
+    expect(screen.getByLabelText('On-behalf completion').textContent).toMatch(
+      /system records this Super Admin action/i,
+    )
+    expect(screen.queryByLabelText('On-behalf completion reason')).toBeNull()
+  })
+
   it('requires all missing issued sale prices together and all sales before Paid', async () => {
     const fetchMock = vi.fn(async () => completionResponse())
     vi.stubGlobal('fetch', fetchMock)

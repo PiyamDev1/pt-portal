@@ -2,15 +2,16 @@
 
 Ticketing operational tables are server-route-only. Every route verifies the staff session and
 derives the immutable acting employee on the server before using the service-role client. Regular
-staff and Managers receive owner-only ledger records. Admin, Master Admin, and Super Admin receive
+staff and Managers receive owner-only ledger records. Maintenance Admin, Admin, Master Admin, and
+Super Admin receive
 the bounded latest team records so they can discover and correct attribution; this is not an
 unbounded export contract.
 
 ### GET `/api/ticketing/ledger`
 
-**Access:** Active staff who either belong to the Ticketing department or hold Manager, Admin,
-Master Admin, or Super Admin. Maintenance Admin has no role-based bypass. Staff and Managers receive
-transactions they own. Admin, Master Admin, and Super Admin receive the latest team transactions,
+**Access:** Active staff who either belong to the Ticketing department or hold Manager, Maintenance
+Admin, Admin, Master Admin, or Super Admin. Staff and Managers receive transactions they own.
+Maintenance Admin, Admin, Master Admin, and Super Admin receive the latest team transactions,
 still bounded by the same `limit` contract.
 
 **Input:** Optional query parameter `limit`; integers are clamped to `1`–`100` and default to `50`.
@@ -25,10 +26,12 @@ timestamp. DC/R-ER rows instead use `recorded` because this first slice captures
 financial service movement rather than TK passenger/itinerary completion. Every row also contains
 the current `responsibleEmployee`, ordered `assistantEmployees`, and `attributionVersion`. Context
 contains the authenticated `employeeId`, `canManageAttribution`, and active employee options only
-for Admin/Master Admin/Super Admin; other callers receive an empty option list. It contains no
-calculated commission, earnings, margin, or profit.
+for Maintenance Admin/Admin/Master Admin/Super Admin; other callers receive an empty option list.
+`canArchiveRecords` remains false for Maintenance Admin, so deletion stays in the Admin approval
+path. It contains no calculated commission, earnings, margin, or profit.
 
-The bounded team ledger lets an Admin, Master Admin, or Super Admin open one non-owned root TK for
+The bounded team ledger lets a Maintenance Admin, Admin, Master Admin, or Super Admin open one
+non-owned root TK for
 the audited completion workflow below. Managers and regular Ticketing staff remain owner-only.
 DC/R-ER entry and the other payment mutations are not broadened by this collection response.
 
@@ -39,8 +42,8 @@ airline directory, or branch context cannot be loaded.
 ### POST `/api/ticketing/ledger`
 
 **Access:** Same Ticketing access predicate as `GET`. The server passes the authenticated acting
-employee ID to one service-role-only atomic database function. Admin, Master Admin, and Super Admin
-may select operational attribution; Manager and regular staff are fixed to themselves with no
+employee ID to one service-role-only atomic database function. Maintenance Admin, Admin, Master
+Admin, and Super Admin may select operational attribution; Manager and regular staff are fixed to themselves with no
 assistants. The database repeats the active-role/employee checks.
 
 **Input:** JSON for the first-release TK quick entry: `customerName`, `pnr`, `airlineId`,
@@ -55,7 +58,7 @@ quotation's passenger-level flight prices and ignores client-supplied sale value
 booking also omits both pricing values because its sale price is not final. All fare groups must be
 priced or omitted together.
 
-Admin callers may also provide `responsibleEmployeeId`, up to ten unique
+Maintenance and Admin callers may also provide `responsibleEmployeeId`, up to ten unique
 `assistantEmployeeIds` that exclude the responsible employee, and nullable `attributionReason`.
 The responsible employee defaults to the authenticated actor. A non-empty reason is required when
 the responsible employee differs or assistants are present. A non-empty `Idempotency-Key` header of
@@ -81,8 +84,8 @@ installed; `500` for an unexpected atomic-save failure.
 
 ### PATCH `/api/ticketing/ledger/[bookingId]/attribution`
 
-**Access:** Admin, Master Admin, and Super Admin only, after the normal Ticketing access check.
-Manager, Maintenance Admin, and regular Ticketing staff receive `403`. The authenticated employee is
+**Access:** Maintenance Admin, Admin, Master Admin, and Super Admin only, after the normal Ticketing
+access check. Manager and regular Ticketing staff receive `403`. The authenticated employee is
 always the correction actor and cannot be supplied in the body.
 
 **Input:** A strict JSON body no larger than 16 KiB containing positive
@@ -105,7 +108,7 @@ assistants receive zero. No commission rate, calculated amount, margin, or profi
 ### GET `/api/ticketing/ledger/[bookingId]`
 
 **Access:** Same Ticketing access predicate as the ledger collection. Regular Ticketing staff and
-Managers remain owner-only. Admin, Master Admin, and Super Admin may load one non-archived root TK
+Managers remain owner-only. Maintenance Admin, Admin, Master Admin, and Super Admin may load one non-archived root TK
 owned by another employee from the bounded team workflow. The server derives the viewer and owner;
 no employee selector is accepted. For an owner-only caller, another employee's UUID and a
 nonexistent UUID return the same `404` response.
@@ -128,8 +131,8 @@ is absent; `500` when the private detail cannot be loaded.
 
 ### PATCH `/api/ticketing/ledger/[bookingId]`
 
-**Access:** The owner may complete their own root TK. Admin, Master Admin, and Super Admin may also
-complete a non-owned root TK through the audited on-behalf path. Managers and regular Ticketing
+**Access:** The owner may complete their own root TK. Maintenance Admin, Admin, Master Admin, and
+Super Admin may also complete a non-owned root TK through the audited on-behalf path. Managers and regular Ticketing
 staff remain owner-only. The verified employee ID is passed to one service-role-only atomic database
 operation; caller-supplied actor or owner fields are rejected. The database locks and re-derives the
 current owner/primary attribution and repeats the role and reason checks.
@@ -170,7 +173,7 @@ failures; `404` for an invalid or inaccessible record; `409` with `VERSION_CONFL
 `2026082403` is absent; `500` for an unexpected atomic-save/reload failure.
 
 For a posted ticket, regular staff cannot change an existing non-null sale price and receive
-`AMENDMENT_REQUEST_REQUIRED`. Admin, Master Admin, and Super Admin may submit corrected grouped
+`AMENDMENT_REQUEST_REQUIRED`. Maintenance Admin, Admin, Master Admin, and Super Admin may submit corrected grouped
 sale values through this same route. The server first runs the capability `2026082802` admin-only,
 optimistic, idempotent correction operation, appends redacted audit history and a superseding
 Commission source fact, then applies the remaining detail update. The admin correction still does
@@ -543,15 +546,15 @@ stored timezone and UTC instant. The ledger performs bounded, debounced lookups 
 completed query results in the browser session instead of loading the full airport directory.
 
 **Errors:** `400` for malformed filters; `401`/`403` for access failures; `429` when rate limited;
-`503` when capability `2026082602` is absent; `500` when the directory cannot be loaded or mapped
+`503` when the required Ticketing capability is absent; `500` when the directory cannot be loaded or mapped
 safely.
 
 ### GET `/api/ticketing/bookings/[bookingId]/sectors`
 
-**Access:** The current responsible owner may load their Held or Issued root-TK itinerary. Admin,
-Master Admin, and Super Admin may load another employee's root TK for the audited cover workflow.
-Manager, Maintenance Admin, and regular Ticketing staff remain owner-only; an inaccessible and a
-missing booking both return `404`.
+**Access:** The current responsible owner may load their Held or Issued root-TK itinerary.
+Maintenance Admin, Admin, Master Admin, and Super Admin may load another employee's root TK for the
+audited cover workflow. Manager and regular Ticketing staff remain owner-only; an inaccessible and
+a missing booking both return `404`.
 
 **Input:** `bookingId` is a UUID path segment. The route accepts no actor, owner, timezone, UTC,
 financial, or Commission query fields.
@@ -565,15 +568,15 @@ departure, optional local and UTC arrival, and schedule status. `context.isOnBeh
 profit, package-profit, or commission value is returned.
 
 **Errors:** `401`/`403` for access failures; `404` for an invalid, unavailable, archived, terminal,
-non-root, or inaccessible TK; `503` when capability `2026082602` is absent; `500` when stored
+non-root, or inaccessible TK; `503` when capability `2026090202` is absent; `500` when stored
 itinerary data cannot be loaded or mapped safely.
 
 ### PUT `/api/ticketing/bookings/[bookingId]/sectors`
 
 **Access:** The same owner/administrator boundary as `GET`. The database rechecks active Ticketing
-membership or oversight, current ownership and attribution. Only Admin, Master Admin, and Super
-Admin may replace another employee's itinerary, with a reason; the responsible owner never changes
-and the authenticated employee remains the immutable actor.
+membership or oversight, current ownership and attribution. Maintenance Admin, Admin, Master Admin,
+and Super Admin may replace another employee's itinerary, with a reason; the responsible owner
+never changes and the authenticated employee remains the immutable actor.
 
 **Input:** A strict JSON body no larger than 32 KiB with UUID `requestId`, non-negative
 `expectedVersion`, nullable `adminReason` up to 500 characters, and `sectors` containing 1–12

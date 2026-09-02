@@ -3,9 +3,9 @@ import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
-import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import { ticketingBookingIdSchema } from '@/lib/ticketing/completionContracts'
 import {
   TICKET_ITINERARY_CAPABILITY_VERSION,
@@ -119,13 +119,8 @@ function firstRelated<T>(value: Related<T>): T | null {
   return Array.isArray(value) ? value[0] || null : value
 }
 
-function normalizeRole(value: string) {
-  return value.trim().toLowerCase().replace(/[_-]+/g, ' ')
-}
-
 function canReplaceOnBehalf(role: string) {
-  const normalizedRole = normalizeRole(role)
-  return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
+  return canManageTicketingRecords(role)
 }
 
 function validPositiveInteger(value: number | string) {
@@ -142,12 +137,7 @@ function validUtcTimestamp(value: unknown): value is string {
 }
 
 function airlineFromRow(row: AirlineRow | null): TicketingItineraryAirline | null {
-  if (
-    !row ||
-    !validUuid(row.id) ||
-    !/^[A-Z0-9]{2}$/.test(row.iata_code) ||
-    !row.name?.trim()
-  ) {
+  if (!row || !validUuid(row.id) || !/^[A-Z0-9]{2}$/.test(row.iata_code) || !row.name?.trim()) {
     return null
   }
   return { id: row.id, iataCode: row.iata_code, name: row.name.trim() }
@@ -164,9 +154,7 @@ function sectorFromRow(
   const arrivalLocal = row.arrival_local
     ? ticketingLocalDateTimeSchema.safeParse(row.arrival_local)
     : null
-  const scheduleStatus = TICKET_SCHEDULE_STATUSES.find(
-    (status) => status === row.schedule_status,
-  )
+  const scheduleStatus = TICKET_SCHEDULE_STATUSES.find((status) => status === row.schedule_status)
   const originTimezone = airportTimezones.get(row.origin_airport_code)
   const destinationTimezone = airportTimezones.get(row.destination_airport_code)
 
@@ -217,7 +205,16 @@ function sectorFromRow(
 
 async function hasItineraryCapability(supabase: ReturnType<typeof getServiceSupabaseClient>) {
   const { data, error } = await supabase.rpc('ticketing_schema_status')
-  return !error && hasTicketingSchemaCapability(data, TICKET_ITINERARY_CAPABILITY_VERSION)
+  return (
+    !error &&
+    hasTicketingSchemaCapability(
+      data,
+      Math.max(
+        TICKET_ITINERARY_CAPABILITY_VERSION,
+        TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
+      ),
+    )
+  )
 }
 
 async function loadAccessibleItinerary(
@@ -316,10 +313,7 @@ async function loadAccessibleItinerary(
   const rows = (sectorData || []) as unknown as SectorRow[]
   const airportCodes = [
     ...new Set(
-      rows.flatMap((sector) => [
-        sector.origin_airport_code,
-        sector.destination_airport_code,
-      ]),
+      rows.flatMap((sector) => [sector.origin_airport_code, sector.destination_airport_code]),
     ),
   ]
   let airportTimezones = new Map<string, string>()
@@ -340,16 +334,11 @@ async function loadAccessibleItinerary(
     ) {
       return { detail: null, error: 'invalid' as const }
     }
-    airportTimezones = new Map(
-      airportRows.map((airport) => [airport.iata_code, airport.timezone]),
-    )
+    airportTimezones = new Map(airportRows.map((airport) => [airport.iata_code, airport.timezone]))
   }
 
   const sectors = rows.map((row) => sectorFromRow(row, airportTimezones))
-  if (
-    rows.length > TICKET_ITINERARY_MAX_SECTORS ||
-    sectors.some((sector) => sector === null)
-  ) {
+  if (rows.length > TICKET_ITINERARY_MAX_SECTORS || sectors.some((sector) => sector === null)) {
     return { detail: null, error: 'invalid' as const }
   }
 
@@ -422,12 +411,12 @@ function mutationError(error: TicketingRpcError) {
     })
   }
   if (hint === 'TICKETING_ON_BEHALF_REASON_REQUIRED') {
-    return privateError('Explain why you are updating another employee\'s itinerary.', 400, {
+    return privateError("Explain why you are updating another employee's itinerary.", 400, {
       code: 'ON_BEHALF_REASON_REQUIRED',
     })
   }
   if (hint === 'TICKETING_ON_BEHALF_REASON_NOT_ALLOWED') {
-    return privateError('An admin reason is only valid for another employee\'s ticket.', 400, {
+    return privateError("An admin reason is only valid for another employee's ticket.", 400, {
       code: 'ON_BEHALF_REASON_NOT_ALLOWED',
     })
   }

@@ -18,7 +18,9 @@ const mocks = vi.hoisted(() => {
   }
   const rpc = vi.fn(async (functionName: string) => {
     if (functionName === 'ticketing_schema_status') return state.capability
-    if (functionName === 'ticketing_correct_booking_attribution') return state.correction
+    if (functionName === 'ticketing_correct_booking_attribution_commercial_2026090201') {
+      return state.correction
+    }
     throw new Error(`Unexpected RPC: ${functionName}`)
   })
   const employeeIn = vi.fn()
@@ -42,6 +44,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/ticketing/apiAuth', () => ({
   requireTicketingAccess: mocks.requireTicketingAccess,
+  canManageTicketingRecords: (role: string) =>
+    ['maintenance admin', 'admin', 'master admin', 'super admin'].includes(
+      role.trim().toLowerCase().replace(/[_-]+/g, ' '),
+    ),
 }))
 vi.mock('@/lib/api/serviceSupabase', () => ({
   getServiceSupabaseClient: mocks.getServiceSupabaseClient,
@@ -58,6 +64,8 @@ function validEntry() {
     expectedBookingVersion: 4,
     responsibleEmployeeId: PRIMARY_ID,
     assistantEmployeeIds: [ASSISTANT_ID],
+    commercialTreatment: 'standard' as const,
+    commissionWaiverReason: null,
     reason: 'Corrected after the administrator covered this ticket',
   }
 }
@@ -90,6 +98,8 @@ function correctionResult(idempotentReplay = false) {
     },
     auditEventId: '90000000-0000-4000-8000-000000000001',
     sourceEventCorrections: 1,
+    commercialTreatment: validEntry().commercialTreatment,
+    commissionWaiverReason: validEntry().commissionWaiverReason,
     idempotentReplay,
   }
 }
@@ -115,7 +125,7 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
+      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
       error: null,
     }
     mocks.state.correction = { data: correctionResult(), error: null }
@@ -156,6 +166,29 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
     expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
+  it('allows Maintenance Admin to perform audited staff corrections', async () => {
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'maintenance@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'maintenance@example.test',
+        fullName: 'Maintenance Admin',
+        role: 'Maintenance Admin',
+        departments: [],
+      },
+    })
+
+    const response = await PATCH(request(validEntry(), 'maintenance-correction-1'), context())
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_correct_booking_attribution_commercial_2026090201',
+      expect.objectContaining({ p_actor_employee_id: ACTOR_ID }),
+    )
+  })
+
   it('rejects invalid paths, loose bodies, and missing retry keys before the RPC', async () => {
     expect((await PATCH(request(validEntry()), context('not-a-uuid'))).status).toBe(404)
     expect(
@@ -180,17 +213,22 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
         identities: [`user:${ACTOR_ID}`, 'ip:127.0.0.1'],
       }),
     )
-    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_correct_booking_attribution', {
-      p_actor_employee_id: ACTOR_ID,
-      p_booking_id: BOOKING_ID,
-      p_expected_booking_version: 4,
-      p_idempotency_key: 'admin-correction-1',
-      p_attribution: {
-        responsibleEmployeeId: PRIMARY_ID,
-        assistantEmployeeIds: [ASSISTANT_ID],
-        reason: validEntry().reason,
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_correct_booking_attribution_commercial_2026090201',
+      {
+        p_actor_employee_id: ACTOR_ID,
+        p_booking_id: BOOKING_ID,
+        p_expected_booking_version: 4,
+        p_idempotency_key: 'admin-correction-1',
+        p_correction: {
+          responsibleEmployeeId: PRIMARY_ID,
+          assistantEmployeeIds: [ASSISTANT_ID],
+          commercialTreatment: 'standard',
+          commissionWaiverReason: null,
+          reason: validEntry().reason,
+        },
       },
-    })
+    )
     expect(mocks.employeeIn).toHaveBeenCalledWith('id', [PRIMARY_ID, ASSISTANT_ID])
     expect(body).toEqual({
       bookingId: BOOKING_ID,
@@ -205,28 +243,28 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
 
   it('fails closed when capability or selected employees are unavailable', async () => {
     mocks.state.capability = {
-      data: { ready: true, version: 2026082401, requiredVersion: 2026082401 },
+      data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
       error: null,
     }
     expect((await PATCH(request(validEntry()), context())).status).toBe(503)
     expect(mocks.rpc).not.toHaveBeenCalledWith(
-      'ticketing_correct_booking_attribution',
+      'ticketing_correct_booking_attribution_commercial_2026090201',
       expect.anything(),
     )
 
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082402, requiredVersion: 2026082402 }],
+      data: [{ ready: true, version: 2026090202, requiredVersion: 2026090202 }],
       error: null,
     }
     const singletonResponse = await PATCH(request(validEntry(), 'singleton-capability'), context())
     expect(singletonResponse.status).toBe(200)
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'ticketing_correct_booking_attribution',
+      'ticketing_correct_booking_attribution_commercial_2026090201',
       expect.anything(),
     )
 
     mocks.state.capability = {
-      data: { ready: true, version: 2026082402, requiredVersion: 2026082402 },
+      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
       error: null,
     }
     mocks.employeeIn.mockResolvedValueOnce({
@@ -248,6 +286,20 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
 
     mocks.employeeIn.mockResolvedValueOnce({ data: null, error: { message: 'query failed' } })
     expect((await PATCH(request(validEntry()), context())).status).toBe(500)
+  })
+
+  it('fails closed when the RPC does not return the requested commission treatment', async () => {
+    mocks.state.correction = {
+      data: { ...correctionResult(), commercialTreatment: 'commission_waived' },
+      error: null,
+    }
+
+    const response = await PATCH(request(validEntry()), context())
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: 'Ticketing returned an invalid attribution result.',
+    })
   })
 
   it.each([

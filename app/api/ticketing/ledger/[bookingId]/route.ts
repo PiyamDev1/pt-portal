@@ -2,9 +2,8 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
-import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
   TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION,
   ticketingBookingIdSchema,
@@ -16,12 +15,16 @@ import {
   type TicketingCompletionPassenger,
 } from '@/lib/ticketing/completionContracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
-import { TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
+import {
+  TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION,
+  TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
+} from '@/lib/ticketing/contracts'
 
 const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } as const
 const TICKETING_COMPLETION_VERSION = Math.max(
   TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION,
   TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION,
+  TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
 )
 const POSTED_OPERATIONAL_STATUSES = new Set(['issued', 'cancelled', 'part_refunded', 'refunded'])
 
@@ -118,20 +121,24 @@ function normalizeRole(value: string) {
 }
 
 function canCompleteTicketOnBehalf(role: string) {
-  const normalizedRole = normalizeRole(role)
-  return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
+  return canManageTicketingRecords(role)
+}
+
+function isSuperAdmin(role: string) {
+  return normalizeRole(role) === 'super admin'
 }
 
 function completionContext(
   detail: TicketingCompletionDetail,
   actorEmployeeId: string,
   canManageRecords: boolean,
+  onBehalfReasonExempt: boolean,
 ): TicketingCompletionContext {
   const isOnBehalf = detail.responsibleEmployee.id !== actorEmployeeId
   return {
     ownerEmployee: detail.responsibleEmployee,
     isOnBehalf,
-    onBehalfReasonRequired: isOnBehalf,
+    onBehalfReasonRequired: isOnBehalf && !onBehalfReasonExempt,
     canManageRecords,
   }
 }
@@ -441,6 +448,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         detail,
         access.employee.id,
         canCompleteTicketOnBehalf(access.employee.role),
+        isSuperAdmin(access.employee.role),
       ),
     },
     PRIVATE_RESPONSE,
@@ -542,6 +550,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     saleCorrected = true
   }
 
+  if (
+    initial.detail.responsibleEmployee.id !== access.employee.id &&
+    isSuperAdmin(access.employee.role) &&
+    !completionDetails.onBehalfReason
+  ) {
+    completionDetails = {
+      ...completionDetails,
+      onBehalfReason: 'Super Admin completion override',
+    }
+  }
+
   const { data, error } = await supabase.rpc('ticketing_complete_tk_details_authorized', {
     p_actor_employee_id: access.employee.id,
     p_booking_id: parsedBookingId.data,
@@ -574,7 +593,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   return apiOk(
     {
       detail: loaded.detail,
-      completionContext: completionContext(loaded.detail, access.employee.id, allowAdminOnBehalf),
+      completionContext: completionContext(
+        loaded.detail,
+        access.employee.id,
+        allowAdminOnBehalf,
+        isSuperAdmin(access.employee.role),
+      ),
       changed: result.changed === true || saleCorrected,
       idempotentReplay: result.idempotentReplay === true,
     },

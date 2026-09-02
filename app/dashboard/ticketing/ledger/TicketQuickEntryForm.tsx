@@ -835,240 +835,242 @@ export function TicketQuickEntryForm({
             <FieldError id="ticket-fares-error" message={errors.fares} />
           </fieldset>
 
-          <fieldset className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-            <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-amber-900">
-              Commission treatment
-            </legend>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <label className="text-xs font-bold text-slate-700">
-                Booking treatment
-                <select
-                  value={draft.commercialTreatment}
-                  onChange={(event) => {
-                    const commercialTreatment = event.target.value as TicketCommercialTreatment
-                    updateDraft((current) => ({
-                      ...current,
-                      commercialTreatment,
-                      commissionWaiverReason:
-                        commercialTreatment === 'standard' ? '' : current.commissionWaiverReason,
-                      fares:
-                        commercialTreatment === 'staff_family'
-                          ? (Object.fromEntries(
-                              PASSENGER_TYPES.map((passengerType) => [
-                                passengerType,
-                                {
-                                  ...current.fares[passengerType],
-                                  unitSalePrice: current.fares[passengerType].unitSupplierCost,
-                                  hasDiscount: false,
-                                  unitDiscount: '0',
-                                },
-                              ]),
-                            ) as FareDraft)
-                          : current.fares,
-                    }))
-                  }}
-                  disabled={isSaving}
-                  aria-label="Commission treatment"
-                  className={fieldClass(false)}
-                >
-                  <option value="standard">Standard commission</option>
-                  <option value="staff_family">Staff/family — no ordinary commission</option>
-                  <option value="commission_waived">Other no-commission booking</option>
-                </select>
-                <span className="mt-1 block text-[11px] font-medium leading-4 text-slate-500">
-                  Staff/family bookings are sold at cost. A later Low Fare reprices the ticket using
-                  the configured company fee; it does not create commission.
-                </span>
-              </label>
-
-              {draft.commercialTreatment !== 'standard' && (
+          <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+            <fieldset className="order-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+              <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-amber-900">
+                Commission treatment
+              </legend>
+              <div className="grid gap-3">
                 <label className="text-xs font-bold text-slate-700">
-                  {isStaffFamilyBooking ? 'Relationship / reason' : 'Waiver reason'}
-                  <textarea
-                    value={draft.commissionWaiverReason}
+                  Booking treatment
+                  <select
+                    value={draft.commercialTreatment}
+                    onChange={(event) => {
+                      const commercialTreatment = event.target.value as TicketCommercialTreatment
+                      updateDraft((current) => ({
+                        ...current,
+                        commercialTreatment,
+                        commissionWaiverReason:
+                          commercialTreatment === 'standard' ? '' : current.commissionWaiverReason,
+                        fares:
+                          commercialTreatment === 'staff_family'
+                            ? (Object.fromEntries(
+                                PASSENGER_TYPES.map((passengerType) => [
+                                  passengerType,
+                                  {
+                                    ...current.fares[passengerType],
+                                    unitSalePrice: current.fares[passengerType].unitSupplierCost,
+                                    hasDiscount: false,
+                                    unitDiscount: '0',
+                                  },
+                                ]),
+                              ) as FareDraft)
+                            : current.fares,
+                      }))
+                    }}
+                    disabled={isSaving}
+                    aria-label="Commission treatment"
+                    className={fieldClass(false)}
+                  >
+                    <option value="standard">Standard commission</option>
+                    <option value="staff_family">Staff/family — no ordinary commission</option>
+                    <option value="commission_waived">Other no-commission booking</option>
+                  </select>
+                  <span className="mt-1 block text-[11px] font-medium leading-4 text-slate-500">
+                    Staff/family bookings are sold at cost. A later Low Fare reprices the ticket
+                    using the configured company fee; it does not create commission.
+                  </span>
+                </label>
+
+                {draft.commercialTreatment !== 'standard' && (
+                  <label className="text-xs font-bold text-slate-700">
+                    {isStaffFamilyBooking ? 'Relationship / reason' : 'Waiver reason'}
+                    <textarea
+                      value={draft.commissionWaiverReason}
+                      onChange={(event) =>
+                        updateDraft((current) => ({
+                          ...current,
+                          commissionWaiverReason: event.target.value,
+                        }))
+                      }
+                      maxLength={500}
+                      rows={2}
+                      disabled={isSaving}
+                      aria-label="Commission waiver reason"
+                      aria-invalid={Boolean(errors.commissionWaiverReason)}
+                      aria-describedby={
+                        errors.commissionWaiverReason
+                          ? 'ticket-commission-waiver-reason-error'
+                          : undefined
+                      }
+                      className={fieldClass(Boolean(errors.commissionWaiverReason))}
+                      placeholder={
+                        isStaffFamilyBooking
+                          ? 'For example: father — staff family concession'
+                          : 'Explain why no ordinary commission applies'
+                      }
+                    />
+                    <FieldError
+                      id="ticket-commission-waiver-reason-error"
+                      message={errors.commissionWaiverReason}
+                    />
+                  </label>
+                )}
+              </div>
+            </fieldset>
+
+            <fieldset className="order-1 rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+              <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-sky-900">
+                Staff attribution
+              </legend>
+              <div className="grid gap-3">
+                <label className="text-xs font-bold text-slate-700">
+                  Responsible agent
+                  <select
+                    value={draft.responsibleEmployeeId}
                     onChange={(event) =>
                       updateDraft((current) => ({
                         ...current,
-                        commissionWaiverReason: event.target.value,
+                        responsibleEmployeeId: event.target.value,
+                        assistantEmployeeIds: current.assistantEmployeeIds.filter(
+                          (id) => id !== event.target.value,
+                        ),
+                      }))
+                    }
+                    disabled={isSaving || !canManageAttribution}
+                    aria-label="Responsible agent"
+                    aria-invalid={Boolean(errors.responsibleEmployeeId)}
+                    aria-describedby={
+                      errors.responsibleEmployeeId ? 'ticket-responsible-agent-error' : undefined
+                    }
+                    className={fieldClass(Boolean(errors.responsibleEmployeeId))}
+                  >
+                    {attributionEmployees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.id === employeeId
+                          ? `Me — ${employeeName || employee.fullName}`
+                          : employee.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError
+                    id="ticket-responsible-agent-error"
+                    message={errors.responsibleEmployeeId}
+                  />
+                  <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                    Issued passenger tickets count toward this agent&apos;s targets.
+                  </span>
+                </label>
+
+                <div className="text-xs font-bold text-slate-700">
+                  <label htmlFor="ticket-add-assistant">Assisted by (optional)</label>
+                  <select
+                    id="ticket-add-assistant"
+                    value=""
+                    onChange={(event) => {
+                      const employeeIdToAdd = event.target.value
+                      if (!employeeIdToAdd) return
+                      updateDraft((current) => ({
+                        ...current,
+                        assistantEmployeeIds: current.assistantEmployeeIds.includes(employeeIdToAdd)
+                          ? current.assistantEmployeeIds
+                          : [...current.assistantEmployeeIds, employeeIdToAdd].slice(0, 10),
+                      }))
+                    }}
+                    disabled={isSaving || draft.assistantEmployeeIds.length >= 10}
+                    aria-label="Add assistant"
+                    aria-invalid={Boolean(errors.assistantEmployeeIds)}
+                    aria-describedby={
+                      errors.assistantEmployeeIds ? 'ticket-assistant-agent-error' : undefined
+                    }
+                    className={fieldClass(Boolean(errors.assistantEmployeeIds))}
+                  >
+                    <option value="">
+                      {draft.assistantEmployeeIds.length >= 10
+                        ? 'Maximum 10 assistants reached'
+                        : 'Add an assistant…'}
+                    </option>
+                    {attributionEmployees
+                      .filter(
+                        (employee) =>
+                          employee.id !== draft.responsibleEmployeeId &&
+                          !draft.assistantEmployeeIds.includes(employee.id),
+                      )
+                      .map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.fullName}
+                        </option>
+                      ))}
+                  </select>
+                  <FieldError
+                    id="ticket-assistant-agent-error"
+                    message={errors.assistantEmployeeIds}
+                  />
+                  <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                    Assistance is recorded independently and never counts toward ticket targets.
+                  </span>
+                  {selectedAssistantEmployees.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2" aria-label="Selected assistants">
+                      {selectedAssistantEmployees.map((employee) => (
+                        <span
+                          key={employee.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-sky-900 ring-1 ring-sky-200"
+                        >
+                          <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                          {employee.fullName}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateDraft((current) => ({
+                                ...current,
+                                assistantEmployeeIds: current.assistantEmployeeIds.filter(
+                                  (id) => id !== employee.id,
+                                ),
+                              }))
+                            }
+                            disabled={isSaving}
+                            aria-label={`Remove ${employee.fullName} as assistant`}
+                            className="ui-focus ml-0.5 rounded-full text-sky-700 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {attributionOverride && (
+                <label className="mt-3 block text-xs font-bold text-slate-700">
+                  Attribution reason
+                  <textarea
+                    value={draft.attributionReason}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        attributionReason: event.target.value,
                       }))
                     }
                     maxLength={500}
                     rows={2}
                     disabled={isSaving}
-                    aria-label="Commission waiver reason"
-                    aria-invalid={Boolean(errors.commissionWaiverReason)}
+                    aria-label="Attribution reason"
+                    aria-invalid={Boolean(errors.attributionReason)}
                     aria-describedby={
-                      errors.commissionWaiverReason
-                        ? 'ticket-commission-waiver-reason-error'
-                        : undefined
+                      errors.attributionReason ? 'ticket-attribution-reason-error' : undefined
                     }
-                    className={fieldClass(Boolean(errors.commissionWaiverReason))}
-                    placeholder={
-                      isStaffFamilyBooking
-                        ? 'For example: father — staff family concession'
-                        : 'Explain why no ordinary commission applies'
-                    }
+                    className={fieldClass(Boolean(errors.attributionReason))}
+                    placeholder="For example: entered while the responsible agent was off sick"
                   />
                   <FieldError
-                    id="ticket-commission-waiver-reason-error"
-                    message={errors.commissionWaiverReason}
+                    id="ticket-attribution-reason-error"
+                    message={errors.attributionReason}
                   />
                 </label>
               )}
-            </div>
-          </fieldset>
-
-          <fieldset className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
-            <legend className="px-1 text-xs font-black uppercase tracking-[0.14em] text-sky-900">
-              Staff attribution
-            </legend>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <label className="text-xs font-bold text-slate-700">
-                Responsible agent
-                <select
-                  value={draft.responsibleEmployeeId}
-                  onChange={(event) =>
-                    updateDraft((current) => ({
-                      ...current,
-                      responsibleEmployeeId: event.target.value,
-                      assistantEmployeeIds: current.assistantEmployeeIds.filter(
-                        (id) => id !== event.target.value,
-                      ),
-                    }))
-                  }
-                  disabled={isSaving || !canManageAttribution}
-                  aria-label="Responsible agent"
-                  aria-invalid={Boolean(errors.responsibleEmployeeId)}
-                  aria-describedby={
-                    errors.responsibleEmployeeId ? 'ticket-responsible-agent-error' : undefined
-                  }
-                  className={fieldClass(Boolean(errors.responsibleEmployeeId))}
-                >
-                  {attributionEmployees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.id === employeeId
-                        ? `Me — ${employeeName || employee.fullName}`
-                        : employee.fullName}
-                    </option>
-                  ))}
-                </select>
-                <FieldError
-                  id="ticket-responsible-agent-error"
-                  message={errors.responsibleEmployeeId}
-                />
-                <span className="mt-1 block text-[11px] font-medium text-slate-500">
-                  Issued passenger tickets count toward this agent&apos;s targets.
-                </span>
-              </label>
-
-              <div className="text-xs font-bold text-slate-700">
-                <label htmlFor="ticket-add-assistant">Assisted by (optional)</label>
-                <select
-                  id="ticket-add-assistant"
-                  value=""
-                  onChange={(event) => {
-                    const employeeIdToAdd = event.target.value
-                    if (!employeeIdToAdd) return
-                    updateDraft((current) => ({
-                      ...current,
-                      assistantEmployeeIds: current.assistantEmployeeIds.includes(employeeIdToAdd)
-                        ? current.assistantEmployeeIds
-                        : [...current.assistantEmployeeIds, employeeIdToAdd].slice(0, 10),
-                    }))
-                  }}
-                  disabled={isSaving || draft.assistantEmployeeIds.length >= 10}
-                  aria-label="Add assistant"
-                  aria-invalid={Boolean(errors.assistantEmployeeIds)}
-                  aria-describedby={
-                    errors.assistantEmployeeIds ? 'ticket-assistant-agent-error' : undefined
-                  }
-                  className={fieldClass(Boolean(errors.assistantEmployeeIds))}
-                >
-                  <option value="">
-                    {draft.assistantEmployeeIds.length >= 10
-                      ? 'Maximum 10 assistants reached'
-                      : 'Add an assistant…'}
-                  </option>
-                  {attributionEmployees
-                    .filter(
-                      (employee) =>
-                        employee.id !== draft.responsibleEmployeeId &&
-                        !draft.assistantEmployeeIds.includes(employee.id),
-                    )
-                    .map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.fullName}
-                      </option>
-                    ))}
-                </select>
-                <FieldError
-                  id="ticket-assistant-agent-error"
-                  message={errors.assistantEmployeeIds}
-                />
-                <span className="mt-1 block text-[11px] font-medium text-slate-500">
-                  Assistance is recorded independently and never counts toward ticket targets.
-                </span>
-                {selectedAssistantEmployees.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2" aria-label="Selected assistants">
-                    {selectedAssistantEmployees.map((employee) => (
-                      <span
-                        key={employee.id}
-                        className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-sky-900 ring-1 ring-sky-200"
-                      >
-                        <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                        {employee.fullName}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateDraft((current) => ({
-                              ...current,
-                              assistantEmployeeIds: current.assistantEmployeeIds.filter(
-                                (id) => id !== employee.id,
-                              ),
-                            }))
-                          }
-                          disabled={isSaving}
-                          aria-label={`Remove ${employee.fullName} as assistant`}
-                          className="ui-focus ml-0.5 rounded-full text-sky-700 hover:text-red-700 disabled:opacity-50"
-                        >
-                          <X className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {attributionOverride && (
-              <label className="mt-3 block text-xs font-bold text-slate-700">
-                Attribution reason
-                <textarea
-                  value={draft.attributionReason}
-                  onChange={(event) =>
-                    updateDraft((current) => ({
-                      ...current,
-                      attributionReason: event.target.value,
-                    }))
-                  }
-                  maxLength={500}
-                  rows={2}
-                  disabled={isSaving}
-                  aria-label="Attribution reason"
-                  aria-invalid={Boolean(errors.attributionReason)}
-                  aria-describedby={
-                    errors.attributionReason ? 'ticket-attribution-reason-error' : undefined
-                  }
-                  className={fieldClass(Boolean(errors.attributionReason))}
-                  placeholder="For example: entered while the responsible agent was off sick"
-                />
-                <FieldError
-                  id="ticket-attribution-reason-error"
-                  message={errors.attributionReason}
-                />
-              </label>
-            )}
-          </fieldset>
+            </fieldset>
+          </div>
 
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">

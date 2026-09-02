@@ -58,7 +58,7 @@ describe('POST /api/ticketing/fare-checks', () => {
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'ticketing_schema_status') {
-        return { data: { ready: true, version: 2026082904 }, error: null }
+        return { data: { ready: true, version: 2026083102 }, error: null }
       }
       if (name === 'ticketing_record_fare_check_2026082904') {
         return {
@@ -116,13 +116,13 @@ describe('POST /api/ticketing/fare-checks', () => {
 
   it('fails closed on missing capability and maps concurrency conflicts', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: { ready: true, version: 2026082903 },
+      data: { ready: true, version: 2026083101 },
       error: null,
     })
     expect((await POST(request())).status).toBe(503)
 
     mocks.rpc
-      .mockResolvedValueOnce({ data: { ready: true, version: 2026082904 }, error: null })
+      .mockResolvedValueOnce({ data: { ready: true, version: 2026083102 }, error: null })
       .mockResolvedValueOnce({
         data: null,
         error: { code: '40001', hint: 'TICKETING_VERSION_CONFLICT' },

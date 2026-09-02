@@ -75,6 +75,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/ticketing/apiAuth', () => ({
   requireTicketingAccess: mocks.requireTicketingAccess,
+  canManageTicketingRecords: (role: string) =>
+    ['maintenance admin', 'admin', 'master admin', 'super admin'].includes(
+      role.trim().toLowerCase().replace(/[_-]+/g, ' '),
+    ),
 }))
 vi.mock('@/lib/api/serviceSupabase', () => ({
   getServiceSupabaseClient: mocks.getServiceSupabaseClient,
@@ -159,7 +163,7 @@ describe('/api/ticketing/ledger', () => {
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
+          data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
           error: null,
         }
       }
@@ -393,6 +397,32 @@ describe('/api/ticketing/ledger', () => {
       responsibleEmployee: { id: RESPONSIBLE_ID, fullName: 'Responsible Agent' },
       assistantEmployees: [{ id: ASSISTANT_ID, fullName: 'Assisting Manager' }],
       attributionVersion: 2,
+    })
+  })
+
+  it('gives Maintenance Admin team records and operational controls without archive authority', async () => {
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'maintenance@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'maintenance@example.test',
+        fullName: 'Maintenance Admin',
+        role: 'Maintenance Admin',
+        departments: [],
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/ticketing/ledger'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mocks.transactionEq).not.toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(body.context).toMatchObject({
+      canManageAttribution: true,
+      canManageRecords: true,
+      canArchiveRecords: false,
     })
   })
 
@@ -1010,7 +1040,7 @@ describe('/api/ticketing/ledger', () => {
 
   it('accepts a singleton array from the schema status RPC', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: [{ ready: true, version: 2026083102, requiredVersion: 2026083102 }],
+      data: [{ ready: true, version: 2026090202, requiredVersion: 2026090202 }],
       error: null,
     })
 

@@ -42,6 +42,10 @@ const ITEM: TicketLedgerItem = {
   passengerCount: 2,
   packageMatchStatus: 'unmatched',
   commissionScope: 'ticket',
+  commercialTreatment: 'standard',
+  commissionWaiverReason: null,
+  staffFamilyChangeFeeGbp: 5,
+  staffFamilyRefundFeeGbp: 10,
   detailsStatus: 'needs_details',
   fares: [{ passengerType: 'ADT', quantity: 2, unitSupplierCost: 450, unitSalePrice: null }],
   responsibleEmployee: EMPLOYEES[0],
@@ -253,7 +257,7 @@ describe('Ticketing attribution UI', () => {
     fireEvent.change(screen.getByLabelText('Attribution correction reason'), {
       target: { value: 'Correcting entry made during staff illness' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save attribution' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const [url, request] = fetchMock.mock.calls[0]
@@ -267,11 +271,47 @@ describe('Ticketing attribution UI', () => {
       expectedBookingVersion: 5,
       responsibleEmployeeId: RESPONSIBLE_ID,
       assistantEmployeeIds: [ASSISTANT_ID],
+      commercialTreatment: 'standard',
+      commissionWaiverReason: null,
       reason: 'Correcting entry made during staff illness',
     })
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(onClose).toHaveBeenCalledTimes(1)
-    expect(toastMocks.success).toHaveBeenCalledWith('Attribution corrected for ABC123')
+    expect(toastMocks.success).toHaveBeenCalledWith(
+      'Staff and commission treatment corrected for ABC123',
+    )
+  })
+
+  it('allows an administrator to correct only the commission treatment', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ attributionVersion: 1 }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <TicketAttributionDialog
+        item={ITEM}
+        employees={EMPLOYEES}
+        onClose={vi.fn()}
+        onSaved={vi.fn(async () => undefined)}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Correct commission treatment'), {
+      target: { value: 'commission_waived' },
+    })
+    fireEvent.change(screen.getByLabelText('Correct commission waiver reason'), {
+      target: { value: 'Approved exceptional waiver' },
+    })
+    fireEvent.change(screen.getByLabelText('Attribution correction reason'), {
+      target: { value: 'Correcting commercial classification' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      responsibleEmployeeId: ACTOR_ID,
+      assistantEmployeeIds: [],
+      commercialTreatment: 'commission_waived',
+      commissionWaiverReason: 'Approved exceptional waiver',
+    })
   })
 
   it('refreshes and closes a stale attribution correction after a version conflict', async () => {
@@ -296,7 +336,7 @@ describe('Ticketing attribution UI', () => {
     fireEvent.change(screen.getByLabelText('Attribution correction reason'), {
       target: { value: 'Correct stale owner' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save attribution' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction' }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(onClose).toHaveBeenCalledTimes(1)

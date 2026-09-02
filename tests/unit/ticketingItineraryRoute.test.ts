@@ -35,7 +35,8 @@ const mocks = vi.hoisted(() => {
       value[method] = vi.fn(() => value)
     }
     value.maybeSingle = vi.fn(async () => result())
-    value.then = (onFulfilled, onRejected) => Promise.resolve(result()).then(onFulfilled, onRejected)
+    value.then = (onFulfilled, onRejected) =>
+      Promise.resolve(result()).then(onFulfilled, onRejected)
     return value
   }
 
@@ -70,6 +71,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/ticketing/apiAuth', () => ({
   requireTicketingAccess: mocks.requireTicketingAccess,
+  canManageTicketingRecords: (role: string) =>
+    ['maintenance admin', 'admin', 'master admin', 'super admin'].includes(
+      role.trim().toLowerCase().replace(/[_-]+/g, ' '),
+    ),
 }))
 vi.mock('@/lib/api/serviceSupabase', () => ({
   getServiceSupabaseClient: mocks.getServiceSupabaseClient,
@@ -219,7 +224,7 @@ describe('/api/ticketing/bookings/[bookingId]/sectors', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082602, requiredVersion: 2026082602 },
+      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
       error: null,
     }
     mocks.state.replacement = { data: replacementResult(), error: null }
@@ -385,7 +390,12 @@ describe('/api/ticketing/bookings/[bookingId]/sectors', () => {
     for (const capability of [
       { data: { ready: true, version: 2026082601 }, error: null },
       { data: [], error: null },
-      { data: [{ ready: true, version: 2026082602 }, { ready: true, version: 2026082602 }] },
+      {
+        data: [
+          { ready: true, version: 2026082602 },
+          { ready: true, version: 2026082602 },
+        ],
+      },
     ]) {
       mocks.state.capability = capability
       const response = await PUT(putRequest(), context())
@@ -399,7 +409,11 @@ describe('/api/ticketing/bookings/[bookingId]/sectors', () => {
 
   it.each([
     [
-      { code: '40001', hint: 'TICKETING_ITINERARY_VERSION_CONFLICT', details: '{"itineraryVersion":2}' },
+      {
+        code: '40001',
+        hint: 'TICKETING_ITINERARY_VERSION_CONFLICT',
+        details: '{"itineraryVersion":2}',
+      },
       409,
       'VERSION_CONFLICT',
     ],

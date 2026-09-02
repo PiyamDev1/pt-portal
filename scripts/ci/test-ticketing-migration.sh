@@ -49,6 +49,10 @@ unpriced_held_migration="scripts/migrations/20260831_ticketing_unpriced_held_qui
 unpriced_held_assertions="tests/integration/ticketing_unpriced_held_quick_entry.sql"
 staff_family_migration="scripts/migrations/20260831_ticketing_waiver_staff_family_commercial_policy.sql"
 staff_family_assertions="tests/integration/ticketing_staff_family_commercial_policy.sql"
+corrections_refund_confirmation_migration="scripts/migrations/20260902_ticketing_corrections_refund_confirmation.sql"
+corrections_refund_confirmation_assertions="tests/integration/ticketing_corrections_refund_confirmation.sql"
+maintenance_admin_operations_migration="scripts/migrations/20260902_ticketing_maintenance_admin_operations.sql"
+maintenance_admin_operations_assertions="tests/integration/ticketing_maintenance_admin_operations.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2463,6 +2467,28 @@ if [[ "$(ticketing_schema_fingerprint)" != "$staff_family_first_fingerprint" ]] 
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$staff_family_assertions"
 
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$corrections_refund_confirmation_migration"
+corrections_refund_confirmation_first_fingerprint="$(ticketing_schema_fingerprint)"
+corrections_refund_confirmation_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$corrections_refund_confirmation_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$corrections_refund_confirmation_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$corrections_refund_confirmation_first_applied_at" ]]; then
+  echo "Idempotent staff/commercial correction and Refund confirmation migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$corrections_refund_confirmation_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$maintenance_admin_operations_migration"
+maintenance_admin_operations_first_fingerprint="$(ticketing_schema_fingerprint)"
+maintenance_admin_operations_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$maintenance_admin_operations_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$maintenance_admin_operations_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$maintenance_admin_operations_first_applied_at" ]]; then
+  echo "Idempotent Maintenance Admin Ticketing operations migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$maintenance_admin_operations_assertions"
+
 post_schedule_fingerprint="$(ticketing_schema_fingerprint)"
 assert_forward_migration_replay_blocked "$itinerary_migration"
 if [[ "$(ticketing_schema_fingerprint)" != "$post_schedule_fingerprint" ]]; then
@@ -2485,4 +2511,4 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, schedule-change, voucher, package-PNR reconciliation, refund/voucher lifecycle, and no-change fare-check migration integration checks passed."
+echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, schedule-change, voucher, package-PNR reconciliation, refund/voucher lifecycle, staff/commercial correction, explicit Refund confirmation, and no-change fare-check migration integration checks passed."

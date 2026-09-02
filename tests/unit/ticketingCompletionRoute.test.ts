@@ -53,6 +53,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/ticketing/apiAuth', () => ({
   requireTicketingAccess: mocks.requireTicketingAccess,
+  canManageTicketingRecords: (role: string) =>
+    ['maintenance admin', 'admin', 'master admin', 'super admin'].includes(
+      role.trim().toLowerCase().replace(/[_-]+/g, ' '),
+    ),
 }))
 vi.mock('@/lib/api/serviceSupabase', () => ({
   getServiceSupabaseClient: mocks.getServiceSupabaseClient,
@@ -196,7 +200,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
+      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
       error: null,
     }
     mocks.state.completion = {
@@ -324,10 +328,10 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     expect(mocks.detailEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
   })
 
-  it('does not grant Maintenance Admin non-owner completion access', async () => {
+  it('lets Maintenance Admin complete a non-owned ticket with an audited reason', async () => {
     mocks.requireTicketingAccess.mockResolvedValueOnce({
       authorized: true,
-      scope: 'own',
+      scope: 'team',
       user: { id: ACTOR_ID, email: 'maintenance@example.test' },
       employee: {
         id: ACTOR_ID,
@@ -337,21 +341,19 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         departments: ['Ticketing'],
       },
     })
-    mocks.detailMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
-
     const response = await PATCH(
       patchRequest({
         ...validPatch(),
-        onBehalfReason: 'Maintenance coverage is not authorised',
+        onBehalfReason: 'Completing missing details for the responsible agent',
       }),
       context(),
     )
 
-    expect(response.status).toBe(404)
-    expect(mocks.detailEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
-    expect(mocks.rpc).not.toHaveBeenCalledWith(
+    expect(response.status).toBe(200)
+    expect(mocks.detailEq).not.toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(mocks.rpc).toHaveBeenCalledWith(
       'ticketing_complete_tk_details_authorized',
-      expect.anything(),
+      expect.objectContaining({ p_actor_employee_id: ACTOR_ID, p_booking_id: BOOKING_ID }),
     )
   })
 
@@ -409,7 +411,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
 
   it('accepts a singleton-array completion capability response', async () => {
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026082802, requiredVersion: 2026082802 }],
+      data: [{ ready: true, version: 2026090202, requiredVersion: 2026090202 }],
       error: null,
     }
 
@@ -494,7 +496,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         id: ACTOR_ID,
         email: 'admin@example.test',
         fullName: 'Portal Admin',
-        role: 'Super Admin',
+        role: 'Master Admin',
         departments: [],
       },
     })
@@ -534,7 +536,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     })
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
+      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
       error: null,
     }
     mocks.state.completion = {
@@ -573,6 +575,43 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       canManageRecords: true,
     })
     expect(JSON.stringify(body)).not.toMatch(/commission|profit|audit|sourceEvents/i)
+  })
+
+  it('does not ask a Super Admin for an on-behalf reason and records an audit marker', async () => {
+    mocks.requireTicketingAccess.mockResolvedValue({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'super@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'super@example.test',
+        fullName: 'Super User',
+        role: 'Super Admin',
+        departments: [],
+      },
+    })
+    mocks.detailMaybeSingle.mockResolvedValue({
+      data: detailRow({ complete: true, ownerEmployeeId: OWNER_ID, ownerName: 'Agent One' }),
+      error: null,
+    })
+
+    const response = await PATCH(patchRequest(validPatch(), 'super-on-behalf-1'), context())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith('ticketing_complete_tk_details_authorized', {
+      p_actor_employee_id: ACTOR_ID,
+      p_booking_id: BOOKING_ID,
+      p_idempotency_key: 'super-on-behalf-1',
+      p_details: {
+        ...validPatch(),
+        onBehalfReason: 'Super Admin completion override',
+      },
+    })
+    expect(body.completionContext).toMatchObject({
+      isOnBehalf: true,
+      onBehalfReasonRequired: false,
+    })
   })
 
   it('lets an administrator correct a locked posted sale through the audited correction RPC', async () => {
@@ -728,7 +767,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     })
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.state.capability = {
-      data: { ready: true, version: 2026082802, requiredVersion: 2026082802 },
+      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
       error: null,
     }
     mocks.state.completion = {

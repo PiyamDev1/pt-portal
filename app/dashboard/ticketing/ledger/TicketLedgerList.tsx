@@ -96,6 +96,7 @@ export function TicketLedgerList({
   onMarkPaid,
   onEditItinerary,
   canManageAttribution,
+  canArchiveRecords,
   onCorrectAttribution,
   onArchive,
   onRequestChange,
@@ -108,6 +109,7 @@ export function TicketLedgerList({
   onMarkPaid: (item: TicketLedgerItem) => void
   onEditItinerary: (item: TicketLedgerItem) => void
   canManageAttribution: boolean
+  canArchiveRecords: boolean
   onCorrectAttribution: (item: TicketLedgerItem) => void
   onArchive: (item: TicketLedgerItem) => void
   onRequestChange: (item: TicketLedgerItem, requestType: TicketChangeRequestType) => void
@@ -326,15 +328,13 @@ export function TicketLedgerList({
                         <button
                           type="button"
                           onClick={() =>
-                            canManageAttribution
-                              ? onArchive(item)
-                              : onRequestChange(item, 'deletion')
+                            canArchiveRecords ? onArchive(item) : onRequestChange(item, 'deletion')
                           }
-                          aria-label={`${canManageAttribution ? 'Delete' : 'Request deletion of'} ticket ${item.pnr}`}
+                          aria-label={`${canArchiveRecords ? 'Delete' : 'Request deletion of'} ticket ${item.pnr}`}
                           className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-2 text-center text-xs font-black leading-tight text-red-800 hover:bg-red-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          {canManageAttribution ? 'Delete' : 'Request deletion'}
+                          {canArchiveRecords ? 'Delete' : 'Request deletion'}
                         </button>
                       )}
                     </>

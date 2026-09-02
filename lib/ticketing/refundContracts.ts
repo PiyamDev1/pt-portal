@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { TICKET_PASSENGER_TYPES } from '@/lib/ticketing/contracts'
 
-export const TICKET_REFUND_CAPABILITY_VERSION = 2026082903
+export const TICKET_REFUND_CAPABILITY_VERSION = 2026090201
 export const TICKET_REFUND_FORMULA_VERSION = 'ticket-cancellation-v1'
 export const TICKET_REFUND_STATUSES = [
   'recorded',
@@ -16,6 +16,7 @@ export const TICKET_REFUND_EVENT_TYPES = [
   'airline_recovery',
   'other_cost',
   'recovery_finalised',
+  'confirmed_correct',
   'closed',
   'voided',
 ] as const
@@ -143,7 +144,10 @@ export type TicketingRefundItem = {
   airlineRecoveredGbp: string | number
   otherActualCostsGbp: string | number
   airlineRecoveryFinal: boolean
+  provisionalCompanyResultGbp: string | number | null
   actualCompanyResultGbp: string | number | null
+  confirmedCorrectAt: string | null
+  confirmedCorrectBy: { id: string; fullName: string } | null
   status: TicketingRefundStatus
   version: number
   notes: string | null
@@ -153,7 +157,7 @@ export type TicketingRefundItem = {
 export type TicketingRefundPage = {
   items: TicketingRefundItem[]
   nextCursor: string | null
-  context: { canManage: boolean }
+  context: { canManage: boolean; canConfirm: boolean }
 }
 
 export type TicketingRecordRefundResult = {
@@ -171,6 +175,9 @@ export type TicketingRefundEventResult = {
   eventId: string
   status: TicketingRefundStatus
   version: number
+  provisionalCompanyResultGbp: string | number | null
   actualCompanyResultGbp: string | number | null
+  confirmedCorrectAt: string | null
+  confirmedCorrectByEmployeeId: string | null
   idempotentReplay: boolean
 }

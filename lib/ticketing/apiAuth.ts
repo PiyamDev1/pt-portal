@@ -4,6 +4,13 @@ import { requireStaffSession, type StaffSession } from '@/lib/auth/staffSession'
 export const TICKETING_DEPARTMENT = 'Ticketing'
 export const TICKETING_OVERSIGHT_ROLES = [
   'Manager',
+  'Maintenance Admin',
+  'Admin',
+  'Master Admin',
+  'Super Admin',
+] as const
+export const TICKETING_RECORD_MANAGER_ROLES = [
+  'Maintenance Admin',
   'Admin',
   'Master Admin',
   'Super Admin',
@@ -33,6 +40,13 @@ export function isTicketingOversightRole(role: unknown) {
   )
 }
 
+export function canManageTicketingRecords(role: unknown) {
+  const normalizedRole = normalizeAccessName(role)
+  return TICKETING_RECORD_MANAGER_ROLES.some(
+    (allowedRole) => normalizeAccessName(allowedRole) === normalizedRole,
+  )
+}
+
 export function hasTicketingDepartment(departments: readonly string[]) {
   const normalizedDepartment = normalizeAccessName(TICKETING_DEPARTMENT)
   return departments.some((department) => normalizeAccessName(department) === normalizedDepartment)
@@ -51,8 +65,8 @@ export function resolveTicketingAccessScope(
  *
  * Ticketing department members work only with their own private records.
  * Ticketing oversight is deliberately separate from the portal-wide admin and
- * maintenance role sets because Managers are included and Maintenance Admins
- * receive no Ticketing access unless explicitly assigned to the department.
+ * maintenance role sets because Managers have read oversight while Maintenance
+ * Admins have audited operational maintenance access.
  */
 export async function requireTicketingAccess(): Promise<TicketingAccessResult> {
   const access = await requireStaffSession({ includeDepartments: true })

@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
-import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import {
   TICKET_ATTRIBUTION_CAPABILITY_VERSION,
@@ -11,7 +10,8 @@ import {
   type TicketingCorrectAttributionInput,
   type TicketingCorrectAttributionResult,
 } from '@/lib/ticketing/attributionContracts'
-import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import { ticketingBookingIdSchema } from '@/lib/ticketing/completionContracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
 
@@ -34,6 +34,8 @@ type AttributionRpcResult = {
     primaryEmployeeId?: string
     assistantEmployeeIds?: unknown
   }
+  commercialTreatment?: unknown
+  commissionWaiverReason?: unknown
   idempotentReplay?: boolean
 }
 
@@ -47,14 +49,21 @@ function privateError(message: string, status: number, extra: Record<string, unk
 }
 
 function canManageTicketingAttribution(role: string) {
-  const normalizeRole = (value: string) => value.trim().toLowerCase().replace(/[_-]+/g, ' ')
-  const normalizedRole = normalizeRole(role)
-  return ADMIN_ROLES.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole)
+  return canManageTicketingRecords(role)
 }
 
 async function hasAttributionCapability(supabase: ReturnType<typeof getServiceSupabaseClient>) {
   const { data, error } = await supabase.rpc('ticketing_schema_status')
-  return !error && hasTicketingSchemaCapability(data, TICKET_ATTRIBUTION_CAPABILITY_VERSION)
+  return (
+    !error &&
+    hasTicketingSchemaCapability(
+      data,
+      Math.max(
+        TICKET_ATTRIBUTION_CAPABILITY_VERSION,
+        TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
+      ),
+    )
+  )
 }
 
 function currentBookingVersion(details: string | null | undefined) {
@@ -94,9 +103,13 @@ function mutationError(error: TicketingRpcError) {
     })
   }
   if (hint === 'TICKETING_ATTRIBUTION_NO_CHANGE') {
-    return privateError('The selected ticket attribution is already current.', 409, {
-      code: 'ATTRIBUTION_NO_CHANGE',
-    })
+    return privateError(
+      'The selected staff attribution and commission treatment are already current.',
+      409,
+      {
+        code: 'ATTRIBUTION_NO_CHANGE',
+      },
+    )
   }
   if (hint === 'TICKETING_ATTRIBUTION_REASON_REQUIRED') {
     return privateError('A reason is required when correcting ticket attribution.', 400, {
@@ -110,6 +123,11 @@ function mutationError(error: TicketingRpcError) {
   ) {
     return privateError('Select active employees for the responsible and assistant roles.', 400, {
       code: 'INVALID_ATTRIBUTION_EMPLOYEE',
+    })
+  }
+  if (hint === 'TICKETING_STAFF_FAMILY_AT_COST_REQUIRED') {
+    return privateError('A staff/family ticket must be sold at supplier cost.', 400, {
+      code: 'STAFF_FAMILY_AT_COST_REQUIRED',
     })
   }
   if (error.code === '42501') return privateError('Forbidden', 403)
@@ -146,6 +164,8 @@ function parsedRpcAttribution(
     primaryEmployeeId !== entry.responsibleEmployeeId ||
     returnedAssistants.length !== expectedAssistants.length ||
     returnedAssistants.some((employeeId, index) => employeeId !== expectedAssistants[index]) ||
+    result?.commercialTreatment !== entry.commercialTreatment ||
+    result?.commissionWaiverReason !== entry.commissionWaiverReason ||
     typeof result.idempotentReplay !== 'boolean'
   ) {
     return null
@@ -234,17 +254,22 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     selectedEmployees.map((employee) => [employee.id, employee]),
   )
 
-  const { data, error } = await supabase.rpc('ticketing_correct_booking_attribution', {
-    p_actor_employee_id: access.employee.id,
-    p_booking_id: parsedBookingId.data,
-    p_expected_booking_version: entry.expectedBookingVersion,
-    p_idempotency_key: idempotencyKey,
-    p_attribution: {
-      responsibleEmployeeId: entry.responsibleEmployeeId,
-      assistantEmployeeIds: entry.assistantEmployeeIds,
-      reason: entry.reason,
+  const { data, error } = await supabase.rpc(
+    'ticketing_correct_booking_attribution_commercial_2026090201',
+    {
+      p_actor_employee_id: access.employee.id,
+      p_booking_id: parsedBookingId.data,
+      p_expected_booking_version: entry.expectedBookingVersion,
+      p_idempotency_key: idempotencyKey,
+      p_correction: {
+        responsibleEmployeeId: entry.responsibleEmployeeId,
+        assistantEmployeeIds: entry.assistantEmployeeIds,
+        commercialTreatment: entry.commercialTreatment,
+        commissionWaiverReason: entry.commissionWaiverReason,
+        reason: entry.reason,
+      },
     },
-  })
+  )
   if (error) return mutationError(error)
 
   const attribution = parsedRpcAttribution(data, parsedBookingId.data, entry)

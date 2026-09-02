@@ -10,6 +10,7 @@ vi.mock('@/lib/auth/staffSession', () => ({
 
 import {
   hasTicketingDepartment,
+  canManageTicketingRecords,
   isTicketingOversightRole,
   requireTicketingAccess,
   resolveTicketingAccessScope,
@@ -32,10 +33,12 @@ describe('Ticketing access', () => {
     vi.clearAllMocks()
   })
 
-  it('normalizes oversight roles without granting Maintenance Admin team access', () => {
+  it('normalizes oversight and record-maintenance roles', () => {
     expect(isTicketingOversightRole('master_admin')).toBe(true)
     expect(isTicketingOversightRole(' Manager ')).toBe(true)
-    expect(isTicketingOversightRole('Maintenance Admin')).toBe(false)
+    expect(isTicketingOversightRole('Maintenance Admin')).toBe(true)
+    expect(canManageTicketingRecords('maintenance_admin')).toBe(true)
+    expect(canManageTicketingRecords('Manager')).toBe(false)
   })
 
   it('recognizes Ticketing department membership case-insensitively', () => {
@@ -46,8 +49,8 @@ describe('Ticketing access', () => {
   it('gives oversight roles team scope and department members own scope', () => {
     expect(resolveTicketingAccessScope('Manager', [])).toBe('team')
     expect(resolveTicketingAccessScope('Employee', ['Ticketing'])).toBe('own')
-    expect(resolveTicketingAccessScope('Maintenance Admin', [])).toBeNull()
-    expect(resolveTicketingAccessScope('Maintenance Admin', ['Ticketing'])).toBe('own')
+    expect(resolveTicketingAccessScope('Maintenance Admin', [])).toBe('team')
+    expect(resolveTicketingAccessScope('Maintenance Admin', ['Ticketing'])).toBe('team')
   })
 
   it('loads departments and returns own scope for a Ticketing agent', async () => {

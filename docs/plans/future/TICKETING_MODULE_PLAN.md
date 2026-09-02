@@ -7,11 +7,12 @@
 > Flight Monitoring, manual schedule changes, staff amendment/deletion requests, and the bounded
 > AeroDataBox monitoring integration are also implemented. Persistent refund/recovery, full Ticket
 > Voucher lifecycle, package-ticket status, and append-only fare checks are implemented as well.
-> Commission policy/targets remain a separate deferred module; advanced service/currency workflows
-> described as future are not part of this Ticketing first-release boundary.
+> Commission policy, calculation, penalties, and financial review remain owned by the separate
+> Commission module; advanced service/currency workflows described as future are not part of this
+> Ticketing first-release boundary.
 
-- **Status:** Ticketing first-release operational scope implemented; Commission/targets deferred
-- **Last updated:** August 29, 2026
+- **Status:** Ticketing first-release operational scope implemented; Commission outcomes owned separately
+- **Last updated:** September 2, 2026
 - **Owner:** PT-Portal Team
 
 ### Implementation checkpoint — August 23, 2026
@@ -632,7 +633,10 @@ ticket lifecycle result = customer receipts - supplier ticket costs
 ```
 
 The refund event preserves its link to the original issued event; the Commission module owns the
-rule that keeps the original earning posted. Agents see the operational refund and claim status;
+configured rule that either retains or reverses the original earning. Recovery finalisation makes
+the calculated result available provisionally, but the responsible employee or an authorised
+administrator must mark it correct before it becomes authoritative. Later financial evidence clears
+that confirmation. Agents see the operational refund and claim status;
 company P&L and team totals are limited to Manager/Admin views and never appear in the Sales Ledger.
 Package-linked refunds are also surfaced in the package workspace without overwriting released
 package invoices.
@@ -795,6 +799,25 @@ All routes must:
   implemented. Linked settings remain disabled until the provider key and cron secret are verified
   in the production Vercel environment; zero active future issued sectors currently require a call.
 
+### Implementation checkpoint — September 2, 2026
+
+- Kept the keyboard-first entry layout compact by placing Staff Attribution and Commission
+  Treatment beside one another after the fare section. The existing Correct Staff workflow now
+  corrects both responsible/assistant attribution and the server-owned commercial treatment
+  (`standard`, `staff_family`, or `commission_waived`) in one optimistic, idempotent operation.
+  Waiving commission requires bounded audit evidence; the ledger still calculates or displays no
+  commission outcome.
+- Super Admin may complete a responsible employee's ticket details without typing an on-behalf
+  reason. The server supplies a fixed audit marker so actor/owner evidence and database invariants
+  remain intact. Admin and Master Admin continue to provide the normal human reason.
+- Refund financial results remain provisional after recovery becomes final. The responsible agent
+  or an authorised administrator must explicitly mark the refund correct before its result becomes
+  authoritative. Later settlement, recovery, cost, finalisation, or void evidence clears that
+  confirmation and returns the case to provisional; an unconfirmed case cannot be closed.
+- A confirmed refund publishes the authoritative lifecycle state needed by Commission. Commission,
+  rather than Ticketing, decides whether that employee's original commission is retained or
+  reversed under the applicable effective-dated policy.
+
 ## 5. Delivery plan
 
 ### Phase 0: Tooling and live Supabase verification — complete
@@ -915,7 +938,9 @@ All routes must:
   result, extra customer payment, unused credit, and same-airline voucher/credit restrictions.
 - **Implemented:** owner/team refund register, package-scope snapshot, administrator loss override,
   customer settlement, airline recovery, other-cost and recovery-final events, and actual company
-  result only after recovery becomes final.
+  result only after recovery becomes final and the responsible employee or an authorised
+  administrator explicitly confirms the refund correct. Unconfirmed refunds cannot be closed, and
+  later financial evidence returns a confirmed refund to provisional.
 - **Implemented:** voucher creation/register, unknown initial value, issue-date-plus-11-month
   deadline, administrator follow-up/deadline controls, and 90/30/7-day reminder claims.
 - **Implemented:** claim submission, airline confirmation, partial/full reuse and refund events,
@@ -959,6 +984,9 @@ All routes must:
 - Voucher use rejects a different airline and maintains correct remaining value across partial
   events.
 - Refund P&L remains pending while airline recovery is unknown and becomes exact once settled.
+- A recovery-final refund remains provisional until the responsible employee or an authorised
+  administrator confirms it correct; later financial evidence clears confirmation, and provisional
+  refunds cannot be closed.
 - The cancellation calculator produces net £0 when markup is zero, produces markup as expected
   final company profit, keeps reissue supplier cost separate, and reports rather than returns a
   negative customer refund.

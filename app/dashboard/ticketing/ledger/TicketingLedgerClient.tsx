@@ -231,7 +231,7 @@ export function TicketingLedgerClient() {
         )}
       </section>
 
-      {payload.context.canManageRecords && (
+      {payload.context.canArchiveRecords && (
         <TicketChangeRequestsPanel
           refreshToken={requestRefreshToken}
           onAmend={(request: TicketChangeRequest) => {
@@ -325,6 +325,7 @@ export function TicketingLedgerClient() {
           onMarkPaid={setSelectedPaymentItem}
           onEditItinerary={setSelectedItineraryItem}
           canManageAttribution={payload.context.canManageAttribution}
+          canArchiveRecords={payload.context.canArchiveRecords}
           onCorrectAttribution={setSelectedAttributionItem}
           onArchive={setSelectedArchiveItem}
           onRequestChange={(item, requestType) => setSelectedChangeRequest({ item, requestType })}
@@ -386,7 +387,7 @@ export function TicketingLedgerClient() {
         />
       )}
 
-      {selectedArchiveItem && (
+      {payload.context.canArchiveRecords && selectedArchiveItem && (
         <TicketArchiveDialog
           key={selectedArchiveItem.bookingId}
           item={selectedArchiveItem}

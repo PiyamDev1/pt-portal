@@ -78,13 +78,16 @@ type RefundRow = {
   airline_recovered_gbp: string | number
   other_actual_costs_gbp: string | number
   airline_recovery_final: boolean
+  provisional_company_result_gbp: string | number | null
   actual_company_result_gbp: string | number | null
+  confirmed_correct_at: string | null
   status: TicketingRefundStatus
   version: string | number
   notes: string | null
   created_at: string
   airlines: Related<AirlineRow>
   owner_employee: Related<NameRow>
+  confirmed_correct_by_employee: Related<NameRow>
 }
 
 function first<T>(value: Related<T>) {
@@ -121,6 +124,7 @@ function createCursor(row: RefundRow, pnr: string, status: string) {
 function mapRefund(row: RefundRow): TicketingRefundItem | null {
   const airline = first(row.airlines)
   const owner = first(row.owner_employee)
+  const confirmer = first(row.confirmed_correct_by_employee)
   if (!airline || !owner?.full_name) return null
   return {
     id: row.id,
@@ -143,7 +147,12 @@ function mapRefund(row: RefundRow): TicketingRefundItem | null {
     airlineRecoveredGbp: row.airline_recovered_gbp,
     otherActualCostsGbp: row.other_actual_costs_gbp,
     airlineRecoveryFinal: row.airline_recovery_final,
+    provisionalCompanyResultGbp: row.provisional_company_result_gbp,
     actualCompanyResultGbp: row.actual_company_result_gbp,
+    confirmedCorrectAt: row.confirmed_correct_at,
+    confirmedCorrectBy: confirmer
+      ? { id: confirmer.id, fullName: confirmer.full_name?.trim() || 'Staff member' }
+      : null,
     status: row.status,
     version: Number(row.version),
     notes: row.notes,
@@ -180,9 +189,11 @@ export async function GET(request: NextRequest) {
     proposed_customer_refund_gbp, expected_airline_recovery_gbp,
     expected_company_result_gbp, customer_settled_gbp, airline_recovered_gbp,
     other_actual_costs_gbp, airline_recovery_final, actual_company_result_gbp,
+    provisional_company_result_gbp, confirmed_correct_at,
     status, version, notes, created_at,
     airlines!inner(id, iata_code, name),
-    owner_employee:employees!ticket_refunds_owner_employee_id_fkey(id, full_name)
+    owner_employee:employees!ticket_refunds_owner_employee_id_fkey(id, full_name),
+    confirmed_correct_by_employee:employees!ticket_refunds_confirmed_correct_by_employee_id_fkey(id, full_name)
   `)
   if (!canManageRefunds(access.employee.role)) {
     query = query.eq('owner_employee_id', access.employee.id)
@@ -209,7 +220,7 @@ export async function GET(request: NextRequest) {
   return apiOk(
     {
       items,
-      context: { canManage: canManageRefunds(access.employee.role) },
+      context: { canManage: canManageRefunds(access.employee.role), canConfirm: true },
       nextCursor:
         rows.length > limit && pageRows.length > 0
           ? createCursor(pageRows[pageRows.length - 1], pnr, status)
