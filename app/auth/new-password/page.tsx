@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export default function NewPasswordPage() {
+  const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -66,6 +67,11 @@ export default function NewPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!currentPassword) {
+      toast.error('Enter your temporary or current password')
+      return
+    }
+
     if (password !== confirm) {
       toast.error('Passwords do not match')
       return
@@ -81,7 +87,7 @@ export default function NewPasswordPage() {
     const res = await fetch('/api/auth/update-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newPassword: password }),
+      body: JSON.stringify({ currentPassword, newPassword: password }),
     })
 
     const data = await res.json()
@@ -176,14 +182,42 @@ export default function NewPasswordPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-slate-700">New password</label>
+              <label htmlFor="current-password" className="block text-sm font-bold text-slate-700">
+                Temporary or current password
+              </label>
               <div className="relative">
                 <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
+                  id="current-password"
+                  name="currentPassword"
                   type="password"
+                  autoComplete="current-password"
+                  required
+                  disabled={loadingUser || loading}
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                For a new or reset account, enter the temporary password you used to sign in.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="new-password" className="block text-sm font-bold text-slate-700">
+                New password
+              </label>
+              <div className="relative">
+                <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="new-password"
+                  name="newPassword"
+                  type="password"
+                  autoComplete="new-password"
                   required
                   minLength={8}
-                  disabled={loadingUser}
+                  disabled={loadingUser || loading}
                   className="w-full rounded-3xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -192,13 +226,18 @@ export default function NewPasswordPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-slate-700">Confirm password</label>
+              <label htmlFor="confirm-password" className="block text-sm font-bold text-slate-700">
+                Confirm password
+              </label>
               <div className="relative">
                 <input
+                  id="confirm-password"
+                  name="confirmPassword"
                   type="password"
+                  autoComplete="new-password"
                   required
                   minLength={8}
-                  disabled={loadingUser}
+                  disabled={loadingUser || loading}
                   className="w-full rounded-3xl border border-slate-200 bg-slate-50 py-4 px-4 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}

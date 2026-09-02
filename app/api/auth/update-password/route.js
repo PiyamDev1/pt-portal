@@ -7,7 +7,7 @@
  * strength validation. Also clears the is_temporary_password flag in the
  * employees table and records a bcrypt hash in password_history (keeps last 5).
  *
- * Request Body: { newPassword: string }
+ * Request Body: { currentPassword: string, newPassword: string }
  * Response Success (200): { updatedUserId, message }
  * Response Errors:
  *   400 - Missing fields or password fails strength requirements
