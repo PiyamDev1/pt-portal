@@ -2,7 +2,10 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { COMMISSION_PRIVATE_RESPONSE } from '@/lib/commissions/api'
-import { commissionMonthlyExchangeRateSchema } from '@/lib/commissions/contracts'
+import {
+  commissionExchangeRateAvailability,
+  commissionMonthlyExchangeRateSchema,
+} from '@/lib/commissions/contracts'
 import { requireCommissionManager } from '@/lib/commissions/server'
 
 function requestToken(request: Request) {
@@ -40,6 +43,16 @@ export async function POST(request: Request) {
           message: issue.message,
         })),
       },
+      COMMISSION_PRIVATE_RESPONSE,
+    )
+  }
+
+  const availability = commissionExchangeRateAvailability(input.periodStart)
+  if (!availability.available) {
+    return apiError(
+      `The ${input.periodStart.slice(0, 7)} exchange rate can be entered from ${availability.opensOn}.`,
+      400,
+      {},
       COMMISSION_PRIVATE_RESPONSE,
     )
   }

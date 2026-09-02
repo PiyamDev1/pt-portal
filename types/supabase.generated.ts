@@ -7230,6 +7230,7 @@ export type Database = {
           commercial_treatment: string
           commission_scope: string
           commission_waiver_reason: string | null
+          contact_email: string | null
           contact_phone: string | null
           created_at: string
           created_by: string
@@ -7259,6 +7260,7 @@ export type Database = {
           commercial_treatment?: string
           commission_scope?: string
           commission_waiver_reason?: string | null
+          contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
           created_by: string
@@ -7288,6 +7290,7 @@ export type Database = {
           commercial_treatment?: string
           commission_scope?: string
           commission_waiver_reason?: string | null
+          contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
           created_by?: string

@@ -42,6 +42,7 @@ type StaffReport = {
   periodStart: string
   periodEnd: string
   companyTotalGbp: number
+  companyAdmImpactGbp: number
   items: StaffReportItem[]
   currencyTotals: CurrencyTotal[]
   readiness: {
@@ -105,6 +106,7 @@ function formatMoney(value: number, currency = 'GBP') {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency: /^[A-Z]{3}$/.test(currency) ? currency : 'GBP',
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value)
   } catch {
@@ -132,6 +134,7 @@ function normalizeReport(value: unknown): StaffReport {
     periodStart: text(report.periodStart),
     periodEnd: text(report.periodEnd),
     companyTotalGbp: number(report.companyTotalGbp),
+    companyAdmImpactGbp: number(report.companyAdmImpactGbp),
     items: rows(report.items).map((value) => {
       const item = object(value)
       return {
@@ -223,8 +226,11 @@ export default function CommissionStaffReport({
   const [employeeId, setEmployeeId] = useState(employees[0]?.id || '')
   const [category, setCategory] = useState<'adm' | 'loss' | 'other'>('adm')
   const [amount, setAmount] = useState('')
+  const [companyShare, setCompanyShare] = useState('0.00')
   const [currency, setCurrency] = useState('GBP')
   const [reason, setReason] = useState('')
+  const [pnr, setPnr] = useState('')
+  const [admReference, setAdmReference] = useState('')
 
   useEffect(() => {
     if (!employeeId && employees[0]?.id) setEmployeeId(employees[0].id)
@@ -274,6 +280,7 @@ export default function CommissionStaffReport({
   const periodLocked = Boolean(
     preparedBatch && !['returned', 'superseded'].includes(preparedBatch.status),
   )
+  const admOutsideCurrentMonth = category === 'adm' && period !== currentMonth
   const canPrepareBatch =
     !preparedBatch || preparedBatch.status === 'returned' || preparedBatch.status === 'superseded'
 
@@ -293,13 +300,18 @@ export default function CommissionStaffReport({
           employeeId,
           category,
           amount: Number(amount),
+          companyShare: category === 'adm' ? Number(companyShare) : 0,
           currency: currency.trim().toUpperCase(),
           periodStart: `${period}-01`,
           reason,
+          ...(category === 'adm' ? { pnr, admReference } : {}),
         }),
       })
       setAmount('')
+      setCompanyShare('0.00')
       setReason('')
+      setPnr('')
+      setAdmReference('')
       setNotice('The penalty was appended to this reporting period.')
       await loadReport()
     } catch (mutationError) {
@@ -435,6 +447,10 @@ export default function CommissionStaffReport({
                 label="Staff total (GBP book)"
                 value={formatMoney(report.companyTotalGbp)}
               />
+              <SummaryCard
+                label="Company ADM profit reduction"
+                value={formatMoney(report.companyAdmImpactGbp)}
+              />
               <SummaryCard label="Pending events" value={String(report.readiness.pendingEvents)} />
               <SummaryCard
                 label="Open exceptions"
@@ -490,8 +506,10 @@ export default function CommissionStaffReport({
             <div>
               <h2 className="font-semibold text-amber-100">Append a penalty</h2>
               <p className="mt-1 text-xs leading-5 text-amber-200/70">
-                ADM, loss and other deductions are append-only. They cannot be edited or deleted;
-                corrections require an audited reversal.
+                ADM, loss and other deductions are append-only. An ADM is tied to its PNR and the
+                ticket owner; its employee share reduces current Commission while its company share
+                is retained as a current company-profit impact. Corrections require an audited
+                reversal.
               </p>
             </div>
           </div>
@@ -502,23 +520,31 @@ export default function CommissionStaffReport({
                 : `This reporting period already has a ${preparedBatch?.status.replace(/_/g, ' ')} batch. Resolve that review before adding another penalty.`}
             </div>
           ) : null}
-          <label className="block space-y-1.5 text-sm text-slate-300">
-            <span>Employee</span>
-            <select
-              aria-label="Penalty employee"
-              className={inputClass}
-              value={employeeId}
-              onChange={(event) => setEmployeeId(event.target.value)}
-              required
-            >
-              <option value="">Select employee</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {admOutsideCurrentMonth ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
+              ADMs are posted when received. Select {monthLabel(currentMonth)} to add this ADM; the
+              original ticket month will not be rewritten.
+            </div>
+          ) : null}
+          {category !== 'adm' && (
+            <label className="block space-y-1.5 text-sm text-slate-300">
+              <span>Employee</span>
+              <select
+                aria-label="Penalty employee"
+                className={inputClass}
+                value={employeeId}
+                onChange={(event) => setEmployeeId(event.target.value)}
+                required
+              >
+                <option value="">Select employee</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5 text-sm text-slate-300">
               <span>Penalty type</span>
@@ -545,8 +571,35 @@ export default function CommissionStaffReport({
               />
             </label>
           </div>
+          {category === 'adm' && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1.5 text-sm text-slate-300">
+                <span>Ticket PNR</span>
+                <input
+                  aria-label="ADM ticket PNR"
+                  className={inputClass}
+                  value={pnr}
+                  onChange={(event) => setPnr(event.target.value.toUpperCase())}
+                  required
+                />
+                <span className="block text-[11px] text-slate-500">
+                  The responsible agent is taken from this ticket.
+                </span>
+              </label>
+              <label className="space-y-1.5 text-sm text-slate-300">
+                <span>Airline ADM reference</span>
+                <input
+                  aria-label="ADM reference"
+                  className={inputClass}
+                  value={admReference}
+                  onChange={(event) => setAdmReference(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+          )}
           <label className="block space-y-1.5 text-sm text-slate-300">
-            <span>Amount</span>
+            <span>{category === 'adm' ? 'Employee responsibility share' : 'Amount'}</span>
             <input
               aria-label="Penalty amount"
               className={inputClass}
@@ -558,6 +611,24 @@ export default function CommissionStaffReport({
               required
             />
           </label>
+          {category === 'adm' && (
+            <label className="block space-y-1.5 text-sm text-slate-300">
+              <span>Company responsibility share</span>
+              <input
+                aria-label="ADM company share"
+                className={inputClass}
+                type="number"
+                min="0"
+                step="0.01"
+                value={companyShare}
+                onChange={(event) => setCompanyShare(event.target.value)}
+                required
+              />
+              <span className="block text-[11px] text-slate-500">
+                Total ADM: {formatMoney(number(amount) + number(companyShare), currency)}
+              </span>
+            </label>
+          )}
           <label className="block space-y-1.5 text-sm text-slate-300">
             <span>Reason</span>
             <textarea
@@ -573,7 +644,7 @@ export default function CommissionStaffReport({
           </label>
           <button
             className={primaryButtonClass}
-            disabled={Boolean(busy) || !employees.length || periodLocked}
+            disabled={Boolean(busy) || !employees.length || periodLocked || admOutsideCurrentMonth}
           >
             {busy === 'penalty' ? 'Adding penalty…' : 'Add audited penalty'}
           </button>

@@ -14,6 +14,7 @@ errors, side effects, and examples for every exported handler.
 - [Ticketing operations](TICKETING.md)
 - [Commission policy and shadow processing](COMMISSIONS.md)
 - [Packages, customer portals, groups, and pricing](PACKAGES.md)
+- [Customer portal normal-ticket trips](CUSTOMER_INTEGRATION_TICKETS.md)
 - [Applications, passports, visas, documents, and issue reports](APPLICATIONS_DOCUMENTS.md)
 - [Timeclock, Frappe, HR, training, and dashboard services](TIMECLOCK_INTEGRATIONS.md)
 

@@ -216,6 +216,22 @@ export const commissionMonthlyExchangeRateSchema = z
     message: 'The exchange-rate month must begin on day 1',
   })
 
+export function commissionExchangeRateAvailability(periodStart: string, now = new Date()) {
+  const month = /^\d{4}-\d{2}-01$/.test(periodStart) ? periodStart.slice(0, 7) : ''
+  const londonToday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+  const opensOn = month ? `${month}-26` : ''
+  return {
+    available: Boolean(opensOn && londonToday >= opensOn),
+    opensOn,
+    londonToday,
+  }
+}
+
 export const commissionPreviewSchema = z
   .object({
     component: commissionComponentSchema,

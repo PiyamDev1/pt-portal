@@ -261,7 +261,8 @@ function ledgerItem(
   const airline = booking ? firstRelated(booking.airlines) : null
   const location = booking ? firstRelated(booking.locations) : null
   const attribution = booking ? currentAttribution(booking, actorEmployeeId, actorName) : null
-  if (!booking || booking.archived_at || !airline || !location?.timezone || !attribution) return null
+  if (!booking || booking.archived_at || !airline || !location?.timezone || !attribution)
+    return null
 
   const fares: TicketingLedgerFare[] = (row.ticket_passenger_fare_lines || []).map((fare) => ({
     passengerType: fare.passenger_type,
@@ -684,6 +685,20 @@ export async function POST(request: NextRequest) {
   if (!rpcResult?.booking?.id || !rpcResult.transaction?.id) {
     console.error('[ticketing] quick entry RPC returned an invalid result')
     return apiError('Ticketing returned an invalid save result.', 500)
+  }
+
+  if (entry.contactEmail) {
+    const { error: emailError } = await supabase
+      .from('ticket_bookings')
+      .update({ contact_email: entry.contactEmail })
+      .eq('id', rpcResult.booking.id)
+    if (emailError) {
+      console.error('[ticketing] customer portal email update failed', { code: emailError.code })
+      return apiError(
+        'The ticket was saved, but its customer portal email could not be linked. Retry the same entry.',
+        500,
+      )
+    }
   }
 
   const packageMatchStatus = rpcResult.packageMatch?.status

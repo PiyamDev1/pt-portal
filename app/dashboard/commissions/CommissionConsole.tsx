@@ -40,8 +40,8 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof Gauge }> = [
   { id: 'exceptions', label: 'Action queue', icon: AlertTriangle },
   { id: 'bonus', label: 'Monthly bonus', icon: BadgePoundSterling },
   { id: 'preview', label: 'Formula preview', icon: Calculator },
-  { id: 'policies', label: 'Policy lab', icon: Settings2 },
-  { id: 'assignments', label: 'Manual assignments', icon: Users },
+  { id: 'policies', label: 'Advanced policy diagnostics', icon: Settings2 },
+  { id: 'assignments', label: 'Advanced assignments', icon: Users },
 ]
 
 const serviceLabels: Record<string, string> = {
@@ -415,10 +415,15 @@ function LowLevelToolNotice() {
   return (
     <div className="mb-5 flex flex-col justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center">
       <div>
-        <p className="text-sm font-semibold text-amber-100">Advanced diagnostic tool</p>
+        <p className="text-sm font-semibold text-amber-100">
+          Engine diagnostics — not normal plan setup
+        </p>
         <p className="mt-1 text-xs leading-5 text-amber-200/75">
-          Normally create or edit an employee-owned plan in Admin commission. Use this tool only for
-          engine diagnostics and reconciliation.
+          Admin Commission is the authoritative place to create, copy and edit an employee-owned
+          plan. These screens expose the lower-level policy versions and effective-dated assignments
+          produced underneath it. Keep them only for migration checks, support investigations and
+          repairing legacy data; using them for everyday setup can create a plan that the employee
+          editor cannot explain cleanly.
         </p>
       </div>
       <Link
@@ -908,6 +913,14 @@ function Preview({
   const [rewardKind, setRewardKind] = useState('fixed_gbp')
   const [reward, setReward] = useState('100.00')
   const [result, setResult] = useState<JsonRecord | null>(null)
+  const [applicationCount, setApplicationCount] = useState('1')
+  const [applicationRate, setApplicationRate] = useState('5.00')
+  const [urgentApplicationCount, setUrgentApplicationCount] = useState('0')
+  const [urgentApplicationRate, setUrgentApplicationRate] = useState('8.00')
+  const [packagePassengers, setPackagePassengers] = useState('1')
+  const [smallPackageRate, setSmallPackageRate] = useState('100.00')
+  const [largePackageRate, setLargePackageRate] = useState('150.00')
+  const [serviceResult, setServiceResult] = useState<JsonRecord | null>(null)
   const [localError, setLocalError] = useState('')
 
   const calculate = async (event: FormEvent) => {
@@ -968,127 +981,322 @@ function Preview({
     }
   }
 
-  return (
-    <div className="grid gap-5 xl:grid-cols-[520px_1fr]">
-      <form
-        onSubmit={calculate}
-        className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
-      >
-        <div>
-          <h2 className="text-lg font-semibold">Synthetic sales-bonus preview</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            No customer data or entries are written. The preview itself is audited.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Passenger-tickets">
-            <input
-              className={inputClass}
-              value={tickets}
-              onChange={(e) => setTickets(e.target.value)}
-            />
-          </Field>
-          <Field label="Own-sale gross profit (£)">
-            <input
-              className={inputClass}
-              value={grossProfit}
-              onChange={(e) => setGrossProfit(e.target.value)}
-            />
-          </Field>
-          <Field label="Primary rate per ticket (£)">
-            <input
-              className={inputClass}
-              value={ticketRate}
-              onChange={(e) => setTicketRate(e.target.value)}
-            />
-          </Field>
-          <Field label="Assistant commission cost (£)">
-            <input
-              className={inputClass}
-              value={assistantCost}
-              onChange={(e) => setAssistantCost(e.target.value)}
-            />
-          </Field>
-          <Field label="Signed Low Fare saving (£)">
-            <input
-              className={inputClass}
-              value={lowFareSaving}
-              onChange={(e) => setLowFareSaving(e.target.value)}
-            />
-          </Field>
-          <Field label="Low Fare finder cost (£)">
-            <input
-              className={inputClass}
-              value={finderCost}
-              onChange={(e) => setFinderCost(e.target.value)}
-            />
-          </Field>
-          <Field label="Monthly target (£)">
-            <input
-              className={inputClass}
-              value={threshold}
-              onChange={(e) => setThreshold(e.target.value)}
-            />
-          </Field>
-          <Field label="Reward type">
-            <select
-              className={inputClass}
-              value={rewardKind}
-              onChange={(e) => setRewardKind(e.target.value)}
-            >
-              <option value="fixed_gbp">Fixed GBP</option>
-              <option value="percentage_of_qualifying_profit">Percentage</option>
-            </select>
-          </Field>
-        </div>
-        <Field label={rewardKind === 'fixed_gbp' ? 'Bonus amount (£)' : 'Bonus rate (%)'}>
-          <input
-            className={inputClass}
-            value={reward}
-            onChange={(e) => setReward(e.target.value)}
-          />
-        </Field>
-        <button className={buttonClass} disabled={working}>
-          {working ? 'Calculating…' : 'Calculate preview'}
-        </button>
-        {localError && <p className="text-sm text-rose-300">{localError}</p>}
-      </form>
+  const calculateService = async (kind: 'applications' | 'package') => {
+    setWorking(true)
+    setLocalError('')
+    setServiceResult(null)
+    try {
+      if (kind === 'applications') {
+        const [normal, urgent] = await Promise.all(
+          [
+            {
+              units: Number(applicationCount),
+              rate: applicationRate,
+              service: 'application_nadra',
+            },
+            {
+              units: Number(urgentApplicationCount),
+              rate: urgentApplicationRate,
+              service: 'application_nadra_urgent',
+            },
+          ].map((item) =>
+            fetchJson('/api/commissions/preview', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Idempotency-Key': requestKey(`preview-${item.service}`),
+              },
+              body: JSON.stringify({
+                component: {
+                  componentType: 'fixed_per_unit',
+                  sourceVariable: 'completed_application_count',
+                  recipientRole: 'application_agent',
+                  rateValue: item.rate,
+                  eligibleServices: [item.service],
+                  config: { previewOnly: true },
+                },
+                variables: { units: item.units, incompleteInputCount: 0 },
+              }),
+            }),
+          ),
+        )
+        setServiceResult({
+          kind,
+          normal: normal.result.amountGbp,
+          urgent: urgent.result.amountGbp,
+          total: Number(normal.result.amountGbp) + Number(urgent.result.amountGbp),
+        })
+      } else {
+        const passengers = Number(packagePassengers)
+        const selectedRate = passengers >= 4 ? largePackageRate : smallPackageRate
+        const response = await fetchJson('/api/commissions/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': requestKey('preview-package'),
+          },
+          body: JSON.stringify({
+            component: {
+              componentType: 'fixed_package',
+              recipientRole: 'package_sales',
+              rateValue: selectedRate,
+              eligibleServices: ['package_sale'],
+              config: { passengerBand: passengers >= 4 ? '4_plus' : '1_to_3' },
+            },
+            variables: { units: passengers, incompleteInputCount: 0 },
+          }),
+        })
+        setServiceResult({
+          kind,
+          passengers,
+          band: passengers >= 4 ? '4+ passengers' : '1–3 passengers',
+          total: response.result.amountGbp,
+        })
+      }
+    } catch (previewError) {
+      setLocalError(previewError instanceof Error ? previewError.message : 'Preview failed.')
+    } finally {
+      setWorking(false)
+    }
+  }
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        {!result ? (
-          <Empty text="Run the preview to see the calculation evidence." />
-        ) : (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Calculation evidence</h2>
-            <div className="space-y-2 rounded-lg bg-slate-950 p-4 font-mono text-sm">
-              <Formula label="Gross contributed profit" value={money(grossProfit)} />
-              <Formula label="Primary commission" value={`− ${money(result.primaryCost)}`} />
-              <Formula label="Assistant commission" value={`− ${money(assistantCost)}`} />
-              <Formula label="Low Fare saving" value={`+ ${money(lowFareSaving)}`} />
-              <Formula label="Low Fare finder commission" value={`− ${money(finderCost)}`} />
-              <div className="my-3 border-t border-slate-700" />
-              <Formula
-                label="Qualifying contributed profit"
-                value={money(result.qualifying)}
-                strong
+  return (
+    <div className="space-y-5">
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h2 className="text-lg font-semibold">Application commission preview</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Compare normal and urgent completed applications.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Field label="Normal applications">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                value={applicationCount}
+                onChange={(event) => setApplicationCount(event.target.value)}
               />
-            </div>
-            <div
-              className={`rounded-lg border p-5 ${
-                result.bonus.achieved
-                  ? 'border-emerald-500/40 bg-emerald-500/10'
-                  : 'border-amber-500/40 bg-amber-500/10'
-              }`}
-            >
-              <p className="text-sm text-slate-300">Target {money(result.bonus.thresholdGbp)}</p>
-              <p className="mt-1 text-2xl font-bold">
-                {result.bonus.achieved
-                  ? `Target reached · ${money(result.bonus.rewardGbp)} bonus`
-                  : 'Target not reached · no bonus'}
-              </p>
-            </div>
+            </Field>
+            <Field label="Normal rate (£)">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                step="0.01"
+                value={applicationRate}
+                onChange={(event) => setApplicationRate(event.target.value)}
+              />
+            </Field>
+            <Field label="Urgent applications">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                value={urgentApplicationCount}
+                onChange={(event) => setUrgentApplicationCount(event.target.value)}
+              />
+            </Field>
+            <Field label="Urgent rate (£)">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                step="0.01"
+                value={urgentApplicationRate}
+                onChange={(event) => setUrgentApplicationRate(event.target.value)}
+              />
+            </Field>
           </div>
-        )}
+          <button
+            type="button"
+            className={`${buttonClass} mt-4`}
+            disabled={working}
+            onClick={() => void calculateService('applications')}
+          >
+            Preview applications
+          </button>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h2 className="text-lg font-semibold">Package commission preview</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            A linked booking group is one package. The passenger count selects one package-wide
+            band.
+          </p>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <Field label="Passengers">
+              <input
+                className={inputClass}
+                type="number"
+                min="1"
+                value={packagePassengers}
+                onChange={(event) => setPackagePassengers(event.target.value)}
+              />
+            </Field>
+            <Field label="1–3 package (£)">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                step="0.01"
+                value={smallPackageRate}
+                onChange={(event) => setSmallPackageRate(event.target.value)}
+              />
+            </Field>
+            <Field label="4+ package (£)">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                step="0.01"
+                value={largePackageRate}
+                onChange={(event) => setLargePackageRate(event.target.value)}
+              />
+            </Field>
+          </div>
+          <button
+            type="button"
+            className={`${buttonClass} mt-4`}
+            disabled={working}
+            onClick={() => void calculateService('package')}
+          >
+            Preview package
+          </button>
+        </div>
+      </section>
+      {serviceResult && (
+        <section className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-5">
+          <p className="text-sm font-semibold text-cyan-100">
+            {serviceResult.kind === 'applications'
+              ? `Normal ${money(serviceResult.normal)} + urgent ${money(serviceResult.urgent)} = ${money(serviceResult.total)}`
+              : `${serviceResult.band} · one linked package = ${money(serviceResult.total)}`}
+          </p>
+          <p className="mt-1 text-xs text-cyan-200/75">
+            Synthetic preview only; no customer record or payable entry is created.
+          </p>
+        </section>
+      )}
+      <div className="grid gap-5 xl:grid-cols-[520px_1fr]">
+        <form
+          onSubmit={calculate}
+          className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5"
+        >
+          <div>
+            <h2 className="text-lg font-semibold">Synthetic sales-bonus preview</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              No customer data or entries are written. The preview itself is audited.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Passenger-tickets">
+              <input
+                className={inputClass}
+                value={tickets}
+                onChange={(e) => setTickets(e.target.value)}
+              />
+            </Field>
+            <Field label="Own-sale gross profit (£)">
+              <input
+                className={inputClass}
+                value={grossProfit}
+                onChange={(e) => setGrossProfit(e.target.value)}
+              />
+            </Field>
+            <Field label="Primary rate per ticket (£)">
+              <input
+                className={inputClass}
+                value={ticketRate}
+                onChange={(e) => setTicketRate(e.target.value)}
+              />
+            </Field>
+            <Field label="Assistant commission cost (£)">
+              <input
+                className={inputClass}
+                value={assistantCost}
+                onChange={(e) => setAssistantCost(e.target.value)}
+              />
+            </Field>
+            <Field label="Signed Low Fare saving (£)">
+              <input
+                className={inputClass}
+                value={lowFareSaving}
+                onChange={(e) => setLowFareSaving(e.target.value)}
+              />
+            </Field>
+            <Field label="Low Fare finder cost (£)">
+              <input
+                className={inputClass}
+                value={finderCost}
+                onChange={(e) => setFinderCost(e.target.value)}
+              />
+            </Field>
+            <Field label="Monthly target (£)">
+              <input
+                className={inputClass}
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+              />
+            </Field>
+            <Field label="Reward type">
+              <select
+                className={inputClass}
+                value={rewardKind}
+                onChange={(e) => setRewardKind(e.target.value)}
+              >
+                <option value="fixed_gbp">Fixed GBP</option>
+                <option value="percentage_of_qualifying_profit">Percentage</option>
+              </select>
+            </Field>
+          </div>
+          <Field label={rewardKind === 'fixed_gbp' ? 'Bonus amount (£)' : 'Bonus rate (%)'}>
+            <input
+              className={inputClass}
+              value={reward}
+              onChange={(e) => setReward(e.target.value)}
+            />
+          </Field>
+          <button className={buttonClass} disabled={working}>
+            {working ? 'Calculating…' : 'Calculate preview'}
+          </button>
+          {localError && <p className="text-sm text-rose-300">{localError}</p>}
+        </form>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+          {!result ? (
+            <Empty text="Run the preview to see the calculation evidence." />
+          ) : (
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Calculation evidence</h2>
+              <div className="space-y-2 rounded-lg bg-slate-950 p-4 font-mono text-sm">
+                <Formula label="Gross contributed profit" value={money(grossProfit)} />
+                <Formula label="Primary commission" value={`− ${money(result.primaryCost)}`} />
+                <Formula label="Assistant commission" value={`− ${money(assistantCost)}`} />
+                <Formula label="Low Fare saving" value={`+ ${money(lowFareSaving)}`} />
+                <Formula label="Low Fare finder commission" value={`− ${money(finderCost)}`} />
+                <div className="my-3 border-t border-slate-700" />
+                <Formula
+                  label="Qualifying contributed profit"
+                  value={money(result.qualifying)}
+                  strong
+                />
+              </div>
+              <div
+                className={`rounded-lg border p-5 ${
+                  result.bonus.achieved
+                    ? 'border-emerald-500/40 bg-emerald-500/10'
+                    : 'border-amber-500/40 bg-amber-500/10'
+                }`}
+              >
+                <p className="text-sm text-slate-300">Target {money(result.bonus.thresholdGbp)}</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {result.bonus.achieved
+                    ? `Target reached · ${money(result.bonus.rewardGbp)} bonus`
+                    : 'Target not reached · no bonus'}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1260,8 +1468,8 @@ function Exceptions({
       next: 'Assign the responsible package salesperson, then retry.',
     },
     package_source_not_authoritative: {
-      title: 'Package source is not authoritative',
-      next: 'Reconcile the package sale source before retrying.',
+      title: 'Package record is not ready for Commission',
+      next: 'Open the named package, correct every issue listed below, then retry this calculation.',
     },
     bonus_period_incomplete: {
       title: 'Monthly bonus inputs are incomplete',
@@ -1336,6 +1544,15 @@ function Exceptions({
                   (reason: unknown): reason is string => typeof reason === 'string',
                 )
               : []
+            const source = item.source && typeof item.source === 'object' ? item.source : {}
+            const packageReference =
+              typeof source.packageReference === 'string'
+                ? source.packageReference
+                : typeof details.packageReference === 'string'
+                  ? details.packageReference
+                  : typeof details.packageId === 'string'
+                    ? details.packageId
+                    : ''
             return (
               <article
                 key={item.id}
@@ -1354,6 +1571,19 @@ function Exceptions({
                         : ''}
                     </p>
                     <p className="mt-3 text-xs leading-5 text-slate-400">{help.next}</p>
+                    {item.code === 'package_source_not_authoritative' && packageReference && (
+                      <div className="mt-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+                        <span className="font-semibold">Package: {packageReference}</span>
+                        {typeof source.packageTitle === 'string' && source.packageTitle
+                          ? ` · ${source.packageTitle}`
+                          : ''}
+                        {typeof source.path === 'string' && source.path.startsWith('/') && (
+                          <Link href={source.path} className="ml-2 font-semibold underline">
+                            Open package
+                          </Link>
+                        )}
+                      </div>
+                    )}
                     {typeof details.reason === 'string' && (
                       <p className="mt-2 rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
                         {details.reason}

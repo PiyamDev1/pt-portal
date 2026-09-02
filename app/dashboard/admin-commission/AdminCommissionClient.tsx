@@ -39,6 +39,7 @@ import {
 import {
   COMMISSION_RATE_KINDS,
   COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION,
+  commissionExchangeRateAvailability,
   commissionProfileSchema,
   createDefaultCommissionProfile,
   type CommissionProfileInput,
@@ -1820,6 +1821,7 @@ export default function AdminCommissionClient({
             ?.currency || 'PKR'),
     )?.unitsPerGbp || 0,
   )
+  const exchangeAvailability = commissionExchangeRateAvailability(exchangeMonth)
 
   const selectedEmployee = data.employees.find((employee) => employee.id === selectedId) || null
   const selectedProfiles = useMemo(
@@ -2285,8 +2287,14 @@ export default function AdminCommissionClient({
           <p className="mt-1 max-w-xl text-xs leading-5 text-emerald-800">
             Enter units per £1 for any non-GBP ISO currency used by salary, a service rate, or a
             bonus. Original amounts remain in their payout currency while the matching GBP book
-            value is frozen. Once used by a calculation, the rate is locked.
+            value is frozen. A month becomes available on the 26th, after the remittance rate is
+            known. Once used by a calculation, the rate is locked.
           </p>
+          {!exchangeAvailability.available && (
+            <p className="mt-2 text-[11px] font-bold text-amber-700">
+              This month can be entered from {dateLabel(exchangeAvailability.opensOn)}.
+            </p>
+          )}
           {data.exchangeRates.length > 0 && (
             <p className="mt-2 text-[11px] font-bold text-emerald-700">
               Latest: {dateLabel(data.exchangeRates[0]!.periodStart)} ·{' '}
@@ -2321,6 +2329,7 @@ export default function AdminCommissionClient({
           Month
           <input
             type="month"
+            max={currentMonthStart().slice(0, 7)}
             value={exchangeMonth.slice(0, 7)}
             onChange={(event) => {
               const periodStart = `${event.target.value}-01`
@@ -2354,6 +2363,7 @@ export default function AdminCommissionClient({
             exchangeCurrency.length !== 3 ||
             exchangeCurrency === 'GBP' ||
             exchangeRate <= 0 ||
+            !exchangeAvailability.available ||
             !data.schemaReady
           }
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 text-xs font-black text-white disabled:opacity-50"

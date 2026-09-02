@@ -82,25 +82,80 @@ export async function GET(request: NextRequest) {
     : { data: [], error: null }
   if (employeeError) return commissionError('Unable to resolve Commission employee labels.', 500)
 
+  const sourceEventIds = [
+    ...new Set(pageRows.map((row) => row.source_event_id).filter((id): id is string => !!id)),
+  ]
+  const { data: sourceEvents, error: sourceEventError } = sourceEventIds.length
+    ? await service
+        .from('commission_source_events')
+        .select('id, source_module, source_record_id, source_fact_key, source_path, variables')
+        .in('id', sourceEventIds)
+    : { data: [], error: null }
+  if (sourceEventError) return commissionError('Unable to resolve Commission source details.', 500)
+
+  const packageIds = [
+    ...new Set(
+      (sourceEvents || [])
+        .filter((source) => source.source_module === 'packages')
+        .map((source) => source.source_record_id)
+        .filter((id): id is string => !!id),
+    ),
+  ]
+  const { data: packages, error: packageError } = packageIds.length
+    ? await service
+        .from('travel_packages')
+        .select('id, package_reference, title')
+        .in('id', packageIds)
+    : { data: [], error: null }
+  if (packageError) return commissionError('Unable to resolve Commission package labels.', 500)
+
   return apiOk(
     {
-      items: pageRows.map((row) => ({
-        id: row.id,
-        runId: row.run_id,
-        sourceEventId: row.source_event_id,
-        employeeId: row.employee_id,
-        employeeName: row.employee_id
-          ? employees?.find((employee) => employee.id === row.employee_id)?.full_name ||
-            'Unknown employee'
-          : null,
-        code: row.exception_code,
-        status: row.status,
-        details: row.details,
-        retryCount: row.retry_count,
-        lastRetriedAt: row.last_retried_at,
-        resolutionNote: row.resolution_note,
-        createdAt: row.created_at,
-      })),
+      items: pageRows.map((row) => {
+        const source = sourceEvents?.find((event) => event.id === row.source_event_id)
+        const sourcePackage = source?.source_record_id
+          ? packages?.find((item) => item.id === source.source_record_id)
+          : null
+        const variables =
+          source?.variables &&
+          typeof source.variables === 'object' &&
+          !Array.isArray(source.variables)
+            ? source.variables
+            : {}
+        return {
+          id: row.id,
+          runId: row.run_id,
+          sourceEventId: row.source_event_id,
+          employeeId: row.employee_id,
+          employeeName: row.employee_id
+            ? employees?.find((employee) => employee.id === row.employee_id)?.full_name ||
+              'Unknown employee'
+            : null,
+          code: row.exception_code,
+          status: row.status,
+          details: row.details,
+          retryCount: row.retry_count,
+          lastRetriedAt: row.last_retried_at,
+          resolutionNote: row.resolution_note,
+          createdAt: row.created_at,
+          source: source
+            ? {
+                module: source.source_module,
+                recordId: source.source_record_id,
+                factKey: source.source_fact_key,
+                path: source.source_path,
+                packageReference:
+                  sourcePackage?.package_reference ||
+                  (typeof variables.package_reference === 'string'
+                    ? variables.package_reference
+                    : typeof variables.packageReference === 'string'
+                      ? variables.packageReference
+                      : null),
+                packageTitle: sourcePackage?.title || null,
+              }
+            : null,
+        }
+      }),
       nextCursor:
         (rows || []).length > parsed.data.limit && pageRows.length
           ? encodeCommissionCursor(pageRows[pageRows.length - 1], filters)

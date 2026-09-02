@@ -51,5 +51,29 @@ export async function GET(request: NextRequest) {
     return commissionError('Unable to load the Commission staff report.', 500)
   }
 
-  return apiOk(data, COMMISSION_PRIVATE_RESPONSE)
+  const { data: adjustments, error: adjustmentError } = await access.supabase
+    .from('commission_adjustments')
+    .select('category, direction, exchange_rate_units_per_gbp, evidence')
+    .eq('period_start', bounds.periodStart)
+  if (adjustmentError) {
+    return commissionError('Unable to load company ADM responsibility.', 500)
+  }
+  const companyAdmImpactGbp = (adjustments || []).reduce((total, adjustment) => {
+    if (adjustment.category !== 'adm') return total
+    const evidence =
+      adjustment.evidence &&
+      typeof adjustment.evidence === 'object' &&
+      !Array.isArray(adjustment.evidence)
+        ? adjustment.evidence
+        : {}
+    const companyShare = Number(evidence.companySharePayCurrency || 0)
+    const rate = Number(adjustment.exchange_rate_units_per_gbp || 0)
+    if (!Number.isFinite(companyShare) || !Number.isFinite(rate) || rate <= 0) return total
+    return total + (adjustment.direction === 'debit' ? companyShare / rate : -companyShare / rate)
+  }, 0)
+
+  return apiOk(
+    { ...data, companyAdmImpactGbp: Math.round(companyAdmImpactGbp * 100) / 100 },
+    COMMISSION_PRIVATE_RESPONSE,
+  )
 }

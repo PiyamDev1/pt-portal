@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ACTOR_ID = '10000000-0000-4000-8000-000000000001'
 const EMPLOYEE_ID = '20000000-0000-4000-8000-000000000001'
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   requireCommissionManager: vi.fn(),
   hasCommissionCapability: vi.fn(),
   rpc: vi.fn(),
+  from: vi.fn(),
 }))
 
 vi.mock('@/lib/commissions/server', () => ({
@@ -36,15 +37,44 @@ function post(path: string, body: unknown, key: string | null = 'workflow-reques
 
 describe('Commission staff report and Accounting handoff routes', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-02T12:00:00Z'))
     vi.clearAllMocks()
     mocks.hasCommissionCapability.mockResolvedValue(true)
     mocks.requireCommissionManager.mockResolvedValue({
       authorized: true,
       employee: { id: ACTOR_ID, role: 'Admin' },
       user: { id: ACTOR_ID },
-      supabase: { rpc: mocks.rpc },
+      supabase: { rpc: mocks.rpc, from: mocks.from },
+    })
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'commission_adjustments') {
+        return { select: () => ({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }
+      }
+      if (table === 'ticket_bookings') {
+        const chain = {
+          eq: vi.fn(),
+          is: vi.fn(),
+          limit: vi.fn().mockResolvedValue({
+            data: [
+              {
+                id: '50000000-0000-4000-8000-000000000001',
+                pnr: 'ABC123',
+                owner_employee_id: EMPLOYEE_ID,
+              },
+            ],
+            error: null,
+          }),
+        }
+        chain.eq.mockReturnValue(chain)
+        chain.is.mockReturnValue(chain)
+        return { select: () => chain }
+      }
+      throw new Error(`Unexpected table ${table}`)
     })
   })
+
+  afterEach(() => vi.useRealTimers())
 
   it('loads a strict calendar-month report through the current-only staff RPC', async () => {
     mocks.rpc.mockResolvedValue({
@@ -116,9 +146,12 @@ describe('Commission staff report and Accounting handoff routes', () => {
         category: 'adm',
         amount: 125.5,
         currency: ' pkr ',
-        periodStart: '2026-08-01',
+        periodStart: '2026-09-01',
         reason: '  Airline debit memo  ',
         evidence: { reference: 'ADM-42' },
+        pnr: 'ABC123',
+        admReference: 'ADM-42',
+        companyShare: 24.5,
       }),
     )
 
@@ -131,9 +164,16 @@ describe('Commission staff report and Accounting handoff routes', () => {
       p_direction: 'debit',
       p_amount_pay_currency: 125.5,
       p_pay_currency: 'PKR',
-      p_period_start: '2026-08-01',
+      p_period_start: '2026-09-01',
       p_reason: 'Airline debit memo',
-      p_evidence: { reference: 'ADM-42' },
+      p_evidence: expect.objectContaining({
+        reference: 'ADM-42',
+        pnr: 'ABC123',
+        admReference: 'ADM-42',
+        employeeSharePayCurrency: 125.5,
+        companySharePayCurrency: 24.5,
+        totalAdmPayCurrency: 150,
+      }),
       p_reverses_adjustment_id: null,
       p_request_key: 'workflow-request-0001',
     })
@@ -202,8 +242,10 @@ describe('Commission staff report and Accounting handoff routes', () => {
         category: 'adm',
         amount: 25,
         currency: 'GBP',
-        periodStart: '2026-08-01',
+        periodStart: '2026-09-01',
         reason: 'Airline debit memo',
+        pnr: 'ABC123',
+        admReference: 'ADM-42',
       }),
     )
 
