@@ -119,19 +119,46 @@ $date_package_commission_after_return$;
 do $defer_future_commission_events$
 declare
   definition text;
-  old_fragment text := $old$
-      where source.event_type not in (
-$old$;
-  new_fragment text := $new$
-      where source.effective_on <= current_date
-        and source.event_type not in (
-$new$;
+  lowered_definition text;
+  claim_position integer;
+  claim_where_relative_position integer;
+  insertion_position integer;
+  claim_prefix text;
 begin
   select pg_get_functiondef(
     'public.commission_process_shadow_core_2026090201(uuid,integer,text)'::regprocedure
   ) into definition;
   if position('source.effective_on <= current_date' in definition) = 0 then
-    definition := replace(definition, old_fragment, new_fragment);
+    lowered_definition := lower(definition);
+    claim_position := position('with claimed as (' in lowered_definition);
+    if claim_position = 0 then
+      raise exception 'Commission processor claim query was not found'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+
+    claim_where_relative_position := position(
+      'where ' in substring(lowered_definition from claim_position)
+    );
+    if claim_where_relative_position = 0 then
+      raise exception 'Commission processor claim predicate was not found'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+
+    claim_prefix := substring(
+      lowered_definition
+      from claim_position
+      for claim_where_relative_position - 1
+    );
+    if position('commission_source_events source' in claim_prefix) = 0 then
+      raise exception 'Commission processor claim source alias was not found'
+        using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
+    end if;
+
+    insertion_position := claim_position + claim_where_relative_position + 5;
+    definition := overlay(
+      definition placing 'source.effective_on <= current_date and '
+      from insertion_position for 0
+    );
     if position('source.effective_on <= current_date' in definition) = 0 then
       raise exception 'Future Commission event deferral could not be installed'
         using errcode = '55000', hint = 'COMMISSION_SCHEMA_DRIFT';
