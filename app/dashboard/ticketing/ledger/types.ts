@@ -97,7 +97,6 @@ export type TicketFareInput = {
 
 export type CreateTkTicketInput = {
   customerName: string
-  contactEmail: string | null
   pnr: string
   airlineId: string
   supplierCode: TicketSupplierCode

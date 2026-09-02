@@ -398,13 +398,16 @@ Updates lifecycle, customer, responsibility, and public-summary fields.
 `assignedAgentId`, `salesResponsibleEmployeeId`, `bookingResponsibleEmployeeId`,
 `modifyResponsibleEmployeeId`, `serviceResponsibleEmployeeId`, `nextAction`, `nextActionDueAt`,
 `cancellationReason`, `currentPublicSummary: object`. Responsibility value `none` clears the ID.
-Cancellation requires a new or existing reason. Status transitions stamp lifecycle timestamps;
-customer name refreshes the portal surname.
+Cancellation requires a new or existing reason. Selecting `closed` is presented to staff as
+**Complete - Checked** and is allowed only on or after a recorded return date. It stores the checker
+and check time in metadata and sets the Commission earning date to return date + 3 days. Other
+status transitions stamp their lifecycle timestamps; customer name refreshes the portal surname.
 
 **Success:** `200 { package: TravelPackageFolder, setupRequired: false }` plus audit event.
 
 **Errors:** `400` invalid JSON/status/passport status, missing cancellation reason, or no changes;
-`401`; `404`; `409` disallowed transition; `503` schema missing; `500` update failure.
+`401`; `404`; `409` disallowed transition or completion before return; `503` schema missing; `500`
+update failure.
 
 ### GET `/api/travel-packages/[id]/commission-readiness`
 
@@ -425,11 +428,13 @@ calculation-row, and invoice-reference-row counts. A closed Package may also inc
 source `eventVersion`, processing status/error code, state update time, and whether that event still
 matches the current source snapshot.
 
-**Side effects:** None. Package closure separately emits the immutable source event; this endpoint
-only reads readiness and processing state.
+**Side effects:** None. Marking the folder Complete - Checked separately emits the immutable source
+event. Its effective date is three days after return, and future-dated events remain queued for the
+normal Commission cron. Invoice customer release is not required, although an outstanding balance
+still prevents authoritative handoff. This endpoint only reads readiness and processing state.
 
 **Errors:** `400` invalid UUID; `401` signed out; `404` Package unavailable; `503` until Commission
-capability `2026083004` is installed; `500` database or response-contract failure.
+capability `2026090202` is installed; `500` database or response-contract failure.
 
 ### POST `/api/travel-packages/[id]/quote-sync`
 

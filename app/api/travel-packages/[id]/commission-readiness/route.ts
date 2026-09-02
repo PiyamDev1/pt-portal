@@ -7,7 +7,7 @@ import {
   commissionError,
   hasCommissionCapability,
 } from '@/lib/commissions/api'
-import { COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION } from '@/lib/commissions/contracts'
+import { COMMISSION_PACKAGE_RETURN_PAYOUT_CAPABILITY_VERSION } from '@/lib/commissions/contracts'
 import { parsePackageCommissionReadiness } from '@/lib/commissions/packageReadiness'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +35,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     return commissionError('Package not found.', 404)
   }
 
-  if (!(await hasCommissionCapability(COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION))) {
+  if (!(await hasCommissionCapability(COMMISSION_PACKAGE_RETURN_PAYOUT_CAPABILITY_VERSION))) {
     return commissionError('Package Commission readiness is not installed.', 503)
   }
 

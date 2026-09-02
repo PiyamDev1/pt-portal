@@ -201,6 +201,10 @@ function getPackageStatusClass(status: string) {
   return 'bg-red-50 text-[#8b1e2d]'
 }
 
+function getPackageStatusLabel(status: string) {
+  return status === 'closed' ? 'Complete - Checked' : status.replace(/_/g, ' ')
+}
+
 function getPackageRiskClass(level: TravelPackageFolder['risk_level']) {
   if (level === 'critical') return 'border-red-200 bg-red-50 text-red-700'
   if (level === 'high') return 'border-orange-200 bg-orange-50 text-orange-700'
@@ -688,7 +692,7 @@ export default function PackagesDashboardClient({
                             packageFolder.status,
                           )}`}
                         >
-                          {packageFolder.status.replace(/_/g, ' ')}
+                          {getPackageStatusLabel(packageFolder.status)}
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-3">

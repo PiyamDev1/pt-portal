@@ -11,7 +11,7 @@ This guide is the current operational and technical reference for the native PT-
 5. The agent converts one finalised selection into one operational package folder. Conversion snapshots the quote and creates initial reservation/payment records so later quote edits do not silently change the sale.
 6. Staff manage passengers, responsibilities, reservations and line items, supplier costs, invoices, payments/installments/refunds, documents, transport vouchers, tasks, deadlines, risks, communications, and audit events in `/dashboard/packages/[id]`.
 7. Workflow synchronization derives payment state, next action, overdue work, and risks. Status changes follow the transition rules in `lib/packageWorkflow.ts`; cancellation requires a reason.
-8. After travel, staff reconcile costs/refunds/commission, mark the customer returned, and close the package when it is complete and earned.
+8. After travel, staff mark the customer returned, double-check the folder, and select **Complete - Checked**. This is stored as the existing terminal `closed` state. Package commission is dated three days after the return date and the normal Commission cron applies it on or after that date.
 
 Quotes and operational folders are different records: `travel_package_quotes` is the offer/selection surface; `travel_packages` is the post-sale operational source of truth.
 
@@ -37,7 +37,7 @@ Invoices are derived from non-cancelled reservations/items and can be adjusted t
 
 Payments support deposits, payments, previous-package account credits, refunds, chargebacks, and commission. Account credit requires the previous package/refund reference. Refund records are positive movements so the original sale and booked-cost history remain auditable. Package payment and invoice totals are recalculated after financial mutations.
 
-Installment schedules and payment links belong to the package payment plan. Workflow sync marks overdue installments and raises follow-up risks. Staff should reconcile payments, refunds, supplier refunds, and commission before closing a returned package.
+Installment schedules and payment links belong to the package payment plan. Workflow sync marks overdue installments and raises follow-up risks. Staff should reconcile payments, refunds, supplier refunds, and commission before marking a returned folder Complete - Checked. The internal invoice must reconcile and have no outstanding balance, but it does not need to be released to the customer for commission.
 
 ## Documents and customer portals
 
@@ -78,11 +78,9 @@ Apply the package migrations in filename order:
 6. `20260712_finalize_travel_package_workflow.sql`
 7. `20260721_create_travel_package_groups.sql`
 8. `20260731_add_travel_documents_package_category.sql`
-9. `20260731_add_travel_package_sales_employee.sql`
-10. `20260803_create_travel_package_third_party_document_shares.sql`
-11. `20260807_add_package_responsibility_agents.sql`
-12. `20260810_add_travel_package_reservation_refunds.sql`
-13. `20260811_add_travel_package_discount_types.sql`
+
+Commission-enabled environments must also apply `20260902_commission_package_return_payout.sql`
+after Commission capability `2026090201`. 9. `20260731_add_travel_package_sales_employee.sql` 10. `20260803_create_travel_package_third_party_document_shares.sql` 11. `20260807_add_package_responsibility_agents.sql` 12. `20260810_add_travel_package_reservation_refunds.sql` 13. `20260811_add_travel_package_discount_types.sql`
 
 For the saved Umrah transport supplier/rate matrix used by the quotation editor, also apply `20260714_create_umrah_transport_pricing.sql` between the July 12 and July 21 package migrations. The core quote editor can still use manually entered transport options when that separate pricing capability is absent.
 

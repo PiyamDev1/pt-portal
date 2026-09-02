@@ -687,20 +687,6 @@ export async function POST(request: NextRequest) {
     return apiError('Ticketing returned an invalid save result.', 500)
   }
 
-  if (entry.contactEmail) {
-    const { error: emailError } = await supabase
-      .from('ticket_bookings')
-      .update({ contact_email: entry.contactEmail })
-      .eq('id', rpcResult.booking.id)
-    if (emailError) {
-      console.error('[ticketing] customer portal email update failed', { code: emailError.code })
-      return apiError(
-        'The ticket was saved, but its customer portal email could not be linked. Retry the same entry.',
-        500,
-      )
-    }
-  }
-
   const packageMatchStatus = rpcResult.packageMatch?.status
   const operationalStatus = rpcResult.transaction.operationalStatus
   const pricingSource = rpcResult.pricingSource

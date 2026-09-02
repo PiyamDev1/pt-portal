@@ -25,7 +25,7 @@ export type PackageCommissionReadiness = {
 }
 
 export const PACKAGE_COMMISSION_ISSUE_LABELS: Record<string, string> = {
-  package_not_closed: 'Close the package when all operational work is complete.',
+  package_not_closed: 'After return, double-check the folder and mark it Complete - Checked.',
   missing_earned_date: 'The package is missing its earned or closed date.',
   missing_sales_employee: 'Assign the responsible sales employee.',
   missing_package_location: 'Assign the package to a branch.',
@@ -35,7 +35,7 @@ export const PACKAGE_COMMISSION_ISSUE_LABELS: Record<string, string> = {
   invalid_shared_transport_structure:
     'Keep exactly one physical Group main transport for the family reference rows.',
   missing_active_invoice: 'Create an active package invoice.',
-  invoice_not_settled: 'Settle and close or release the active invoice.',
+  invoice_not_settled: 'Settle the outstanding invoice balance. Customer release is not required.',
   supplier_commission_not_reconciled:
     'Reconcile received supplier commission between reservations and the invoice.',
   invoice_sales_not_reconciled: 'Reconcile invoice sales with the reservation totals.',

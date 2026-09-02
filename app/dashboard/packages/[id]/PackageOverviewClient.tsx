@@ -2604,7 +2604,7 @@ Please enter the access code and accept the data handling terms before downloadi
         <PackageStatusCard
           icon={PackageCheck}
           label="Package status"
-          value={packageFolder.status}
+          value={packageFolder.status === 'closed' ? 'Complete - Checked' : packageFolder.status}
         />
         <PackageStatusCard
           icon={ShieldCheck}

@@ -62,7 +62,7 @@ describe('GET Package Commission readiness', () => {
     mocks.maybeSingle.mockResolvedValue({ data: { id: PACKAGE_ID }, error: null })
     mocks.rpc.mockImplementation(async (functionName: string) =>
       functionName === 'commission_schema_status'
-        ? { data: { ready: true, version: 2026083004, mode: 'shadow' }, error: null }
+        ? { data: { ready: true, version: 2026090202, mode: 'shadow' }, error: null }
         : { data: readiness, error: null },
     )
   })
@@ -107,7 +107,7 @@ describe('GET Package Commission readiness', () => {
 
   it('fails closed when the database capability is not installed', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: { ready: true, version: 2026083003, mode: 'shadow' },
+      data: { ready: true, version: 2026090201, mode: 'shadow' },
       error: null,
     })
 

@@ -10,6 +10,8 @@ import {
 import {
   canTransitionTravelPackageStatus,
   getLifecycleTimestampUpdate,
+  getPackageCommissionPayoutDate,
+  hasPackageReturnDateElapsed,
 } from '@/lib/packageWorkflow'
 
 const SCHEMA_HINT =
@@ -177,6 +179,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   )
     ? cleanOptionalId(body.salesResponsibleEmployeeId)
     : existing.sales_responsible_employee_id || existing.sales_employee_id
+  const requestedReturnDate = Object.prototype.hasOwnProperty.call(body, 'returnDate')
+    ? cleanText(body.returnDate) || null
+    : existing.return_date
 
   if (Object.prototype.hasOwnProperty.call(body, 'status')) {
     const status = cleanText(body.status) as TravelPackageFolderStatus
@@ -197,8 +202,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         400,
       )
     }
+    if (status === 'closed' && !requestedReturnDate) {
+      return apiError('Set the package return date before marking it Complete - Checked.', 400)
+    }
+    if (status === 'closed' && !hasPackageReturnDateElapsed(requestedReturnDate)) {
+      return apiError(
+        'The package can only be marked Complete - Checked on or after its return date.',
+        409,
+      )
+    }
     update.status = status
-    Object.assign(update, getLifecycleTimestampUpdate(status))
+    Object.assign(update, getLifecycleTimestampUpdate(status, undefined, requestedReturnDate))
+    if (status === 'closed') {
+      update.next_action = 'Complete - Checked'
+      update.next_action_due_at = null
+      update.metadata = {
+        ...(existing.metadata || {}),
+        completionCheckedAt: new Date().toISOString(),
+        completionCheckedBy: user.id,
+        commissionPayoutDate: getPackageCommissionPayoutDate(requestedReturnDate),
+      }
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(body, 'passportStatus')) {
@@ -278,7 +302,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
     update.metadata = {
-      ...(existing.metadata || {}),
+      ...((update.metadata as Record<string, unknown> | undefined) || existing.metadata || {}),
       [PACKAGE_AGENT_COMMISSION_METADATA_KEY]: allocations,
       agentCommissionCaptureStatus: 'provisional',
       agentCommissionUpdatedAt: new Date().toISOString(),
@@ -309,7 +333,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       eventType: existing.status !== updated.status ? 'package_status_changed' : 'package_updated',
       eventSummary:
         existing.status !== updated.status
-          ? `Package status changed from ${existing.status} to ${updated.status}.`
+          ? updated.status === 'closed'
+            ? 'Package double-checked and marked Complete - Checked.'
+            : `Package status changed from ${existing.status} to ${updated.status}.`
           : 'Package details updated.',
       beforeData: existing,
       afterData: updated,

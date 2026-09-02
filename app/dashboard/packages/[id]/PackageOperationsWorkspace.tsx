@@ -48,6 +48,7 @@ import { formatMoney } from '@/lib/packageQuote'
 import {
   calculatePackagePaymentSummary,
   getTravelPackageStatusTransitions,
+  getPackageCommissionPayoutDate,
 } from '@/lib/packageWorkflow'
 import {
   cleanTransportVoucherVehicleLabel,
@@ -69,6 +70,7 @@ import {
   formatVoucherPassengers,
   getVehicleCapacity,
   label,
+  packageStatusLabel,
   normalizeVoucherVehicleFields,
   readApiResponse,
   type OperationsResponse,
@@ -637,23 +639,28 @@ export default function PackageOperationsWorkspace({
       return
     }
     if (status === 'closed') {
+      if (!packageFolder.return_date) {
+        toast.error('Set the package return date before completing the final check.')
+        return
+      }
+      const payoutDate = getPackageCommissionPayoutDate(packageFolder.return_date)
       const freshReadiness = await loadCommissionReadiness()
       if (freshReadiness?.issues.includes('missing_sales_employee')) {
         toast.error('Assign the responsible sales employee before closing this package.')
         return
       }
-      if (!freshReadiness?.handoffReady) {
-        const issueSummary = freshReadiness?.issues.length
-          ? `${freshReadiness.issues.length} source check${freshReadiness.issues.length === 1 ? '' : 's'} still need attention.`
-          : 'Commission readiness could not be verified.'
-        const shouldClose = await confirm({
-          title: 'Close package with Commission issues?',
-          message: `${issueSummary} The package can still be closed, but its non-payable Commission calculation may be held for Admin review.`,
-          confirmLabel: 'Close package anyway',
-          type: 'warning',
-        })
-        if (!shouldClose) return
-      }
+      const issueSummary = !freshReadiness?.handoffReady
+        ? freshReadiness?.issues.length
+          ? ` ${freshReadiness.issues.length} source check${freshReadiness.issues.length === 1 ? '' : 's'} still need attention, so Commission may be held for Admin review.`
+          : ' Commission readiness could not be verified.'
+        : ''
+      const shouldClose = await confirm({
+        title: 'Mark this folder Complete - Checked?',
+        message: `Confirm that you have double-checked the package folder after the customer returned.${issueSummary} Commission will be applied with a payout date of ${payoutDate || 'three days after return'}; releasing the invoice is not required.`,
+        confirmLabel: 'Complete - Checked',
+        type: freshReadiness?.handoffReady ? 'info' : 'warning',
+      })
+      if (!shouldClose) return
     }
     await patchPackage({ status })
   }
@@ -1535,7 +1542,7 @@ export default function PackageOperationsWorkspace({
                         >
                           {availableStatuses.map((status) => (
                             <option key={status} value={status}>
-                              {label(status)}
+                              {packageStatusLabel(status)}
                             </option>
                           ))}
                         </select>

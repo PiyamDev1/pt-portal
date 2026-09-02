@@ -38,7 +38,7 @@ export class TicketLedgerApiError extends Error {
 export async function loadTicketLedger(
   options: { search?: string; cursor?: string } = {},
 ): Promise<TicketLedgerPayload> {
-  const search = new URLSearchParams({ limit: '100' })
+  const search = new URLSearchParams({ limit: '25' })
   if (options.search?.trim()) search.set('search', options.search.trim())
   if (options.cursor) search.set('cursor', options.cursor)
   const response = await fetch(`/api/ticketing/ledger?${search.toString()}`, { cache: 'no-store' })

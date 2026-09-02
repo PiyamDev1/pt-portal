@@ -32,6 +32,9 @@ export function TicketingLedgerClient() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [currentCursor, setCurrentCursor] = useState<string | undefined>()
+  const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([])
+  const [pageNumber, setPageNumber] = useState(1)
   const [currentTimeMs, setCurrentTimeMs] = useState(0)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
@@ -61,12 +64,13 @@ export function TicketingLedgerClient() {
       else setIsRefreshing(true)
       try {
         const nextPayload = await loadTicketLedger({ search, cursor })
-        setPayload((current) =>
-          cursor && current
-            ? { ...nextPayload, items: [...current.items, ...nextPayload.items] }
-            : nextPayload,
-        )
+        setPayload(nextPayload)
         setNextCursor(nextPayload.nextCursor)
+        if (initial) {
+          setCurrentCursor(undefined)
+          setPreviousCursors([])
+          setPageNumber(1)
+        }
         setLoadError('')
       } catch (error) {
         setLoadError(
@@ -221,14 +225,14 @@ export function TicketingLedgerClient() {
             employeeName={payload.context.employeeName}
             canManageAttribution={payload.context.canManageAttribution}
             attributionEmployees={payload.context.attributionEmployees}
-            onCreated={() => refresh()}
+            onCreated={() => refresh(false, currentCursor)}
           />
         ) : (
           <TicketFollowOnEntryForm
             key={entryType}
             serviceType={entryType}
             timezone={payload.context.timezone}
-            onCreated={() => refresh()}
+            onCreated={() => refresh(false, currentCursor)}
           />
         )}
       </section>
@@ -256,7 +260,7 @@ export function TicketingLedgerClient() {
               Latest ticket records
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Showing {filteredItems.length} of {payload.items.length} loaded ticket records
+              Page {pageNumber} · showing {filteredItems.length} of {payload.items.length} records
             </p>
           </div>
 
@@ -295,7 +299,7 @@ export function TicketingLedgerClient() {
             </label>
             <button
               type="button"
-              onClick={() => void refresh()}
+              onClick={() => void refresh(false, currentCursor)}
               disabled={isRefreshing}
               aria-label="Refresh sales ledger"
               className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
@@ -334,16 +338,37 @@ export function TicketingLedgerClient() {
           onRequestChange={(item, requestType) => setSelectedChangeRequest({ item, requestType })}
         />
 
-        {nextCursor && (
+        <nav aria-label="Ticket record pages" className="flex items-center justify-center gap-3">
           <button
             type="button"
-            onClick={() => void refresh(false, nextCursor)}
-            disabled={isLoadingMore || isRefreshing}
-            className="ui-tap ui-focus mx-auto inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            disabled={previousCursors.length === 0 || isLoadingMore || isRefreshing}
+            onClick={() => {
+              const target = previousCursors[previousCursors.length - 1]
+              setPreviousCursors((current) => current.slice(0, -1))
+              setCurrentCursor(target)
+              setPageNumber((current) => Math.max(1, current - 1))
+              void refresh(false, target)
+            }}
+            className="ui-tap ui-focus min-h-11 rounded-xl border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 disabled:opacity-50"
           >
-            {isLoadingMore ? 'Loading more records' : 'Load more records'}
+            Previous
           </button>
-        )}
+          <span className="text-sm font-black text-slate-700">Page {pageNumber}</span>
+          <button
+            type="button"
+            disabled={!nextCursor || isLoadingMore || isRefreshing}
+            onClick={() => {
+              if (!nextCursor) return
+              setPreviousCursors((current) => [...current, currentCursor])
+              setCurrentCursor(nextCursor)
+              setPageNumber((current) => current + 1)
+              void refresh(false, nextCursor)
+            }}
+            className="ui-tap ui-focus min-h-11 rounded-xl border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 disabled:opacity-50"
+          >
+            {isLoadingMore ? 'Loading…' : 'Next'}
+          </button>
+        </nav>
       </section>
 
       <TicketCompletionDrawer
@@ -359,7 +384,7 @@ export function TicketingLedgerClient() {
             setActiveAmendmentRequestId(null)
             setRequestRefreshToken((current) => current + 1)
           }
-          await refresh()
+          await refresh(false, currentCursor)
         }}
       />
 
@@ -367,7 +392,7 @@ export function TicketingLedgerClient() {
         item={selectedItineraryItem}
         airlines={payload.airlines}
         onClose={() => setSelectedItineraryItem(null)}
-        onSaved={() => refresh()}
+        onSaved={() => refresh(false, currentCursor)}
       />
 
       {selectedPaymentItem && (
@@ -376,7 +401,7 @@ export function TicketingLedgerClient() {
           item={selectedPaymentItem}
           timezone={payload.context.timezone}
           onClose={() => setSelectedPaymentItem(null)}
-          onSaved={() => refresh()}
+          onSaved={() => refresh(false, currentCursor)}
         />
       )}
 
@@ -386,7 +411,7 @@ export function TicketingLedgerClient() {
           item={selectedAttributionItem}
           employees={payload.context.attributionEmployees}
           onClose={() => setSelectedAttributionItem(null)}
-          onSaved={() => refresh()}
+          onSaved={() => refresh(false, currentCursor)}
         />
       )}
 
@@ -395,7 +420,7 @@ export function TicketingLedgerClient() {
           key={`${selectedDateItem.transactionId}:${selectedDateItem.transactionVersion}`}
           item={selectedDateItem}
           onClose={() => setSelectedDateItem(null)}
-          onSaved={() => refresh()}
+          onSaved={() => refresh(false, currentCursor)}
         />
       )}
 
@@ -406,7 +431,7 @@ export function TicketingLedgerClient() {
           onClose={() => setSelectedArchiveItem(null)}
           onArchived={async () => {
             setRequestRefreshToken((current) => current + 1)
-            await refresh()
+            await refresh(false, currentCursor)
           }}
         />
       )}
@@ -419,7 +444,7 @@ export function TicketingLedgerClient() {
           onClose={() => setSelectedChangeRequest(null)}
           onRequested={async () => {
             setRequestRefreshToken((current) => current + 1)
-            await refresh()
+            await refresh(false, currentCursor)
           }}
         />
       )}

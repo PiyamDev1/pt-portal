@@ -117,6 +117,22 @@ function daysUntil(value: string | null | undefined, now: number) {
   return Math.ceil((target - now) / (24 * 60 * 60 * 1000))
 }
 
+export function getPackageCommissionPayoutDate(returnDate: string | null | undefined) {
+  if (!returnDate || !/^\d{4}-\d{2}-\d{2}$/.test(returnDate)) return null
+  const date = new Date(`${returnDate}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) return null
+  date.setUTCDate(date.getUTCDate() + 3)
+  return date.toISOString().slice(0, 10)
+}
+
+export function hasPackageReturnDateElapsed(
+  returnDate: string | null | undefined,
+  now = new Date(),
+) {
+  if (!returnDate || !/^\d{4}-\d{2}-\d{2}$/.test(returnDate)) return false
+  return returnDate <= now.toISOString().slice(0, 10)
+}
+
 export function canTransitionTravelPackageStatus(
   from: TravelPackageFolderStatus,
   to: TravelPackageFolderStatus,
@@ -344,9 +360,9 @@ export function derivePackageWorkflow(input: {
     risks.push({
       riskType: 'returned_not_closed',
       severity: Math.abs(returnDays) > 14 ? 'high' : 'medium',
-      title: 'Returned package needs closing',
+      title: 'Returned package needs a final check',
       description:
-        'Complete supplier, refund, and commission checks before marking the package earned.',
+        'Double-check the folder, then mark it Complete - Checked. Commission is dated three days after return.',
     })
   }
 
@@ -354,10 +370,9 @@ export function derivePackageWorkflow(input: {
   let nextActionDueAt: string | null = null
 
   if (TERMINAL_PACKAGE_STATUSES.has(packageFolder.status)) {
-    nextAction =
-      packageFolder.status === 'closed' ? 'Package complete and earned' : 'No action required'
+    nextAction = packageFolder.status === 'closed' ? 'Complete - Checked' : 'No action required'
   } else if (packageFolder.status === 'returned') {
-    nextAction = 'Reconcile costs and close package'
+    nextAction = 'Double-check and mark Complete - Checked'
   } else if (packageFolder.passport_status !== 'ready') {
     nextAction =
       packageFolder.passport_status === 'issues_found'
@@ -426,10 +441,17 @@ export function derivePackageWorkflow(input: {
 export function getLifecycleTimestampUpdate(
   status: TravelPackageFolderStatus,
   now = new Date().toISOString(),
+  returnDate?: string | null,
 ) {
   if (status === 'travelling') return { travelled_at: now }
   if (status === 'returned') return { returned_at: now }
-  if (status === 'closed') return { closed_at: now, earned_at: now }
+  if (status === 'closed') {
+    const payoutDate = getPackageCommissionPayoutDate(returnDate)
+    return {
+      closed_at: now,
+      earned_at: payoutDate ? `${payoutDate}T00:00:00.000Z` : now,
+    }
+  }
   if (status === 'archived') return { archived_at: now }
   return {}
 }

@@ -94,6 +94,10 @@ export function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
+export function packageStatusLabel(value: string) {
+  return value === 'closed' ? 'Complete - Checked' : label(value)
+}
+
 export function employeeLabel(employee: { full_name: string | null; email?: string | null }) {
   return employee.full_name || employee.email || 'Unnamed employee'
 }

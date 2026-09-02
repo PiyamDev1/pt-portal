@@ -31,7 +31,6 @@ type FareDraft = Record<
 
 type QuickEntryDraft = {
   customerName: string
-  contactEmail: string
   pnr: string
   airlineCode: string
   supplierCode: TicketSupplierCode
@@ -72,7 +71,6 @@ function initialDraft(
   const today = todayInTimezone(timezone)
   return {
     customerName: '',
-    contactEmail: '',
     pnr: '',
     airlineCode,
     supplierCode: 'sabre_polani',
@@ -198,7 +196,6 @@ export function TicketQuickEntryForm({
   const validate = (): { input?: CreateTkTicketInput; errors: QuickEntryErrors } => {
     const nextErrors: QuickEntryErrors = {}
     const customerName = draft.customerName.trim()
-    const contactEmail = draft.contactEmail.trim().toLowerCase()
     const pnr = draft.pnr.trim().toUpperCase().replace(/\s+/g, '')
     const airline = airlines.find(
       (option) => option.iataCode.toUpperCase() === draft.airlineCode.trim().toUpperCase(),
@@ -206,9 +203,6 @@ export function TicketQuickEntryForm({
     const attributionOverride = canManageAttribution && draft.responsibleEmployeeId !== employeeId
 
     if (!customerName) nextErrors.customerName = 'Enter the customer or lead passenger name.'
-    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-      nextErrors.contactEmail = 'Enter a valid customer email or leave this blank.'
-    }
     if (!pnr) nextErrors.pnr = 'Enter the PNR.'
     if (!airline) nextErrors.airlineCode = 'Choose an active airline code from the list.'
     if (!draft.bookingDate) nextErrors.bookingDate = 'Enter the booking date.'
@@ -329,7 +323,6 @@ export function TicketQuickEntryForm({
       errors: {},
       input: {
         customerName,
-        contactEmail: contactEmail || null,
         pnr,
         airlineId: airline.id,
         supplierCode: draft.supplierCode,
@@ -458,25 +451,6 @@ export function TicketQuickEntryForm({
                 placeholder="Name Surname or Surname / Name"
               />
               <FieldError id="ticket-customer-error" message={errors.customerName} />
-            </label>
-
-            <label className="text-xs font-bold text-slate-700 sm:col-span-2 xl:col-span-2">
-              Customer email (portal trips)
-              <input
-                type="email"
-                value={draft.contactEmail}
-                onChange={(event) =>
-                  updateDraft((current) => ({ ...current, contactEmail: event.target.value }))
-                }
-                autoComplete="email"
-                disabled={isSaving}
-                aria-label="Customer email for portal trips"
-                aria-invalid={Boolean(errors.contactEmail)}
-                aria-describedby={errors.contactEmail ? 'ticket-contact-email-error' : undefined}
-                className={fieldClass(Boolean(errors.contactEmail))}
-                placeholder="customer@example.com"
-              />
-              <FieldError id="ticket-contact-email-error" message={errors.contactEmail} />
             </label>
 
             <label className="text-xs font-bold text-slate-700">

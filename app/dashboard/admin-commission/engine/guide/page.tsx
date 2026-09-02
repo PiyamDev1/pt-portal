@@ -624,12 +624,15 @@ export default async function ShadowConsoleGuidePage() {
                   <article className="rounded-xl border border-slate-800 bg-slate-950/55 p-5">
                     <h3 className="font-bold text-white">Packages</h3>
                     <p className="mt-2 text-slate-400">
-                      Commission is emitted only from an authoritative closed package. Passenger,
-                      reservation, invoice, refund, supplier commission, payment, and currency
-                      checks must reconcile. A linked family group converted to one customer package
-                      is one commission case. Passenger-count bands therefore pay once for the
-                      combined package—for example £100 for 1–3 passengers or £150 for 4+—while the
-                      separate per-passenger method still multiplies by the passenger count.
+                      After return, the agent double-checks the folder and marks it Complete -
+                      Checked. Commission is dated three days after the return date and is picked up
+                      automatically by the normal processing run on or after that date. Passenger,
+                      reservation, invoice balance, refund, supplier commission, payment, and
+                      currency checks must reconcile, but the invoice does not need to be released
+                      to the customer. A linked family group converted to one customer package is
+                      one commission case. Passenger-count bands therefore pay once for the combined
+                      package—for example £100 for 1–3 passengers or £150 for 4+—while the separate
+                      per-passenger method still multiplies by the passenger count.
                     </p>
                   </article>
                   <article className="rounded-xl border border-slate-800 bg-slate-950/55 p-5">
@@ -714,7 +717,7 @@ export default async function ShadowConsoleGuidePage() {
                     'Held source events and open exceptions are zero, or every remaining item has a documented reason not to pay.',
                     'Every employee has one unambiguous plan for each earned service, date, role, and branch.',
                     'Application redirects show the intended recipient and the completing employee separately.',
-                    'Package readiness is complete for every closed package included in the month.',
+                    'Package readiness is complete for every Complete - Checked package included in the month.',
                     'Deleted, archived, refunded, and corrected work no longer contributes an active amount.',
                     'Incomplete bonus periods are zero before treating bonus outcomes as final.',
                     'PKR months have the agreed conversion rate and the GBP book totals reconcile to remittance records.',

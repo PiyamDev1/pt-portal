@@ -108,15 +108,6 @@ export const ticketingQuickFareSchema = z
 export const ticketingQuickTkSchema = z
   .object({
     customerName: z.string().trim().min(1).max(200).transform(normalizeTicketingCustomerName),
-    contactEmail: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email()
-      .max(254)
-      .nullable()
-      .optional()
-      .default(null),
     pnr: z.string().trim().min(1).max(20),
     airlineId: z.string().uuid(),
     supplierCode: z.enum(TICKET_SUPPLIER_CODES).default('sabre_polani'),

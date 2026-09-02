@@ -9,6 +9,8 @@ import {
   canTransitionTravelPackageStatus,
   derivePackageWorkflow,
   getLifecycleTimestampUpdate,
+  getPackageCommissionPayoutDate,
+  hasPackageReturnDateElapsed,
 } from '@/lib/packageWorkflow'
 
 function packageFolder(overrides: Partial<TravelPackageFolder> = {}) {
@@ -142,11 +144,16 @@ describe('package lifecycle', () => {
     expect(canTransitionTravelPackageStatus('returned', 'closed')).toBe(true)
   })
 
-  it('marks close time and earned time together', () => {
-    expect(getLifecycleTimestampUpdate('closed', '2026-08-20T10:00:00.000Z')).toEqual({
-      closed_at: '2026-08-20T10:00:00.000Z',
-      earned_at: '2026-08-20T10:00:00.000Z',
-    })
+  it('marks the checked time and dates Commission three days after return', () => {
+    expect(getLifecycleTimestampUpdate('closed', '2026-08-20T10:00:00.000Z', '2026-08-18')).toEqual(
+      {
+        closed_at: '2026-08-20T10:00:00.000Z',
+        earned_at: '2026-08-21T00:00:00.000Z',
+      },
+    )
+    expect(getPackageCommissionPayoutDate('2026-08-18')).toBe('2026-08-21')
+    expect(hasPackageReturnDateElapsed('2026-08-18', new Date('2026-08-18T12:00:00Z'))).toBe(true)
+    expect(hasPackageReturnDateElapsed('2026-08-19', new Date('2026-08-18T12:00:00Z'))).toBe(false)
   })
 })
 
