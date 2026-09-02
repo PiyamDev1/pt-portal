@@ -289,6 +289,7 @@ export type TicketingLedgerItem = {
   operationalStatus: string
   paymentStatus: string
   bookingDate: string
+  locationTimezone: string
   timeLimitAt: string | null
   issuedAt: string | null
   passengerCount: number

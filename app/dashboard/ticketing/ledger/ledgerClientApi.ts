@@ -14,6 +14,7 @@ import type {
   TicketServiceBookingLookupResult,
   TicketServiceBookingOption,
 } from './types'
+import type { TicketingCorrectDatesInput } from '@/lib/ticketing/dateCorrectionContracts'
 
 type ApiErrorPayload = {
   error?: string
@@ -111,6 +112,29 @@ export async function correctTicketAttribution(
   if (!response.ok) {
     throw new TicketLedgerApiError(
       payload.error || 'Unable to correct the ticket attribution',
+      payload.fieldErrors,
+      payload.code,
+    )
+  }
+}
+
+export async function correctTicketDates(
+  bookingId: string,
+  input: TicketingCorrectDatesInput,
+  idempotencyKey: string,
+): Promise<void> {
+  const response = await fetch(`/api/ticketing/ledger/${encodeURIComponent(bookingId)}/dates`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify(input),
+  })
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  if (!response.ok) {
+    throw new TicketLedgerApiError(
+      payload.error || 'Unable to correct the ticket dates',
       payload.fieldErrors,
       payload.code,
     )

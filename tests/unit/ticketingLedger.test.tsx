@@ -411,6 +411,62 @@ describe('TicketQuickEntryForm', () => {
 })
 
 describe('TicketLedgerList', () => {
+  it('uses each booking timezone and makes issued dates editable for record managers', () => {
+    const item: TicketLedgerItem = {
+      bookingId: 'booking-1',
+      transactionId: 'transaction-1',
+      bookingVersion: 4,
+      transactionVersion: 7,
+      pnr: 'ABC123',
+      customerName: 'Aisha Khan',
+      airline: AIRLINES[0],
+      serviceType: 'TK',
+      operationalStatus: 'issued',
+      paymentStatus: 'unpaid',
+      bookingDate: '2026-09-01',
+      locationTimezone: 'Asia/Karachi',
+      timeLimitAt: null,
+      issuedAt: '2026-09-01T19:30:00Z',
+      passengerCount: 1,
+      packageMatchStatus: 'unmatched',
+      commercialTreatment: 'staff_family',
+      commissionWaiverReason: 'Staff family booking',
+      staffFamilyChangeFeeGbp: 25,
+      staffFamilyRefundFeeGbp: 25,
+      detailsStatus: 'needs_details',
+      responsibleEmployee: { id: 'employee-agent', fullName: 'Agent One' },
+      assistantEmployees: [],
+      attributionVersion: 1,
+      fares: [{ passengerType: 'ADT', quantity: 1, unitSupplierCost: 450, unitSalePrice: 450 }],
+    }
+    const onCorrectDates = vi.fn()
+
+    render(
+      <TicketLedgerList
+        items={[item]}
+        timezone="Europe/London"
+        employeeId="employee-admin"
+        currentTimeMs={Date.parse('2026-09-03T12:00:00Z')}
+        onComplete={vi.fn()}
+        onMarkPaid={vi.fn()}
+        onEditItinerary={vi.fn()}
+        canManageRecords
+        canManageAttribution
+        onCorrectAttribution={vi.fn()}
+        onCorrectDates={onCorrectDates}
+      />,
+    )
+
+    const detailsBadge = screen.getByText('Needs details').parentElement
+    expect(detailsBadge?.parentElement?.textContent).toContain('Staff/Family')
+    expect(screen.queryByText('Staff/family')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Correct issued date for ABC123' }).textContent).toContain(
+      '02 Sept 2026',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Correct issued date for ABC123' }))
+    expect(onCorrectDates).toHaveBeenCalledWith(item)
+  })
+
   it('shows operational package evidence without rendering earnings language', () => {
     const item: TicketLedgerItem = {
       bookingId: 'booking-1',
@@ -424,6 +480,7 @@ describe('TicketLedgerList', () => {
       operationalStatus: 'issued',
       paymentStatus: 'unpaid',
       bookingDate: '2026-08-22',
+      locationTimezone: 'Europe/London',
       timeLimitAt: null,
       issuedAt: '2026-08-22',
       passengerCount: 2,
@@ -484,6 +541,7 @@ describe('TicketLedgerList', () => {
       operationalStatus: 'issued',
       paymentStatus: 'unpaid',
       bookingDate: '2026-08-23',
+      locationTimezone: 'Europe/London',
       timeLimitAt: null,
       issuedAt: '2026-08-23',
       passengerCount: 2,
@@ -535,6 +593,7 @@ describe('TicketLedgerList', () => {
       operationalStatus: 'cancelled',
       paymentStatus: 'paid',
       bookingDate: '2026-08-22',
+      locationTimezone: 'Europe/London',
       timeLimitAt: null,
       issuedAt: '2026-08-22',
       passengerCount: 1,

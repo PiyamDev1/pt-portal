@@ -89,28 +89,31 @@ function PackageBadge({ status }: { status: string }) {
 
 export function TicketLedgerList({
   items,
-  timezone,
   employeeId,
   currentTimeMs,
   onComplete,
   onMarkPaid,
   onEditItinerary,
+  canManageRecords = false,
   canManageAttribution,
   canArchiveRecords,
   onCorrectAttribution,
+  onCorrectDates = () => undefined,
   onArchive,
   onRequestChange,
 }: {
   items: TicketLedgerItem[]
-  timezone: string
+  timezone?: string
   employeeId: string
   currentTimeMs: number
   onComplete: (item: TicketLedgerItem) => void
   onMarkPaid: (item: TicketLedgerItem) => void
   onEditItinerary: (item: TicketLedgerItem) => void
+  canManageRecords?: boolean
   canManageAttribution: boolean
   canArchiveRecords: boolean
   onCorrectAttribution: (item: TicketLedgerItem) => void
+  onCorrectDates?: (item: TicketLedgerItem) => void
   onArchive: (item: TicketLedgerItem) => void
   onRequestChange: (item: TicketLedgerItem, requestType: TicketChangeRequestType) => void
 }) {
@@ -143,8 +146,11 @@ export function TicketLedgerList({
       </div>
       <div className="divide-y divide-slate-100">
         {items.map((item) => {
-          const keyDate = item.operationalStatus === 'held' ? item.timeLimitAt : item.issuedAt
-          const keyDateLabel = item.operationalStatus === 'held' ? 'Time limit' : 'Issued'
+          const usesDeadline =
+            item.operationalStatus === 'held' ||
+            (item.operationalStatus === 'cancelled' && item.issuedAt === null)
+          const keyDate = usesDeadline ? item.timeLimitAt : item.issuedAt
+          const keyDateLabel = usesDeadline ? 'Time limit' : 'Issued'
           const isResponsibleEmployee = item.responsibleEmployee.id === employeeId
           const isOverdue =
             item.operationalStatus === 'held' &&
@@ -164,11 +170,9 @@ export function TicketLedgerList({
                     <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[9px] font-black text-white">
                       {item.serviceType}
                     </span>
-                    {item.commercialTreatment !== 'standard' && (
+                    {item.commercialTreatment === 'commission_waived' && (
                       <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-900 ring-1 ring-amber-200">
-                        {item.commercialTreatment === 'staff_family'
-                          ? 'Staff/family'
-                          : 'No commission'}
+                        No commission
                       </span>
                     )}
                   </div>
@@ -186,7 +190,7 @@ export function TicketLedgerList({
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-slate-900">{item.customerName}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Booked {formatDate(item.bookingDate, timezone)}
+                  Booked {formatDate(item.bookingDate, item.locationTimezone)}
                 </p>
                 <div className="mt-2 space-y-0.5 border-l-2 border-sky-200 pl-2">
                   <p className="truncate text-[11px] font-bold text-slate-700">
@@ -230,9 +234,24 @@ export function TicketLedgerList({
                   <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                     {keyDateLabel}
                   </p>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                    {formatDate(keyDate, timezone, item.operationalStatus === 'held')}
-                  </p>
+                  {canManageRecords &&
+                  ['held', 'issued', 'cancelled', 'part_refunded', 'refunded'].includes(
+                    item.operationalStatus,
+                  ) ? (
+                    <button
+                      type="button"
+                      onClick={() => onCorrectDates(item)}
+                      aria-label={`Correct ${usesDeadline ? 'airline deadline' : 'issued date'} for ${item.pnr}`}
+                      className="ui-focus mt-0.5 inline-flex items-center gap-1 rounded-md text-left text-xs font-semibold text-sky-700 underline decoration-dotted underline-offset-2 hover:text-[#8b1e2d]"
+                    >
+                      {formatDate(keyDate, item.locationTimezone, usesDeadline)}
+                      <PencilLine className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <p className="mt-0.5 text-xs font-semibold text-slate-700">
+                      {formatDate(keyDate, item.locationTimezone, usesDeadline)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <PackageBadge status={item.packageMatchStatus} />
@@ -243,26 +262,33 @@ export function TicketLedgerList({
               </div>
 
               <div className="flex flex-col items-stretch gap-2">
-                <span
-                  className={`inline-flex items-center justify-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${
-                    item.detailsStatus === 'recorded'
-                      ? 'bg-violet-50 text-violet-800 ring-violet-200'
+                <div className="flex flex-wrap items-center gap-2 self-start">
+                  <span
+                    className={`inline-flex items-center justify-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${
+                      item.detailsStatus === 'recorded'
+                        ? 'bg-violet-50 text-violet-800 ring-violet-200'
+                        : item.detailsStatus === 'complete'
+                          ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+                          : 'bg-amber-50 text-amber-800 ring-amber-200'
+                    }`}
+                  >
+                    {item.detailsStatus === 'recorded' || item.detailsStatus === 'complete' ? (
+                      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    {item.detailsStatus === 'recorded'
+                      ? 'Service recorded'
                       : item.detailsStatus === 'complete'
-                        ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-                        : 'bg-amber-50 text-amber-800 ring-amber-200'
-                  }`}
-                >
-                  {item.detailsStatus === 'recorded' || item.detailsStatus === 'complete' ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                        ? 'Complete'
+                        : 'Needs details'}
+                  </span>
+                  {item.commercialTreatment === 'staff_family' && (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-900 ring-1 ring-amber-200">
+                      Staff/Family
+                    </span>
                   )}
-                  {item.detailsStatus === 'recorded'
-                    ? 'Service recorded'
-                    : item.detailsStatus === 'complete'
-                      ? 'Complete'
-                      : 'Needs details'}
-                </span>
+                </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {item.serviceType === 'TK' ? (
                     <>

@@ -18,6 +18,7 @@ import {
 } from '@/lib/ticketing/contracts'
 import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import { ticketingDetailsStatus } from '@/lib/ticketing/completionContracts'
+import { TICKET_DATE_CORRECTION_CAPABILITY_VERSION } from '@/lib/ticketing/dateCorrectionContracts'
 import {
   hasTicketingSchemaCapability,
   normalizeTicketingSchemaStatus,
@@ -27,11 +28,13 @@ const PRIVATE_RESPONSE = { headers: { 'Cache-Control': 'private, no-store' } } a
 const TICKETING_RUNTIME_VERSION = Math.max(
   TICKET_STAFF_FAMILY_CAPABILITY_VERSION,
   TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION,
+  TICKET_DATE_CORRECTION_CAPABILITY_VERSION,
 )
 const LEDGER_MAX_LIMIT = 100
 
 const ledgerCursorSchema = z
   .object({
+    bookingDate: z.string().date(),
     createdAt: z.string().datetime({ offset: true }),
     transactionId: z.string().uuid(),
     search: z.string().max(100),
@@ -60,7 +63,12 @@ function parseLedgerQuery(request: NextRequest) {
 
 function createLedgerCursor(row: TransactionRow, search: string) {
   return Buffer.from(
-    JSON.stringify({ createdAt: row.created_at, transactionId: row.id, search }),
+    JSON.stringify({
+      bookingDate: row.booking_date,
+      createdAt: row.created_at,
+      transactionId: row.id,
+      search,
+    }),
     'utf8',
   ).toString('base64url')
 }
@@ -119,6 +127,7 @@ type BookingRow = {
   supplier_name: string
   archived_at: string | null
   airlines: Related<AirlineRow>
+  locations: Related<Pick<LocationRow, 'timezone'>>
   ticket_booking_attribution_versions: AttributionVersionRow[] | null
 }
 
@@ -250,8 +259,9 @@ function ledgerItem(
 ): TicketingLedgerItem | null {
   const booking = firstRelated(row.ticket_bookings)
   const airline = booking ? firstRelated(booking.airlines) : null
+  const location = booking ? firstRelated(booking.locations) : null
   const attribution = booking ? currentAttribution(booking, actorEmployeeId, actorName) : null
-  if (!booking || booking.archived_at || !airline || !attribution) return null
+  if (!booking || booking.archived_at || !airline || !location?.timezone || !attribution) return null
 
   const fares: TicketingLedgerFare[] = (row.ticket_passenger_fare_lines || []).map((fare) => ({
     passengerType: fare.passenger_type,
@@ -288,6 +298,7 @@ function ledgerItem(
     operationalStatus: row.operational_status,
     paymentStatus: row.payment_status,
     bookingDate: row.booking_date,
+    locationTimezone: location.timezone,
     timeLimitAt: row.time_limit_at,
     issuedAt: row.issued_at,
     passengerCount: row.passenger_ticket_count,
@@ -458,6 +469,7 @@ export async function GET(request: NextRequest) {
             supplier_name,
             archived_at,
             airlines!inner(id, iata_code, name),
+            locations!inner(timezone),
             ticket_booking_attribution_versions(
               attribution_version,
               primary_employee_id,
@@ -503,7 +515,7 @@ export async function GET(request: NextRequest) {
   }
   if (cursor) {
     transactionsQuery = transactionsQuery.or(
-      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.transactionId})`,
+      `booking_date.lt.${cursor.bookingDate},and(booking_date.eq.${cursor.bookingDate},created_at.lt.${cursor.createdAt}),and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.lt.${cursor.transactionId})`,
     )
   }
 
@@ -528,7 +540,9 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     transactionsQuery
       .is('ticket_bookings.archived_at', null)
+      .order('booking_date', { ascending: false })
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(limit + 1),
     supabase
       .from('airlines')

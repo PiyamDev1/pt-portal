@@ -8,6 +8,7 @@ import { TicketLedgerList } from './TicketLedgerList'
 import { TicketCompletionDrawer } from './TicketCompletionDrawer'
 import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
 import { TicketAttributionDialog } from './TicketAttributionDialog'
+import { TicketDateCorrectionDialog } from './TicketDateCorrectionDialog'
 import { TicketItineraryDrawer } from './TicketItineraryDrawer'
 import { TicketArchiveDialog } from './TicketArchiveDialog'
 import { TicketChangeRequestDialog } from './TicketChangeRequestDialog'
@@ -40,6 +41,7 @@ export function TicketingLedgerClient() {
   const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
     null,
   )
+  const [selectedDateItem, setSelectedDateItem] = useState<TicketLedgerItem | null>(null)
   const [selectedArchiveItem, setSelectedArchiveItem] = useState<Pick<
     TicketLedgerItem,
     'bookingId' | 'pnr'
@@ -318,15 +320,16 @@ export function TicketingLedgerClient() {
 
         <TicketLedgerList
           items={filteredItems}
-          timezone={payload.context.timezone}
           employeeId={payload.context.employeeId}
           currentTimeMs={currentTimeMs}
           onComplete={(item) => setSelectedBookingId(item.bookingId)}
           onMarkPaid={setSelectedPaymentItem}
           onEditItinerary={setSelectedItineraryItem}
+          canManageRecords={payload.context.canManageRecords}
           canManageAttribution={payload.context.canManageAttribution}
           canArchiveRecords={payload.context.canArchiveRecords}
           onCorrectAttribution={setSelectedAttributionItem}
+          onCorrectDates={setSelectedDateItem}
           onArchive={setSelectedArchiveItem}
           onRequestChange={(item, requestType) => setSelectedChangeRequest({ item, requestType })}
         />
@@ -383,6 +386,15 @@ export function TicketingLedgerClient() {
           item={selectedAttributionItem}
           employees={payload.context.attributionEmployees}
           onClose={() => setSelectedAttributionItem(null)}
+          onSaved={() => refresh()}
+        />
+      )}
+
+      {payload.context.canManageRecords && selectedDateItem && (
+        <TicketDateCorrectionDialog
+          key={`${selectedDateItem.transactionId}:${selectedDateItem.transactionVersion}`}
+          item={selectedDateItem}
+          onClose={() => setSelectedDateItem(null)}
           onSaved={() => refresh()}
         />
       )}

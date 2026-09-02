@@ -275,14 +275,15 @@ commission tables are migration inputs, not sufficient contracts for the new mod
   in the queue; Ticketing records that agent as the actor and the Commission module decides the
   resulting treatment.
 - Flight Monitoring shows operational flight data for all agents and provides an agent filter.
-- Planned team oversight remains available to Manager, Admin, Master Admin, and Super Admin where a
-  workflow explicitly permits it. Staff-attribution overrides and corrections are narrower: only
-  Admin, Master Admin, and Super Admin may perform them. A Manager may still be selected as the
-  responsible employee or an assistant.
-- The implemented attribution ledger gives Admin, Master Admin, and Super Admin the bounded latest
-  team rows needed to discover corrections. Manager and regular staff remain owner-only. Complete
-  team pagination/search remains a later ledger-hardening task.
-- Maintenance Admin receives no ticketing-finance privilege by default.
+- Planned team oversight remains available to Manager, Maintenance Admin, Admin, Master Admin, and
+  Super Admin where a workflow explicitly permits it. Audited operational record corrections are
+  available to Maintenance Admin, Admin, Master Admin, and Super Admin; a Manager may still be
+  selected as the responsible employee or an assistant but cannot perform those corrections.
+- The implemented attribution ledger gives Maintenance Admin, Admin, Master Admin, and Super Admin
+  the bounded latest team rows needed to discover corrections. Manager and regular staff remain
+  owner-only. Complete team pagination/search remains a later ledger-hardening task.
+- Maintenance Admin receives only the explicit operational correction/refund workflows. It does not
+  inherit destructive archive/deletion authority or unrestricted ticketing-finance access.
 - Agents may edit their own draft or held records. Once a ticket is issued and paid, financial
   corrections are append-only Manager/Admin adjustments; historical values are not silently
   rewritten.
@@ -1000,8 +1001,9 @@ All routes must:
 - The shared Low Fare Queue and Flight Monitoring return only their intentionally shared fields.
 - The acting agent is always session-derived, including cross-agent low-fare adjustments and admin
   ticket entry on behalf of staff.
-- Admin, Master Admin, and Super Admin can perform audited attribution corrections; Manager and
-  Maintenance Admin cannot. Recipient lists may still contain any active employee.
+- Maintenance Admin, Admin, Master Admin, and Super Admin can perform audited attribution and date
+  corrections; Manager and regular Ticketing staff cannot. Recipient lists may still contain any
+  active employee, while destructive archive/deletion authority remains separately restricted.
 - Duplicate requests and concurrent issue/payment/fare/refund submissions do not double-create a
   transaction, source event, target count, voucher allocation, or notification.
 - Public package endpoints never expose ticketing financial/customer-internal fields.

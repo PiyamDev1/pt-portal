@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => {
   const enforceRateLimit = vi.fn()
 
   const transactionLimit = vi.fn()
-  const transactionOrder = vi.fn(() => ({ limit: transactionLimit }))
+  const transactionOrder = vi.fn(() => ({ order: transactionOrder, limit: transactionLimit }))
   const transactionIs = vi.fn(() => ({ order: transactionOrder }))
   const transactionEq = vi.fn(() => ({ is: transactionIs, or: transactionOr }))
   const transactionOr = vi.fn(() => ({ is: transactionIs }))
@@ -163,7 +163,7 @@ describe('/api/ticketing/ledger', () => {
     mocks.rpc.mockImplementation(async (functionName: string) => {
       if (functionName === 'ticketing_schema_status') {
         return {
-          data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
+          data: { ready: true, version: 2026090204, requiredVersion: 2026090204 },
           error: null,
         }
       }
@@ -228,6 +228,7 @@ describe('/api/ticketing/ledger', () => {
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
+            locations: { timezone: 'Asia/Karachi' },
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
               {
@@ -257,6 +258,11 @@ describe('/api/ticketing/ledger', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.transactionEq).toHaveBeenCalledWith('owner_employee_id', ACTOR_ID)
+    expect(mocks.transactionOrder.mock.calls).toEqual([
+      ['booking_date', { ascending: false }],
+      ['created_at', { ascending: false }],
+      ['id', { ascending: false }],
+    ])
     expect(mocks.transactionLimit).toHaveBeenCalledWith(26)
     expect(body.items).toEqual([
       expect.objectContaining({
@@ -267,6 +273,7 @@ describe('/api/ticketing/ledger', () => {
         customerName: 'Test Passenger',
         pnr: 'ABC123',
         passengerCount: 0,
+        locationTimezone: 'Asia/Karachi',
         detailsStatus: 'needs_details',
         responsibleEmployee: { id: ACTOR_ID, fullName: 'Ticket Agent' },
         assistantEmployees: [],
@@ -344,6 +351,7 @@ describe('/api/ticketing/ledger', () => {
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
+            locations: { timezone: 'Europe/London' },
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
               {
@@ -508,6 +516,7 @@ describe('/api/ticketing/ledger', () => {
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
+            locations: { timezone: 'Europe/London' },
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
               {
@@ -580,6 +589,7 @@ describe('/api/ticketing/ledger', () => {
             supplier_code: 'sabre_polani',
             supplier_name: 'Sabre Polani',
             archived_at: null,
+            locations: { timezone: 'Europe/London' },
             airlines: { id: AIRLINE_ID, iata_code: 'TK', name: 'Turkish Airlines' },
             ticket_booking_attribution_versions: [
               {
@@ -1040,7 +1050,7 @@ describe('/api/ticketing/ledger', () => {
 
   it('accepts a singleton array from the schema status RPC', async () => {
     mocks.rpc.mockResolvedValueOnce({
-      data: [{ ready: true, version: 2026090202, requiredVersion: 2026090202 }],
+      data: [{ ready: true, version: 2026090204, requiredVersion: 2026090204 }],
       error: null,
     })
 

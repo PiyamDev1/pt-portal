@@ -73,7 +73,7 @@ describe('POST /api/ticketing/refunds/[refundId]/events', () => {
     })
     mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.state.capability = {
-      data: { ready: true, version: 2026090201, requiredVersion: 2026090201 },
+      data: { ready: true, version: 2026090204, requiredVersion: 2026090204 },
       error: null,
     }
     mocks.state.mutation = {
@@ -105,6 +105,21 @@ describe('POST /api/ticketing/refunds/[refundId]/events', () => {
       p_override_reason: null,
       p_idempotency_key: 'refund-confirm-1',
     })
+  })
+
+  it('fails closed until the refund hardening capability is installed', async () => {
+    mocks.state.capability = {
+      data: { ready: true, version: 2026090203, requiredVersion: 2026090204 },
+      error: null,
+    }
+
+    const response = await POST(request(), context)
+
+    expect(response.status).toBe(503)
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'ticketing_append_refund_event_2026090201',
+      expect.anything(),
+    )
   })
 
   it('keeps non-confirmation settlement writes under database admin authorization', async () => {

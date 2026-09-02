@@ -130,6 +130,13 @@ function mutationError(error: TicketingRpcError) {
       code: 'STAFF_FAMILY_AT_COST_REQUIRED',
     })
   }
+  if (hint === 'TICKETING_STAFF_FAMILY_RECLASSIFICATION_BLOCKED') {
+    return privateError(
+      'This ticket already has changes, fare adjustments, or refunds and cannot be reclassified as staff/family.',
+      409,
+      { code: 'STAFF_FAMILY_RECLASSIFICATION_BLOCKED' },
+    )
+  }
   if (error.code === '42501') return privateError('Forbidden', 403)
   if (['22023', '23503', '23514', 'P0002'].includes(String(error.code || ''))) {
     return privateError('Invalid ticket attribution.', 400)

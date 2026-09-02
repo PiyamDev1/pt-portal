@@ -22,6 +22,7 @@ const ITEM: TicketLedgerItem = {
   operationalStatus: 'issued',
   paymentStatus: 'paid',
   bookingDate: '2026-08-20',
+  locationTimezone: 'Europe/London',
   timeLimitAt: null,
   issuedAt: '2026-08-20',
   passengerCount: 2,

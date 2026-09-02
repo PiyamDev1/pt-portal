@@ -15,7 +15,8 @@ Maintenance Admin, Admin, Master Admin, and Super Admin receive the latest team 
 still bounded by the same `limit` contract.
 
 **Input:** Optional query parameter `limit`; integers are clamped to `1`–`100` and default to `50`.
-No employee or owner selector is accepted.
+No employee or owner selector is accepted. Results are ordered by booking date descending, then by
+creation time and transaction ID for stable opaque-cursor pagination.
 
 **Success:** `200` JSON with `items`, active `airlines`, and branch `context`. Each item contains the
 booking/transaction IDs, PNR, customer, airline, TK/DC/R-ER service type, operational/payment state,
@@ -90,20 +91,52 @@ always the correction actor and cannot be supplied in the body.
 
 **Input:** A strict JSON body no larger than 16 KiB containing positive
 `expectedBookingVersion`, active `responsibleEmployeeId`, zero to ten unique active
-`assistantEmployeeIds` excluding the responsible employee, and a trimmed `reason` of 1–500
-characters. A 1–200 character `Idempotency-Key` header is required.
+`assistantEmployeeIds` excluding the responsible employee, `commercialTreatment` (`standard`,
+`staff_family`, or `commission_waived`), its nullable 3–500 character
+`commissionWaiverReason`, and a trimmed correction `reason` of 1–500 characters. A 1–200 character
+`Idempotency-Key` header is required.
 
 **Success:** `200` with `bookingId`, advanced `bookingVersion`, current `responsibleEmployee`,
 `assistantEmployees`, advanced `attributionVersion`, and `idempotentReplay`. The atomic operation
 aligns booking and transaction ownership, appends immutable attribution/audit history, and, when an
-issued source fact exists, appends the next event version superseding its predecessor. The original
-entry actor never changes. Only the responsible employee receives issued-ticket target units;
-assistants receive zero. No commission rate, calculated amount, margin, or profit is returned.
+issued source fact exists, appends the next event version superseding its predecessor. Live Refund
+responsibility follows the corrected primary employee. If a Refund was already confirmed, the
+correction appends immutable withdrawal evidence and returns it to provisional until the corrected
+owner confirms it again. The original entry actor never changes. Only the responsible employee
+receives issued-ticket target units; assistants receive zero. No commission rate, calculated
+amount, margin, or profit is returned.
 
 **Errors:** `400` for malformed data, inactive/invalid recipient selections, or a missing retry key;
 `401`/`403` for access failures; `404` for an invalid/missing booking; `409` with
-`VERSION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, or `ATTRIBUTION_NO_CHANGE`; `429` when rate limited; `503` when capability
-`2026082402` is absent; `500` for an invalid or failed atomic result.
+`VERSION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, `ATTRIBUTION_NO_CHANGE`, or
+`STAFF_FAMILY_RECLASSIFICATION_BLOCKED` when downstream commercial activity makes a historical
+staff/family reinterpretation unsafe; `429` when rate limited; `503` when capability `2026090204`
+is absent; `500` for an invalid or failed atomic result.
+
+### PATCH `/api/ticketing/ledger/[bookingId]/dates`
+
+**Access:** Maintenance Admin, Admin, Master Admin, and Super Admin only. Managers and regular
+Ticketing staff receive `403`. The server and database derive and verify the active correction actor.
+
+**Input:** A strict body no larger than 8 KiB containing the `transactionId`, positive optimistic
+booking and transaction versions, current `operationalStatus`, corrected date-only `bookingDate`,
+and either a branch-local `timeLimitAt` for Held and pre-issuance Cancelled records or date-only
+`issuedAt` for issued and subsequent posted states. Cancelled records retain their existing
+deadline-versus-issued date model. The unused date field must be `null`; nonexistent and ambiguous
+branch-local deadline minutes are rejected. The issued/deadline value cannot precede the booking
+date. A trimmed correction `reason` of 1–500 characters and a 1–200 character
+`Idempotency-Key` header are required.
+
+**Success:** `200` with the authoritative booking/transaction IDs and versions, corrected dates,
+and `idempotentReplay`. Root TK dates are kept aligned across booking and transaction rows. Posted
+issued-date corrections append immutable audit evidence and a superseding Commission source fact;
+the original source event is never rewritten. The ledger exposes this workflow by clicking the
+displayed Issued date or Held deadline, which opens one editor for both relevant dates.
+
+**Errors:** `400` for malformed dates, chronology, or retry data; `401`/`403` for access failures;
+`404` for a missing booking/transaction pair; `409` with `VERSION_CONFLICT`,
+`IDEMPOTENCY_CONFLICT`, or `DATE_NO_CHANGE`; `429` when rate limited; `503` until capability
+`2026090204` is installed; `500` for an invalid or failed atomic correction.
 
 ### GET `/api/ticketing/ledger/[bookingId]`
 
@@ -402,7 +435,7 @@ settlement would create an avoidable loss or reduce the desired company result.
 expected values, actual settlements, nullable final company result, and management context.
 
 **Errors:** `400` for invalid filters; `401`/`403` for access failures; `503` until capability
-`2026082903` is installed; `500` when the register cannot be loaded safely.
+`2026090204` is installed; `500` when the register cannot be loaded safely.
 
 ### POST `/api/ticketing/refunds`
 
@@ -419,22 +452,27 @@ formula inputs/results, current package scope, and loss-prevention assessment at
 
 **Errors:** `400` for invalid values/selections; `401`/`403` for access failures; `404` for an
 unavailable passenger ticket; `409` for duplicate, stale, or override-required input; `429` when
-rate limited; `503` until capability `2026082903` is installed; `500` for atomic failure.
+rate limited; `503` until capability `2026090204` is installed; `500` for atomic failure.
 
 ### POST `/api/ticketing/refunds/[refundId]/events`
 
-**Access:** Admin, Master Admin, and Super Admin. Optimistic version and idempotency controls apply.
+**Access:** The responsible active employee may confirm a finalised Refund. Maintenance Admin,
+Admin, Master Admin, and Super Admin may append operational lifecycle evidence and may confirm on
+the responsible employee's behalf. Optimistic version and idempotency controls apply.
 
 **Input:** Strict event type/date, expected version, event-specific amount/reference/notes, required
-closure/void reason, and an 8–200 character idempotency key.
+closure/void reason, and an 8–200 character idempotency key. Confirmation accepts no amount or
+override reason.
 
 **Success:** Appends customer settlement, airline recovery, other actual cost, recovery-final,
-closure, or void evidence. Actual company result remains `null` until recovery is final, then is
-derived from actual settlement/recovery/cost rows rather than the original estimate.
+confirmation, closure, or void evidence. A final recovery remains provisional until the
+responsible employee or an administrator explicitly confirms it; only then is the actual company
+result authoritative. Later financial, void, or booking-correction evidence atomically withdraws
+that confirmation before downstream consumers observe the new event.
 
 **Errors:** `400` for invalid event combinations; `401`/`403` for access failures; `404` when the
 refund is unavailable; `409` for stale or duplicate input; `429` when rate limited; `503` until
-capability `2026082903` is installed; `500` for atomic failure.
+capability `2026090204` is installed; `500` for atomic failure.
 
 ### GET `/api/ticketing/vouchers`
 
@@ -526,7 +564,7 @@ package UI presents this evidence in **Reservations** against the matched flight
 does not mutate released package finances.
 
 **Errors:** `400` for an invalid UUID; `401` when signed out; `404` when the package is not visible;
-`503` until capability `2026082903` is installed; `500` if linked lifecycle data cannot be loaded.
+`503` until capability `2026090204` is installed; `500` if linked lifecycle data cannot be loaded.
 
 ### GET `/api/ticketing/airports`
 

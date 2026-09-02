@@ -53,6 +53,10 @@ corrections_refund_confirmation_migration="scripts/migrations/20260902_ticketing
 corrections_refund_confirmation_assertions="tests/integration/ticketing_corrections_refund_confirmation.sql"
 maintenance_admin_operations_migration="scripts/migrations/20260902_ticketing_maintenance_admin_operations.sql"
 maintenance_admin_operations_assertions="tests/integration/ticketing_maintenance_admin_operations.sql"
+admin_date_corrections_migration="scripts/migrations/20260902_ticketing_admin_date_corrections.sql"
+admin_date_corrections_assertions="tests/integration/ticketing_admin_date_corrections.sql"
+correction_refund_hardening_migration="scripts/migrations/20260902_ticketing_correction_refund_hardening.sql"
+date_correction_hardening_assertions="tests/integration/ticketing_date_correction_hardening.sql"
 
 assert_forward_migration_replay_blocked() {
   local replay_migration="$1"
@@ -2476,8 +2480,6 @@ if [[ "$(ticketing_schema_fingerprint)" != "$corrections_refund_confirmation_fir
   echo "Idempotent staff/commercial correction and Refund confirmation migration changed semantic schema state"
   exit 1
 fi
-psql "$database_url" -v ON_ERROR_STOP=1 -f "$corrections_refund_confirmation_assertions"
-
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$maintenance_admin_operations_migration"
 maintenance_admin_operations_first_fingerprint="$(ticketing_schema_fingerprint)"
 maintenance_admin_operations_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
@@ -2485,6 +2487,186 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$maintenance_admin_operations_migrat
 if [[ "$(ticketing_schema_fingerprint)" != "$maintenance_admin_operations_first_fingerprint" ]] \
   || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$maintenance_admin_operations_first_applied_at" ]]; then
   echo "Idempotent Maintenance Admin Ticketing operations migration changed semantic schema state"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_date_corrections_migration"
+admin_date_corrections_first_fingerprint="$(ticketing_schema_fingerprint)"
+admin_date_corrections_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_date_corrections_migration"
+if [[ "$(ticketing_schema_fingerprint)" != "$admin_date_corrections_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$admin_date_corrections_first_applied_at" ]]; then
+  echo "Idempotent Ticketing date-correction migration changed semantic schema state"
+  exit 1
+fi
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$admin_date_corrections_assertions"
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$correction_refund_hardening_migration"
+correction_refund_hardening_first_fingerprint="$(ticketing_schema_fingerprint)"
+correction_refund_hardening_first_applied_at="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$corrections_refund_confirmation_assertions"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$date_correction_hardening_assertions"
+
+# Pause a real date correction after it has locked actor authorization, then
+# prove a concurrent role demotion cannot cross the privileged operation.
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  create or replace function public.ticketing_test_pause_date_correction_auth_race()
+  returns trigger
+  language plpgsql
+  as \$\$
+  begin
+    if new.action = 'correct_ticket_dates' and exists (
+      select 1 from public.ticket_bookings booking
+      where booking.id = new.booking_id and booking.normalized_pnr = 'DATE-HARD-HELD-1'
+    ) and new.reason = 'Date hardening concurrency race' then
+      perform pg_sleep(2);
+    end if;
+    return new;
+  end
+  \$\$;
+  create trigger ticketing_test_pause_date_correction_auth_race
+  before insert on public.ticket_audit_events
+  for each row execute function public.ticketing_test_pause_date_correction_auth_race();
+" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  select public.ticketing_correct_transaction_dates_2026090203(
+    '4a000000-0000-0000-0000-000000000001',
+    booking.id,
+    root.id,
+    booking.version,
+    root.version,
+    'date-hardening-concurrency-race',
+    jsonb_build_object(
+      'operationalStatus', 'cancelled',
+      'bookingDate', '2026-03-23',
+      'timeLimitAt', '2026-03-28T15:00',
+      'issuedAt', null,
+      'reason', 'Date hardening concurrency race'
+    )
+  ) /* ticketing-date-correction-auth-lock */
+  from public.ticket_bookings booking
+  join public.ticket_transactions root
+    on root.booking_id = booking.id and root.parent_transaction_id is null
+  where booking.normalized_pnr = 'DATE-HARD-HELD-1'
+" >/dev/null &
+date_correction_auth_pid=$!
+
+date_correction_pause_seen=false
+for _attempt in {1..100}; do
+  if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+    select count(*) from pg_stat_activity
+    where query like '%ticketing-date-correction-auth-lock%'
+      and wait_event = 'PgSleep'
+  ")" -gt 0 ]]; then
+    date_correction_pause_seen=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$date_correction_pause_seen" != true ]]; then
+  wait "$date_correction_auth_pid" || true
+  psql "$database_url" -v ON_ERROR_STOP=1 -c "
+    drop trigger ticketing_test_pause_date_correction_auth_race on public.ticket_audit_events;
+    drop function public.ticketing_test_pause_date_correction_auth_race();
+  " >/dev/null
+  echo "Date-correction authorization lock was not observable in a concurrent session"
+  exit 1
+fi
+
+if psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  set lock_timeout = '300ms';
+  update public.employees
+  set role_id = (
+    select id from public.roles
+    where regexp_replace(lower(btrim(name)), '[_-]+', ' ', 'g') = 'manager'
+    order by id limit 1
+  )
+  where id = '4a000000-0000-0000-0000-000000000001'
+" >/dev/null 2>&1; then
+  wait "$date_correction_auth_pid" || true
+  psql "$database_url" -v ON_ERROR_STOP=1 -c "
+    update public.employees
+    set role_id = (
+      select id from public.roles
+      where regexp_replace(lower(btrim(name)), '[_-]+', ' ', 'g') = 'maintenance admin'
+      order by id limit 1
+    )
+    where id = '4a000000-0000-0000-0000-000000000001';
+    drop trigger ticketing_test_pause_date_correction_auth_race on public.ticket_audit_events;
+    drop function public.ticketing_test_pause_date_correction_auth_race();
+  " >/dev/null
+  echo "Concurrent role demotion crossed the date-correction authorization lock"
+  exit 1
+fi
+
+wait "$date_correction_auth_pid"
+psql "$database_url" -v ON_ERROR_STOP=1 -c "
+  drop trigger ticketing_test_pause_date_correction_auth_race on public.ticket_audit_events;
+  drop function public.ticketing_test_pause_date_correction_auth_race();
+" >/dev/null
+if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select count(*)
+  from public.ticket_bookings booking
+  join public.ticket_transactions root
+    on root.booking_id = booking.id and root.parent_transaction_id is null
+  join public.ticket_idempotency_keys key_row
+    on key_row.actor_employee_id = '4a000000-0000-0000-0000-000000000001'
+    and key_row.action_name = 'ticketing.correct_transaction_dates.v1'
+    and key_row.idempotency_key = 'date-hardening-concurrency-race'
+  join public.employees actor
+    on actor.id = '4a000000-0000-0000-0000-000000000001'
+  join public.roles actor_role on actor_role.id = actor.role_id
+  where booking.normalized_pnr = 'DATE-HARD-HELD-1'
+    and root.booking_date = date '2026-03-23'
+    and root.time_limit_at = timestamp '2026-03-28 15:00' at time zone 'Europe/London'
+    and regexp_replace(lower(btrim(actor_role.name)), '[_-]+', ' ', 'g') = 'maintenance admin'
+")" != "1" ]]; then
+  echo "Date-correction authorization race left incorrect operational or retry state"
+  exit 1
+fi
+
+# Hardening assertions deliberately leave a live confirmed refund after
+# rolling back a nested void test. Same-version 2026090204 replay must preserve
+# both its authoritative data and semantic schema state.
+confirmed_refund_state_before_replay="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select jsonb_build_object(
+    'id', refund.id,
+    'status', refund.status,
+    'version', refund.version,
+    'owner', refund.owner_employee_id,
+    'provisional', refund.provisional_company_result_gbp,
+    'actual', refund.actual_company_result_gbp,
+    'confirmedAt', refund.confirmed_correct_at,
+    'confirmedBy', refund.confirmed_correct_by_employee_id
+  )::text
+  from public.ticket_refunds refund
+  where refund.notes = 'PIA cancellation calculation saved'
+  order by refund.created_at desc
+  limit 1
+")"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$correction_refund_hardening_migration"
+confirmed_refund_state_after_replay="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select jsonb_build_object(
+    'id', refund.id,
+    'status', refund.status,
+    'version', refund.version,
+    'owner', refund.owner_employee_id,
+    'provisional', refund.provisional_company_result_gbp,
+    'actual', refund.actual_company_result_gbp,
+    'confirmedAt', refund.confirmed_correct_at,
+    'confirmedBy', refund.confirmed_correct_by_employee_id
+  )::text
+  from public.ticket_refunds refund
+  where refund.notes = 'PIA cancellation calculation saved'
+  order by refund.created_at desc
+  limit 1
+")"
+if [[ -z "$confirmed_refund_state_before_replay" ]] \
+  || [[ "$confirmed_refund_state_after_replay" != "$confirmed_refund_state_before_replay" ]] \
+  || [[ "$(ticketing_schema_fingerprint)" != "$correction_refund_hardening_first_fingerprint" ]] \
+  || [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "select applied_at from public.portal_schema_versions where component = 'ticketing'")" != "$correction_refund_hardening_first_applied_at" ]]; then
+  echo "Same-version Ticketing hardening replay changed confirmed data or semantic schema state"
   exit 1
 fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$maintenance_admin_operations_assertions"
@@ -2511,4 +2693,4 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c \
   exit 1
 fi
 
-echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, schedule-change, voucher, package-PNR reconciliation, refund/voucher lifecycle, staff/commercial correction, explicit Refund confirmation, and no-change fare-check migration integration checks passed."
+echo "Ticketing foundation, quick-entry, completion, DC/R-ER, Low Fare, attribution, authorised admin completion, runtime-readiness, root-itinerary, schedule-change, voucher, package-PNR reconciliation, refund/voucher lifecycle, staff/commercial correction, date correction, explicit Refund confirmation, and no-change fare-check migration integration checks passed."

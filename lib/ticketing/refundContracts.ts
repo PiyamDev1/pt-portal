@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { TICKET_PASSENGER_TYPES } from '@/lib/ticketing/contracts'
 
-export const TICKET_REFUND_CAPABILITY_VERSION = 2026090201
+export const TICKET_REFUND_CAPABILITY_VERSION = 2026090204
 export const TICKET_REFUND_FORMULA_VERSION = 'ticket-cancellation-v1'
 export const TICKET_REFUND_STATUSES = [
   'recorded',

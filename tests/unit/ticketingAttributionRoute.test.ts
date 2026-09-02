@@ -125,7 +125,7 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
       retryAfterSeconds: 0,
     })
     mocks.state.capability = {
-      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
+      data: { ready: true, version: 2026090204, requiredVersion: 2026090204 },
       error: null,
     }
     mocks.state.correction = { data: correctionResult(), error: null }
@@ -243,7 +243,7 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
 
   it('fails closed when capability or selected employees are unavailable', async () => {
     mocks.state.capability = {
-      data: { ready: true, version: 2026083102, requiredVersion: 2026083102 },
+      data: { ready: true, version: 2026090203, requiredVersion: 2026090204 },
       error: null,
     }
     expect((await PATCH(request(validEntry()), context())).status).toBe(503)
@@ -253,7 +253,7 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
     )
 
     mocks.state.capability = {
-      data: [{ ready: true, version: 2026090202, requiredVersion: 2026090202 }],
+      data: [{ ready: true, version: 2026090204, requiredVersion: 2026090204 }],
       error: null,
     }
     const singletonResponse = await PATCH(request(validEntry(), 'singleton-capability'), context())
@@ -264,7 +264,7 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
     )
 
     mocks.state.capability = {
-      data: { ready: true, version: 2026090202, requiredVersion: 2026090202 },
+      data: { ready: true, version: 2026090204, requiredVersion: 2026090204 },
       error: null,
     }
     mocks.employeeIn.mockResolvedValueOnce({
@@ -342,6 +342,16 @@ describe('PATCH /api/ticketing/ledger/[bookingId]/attribution', () => {
       error: { code: '22023', hint: 'TICKETING_ATTRIBUTION_REASON_REQUIRED' },
       status: 400,
       code: 'ATTRIBUTION_REASON_REQUIRED',
+    },
+    {
+      name: 'unsafe staff family reclassification',
+      error: {
+        code: '55000',
+        hint: 'TICKETING_STAFF_FAMILY_RECLASSIFICATION_BLOCKED',
+        message: 'sensitive internal detail',
+      },
+      status: 409,
+      code: 'STAFF_FAMILY_RECLASSIFICATION_BLOCKED',
     },
     {
       name: 'database authorization',
