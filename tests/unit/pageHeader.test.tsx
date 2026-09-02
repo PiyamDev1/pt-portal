@@ -50,7 +50,14 @@ describe('PageHeader', () => {
 
   it('uses My performance as the canonical staff activity and earnings destination', () => {
     mocks.pathname = '/dashboard/my-performance'
-    render(<PageHeader employeeName="Amina" role="Employee" location={{ name: 'Bradford' }} />)
+    render(
+      <PageHeader
+        employeeName="Amina"
+        role="Employee"
+        location={{ name: 'Bradford' }}
+        performancePeriod="2026-08"
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
 
@@ -58,13 +65,26 @@ describe('PageHeader', () => {
       '/dashboard/my-performance',
     )
     expect(screen.getByRole('link', { name: 'Activity' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance?view=activity',
+      '/dashboard/my-performance?view=activity&period=2026-08',
     )
     expect(screen.getByRole('link', { name: 'Attendance' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance?view=attendance',
+      '/dashboard/my-performance?view=attendance&period=2026-08',
     )
     expect(screen.getByRole('link', { name: 'Earnings & commission' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance?view=earnings',
+      '/dashboard/my-performance?view=earnings&period=2026-08',
     )
+  })
+
+  it('keeps Accounting out of the global account menu and exposes its review within Accounting', () => {
+    mocks.pathname = '/dashboard/accounting'
+    render(<PageHeader employeeName="Amina" role="Employee" location={{ name: 'Bradford' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+
+    expect(screen.getAllByRole('link', { name: 'Accounting Home' })).toHaveLength(1)
+    expect(screen.getByRole('link', { name: 'Commission review' }).getAttribute('href')).toBe(
+      '/dashboard/accounting/commissions',
+    )
+    expect(screen.queryByRole('link', { name: 'Accounting' })).toBeNull()
   })
 })

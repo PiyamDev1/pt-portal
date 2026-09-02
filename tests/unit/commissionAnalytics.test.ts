@@ -63,6 +63,8 @@ describe('commission analytics', () => {
       debitsGbp: 8,
       netGbp: 22,
     })
+    expect(analytics.recent.map((item) => item.id)).toEqual(['fare-debit', 'sale'])
+    expect(analytics.breakdown).toHaveLength(2)
   })
 
   it('reports an empty mode without manufacturing earnings', () => {

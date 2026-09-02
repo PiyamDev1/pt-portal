@@ -16,6 +16,7 @@ export type DashboardModule = {
   iconTone: string
   tileTone: string
   allowedRoles?: string[]
+  allowedDepartments?: string[]
   iconKey:
     | 'badge-pound'
     | 'briefcase'
@@ -152,6 +153,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     desc: 'Application volumes and monthly reports',
     href: '/dashboard/accounting',
     group: 'finance',
+    allowedRoles: ['Admin', 'Master Admin', 'Super Admin'],
+    allowedDepartments: ['Accounting', 'Accounts'],
     accent: 'from-emerald-700 to-cyan-700 text-white',
     iconTone: 'from-emerald-600 via-teal-700 to-cyan-800 text-white shadow-emerald-950/25',
     tileTone: 'from-emerald-50 via-white to-cyan-100',
@@ -217,3 +220,35 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     iconKey: 'fingerprint',
   },
 ]
+
+function normalizeModuleAccessName(value: string | null | undefined) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+}
+
+/**
+ * A module with both role and department restrictions is available when either
+ * authority matches. This mirrors workspaces such as Accounting, where portal
+ * administrators and members of the Accounting department both have access.
+ */
+export function canAccessDashboardModule(
+  moduleItem: DashboardModule,
+  userRole?: string | null,
+  userDepartments: string[] = [],
+) {
+  const roleRestrictions = moduleItem.allowedRoles || []
+  const departmentRestrictions = moduleItem.allowedDepartments || []
+  if (roleRestrictions.length === 0 && departmentRestrictions.length === 0) return true
+
+  const normalizedRole = normalizeModuleAccessName(userRole)
+  const normalizedDepartments = new Set(userDepartments.map(normalizeModuleAccessName))
+  return (
+    roleRestrictions.some((role) => normalizeModuleAccessName(role) === normalizedRole) ||
+    departmentRestrictions.some((department) =>
+      normalizedDepartments.has(normalizeModuleAccessName(department)),
+    )
+  )
+}

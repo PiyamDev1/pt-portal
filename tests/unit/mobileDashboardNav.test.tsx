@@ -2,29 +2,24 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  fetch: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
 }))
 
-vi.mock('@supabase/auth-helpers-nextjs', () => ({
-  createBrowserClient: () => ({ auth: { getUser: mocks.getUser } }),
-}))
-
 import { MobileDashboardNav } from '@/app/dashboard/client-wrapper'
 
 describe('MobileDashboardNav', () => {
   beforeEach(() => {
-    mocks.getUser.mockReset().mockResolvedValue({
-      data: {
-        user: {
-          user_metadata: {
-            mobile_nav_shortcuts: ['packages', 'applications', 'timeclock'],
-          },
-        },
-      },
+    vi.stubGlobal('fetch', mocks.fetch)
+    mocks.fetch.mockReset().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        mobileShortcutIds: ['packages', 'applications', 'timeclock'],
+        moduleAccess: { role: 'Employee', departments: [] },
+      }),
     })
   })
 

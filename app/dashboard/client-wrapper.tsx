@@ -8,49 +8,55 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Home, Settings } from 'lucide-react'
 import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
 import { DashboardModuleIcon } from './DashboardModuleIcon'
 import { RouteWarmup } from './RouteWarmup'
 import {
   getMobileNavigationLabel,
-  MOBILE_NAVIGATION_METADATA_KEY,
   MOBILE_NAVIGATION_UPDATED_EVENT,
+  getMobileShortcutOptions,
   resolveMobileShortcutModules,
 } from '@/lib/mobileNavigation'
-import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export function MobileDashboardNav() {
   const pathname = usePathname()
-  const supabase = getBrowserSupabaseClient()
   const [shortcuts, setShortcuts] = useState(() => resolveMobileShortcutModules(undefined))
+  const availableModulesRef = useRef(getMobileShortcutOptions())
 
   useEffect(() => {
     let active = true
 
     const loadPreferences = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (active) {
-        setShortcuts(
-          resolveMobileShortcutModules(user?.user_metadata?.[MOBILE_NAVIGATION_METADATA_KEY]),
-        )
+      const response = await fetch('/api/dashboard/modules', { cache: 'no-store' })
+      if (!response.ok) return
+      const payload = (await response.json()) as {
+        moduleAccess?: { role?: string; departments?: string[] }
+        mobileShortcutIds?: unknown
       }
+      if (!active) return
+      const availableModules = getMobileShortcutOptions(
+        payload.moduleAccess?.role,
+        payload.moduleAccess?.departments || [],
+      )
+      availableModulesRef.current = availableModules
+      setShortcuts(resolveMobileShortcutModules(payload.mobileShortcutIds, availableModules))
     }
     const handleUpdate = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      setShortcuts(resolveMobileShortcutModules(detail))
+      setShortcuts(resolveMobileShortcutModules(detail, availableModulesRef.current))
     }
 
-    void loadPreferences()
+    void loadPreferences().catch(() => {
+      // The safe default contains only unrestricted modules.
+    })
     window.addEventListener(MOBILE_NAVIGATION_UPDATED_EVENT, handleUpdate)
     return () => {
       active = false
       window.removeEventListener(MOBILE_NAVIGATION_UPDATED_EVENT, handleUpdate)
     }
-  }, [supabase])
+  }, [])
 
   const items = [
     ...shortcuts.slice(0, 2).map((moduleItem) => ({ type: 'module' as const, moduleItem })),

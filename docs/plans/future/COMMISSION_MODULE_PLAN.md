@@ -2,35 +2,59 @@
 
 > **Living implementation record.** This captures the current commission architecture and safety
 > boundaries; it is not a fixed product goal. New requirements and live evidence take precedence.
-> Commission remains the only module that may calculate employee pay outcomes, while
-> policies, ordinary commission calculations, employee-attributed sales-profit bonuses, shadow
-> reconciliation, statements, balances, and staff sales targets. Ticketing, Packages, Applications,
-> and future
-> source modules publish immutable business facts; they never own commission formulas or outcomes.
+> Commission remains the only module that may calculate employee pay outcomes. It owns policies,
+> ordinary commission calculations, employee-attributed sales-profit bonuses, penalties, refund
+> treatment, shadow reconciliation, Accounting review evidence, future statements and balances,
+> and staff sales targets. Ticketing, Packages, Applications, and future source modules publish
+> immutable business facts; they never own commission formulas or outcomes.
 
-- **Status:** Phase 1 shadow capability, employee-owned agreements, authoritative closed-Package
-  sources, and completed-Application sources implemented; month reconciliation pending
-- **Last updated:** August 30, 2026
+- **Status:** Phase 1 shadow capability, employee-owned agreements, Ticketing/Package/Application
+  sources, confirmed-refund policy, staff reports, and immutable Accounting review implemented;
+  capability `2026090201` passed the full disposable PostgreSQL workflow suite and is deployed to
+  linked Supabase; full-month reconciliation pending
+- **Last updated:** September 2, 2026
 - **Owner:** PT-Portal Team
 - **Primary dependency:** [Ticketing Module Plan](TICKETING_MODULE_PLAN.md)
 - **First delivery:** Employee-owned setup, Admin/HR reconciliation, and own-employee preview; no
   payable entries
 
-Implementation checkpoint on August 30, 2026: capability `2026083005` includes employee-owned GBP or
-PKR compensation, audited monthly PKR-per-GBP book conversion, independent Ticket Assistance rates
-for each selected primary agent, optional Date Change marginal-tier volume, fixed Low Fare amounts,
-the complete supplier-fare-increase debit, and archive-safe marginal recalculation. The additive
-migrations retain employee-owned agreement snapshots, copy-on-create reuse, atomic per-service
-policies and assignments, effective-dated replacement, and cancellation of future changes. Closed,
-paid, reconciled Package folders and completed Application records now publish correction-linked
-source snapshots from database
-finance records. Shared family transport references feed the one physical `Group main transport`
-row without double-counting booked cost, and received supplier commission is used instead of the
-projected value. The calculation engine, typed
-exceptions, Admin/HR reconciliation console, and daily cron route remain the same audited shadow
-foundation. Active HR department membership in Staff Management is the HR access source.
-Scheduled runs use an explicit system audit actor and do not impersonate an employee. A complete
-calendar-month reconciliation remains required before any live/payable phase.
+Implementation checkpoint on September 2, 2026: capability `2026090201` extends the
+employee-owned shadow engine with independent three-letter pay currencies, audited monthly
+units-per-GBP conversion, multiple cumulative profit-bonus targets, optional recurring
+post-threshold bonuses, append-only ADM/loss penalties, and an employee-plan choice to retain or
+reverse original Ticketing commission after a confirmed supplier refund. It also adds a staff
+breakdown in Shadow Console and a versioned handoff to Accounting. Accounting may return a report
+with a reason or give final approval through a different reviewer; final approval fixes the report
+and its evidence without creating payroll, payment, balances, or payable entries.
+
+### Verified migration route — September 2, 2026
+
+The linked database was re-read after the parallel Ticketing workspace completed its deployment.
+Its current state is:
+
+- Ticketing capability `2026090204`, ending at
+  `20260902_ticketing_correction_refund_hardening.sql`, is live. Do not rerun Ticketing
+  capabilities `2026090201` through `2026090204`.
+- The separate `20260902_atomic_staff_assignment_updates.sql` objects are live: the approval table,
+  atomic staff-assignment RPC, and staff-review RPC were all found. Do not rerun that script.
+- Commission capability `2026090201`, ending at
+  `20260902_commission_compensation_accounting_workflow.sql`, is now live. It was applied only after
+  Ticketing `2026090204`; do not rerun it.
+
+The deployment verified Commission `2026090201`, all six adjustment/refund/review tables, the
+confirmed-refund trigger, public versus private routine grants, and preservation of the 64 existing
+`missing_exchange_rate` exception rows. Linked Supabase types were regenerated afterwards. The
+combined disposable database runner completed successfully with Ticketing `2026090204` followed by
+Commission `2026090201`, including a live-compatibility fixture for the earlier exception code.
+
+The earlier foundation still provides independent Ticket Assistance rates for selected primary
+agents, optional Date Change marginal-tier volume, Low/higher-fare handling, closed and reconciled
+Package facts, completed Application facts, effective-dated employee-owned snapshots, typed
+exceptions, and system-attributed processing. Shared family transport references feed one physical
+`Group main transport` row without double-counting booked cost, and received supplier commission
+is used instead of its projection. Active HR department membership in Staff Management remains the
+HR authority. A complete calendar-month reconciliation remains required before any live/payable
+phase.
 
 ## 1. Purpose and delivery decision
 
@@ -52,7 +76,14 @@ The first usable delivery is deliberately a **shadow foundation**:
   final-profit, or explicit-zero components into the same shadow ledger.
 - Completed NADRA, Pakistani passport, British passport, and Visa work calculates a distinct fixed
   per-application or explicit-zero component for the responsible employee.
-- Monthly employee-attributed profit and sales-bonus results are reconciled internally.
+- Monthly employee-attributed profit can award several cumulative target bonuses and a configurable
+  recurring bonus after the final target.
+- Confirmed Ticketing refunds apply the employee plan's snapshotted retain/reverse choice; a
+  provisional or withdrawn confirmation produces no Commission decision.
+- Authorised Admin/HR users can append reasoned ADM/loss/other penalties in the employee's native
+  currency without editing calculated source entries.
+- Shadow Console snapshots a ready completed month and sends the staff breakdown to Accounting for
+  independent return or final locked approval.
 - Missing policies, inputs, or unsupported source states remain visible exceptions.
 - Employees receive a read-only view of their own agreement and clearly labelled calculation
   preview. They do not receive statements, balances, payouts, or target cards in this delivery.
@@ -81,6 +112,8 @@ entries.
   require a cloned draft.
 - Source events and posted entries are append-only. Corrections use supersession, offsets, and
   replacements linked to the prior facts and calculations.
+- Manual penalties are append-only debits with reason, actor, native amount, conversion evidence,
+  and exact reversal lineage. They do not alter contributed-profit targets.
 - Primary responsible employees, Low Fare actors, and assistants are distinct roles. Assistance and
   Low Fare may earn independently without advancing primary ticket-count tiers or issued-ticket
   targets.
@@ -88,10 +121,17 @@ entries.
   when assisting any primary agent or use an independent rate for every explicitly selected primary
   agent; changing that list or its rates creates a new
   effective-dated plan version and never alters another employee's plan.
-- Fixed pay rates and salary may be denominated in GBP or PKR. PKR agreements use an audited,
-  month-specific PKR-per-GBP rate for the accounting equivalent; the rate locks once calculations
-  use it. Calculations use PostgreSQL `numeric` and actual GBP source variables. JavaScript floating point,
-  inferred exchange rates, and currency-ambiguous package metadata are never financial authority.
+- Fixed pay rates, salary, bonus rewards, and adjustments may use any normalised three-letter pay
+  currency. GBP is the book currency; every non-GBP amount uses an audited month-specific number of
+  native units per GBP, and the rate locks once calculations or a review batch use it. One employee
+  plan may mix service currencies. Calculations use PostgreSQL `numeric` and actual GBP source
+  variables. JavaScript floating point, inferred exchange rates, and currency-ambiguous package
+  metadata are never financial authority.
+- Refund commission treatment is configured in the employee's effective plan, never in Ticketing.
+  Only a non-package refund confirmed after final supplier/airline recovery can retain or reverse
+  the original current Commission entries. Withdrawal/voiding supersedes that decision.
+- A submitted Accounting batch is independently reviewed. The submitter cannot give final approval;
+  stale source evidence blocks approval, and `approved_locked` membership and totals are immutable.
 - Missing financial inputs create exceptions; they are not treated as zero.
 - Payment state does not gate the initial ticket commission policy. A valid Issued fact earns the
   applicable ordinary issuance component immediately.
@@ -127,8 +167,10 @@ Commission has two deliberate front doors:
   Both operations remain local to the target employee. Past effective dates are accepted when they
   do not overlap a completed or later plan and do not rewrite already-calculated history.
 - `/dashboard/my-performance` is available to every active employee. Its earnings section exposes
-  only that employee's agreement, monthly/YTD preview, six-month chart, service breakdown, and
-  recent calculated entries. `/dashboard/my-commissions` remains a compatibility redirect.
+  only that employee's agreement, selected historical month/YTD preview, six-month chart ending at
+  that month, service breakdown, and recent calculated entries. Evidence is collapsed by default
+  on Activity, Attendance, and Earnings. `/dashboard/my-commissions` remains a compatibility
+  redirect.
 - `/dashboard/admin-commission/engine` retains the advanced policy, assignment, synthetic preview,
   shadow-entry, bonus-period, exception, and reconciliation tools.
 - `/dashboard/commissions` remains only as a role-aware compatibility redirect.
@@ -147,6 +189,14 @@ The advanced reconciliation workspace contains:
 - Policy lab and Manual assignments: retained as explicitly advanced diagnostic tools; normal
   employee setup belongs in Admin commission.
 - Access is managed in Staff Management by assigning or removing the HR department.
+- Staff report: a completed-month employee breakdown across salary, Ticketing, Applications,
+  Packages, refund decisions, bonuses, and penalties, with native-currency totals and GBP book
+  equivalents. A ready report can be prepared and submitted to Accounting.
+
+`/dashboard/accounting/commissions` is restricted to active Accounting/Accounts department members
+and portal administrators. It exposes submitted reports, immutable source evidence, return reasons,
+staleness, separation-of-duties guidance, and final fixed approval. Accounting approval is an audit
+lock, not a payroll/payment action.
 
 Shadow money is exposed to its employee only as an unmistakable non-payable calculation preview.
 Future live visibility is:
@@ -221,9 +271,14 @@ Commission applies these rules:
 - Package-scoped Ticketing facts do not also receive ordinary Ticketing commission unless a future
   policy explicitly enables dual treatment.
 
-Refund/cancellation Commission variables remain unavailable until the Ticketing refund workflow
-publishes an authoritative source event. The processor must hold unsupported events rather than
-inventing refund treatment.
+The Ticketing refund workflow now publishes a Commission fact only after the responsible agent or
+an administrator confirms the recovered supplier/airline result as correct. Until then the refund
+is provisional and cannot close. The confirmed fact contains lifecycle/ownership references rather
+than a caller-selected pay outcome. Commission snapshots the effective employee plan's
+`retain`/`reverse_original` choice; Package-scoped refunds remain under authoritative Package profit
+and cannot also reverse Ticketing commission. Later supplier evidence, voiding, or confirmation
+withdrawal publishes a superseding fact so the prior decision and any reversal are neutralised
+without deletion.
 
 ### 4.4 Package facts and interim metadata
 
@@ -343,20 +398,35 @@ staff. It is not a Ticketing target and is never displayed in the Ticketing dash
 ```ts
 type SalesBonusRule = {
   period: 'calendar_month'
-  thresholdGbp: string
   eligibleServices: string[]
-  reward:
-    | { type: 'fixed_gbp'; amountGbp: string }
-    | { type: 'percentage_of_qualifying_profit'; rate: string }
+  payCurrency: string
+  steps: Array<{
+    thresholdGbp: string
+    rewardKind: 'fixed_gbp' | 'percentage_of_qualifying_profit'
+    rewardValue: string
+  }>
+  recurring?: {
+    startsAtGbp: string
+    intervalGbp: string
+    rewardKind: 'fixed_gbp' | 'percentage_of_qualifying_profit'
+    rewardValue: string
+    maxOccurrences?: number
+  }
 }
 ```
 
 - The period is a calendar month in the originating sale's branch timezone.
-- The target, eligible services, and reward are employee-specific and effective-dated.
-- The employee receives nothing below the target.
-- A fixed reward pays once when the target is met.
-- A percentage reward applies to the full qualifying contributed profit after the threshold is
-  met. Example: a £1,000 threshold at 10% pays £0 at £999, £100 at £1,000, and £150 at £1,500.
+- Targets, eligible services, reward currency, and recurrence are employee-specific and
+  effective-dated variables.
+- The employee receives nothing below the first target. Each reached one-off step contributes its
+  configured reward, allowing several cumulative targets in one month.
+- A fixed reward is recorded in the configured pay currency and converted to GBP book value with
+  that month's audited rate. The stored `fixed_gbp` discriminator is retained for backward
+  compatibility even though its value follows `payCurrency`. A percentage reward applies to
+  qualifying contributed profit and is recorded in the same pay currency.
+- An optional recurring rule starts strictly after the highest one-off target and adds its reward
+  at each configured GBP interval, with an optional occurrence cap. Example: £100 at £2,000 plus
+  £50 for every further £1,000 awards £100 at £2,000, £150 at £3,000, and £200 at £4,000.
 - The bonus entry itself is excluded from its own qualifying basis, preventing recursion.
 - Missing sale-profit inputs keep the period `incomplete`; they never count as zero or produce a
   premature bonus.
@@ -441,6 +511,12 @@ configured fixed sales bonus                       £100
 
 During shadow mode, any source correction or policy replay appends a new calculation revision and
 recomputes the affected monthly result. Prior shadow evidence remains traceable.
+
+A draft review batch snapshots the current source hash for one completed month. Changes before
+submission make that draft stale; preparing again retains it as superseded evidence and creates a
+fresh batch. A submitted stale batch must be returned by Accounting. Final `approved_locked`
+batches cannot be rewritten, and new exchange rates or penalties for a period under active review
+are rejected rather than silently changing its totals.
 
 In the future live release:
 
@@ -537,7 +613,13 @@ type TicketTargetProgress = {
 
 It contains no commission, sales bonus, or profit values.
 
-## 8. Statements and balances are a later release
+## 8. Accounting review is implemented; payable statements remain later
+
+The current Shadow Console handoff creates immutable, explicitly non-payable review batches. Each
+batch stores employee statements, included current entry/adjustment evidence, native-currency
+subtotals, GBP book totals, source hash, revisions, and reviewer events. Accounting can return a
+submitted batch with a reason or approve it with a different reviewer. Final approval fixes that
+evidence but does not create a balance, payment, payroll instruction, or live Commission entry.
 
 After one full shadow month reconciles:
 
@@ -579,7 +661,7 @@ Expected capabilities:
 | `commission_tiers`                  | Marginal threshold bands tied to policy versions            |
 | `employee_commission_assignments`   | Per-service/role/location effective assignments             |
 | `employee_commission_profiles`      | Employee-owned, effective-dated agreement snapshots         |
-| `commission_monthly_exchange_rates` | Audited month-specific PKR-per-GBP accounting conversion    |
+| `commission_monthly_exchange_rates` | Audited month/native-currency units-per-GBP conversion      |
 | `commission_access_grants`          | Retained legacy grant audit; no longer an authority source  |
 | `commission_source_events`          | Existing immutable producer facts                           |
 | `commission_source_event_states`    | Existing claim/retry/held processing state                  |
@@ -588,6 +670,12 @@ Expected capabilities:
 | `commission_period_results`         | Monthly profit/threshold/reward calculation snapshots       |
 | `commission_exceptions`             | Typed held facts and resolution/retry evidence              |
 | `commission_audit_events`           | Access, policy, assignment, processing, and statement audit |
+| `commission_adjustments`            | Append-only ADM/loss/other debits and exact reversals       |
+| `commission_refund_decisions`       | Confirmed-refund retain/reverse snapshots and lineage       |
+| `commission_review_batches`         | Versioned Shadow-to-Accounting period handoff               |
+| `commission_review_statements`      | Fixed per-employee batch totals                             |
+| `commission_review_batch_entries`   | Included immutable entry/adjustment evidence                |
+| `commission_review_events`          | Prepare/submit/return/approval audit trail                  |
 | Future statement/target tables      | Live balances, statements, membership, and ticket targets   |
 
 Use strict constraints for component kinds, recipient roles, service codes, policy states, entry
@@ -602,6 +690,10 @@ routes call service-only transactional functions after server-side session/permi
 - `GET /api/commissions/admin`
 - `POST /api/commissions/admin/profiles`
 - `POST /api/commissions/admin/exchange-rates`
+- `GET /api/commissions/admin/staff-report?period=YYYY-MM`
+- `POST /api/commissions/admin/adjustments`
+- `POST /api/commissions/admin/review-batches/prepare`
+- `POST /api/commissions/admin/review-batches/{batchId}/submit`
 - `POST /api/commissions/admin/profiles/{profileId}/cancel`
 - `POST /api/commissions/admin/process`
 - `POST /api/commissions/admin/exceptions/{exceptionId}/retry`
@@ -620,6 +712,10 @@ routes call service-only transactional functions after server-side session/permi
 - `POST /api/commissions/process`
 - Legacy access-grant handlers return `410`; Staff Management owns HR access.
 - `GET /api/cron/commissions/process`
+- `GET /api/accounting/commissions/review-batches`
+- `GET /api/accounting/commissions/review-batches/{batchId}`
+- `POST /api/accounting/commissions/review-batches/{batchId}/return`
+- `POST /api/accounting/commissions/review-batches/{batchId}/approve`
 
 All list endpoints use bounded filter-bound keyset pagination and return semantic DTOs. Mutation
 routes validate strict request schemas, derive actor identity from `requireStaffSession`, enforce
@@ -658,6 +754,8 @@ Implementation starts with all of the following:
 - Implement typed fixed/percentage/zero/signed/tier/assistant/package/bonus components.
 - Replace the placeholder with the Admin/HR policy, preview, shadow, bonus-period, and exception
   console.
+- Add mixed-currency staff reports, append-only penalties, confirmed-refund treatment, and the
+  versioned Shadow-to-Accounting review/return/final-lock workflow.
 - Replay all supported Ticketing history and reconcile at least one full calendar month.
 - Keep every result explicitly non-payable. An employee may see only their own preview through the
   dedicated self endpoint; managers receive no Commission access by role alone.
@@ -689,9 +787,11 @@ Implementation starts with all of the following:
 - Existing Package allocation metadata is labelled as provisional costing only: it may reduce the
   Package profit estimate but cannot create or pay a staff Commission entry. The employee's
   effective Commission plan remains the sole earnings calculation source.
-- Add authoritative Ticketing refund/cancellation producers.
+- Authoritative Ticketing refund/cancellation facts are enabled only after final supplier recovery
+  is marked correct; Commission applies the employee plan's retain/reverse choice in shadow mode.
 - Add provisional package metadata reconciliation and duplicate-payment prevention.
-- Add refund/late-correction impacts through signed offsets without rewriting locked statements.
+- Extend refund/late-correction impacts into the future live ledger through signed offsets without
+  rewriting locked Accounting evidence or statements.
 
 ## 12. Test and acceptance plan
 
@@ -706,8 +806,10 @@ Implementation starts with all of the following:
 - Archived Ticketing facts have zero current Commission and cannot remain in marginal-tier volume;
   later entries in the same month are superseded with recalculated tier positions.
 - Selected Ticket Assistance primary agents can each resolve to a different fixed rate.
-- PKR fixed earnings retain their local amount and use the locked monthly rate for the GBP book
+- Non-GBP fixed earnings retain their local amount and use the locked monthly rate for the GBP book
   equivalent.
+- Different services, salary, bonus, and penalty rows may retain different three-letter currencies
+  in one employee report while reconciling to one audited GBP book total.
 - Assistants use their own policies and receive zero primary tier/target/bonus units.
 - Fixed issuance commission calculates before Paid and before unrelated profit variables complete.
 - Profit-dependent components remain incomplete until actual GBP inputs exist.
@@ -719,6 +821,15 @@ Implementation starts with all of the following:
   contribution by a net £90 while giving the finder no bonus progress.
 - Low Fare by the primary seller does not double-count either saving or commission.
 - A higher-fare loss and signed debit produce the configured retained-company result.
+- Multiple reached bonus targets accumulate their configured rewards; recurring rewards begin only
+  after the highest one-off target and respect their interval and optional cap.
+- ADM/loss penalties are immutable debits, do not change qualifying profit, reject conflicting
+  idempotency replays, and cannot be appended while a draft/submitted/approved period review exists.
+- Provisional refunds create no decision. Confirmed non-package refunds retain or reverse according
+  to the effective employee plan, and withdrawal/voiding supersedes any prior reversal exactly once.
+- Review preparation rejects an open/incomplete month, replaces stale drafts with retained audit
+  lineage, blocks stale approval, enforces submitter/reviewer separation, and makes final approval
+  immutable under concurrent retries.
 - Package metadata alone never creates an entry.
 - Parallel workers claim each source event once and recover stale claims safely.
 
@@ -733,6 +844,8 @@ Implementation starts with all of the following:
 - Policy forms expose only typed components/approved variables.
 - Pagination cursors are bound to filters and employee access scope.
 - Ticketing pages/APIs continue to expose no calculated commission, bonus, or profit values.
+- Accounting navigation/report APIs remain hidden and forbidden for staff outside the
+  Accounting/Accounts departments unless they hold an approved portal admin role.
 
 ### 12.3 Required validation
 
@@ -772,5 +885,7 @@ It is successful when:
   sales and never includes the bonus being tested.
 - Fixed and percentage bonus rewards both remain zero below their configured threshold.
 - Every supported historical fact is processed or appears in a typed exception queue.
+- A ready completed month can be restored after refresh, submitted once, independently returned or
+  approved, and permanently fixed without creating a payable or payroll side effect.
 - One complete month reconciles from source event to policy component, shadow entry, qualifying
   profit, and bonus result before live statements are authorised.

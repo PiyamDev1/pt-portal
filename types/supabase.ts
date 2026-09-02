@@ -143,6 +143,63 @@ type DatabaseFunctionOverrides = {
     Args: { p_actor_employee_id: string }
     Returns: Json
   }
+  commission_append_adjustment_2026090201: {
+    Args: {
+      p_actor_employee_id: string
+      p_employee_id: string
+      p_category: 'adm' | 'loss' | 'other'
+      p_direction: 'debit' | 'credit'
+      p_amount_pay_currency: number
+      p_pay_currency: string
+      p_period_start: string
+      p_reason: string
+      p_evidence: Json
+      p_reverses_adjustment_id: string | null
+      p_request_key: string
+    }
+    Returns: Json
+  }
+  commission_shadow_staff_report_2026090201: {
+    Args: {
+      p_actor_employee_id: string
+      p_period_start: string
+      p_period_end: string
+    }
+    Returns: Json
+  }
+  commission_prepare_review_batch_2026090201: {
+    Args: {
+      p_actor_employee_id: string
+      p_period_start: string
+      p_request_key: string
+    }
+    Returns: Json
+  }
+  commission_submit_review_batch_2026090201: {
+    Args: {
+      p_actor_employee_id: string
+      p_batch_id: string
+      p_expected_revision: number
+      p_request_key: string
+    }
+    Returns: Json
+  }
+  commission_accounting_batches_2026090201: {
+    Args: { p_limit?: number; p_offset?: number }
+    Returns: Json
+  }
+  commission_review_batch_detail_2026090201: {
+    Args: { p_batch_id: string }
+    Returns: Json
+  }
+  commission_return_review_batch_2026090201: {
+    Args: { p_batch_id: string; p_expected_revision: number; p_reason: string }
+    Returns: Json
+  }
+  commission_approve_review_batch_2026090201: {
+    Args: { p_batch_id: string; p_expected_revision: number }
+    Returns: Json
+  }
   staff_performance_source_facts_2026083101: {
     Args: {
       p_employee_id: string

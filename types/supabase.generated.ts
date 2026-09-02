@@ -831,6 +831,10 @@ export type Database = {
           close_overrun_tolerance_minutes: number
           confirmation_template: string | null
           created_at: string | null
+          customer_description: string | null
+          customer_max_group_size: number
+          customer_modification_cutoff_hours: number
+          customer_visible: boolean
           duration_minutes: number
           duration_per_additional_person_minutes: number
           id: string
@@ -850,6 +854,10 @@ export type Database = {
           close_overrun_tolerance_minutes?: number
           confirmation_template?: string | null
           created_at?: string | null
+          customer_description?: string | null
+          customer_max_group_size?: number
+          customer_modification_cutoff_hours?: number
+          customer_visible?: boolean
           duration_minutes: number
           duration_per_additional_person_minutes?: number
           id?: string
@@ -869,6 +877,10 @@ export type Database = {
           close_overrun_tolerance_minutes?: number
           confirmation_template?: string | null
           created_at?: string | null
+          customer_description?: string | null
+          customer_max_group_size?: number
+          customer_modification_cutoff_hours?: number
+          customer_visible?: boolean
           duration_minutes?: number
           duration_per_additional_person_minutes?: number
           id?: string
@@ -1012,9 +1024,13 @@ export type Database = {
         Row: {
           attendance_status: string
           created_at: string | null
+          customer_cancelled_at: string | null
           customer_email: string | null
           customer_name: string
           customer_phone: string
+          customer_public_reference: string
+          customer_subject: string | null
+          customer_version: number
           end_time: string
           id: string
           last_email_error: string | null
@@ -1039,9 +1055,13 @@ export type Database = {
         Insert: {
           attendance_status?: string
           created_at?: string | null
+          customer_cancelled_at?: string | null
           customer_email?: string | null
           customer_name: string
           customer_phone: string
+          customer_public_reference?: string
+          customer_subject?: string | null
+          customer_version?: number
           end_time: string
           id?: string
           last_email_error?: string | null
@@ -1066,9 +1086,13 @@ export type Database = {
         Update: {
           attendance_status?: string
           created_at?: string | null
+          customer_cancelled_at?: string | null
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string
+          customer_public_reference?: string
+          customer_subject?: string | null
+          customer_version?: number
           end_time?: string
           id?: string
           last_email_error?: string | null
@@ -1389,6 +1413,88 @@ export type Database = {
           },
         ]
       }
+      commission_adjustments: {
+        Row: {
+          affects_qualifying_profit: boolean
+          amount_gbp: number
+          amount_pay_currency: number
+          category: string
+          created_at: string
+          created_by: string
+          direction: string
+          employee_id: string
+          evidence: Json
+          exchange_rate_units_per_gbp: number
+          id: string
+          pay_currency: string
+          period_end: string
+          period_start: string
+          reason: string
+          request_key: string
+          reverses_adjustment_id: string | null
+        }
+        Insert: {
+          affects_qualifying_profit?: boolean
+          amount_gbp: number
+          amount_pay_currency: number
+          category: string
+          created_at?: string
+          created_by: string
+          direction?: string
+          employee_id: string
+          evidence?: Json
+          exchange_rate_units_per_gbp: number
+          id?: string
+          pay_currency: string
+          period_end: string
+          period_start: string
+          reason: string
+          request_key: string
+          reverses_adjustment_id?: string | null
+        }
+        Update: {
+          affects_qualifying_profit?: boolean
+          amount_gbp?: number
+          amount_pay_currency?: number
+          category?: string
+          created_at?: string
+          created_by?: string
+          direction?: string
+          employee_id?: string
+          evidence?: Json
+          exchange_rate_units_per_gbp?: number
+          id?: string
+          pay_currency?: string
+          period_end?: string
+          period_start?: string
+          reason?: string
+          request_key?: string
+          reverses_adjustment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_adjustments_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_adjustments_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_adjustments_reverses_adjustment_id_fkey'
+            columns: ['reverses_adjustment_id']
+            isOneToOne: true
+            referencedRelation: 'commission_adjustments'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       commission_audit_events: {
         Row: {
           action: string
@@ -1510,6 +1616,7 @@ export type Database = {
           policy_version_id: string
           profit_owner_employee_id: string
           recipient_employee_id: string
+          reverses_entry_id: string | null
           revision: number
           run_id: string
           source_case_key: string
@@ -1536,6 +1643,7 @@ export type Database = {
           policy_version_id: string
           profit_owner_employee_id: string
           recipient_employee_id: string
+          reverses_entry_id?: string | null
           revision?: number
           run_id: string
           source_case_key: string
@@ -1562,6 +1670,7 @@ export type Database = {
           policy_version_id?: string
           profit_owner_employee_id?: string
           recipient_employee_id?: string
+          reverses_entry_id?: string | null
           revision?: number
           run_id?: string
           source_case_key?: string
@@ -1602,6 +1711,13 @@ export type Database = {
             columns: ['recipient_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_entries_reverses_entry_id_fkey'
+            columns: ['reverses_entry_id']
+            isOneToOne: false
+            referencedRelation: 'commission_entries'
             referencedColumns: ['id']
           },
           {
@@ -2041,6 +2157,350 @@ export type Database = {
           },
         ]
       }
+      commission_refund_decisions: {
+        Row: {
+          created_at: string
+          id: string
+          original_entry_id: string
+          policy_snapshot: Json
+          recipient_employee_id: string
+          refund_id: string
+          reversal_entry_id: string | null
+          source_event_id: string
+          treatment: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          original_entry_id: string
+          policy_snapshot: Json
+          recipient_employee_id: string
+          refund_id: string
+          reversal_entry_id?: string | null
+          source_event_id: string
+          treatment: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          original_entry_id?: string
+          policy_snapshot?: Json
+          recipient_employee_id?: string
+          refund_id?: string
+          reversal_entry_id?: string | null
+          source_event_id?: string
+          treatment?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_refund_decisions_original_entry_id_fkey'
+            columns: ['original_entry_id']
+            isOneToOne: false
+            referencedRelation: 'commission_entries'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_refund_decisions_recipient_employee_id_fkey'
+            columns: ['recipient_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_refund_decisions_refund_id_fkey'
+            columns: ['refund_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_refunds'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_refund_decisions_reversal_entry_id_fkey'
+            columns: ['reversal_entry_id']
+            isOneToOne: false
+            referencedRelation: 'commission_entries'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_refund_decisions_source_event_id_fkey'
+            columns: ['source_event_id']
+            isOneToOne: false
+            referencedRelation: 'commission_source_events'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_review_batch_entries: {
+        Row: {
+          adjustment_id: string | null
+          amount_gbp: number
+          amount_pay_currency: number
+          batch_id: string
+          created_at: string
+          earning_on: string
+          employee_id: string
+          entry_kind: string
+          exchange_rate_units_per_gbp: number
+          id: string
+          pay_currency: string
+          profile_id: string | null
+          service_code: string
+          snapshot: Json
+          source_entry_id: string | null
+          source_module: string
+        }
+        Insert: {
+          adjustment_id?: string | null
+          amount_gbp: number
+          amount_pay_currency: number
+          batch_id: string
+          created_at?: string
+          earning_on: string
+          employee_id: string
+          entry_kind: string
+          exchange_rate_units_per_gbp: number
+          id?: string
+          pay_currency: string
+          profile_id?: string | null
+          service_code: string
+          snapshot: Json
+          source_entry_id?: string | null
+          source_module: string
+        }
+        Update: {
+          adjustment_id?: string | null
+          amount_gbp?: number
+          amount_pay_currency?: number
+          batch_id?: string
+          created_at?: string
+          earning_on?: string
+          employee_id?: string
+          entry_kind?: string
+          exchange_rate_units_per_gbp?: number
+          id?: string
+          pay_currency?: string
+          profile_id?: string | null
+          service_code?: string
+          snapshot?: Json
+          source_entry_id?: string | null
+          source_module?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_review_batch_entries_adjustment_id_fkey'
+            columns: ['adjustment_id']
+            isOneToOne: false
+            referencedRelation: 'commission_adjustments'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batch_entries_batch_id_fkey'
+            columns: ['batch_id']
+            isOneToOne: false
+            referencedRelation: 'commission_review_batches'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batch_entries_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batch_entries_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'employee_commission_profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batch_entries_source_entry_id_fkey'
+            columns: ['source_entry_id']
+            isOneToOne: false
+            referencedRelation: 'commission_entries'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_review_batches: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          content_hash: string
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          prepared_at: string
+          prepared_by: string
+          returned_at: string | null
+          returned_by: string | null
+          returned_reason: string | null
+          revision: number
+          source_snapshot: Json
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          content_hash: string
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          prepared_at?: string
+          prepared_by: string
+          returned_at?: string | null
+          returned_by?: string | null
+          returned_reason?: string | null
+          revision?: number
+          source_snapshot: Json
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          content_hash?: string
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          prepared_at?: string
+          prepared_by?: string
+          returned_at?: string | null
+          returned_by?: string | null
+          returned_reason?: string | null
+          revision?: number
+          source_snapshot?: Json
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_review_batches_approved_by_fkey'
+            columns: ['approved_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batches_prepared_by_fkey'
+            columns: ['prepared_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batches_returned_by_fkey'
+            columns: ['returned_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_batches_submitted_by_fkey'
+            columns: ['submitted_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_review_events: {
+        Row: {
+          action: string
+          actor_employee_id: string
+          after_state: Json
+          batch_id: string
+          before_state: Json | null
+          created_at: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          actor_employee_id: string
+          after_state: Json
+          batch_id: string
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          actor_employee_id?: string
+          after_state?: Json
+          batch_id?: string
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_review_events_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_events_batch_id_fkey'
+            columns: ['batch_id']
+            isOneToOne: false
+            referencedRelation: 'commission_review_batches'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      commission_review_statements: {
+        Row: {
+          batch_id: string
+          created_at: string
+          employee_id: string
+          id: string
+          native_currency_totals: Json
+          total_gbp: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          native_currency_totals: Json
+          total_gbp: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          native_currency_totals?: Json
+          total_gbp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'commission_review_statements_batch_id_fkey'
+            columns: ['batch_id']
+            isOneToOne: false
+            referencedRelation: 'commission_review_batches'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'commission_review_statements_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       commission_rules: {
         Row: {
           applies_to_tier: boolean
@@ -2256,6 +2716,550 @@ export type Database = {
             columns: ['rule_id']
             isOneToOne: false
             referencedRelation: 'commission_rules'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      customer_integration_idempotency: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          expires_at: string
+          idempotency_key: string
+          key_id: string
+          request_digest: string
+          response_body: Json | null
+          response_status: number | null
+          route_key: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          idempotency_key: string
+          key_id: string
+          request_digest: string
+          response_body?: Json | null
+          response_status?: number | null
+          route_key: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          idempotency_key?: string
+          key_id?: string
+          request_digest?: string
+          response_body?: Json | null
+          response_status?: number | null
+          route_key?: string
+        }
+        Relationships: []
+      }
+      customer_integration_nonces: {
+        Row: {
+          expires_at: string
+          key_id: string
+          nonce: string
+          received_at: string
+          request_id: string
+        }
+        Insert: {
+          expires_at: string
+          key_id: string
+          nonce: string
+          received_at?: string
+          request_id: string
+        }
+        Update: {
+          expires_at?: string
+          key_id?: string
+          nonce?: string
+          received_at?: string
+          request_id?: string
+        }
+        Relationships: []
+      }
+      customer_loyalty_awards: {
+        Row: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activation_milestone?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          legacy_ledger_id?: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of?: string | null
+          reversed_at?: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        Update: {
+          activated_at?: string | null
+          activation_milestone?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          legacy_ledger_id?: string | null
+          mobile_user_id?: string
+          points?: number
+          reversal_of?: string | null
+          reversed_at?: string | null
+          source_reference?: string
+          source_type?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'customer_loyalty_awards_mobile_user_id_fkey'
+            columns: ['mobile_user_id']
+            isOneToOne: false
+            referencedRelation: 'mobile_users'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'customer_loyalty_awards_reversal_of_fkey'
+            columns: ['reversal_of']
+            isOneToOne: false
+            referencedRelation: 'customer_loyalty_awards'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      customer_loyalty_lifecycle_events: {
+        Row: {
+          award_id: string
+          created_at: string
+          id: number
+          reason: string
+          source_reference: string
+          transition: string
+        }
+        Insert: {
+          award_id: string
+          created_at?: string
+          id?: never
+          reason: string
+          source_reference: string
+          transition: string
+        }
+        Update: {
+          award_id?: string
+          created_at?: string
+          id?: never
+          reason?: string
+          source_reference?: string
+          transition?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'customer_loyalty_lifecycle_events_award_id_fkey'
+            columns: ['award_id']
+            isOneToOne: false
+            referencedRelation: 'customer_loyalty_awards'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'customer_loyalty_lifecycle_events_source_reference_fkey'
+            columns: ['source_reference']
+            isOneToOne: false
+            referencedRelation: 'customer_loyalty_source_links'
+            referencedColumns: ['source_reference']
+          },
+        ]
+      }
+      customer_loyalty_service_events: {
+        Row: {
+          event_reference: string
+          event_type: string
+          occurred_at: string
+          recorded_at: string
+          source_namespace: string
+          source_record_id: string
+        }
+        Insert: {
+          event_reference: string
+          event_type: string
+          occurred_at: string
+          recorded_at?: string
+          source_namespace: string
+          source_record_id: string
+        }
+        Update: {
+          event_reference?: string
+          event_type?: string
+          occurred_at?: string
+          recorded_at?: string
+          source_namespace?: string
+          source_record_id?: string
+        }
+        Relationships: []
+      }
+      customer_loyalty_service_states: {
+        Row: {
+          cancelled_at: string | null
+          completed_at: string | null
+          paid_at: string | null
+          refunded_at: string | null
+          source_namespace: string
+          source_record_id: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          paid_at?: string | null
+          refunded_at?: string | null
+          source_namespace: string
+          source_record_id: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          paid_at?: string | null
+          refunded_at?: string | null
+          source_namespace?: string
+          source_record_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_loyalty_source_links: {
+        Row: {
+          activation_milestone: string
+          created_at: string
+          description: string
+          id: string
+          mobile_user_id: string
+          points: number
+          source_namespace: string | null
+          source_record_id: string
+          source_reference: string
+          source_type: string
+        }
+        Insert: {
+          activation_milestone: string
+          created_at?: string
+          description: string
+          id?: string
+          mobile_user_id: string
+          points: number
+          source_namespace?: string | null
+          source_record_id: string
+          source_reference: string
+          source_type: string
+        }
+        Update: {
+          activation_milestone?: string
+          created_at?: string
+          description?: string
+          id?: string
+          mobile_user_id?: string
+          points?: number
+          source_namespace?: string | null
+          source_record_id?: string
+          source_reference?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'customer_loyalty_source_links_mobile_user_id_fkey'
+            columns: ['mobile_user_id']
+            isOneToOne: false
+            referencedRelation: 'mobile_users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      customer_portal_access_grants: {
+        Row: {
+          consumed_at: string | null
+          customer_subject: string | null
+          expires_at: string
+          id: string
+          internal_id: string
+          issued_at: string
+          metadata: Json
+          public_id: string
+          resource_type: string
+          revoked_at: string | null
+          scopes: string[]
+          single_use: boolean
+          token_hash: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          customer_subject?: string | null
+          expires_at: string
+          id?: string
+          internal_id: string
+          issued_at?: string
+          metadata?: Json
+          public_id: string
+          resource_type: string
+          revoked_at?: string | null
+          scopes?: string[]
+          single_use?: boolean
+          token_hash: string
+        }
+        Update: {
+          consumed_at?: string | null
+          customer_subject?: string | null
+          expires_at?: string
+          id?: string
+          internal_id?: string
+          issued_at?: string
+          metadata?: Json
+          public_id?: string
+          resource_type?: string
+          revoked_at?: string | null
+          scopes?: string[]
+          single_use?: boolean
+          token_hash?: string
+        }
+        Relationships: []
+      }
+      customer_portal_audit_events: {
+        Row: {
+          actor_kind: string
+          customer_subject: string | null
+          event_type: string
+          id: number
+          metadata: Json
+          occurred_at: string
+          outcome: string
+          request_id: string
+          resource_public_id: string | null
+          resource_type: string | null
+        }
+        Insert: {
+          actor_kind: string
+          customer_subject?: string | null
+          event_type: string
+          id?: never
+          metadata?: Json
+          occurred_at?: string
+          outcome: string
+          request_id: string
+          resource_public_id?: string | null
+          resource_type?: string | null
+        }
+        Update: {
+          actor_kind?: string
+          customer_subject?: string | null
+          event_type?: string
+          id?: never
+          metadata?: Json
+          occurred_at?: string
+          outcome?: string
+          request_id?: string
+          resource_public_id?: string | null
+          resource_type?: string | null
+        }
+        Relationships: []
+      }
+      customer_portal_availability_slots: {
+        Row: {
+          capacity: number
+          created_at: string
+          ends_at: string
+          expires_at: string
+          group_size: number
+          location_id: string
+          occupied_until: string
+          public_id: string
+          service_id: string
+          starts_at: string
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          ends_at: string
+          expires_at: string
+          group_size: number
+          location_id: string
+          occupied_until: string
+          public_id?: string
+          service_id: string
+          starts_at: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          ends_at?: string
+          expires_at?: string
+          group_size?: number
+          location_id?: string
+          occupied_until?: string
+          public_id?: string
+          service_id?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'customer_portal_availability_slots_location_id_fkey'
+            columns: ['location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'customer_portal_availability_slots_service_id_fkey'
+            columns: ['service_id']
+            isOneToOne: false
+            referencedRelation: 'booking_services'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      customer_portal_otp_challenges: {
+        Row: {
+          attempt_count: number
+          consumed_at: string | null
+          contact_email: string
+          created_at: string
+          customer_subject: string
+          expires_at: string
+          id: string
+          internal_id: string
+          max_attempts: number
+          otp_hash: string
+          public_id: string
+          purpose: string
+          resource_type: string
+          revoked_at: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          consumed_at?: string | null
+          contact_email: string
+          created_at?: string
+          customer_subject: string
+          expires_at: string
+          id?: string
+          internal_id: string
+          max_attempts?: number
+          otp_hash: string
+          public_id: string
+          purpose: string
+          resource_type: string
+          revoked_at?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          consumed_at?: string | null
+          contact_email?: string
+          created_at?: string
+          customer_subject?: string
+          expires_at?: string
+          id?: string
+          internal_id?: string
+          max_attempts?: number
+          otp_hash?: string
+          public_id?: string
+          purpose?: string
+          resource_type?: string
+          revoked_at?: string | null
+        }
+        Relationships: []
+      }
+      customer_portal_resource_aliases: {
+        Row: {
+          created_at: string
+          internal_id: string
+          metadata: Json
+          public_id: string
+          resource_type: string
+        }
+        Insert: {
+          created_at?: string
+          internal_id: string
+          metadata?: Json
+          public_id?: string
+          resource_type: string
+        }
+        Update: {
+          created_at?: string
+          internal_id?: string
+          metadata?: Json
+          public_id?: string
+          resource_type?: string
+        }
+        Relationships: []
+      }
+      customer_portal_trip_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_financial_scope: boolean | null
+          accepted_subject: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          invitee_email: string
+          invitee_email_hash: string
+          inviter_subject: string
+          public_id: string
+          requested_financial_scope: boolean
+          revoked_at: string | null
+          token_hash: string
+          trip_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_financial_scope?: boolean | null
+          accepted_subject?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          invitee_email: string
+          invitee_email_hash: string
+          inviter_subject: string
+          public_id?: string
+          requested_financial_scope?: boolean
+          revoked_at?: string | null
+          token_hash: string
+          trip_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_financial_scope?: boolean | null
+          accepted_subject?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invitee_email?: string
+          invitee_email_hash?: string
+          inviter_subject?: string
+          public_id?: string
+          requested_financial_scope?: boolean
+          revoked_at?: string | null
+          token_hash?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'customer_portal_trip_invitations_trip_id_fkey'
+            columns: ['trip_id']
+            isOneToOne: false
+            referencedRelation: 'travel_packages'
             referencedColumns: ['id']
           },
         ]
@@ -4312,6 +5316,10 @@ export type Database = {
       loyalty_points_ledger: {
         Row: {
           created_at: string
+          customer_activation_milestone: string | null
+          customer_reversal_of: string | null
+          customer_source_reference: string | null
+          customer_state: string | null
           employee_id: string | null
           id: string
           mobile_user_id: string
@@ -4323,6 +5331,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_activation_milestone?: string | null
+          customer_reversal_of?: string | null
+          customer_source_reference?: string | null
+          customer_state?: string | null
           employee_id?: string | null
           id?: string
           mobile_user_id: string
@@ -4334,6 +5346,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_activation_milestone?: string | null
+          customer_reversal_of?: string | null
+          customer_source_reference?: string | null
+          customer_state?: string | null
           employee_id?: string | null
           id?: string
           mobile_user_id?: string
@@ -4414,19 +5430,28 @@ export type Database = {
       mobile_users: {
         Row: {
           created_at: string
+          customer_code: string | null
+          customer_lifecycle_status: string
           email: string
+          external_customer_subject: string | null
           id: string
           phone_number: string | null
         }
         Insert: {
           created_at?: string
+          customer_code?: string | null
+          customer_lifecycle_status?: string
           email: string
+          external_customer_subject?: string | null
           id: string
           phone_number?: string | null
         }
         Update: {
           created_at?: string
+          customer_code?: string | null
+          customer_lifecycle_status?: string
           email?: string
+          external_customer_subject?: string | null
           id?: string
           phone_number?: string | null
         }
@@ -5739,6 +6764,136 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_admin_approval_requests: {
+        Row: {
+          created_at: string
+          expected_department_ids: string[]
+          expected_full_name: string
+          expected_location_id: string | null
+          expected_manager_id: string | null
+          expected_role_id: string | null
+          id: string
+          proposed_department_ids: string[]
+          proposed_full_name: string
+          proposed_location_id: string | null
+          proposed_manager_id: string | null
+          proposed_role_id: string
+          request_reason: string
+          requested_by: string
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          target_employee_id: string
+        }
+        Insert: {
+          created_at?: string
+          expected_department_ids: string[]
+          expected_full_name: string
+          expected_location_id?: string | null
+          expected_manager_id?: string | null
+          expected_role_id?: string | null
+          id?: string
+          proposed_department_ids: string[]
+          proposed_full_name: string
+          proposed_location_id?: string | null
+          proposed_manager_id?: string | null
+          proposed_role_id: string
+          request_reason: string
+          requested_by: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_employee_id: string
+        }
+        Update: {
+          created_at?: string
+          expected_department_ids?: string[]
+          expected_full_name?: string
+          expected_location_id?: string | null
+          expected_manager_id?: string | null
+          expected_role_id?: string | null
+          id?: string
+          proposed_department_ids?: string[]
+          proposed_full_name?: string
+          proposed_location_id?: string | null
+          proposed_manager_id?: string | null
+          proposed_role_id?: string
+          request_reason?: string
+          requested_by?: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_employee_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'staff_admin_approval_requests_expected_location_id_fkey'
+            columns: ['expected_location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_expected_manager_id_fkey'
+            columns: ['expected_manager_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_expected_role_id_fkey'
+            columns: ['expected_role_id']
+            isOneToOne: false
+            referencedRelation: 'roles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_proposed_location_id_fkey'
+            columns: ['proposed_location_id']
+            isOneToOne: false
+            referencedRelation: 'locations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_proposed_manager_id_fkey'
+            columns: ['proposed_manager_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_proposed_role_id_fkey'
+            columns: ['proposed_role_id']
+            isOneToOne: false
+            referencedRelation: 'roles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_requested_by_fkey'
+            columns: ['requested_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_reviewed_by_fkey'
+            columns: ['reviewed_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'staff_admin_approval_requests_target_employee_id_fkey'
+            columns: ['target_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       supplier_vendors: {
         Row: {
           created_at: string
@@ -6072,7 +7227,9 @@ export type Database = {
           airline_id: string
           archived_at: string | null
           booking_date: string
+          commercial_treatment: string
           commission_scope: string
+          commission_waiver_reason: string | null
           contact_phone: string | null
           created_at: string
           created_by: string
@@ -6099,7 +7256,9 @@ export type Database = {
           airline_id: string
           archived_at?: string | null
           booking_date: string
+          commercial_treatment?: string
           commission_scope?: string
+          commission_waiver_reason?: string | null
           contact_phone?: string | null
           created_at?: string
           created_by: string
@@ -6126,7 +7285,9 @@ export type Database = {
           airline_id?: string
           archived_at?: string | null
           booking_date?: string
+          commercial_treatment?: string
           commission_scope?: string
+          commission_waiver_reason?: string | null
           contact_phone?: string | null
           created_at?: string
           created_by?: string
@@ -6241,6 +7402,66 @@ export type Database = {
             columns: ['reviewed_by']
             isOneToOne: false
             referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_date_correction_contexts: {
+        Row: {
+          actor_employee_id: string
+          booking_date: string
+          created_at: string
+          id: string
+          issued_at: string | null
+          previous_booking_date: string
+          previous_issued_at: string | null
+          previous_time_limit_at: string | null
+          previous_time_limit_timezone: string | null
+          time_limit_at: string | null
+          time_limit_timezone: string | null
+          transaction_id: string
+        }
+        Insert: {
+          actor_employee_id: string
+          booking_date: string
+          created_at?: string
+          id?: string
+          issued_at?: string | null
+          previous_booking_date: string
+          previous_issued_at?: string | null
+          previous_time_limit_at?: string | null
+          previous_time_limit_timezone?: string | null
+          time_limit_at?: string | null
+          time_limit_timezone?: string | null
+          transaction_id: string
+        }
+        Update: {
+          actor_employee_id?: string
+          booking_date?: string
+          created_at?: string
+          id?: string
+          issued_at?: string | null
+          previous_booking_date?: string
+          previous_issued_at?: string | null
+          previous_time_limit_at?: string | null
+          previous_time_limit_timezone?: string | null
+          time_limit_at?: string | null
+          time_limit_timezone?: string | null
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_date_correction_contexts_actor_employee_id_fkey'
+            columns: ['actor_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_date_correction_contexts_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_transactions'
             referencedColumns: ['id']
           },
         ]
@@ -7456,6 +8677,8 @@ export type Database = {
           cancellation_credit_applied_gbp: number | null
           closed_at: string | null
           commission_scope: string
+          confirmed_correct_at: string | null
+          confirmed_correct_by_employee_id: string | null
           created_at: string
           created_by_employee_id: string
           customer_credit_remaining_gbp: number | null
@@ -7484,6 +8707,7 @@ export type Database = {
           pnr: string
           proposed_cancellation_charge_gbp: number
           proposed_customer_refund_gbp: number
+          provisional_company_result_gbp: number | null
           replacement_agent_commission_gbp: number | null
           replacement_booking_id: string | null
           replacement_company_result_gbp: number | null
@@ -7515,6 +8739,8 @@ export type Database = {
           cancellation_credit_applied_gbp?: number | null
           closed_at?: string | null
           commission_scope: string
+          confirmed_correct_at?: string | null
+          confirmed_correct_by_employee_id?: string | null
           created_at?: string
           created_by_employee_id: string
           customer_credit_remaining_gbp?: number | null
@@ -7543,6 +8769,7 @@ export type Database = {
           pnr: string
           proposed_cancellation_charge_gbp: number
           proposed_customer_refund_gbp: number
+          provisional_company_result_gbp?: number | null
           replacement_agent_commission_gbp?: number | null
           replacement_booking_id?: string | null
           replacement_company_result_gbp?: number | null
@@ -7574,6 +8801,8 @@ export type Database = {
           cancellation_credit_applied_gbp?: number | null
           closed_at?: string | null
           commission_scope?: string
+          confirmed_correct_at?: string | null
+          confirmed_correct_by_employee_id?: string | null
           created_at?: string
           created_by_employee_id?: string
           customer_credit_remaining_gbp?: number | null
@@ -7602,6 +8831,7 @@ export type Database = {
           pnr?: string
           proposed_cancellation_charge_gbp?: number
           proposed_customer_refund_gbp?: number
+          provisional_company_result_gbp?: number | null
           replacement_agent_commission_gbp?: number | null
           replacement_booking_id?: string | null
           replacement_company_result_gbp?: number | null
@@ -7636,6 +8866,13 @@ export type Database = {
             columns: ['booking_id']
             isOneToOne: false
             referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_refunds_confirmed_correct_by_employee_id_fkey'
+            columns: ['confirmed_correct_by_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
             referencedColumns: ['id']
           },
           {
@@ -7825,6 +9062,77 @@ export type Database = {
             columns: ['sector_id']
             isOneToOne: false
             referencedRelation: 'ticket_itinerary_sectors'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticket_staff_family_fare_reprices: {
+        Row: {
+          adjustment_id: string
+          booking_id: string
+          company_fee_gbp: number
+          company_fee_percent: number
+          created_at: string
+          customer_additional_charge_gbp: number
+          customer_credit_gbp: number
+          customer_price_after_gbp: number
+          customer_price_before_gbp: number
+          owner_employee_id: string
+          supplier_difference_gbp: number
+        }
+        Insert: {
+          adjustment_id: string
+          booking_id: string
+          company_fee_gbp: number
+          company_fee_percent: number
+          created_at?: string
+          customer_additional_charge_gbp: number
+          customer_credit_gbp: number
+          customer_price_after_gbp: number
+          customer_price_before_gbp: number
+          owner_employee_id: string
+          supplier_difference_gbp: number
+        }
+        Update: {
+          adjustment_id?: string
+          booking_id?: string
+          company_fee_gbp?: number
+          company_fee_percent?: number
+          created_at?: string
+          customer_additional_charge_gbp?: number
+          customer_credit_gbp?: number
+          customer_price_after_gbp?: number
+          customer_price_before_gbp?: number
+          owner_employee_id?: string
+          supplier_difference_gbp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticket_staff_family_fare_reprices_adjustment_id_fkey'
+            columns: ['adjustment_id']
+            isOneToOne: true
+            referencedRelation: 'ticket_fare_adjustment_current'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_staff_family_fare_reprices_adjustment_id_fkey'
+            columns: ['adjustment_id']
+            isOneToOne: true
+            referencedRelation: 'ticket_fare_adjustments'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_staff_family_fare_reprices_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'ticket_bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticket_staff_family_fare_reprices_owner_employee_id_fkey'
+            columns: ['owner_employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
             referencedColumns: ['id']
           },
         ]
@@ -8270,6 +9578,77 @@ export type Database = {
             columns: ['transaction_passenger_id']
             isOneToOne: true
             referencedRelation: 'ticket_transaction_passengers'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticketing_staff_family_employee_policies: {
+        Row: {
+          employee_id: string
+          low_fare_company_fee_percent: number
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          employee_id: string
+          low_fare_company_fee_percent: number
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          employee_id?: string
+          low_fare_company_fee_percent?: number
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticketing_staff_family_employee_policies_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: true
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ticketing_staff_family_employee_policies_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ticketing_staff_family_policy: {
+        Row: {
+          change_admin_fee_gbp: number
+          id: boolean
+          low_fare_company_fee_percent: number
+          refund_admin_fee_gbp: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          change_admin_fee_gbp?: number
+          id?: boolean
+          low_fare_company_fee_percent?: number
+          refund_admin_fee_gbp?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          change_admin_fee_gbp?: number
+          id?: boolean
+          low_fare_company_fee_percent?: number
+          refund_admin_fee_gbp?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ticketing_staff_family_policy_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
             referencedColumns: ['id']
           },
         ]
@@ -11980,14 +13359,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
-            columns: ['reviewed_by_employee_id']
+            columns: ['marked_by_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
             referencedColumns: ['id']
           },
           {
             foreignKeyName: 'ticket_schedule_events_actor_employee_id_fkey'
-            columns: ['marked_by_employee_id']
+            columns: ['reviewed_by_employee_id']
             isOneToOne: false
             referencedRelation: 'employees'
             referencedColumns: ['id']
@@ -12081,6 +13460,12 @@ export type Database = {
           reservation_id: string | null
           root_transaction_id: string | null
           sequence_number: number | null
+          staff_family_company_fee_gbp: number | null
+          staff_family_company_fee_percent: number | null
+          staff_family_customer_additional_charge_gbp: number | null
+          staff_family_customer_credit_gbp: number | null
+          staff_family_customer_price_after_gbp: number | null
+          staff_family_customer_price_before_gbp: number | null
         }
         Relationships: [
           {
@@ -12239,6 +13624,26 @@ export type Database = {
       }
     }
     Functions: {
+      admin_review_staff_approval_20260902: {
+        Args: {
+          p_actor_employee_id: string
+          p_decision: string
+          p_request_id: string
+          p_review_reason: string
+        }
+        Returns: Json
+      }
+      admin_update_employee_assignments_20260902: {
+        Args: {
+          p_department_ids: string[]
+          p_employee_id: string
+          p_full_name: string
+          p_location_id: string
+          p_manager_id: string
+          p_role_id: string
+        }
+        Returns: undefined
+      }
       append_commission_source_event: { Args: { p_event: Json }; Returns: Json }
       check_api_rate_limit: {
         Args: {
@@ -12253,6 +13658,31 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      commission_accounting_batches_2026090201: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          approved_at: string
+          approved_by: string
+          content_hash: string
+          employee_count: number
+          entry_count: number
+          id: string
+          native_currency_totals: Json
+          period_end: string
+          period_start: string
+          prepared_at: string
+          prepared_by: string
+          returned_at: string
+          returned_by: string
+          returned_reason: string
+          revision: number
+          status: string
+          submitted_at: string
+          submitted_by: string
+          total_count: number
+          total_gbp: number
+        }[]
+      }
       commission_activate_policy_version_2026082901: {
         Args: {
           p_actor_employee_id: string
@@ -12261,6 +13691,10 @@ export type Database = {
           p_version_id: string
         }
         Returns: Json
+      }
+      commission_actor_can_account_2026090201: {
+        Args: { p_employee_id: string }
+        Returns: boolean
       }
       commission_actor_can_manage_2026082901: {
         Args: { p_employee_id: string }
@@ -12273,6 +13707,57 @@ export type Database = {
       commission_actor_is_admin_2026082901: {
         Args: { p_employee_id: string }
         Returns: boolean
+      }
+      commission_append_adjustment_2026090201: {
+        Args: {
+          p_actor_employee_id: string
+          p_amount_pay_currency: number
+          p_category: string
+          p_direction: string
+          p_employee_id: string
+          p_evidence: Json
+          p_pay_currency: string
+          p_period_start: string
+          p_reason: string
+          p_request_key: string
+          p_reverses_adjustment_id: string
+        }
+        Returns: Json
+      }
+      commission_application_routing_2026083007: {
+        Args: {
+          p_effective_on: string
+          p_location_id: string
+          p_performer_employee_id: string
+        }
+        Returns: Json
+      }
+      commission_application_service_code_2026083006: {
+        Args: { p_application_kind: string; p_record: Json }
+        Returns: string
+      }
+      commission_apportion_money_2026090201: {
+        Args: { p_total: number; p_unit_count: number; p_unit_position: number }
+        Returns: number
+      }
+      commission_approve_review_batch_2026090201: {
+        Args: { p_batch_id: string; p_expected_revision: number }
+        Returns: Json
+      }
+      commission_assert_review_ready_2026090201: {
+        Args: { p_period_end: string; p_period_start: string }
+        Returns: undefined
+      }
+      commission_calculate_bonus_schedule_2026090201: {
+        Args: {
+          p_incomplete_input_count: number
+          p_pay_currency: string
+          p_period_start: string
+          p_qualifying_profit_gbp: number
+          p_recurring: Json
+          p_steps: Json
+        }
+        Returns: Json
       }
       commission_calculate_component_2026082901: {
         Args: {
@@ -12370,6 +13855,19 @@ export type Database = {
         }
         Returns: Json
       }
+      commission_emit_application_event_2026083005: {
+        Args: {
+          p_application_kind: string
+          p_deleted?: boolean
+          p_effective_on?: string
+          p_record: Json
+        }
+        Returns: Json
+      }
+      commission_emit_package_sale_event_2026083003: {
+        Args: { p_package_id: string }
+        Returns: Json
+      }
       commission_exchange_rate_2026083001: {
         Args: { p_currency: string; p_period_start: string }
         Returns: number
@@ -12378,6 +13876,30 @@ export type Database = {
         Args: {
           p_actor_employee_id: string
           p_employee_id: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      commission_lock_actor_authorization_2026090201: {
+        Args: { p_employee_id: string }
+        Returns: undefined
+      }
+      commission_package_financial_snapshot_2026083003: {
+        Args: { p_package_id: string }
+        Returns: Json
+      }
+      commission_package_readiness_2026083004: {
+        Args: { p_package_id: string }
+        Returns: Json
+      }
+      commission_period_source_hash_2026090201: {
+        Args: { p_period_end: string; p_period_start: string }
+        Returns: string
+      }
+      commission_prepare_review_batch_2026090201: {
+        Args: {
+          p_actor_employee_id: string
+          p_period_start: string
           p_request_key: string
         }
         Returns: Json
@@ -12391,7 +13913,35 @@ export type Database = {
         }
         Returns: Json
       }
+      commission_process_application_shadow_event_2026083005: {
+        Args: { p_event_id: string; p_run_id: string }
+        Returns: Json
+      }
+      commission_process_application_shadow_event_2026083007: {
+        Args: { p_event_id: string; p_run_id: string }
+        Returns: Json
+      }
+      commission_process_package_shadow_event_2026083003: {
+        Args: { p_event_id: string; p_run_id: string }
+        Returns: Json
+      }
+      commission_process_refunds_2026090201: {
+        Args: {
+          p_actor_employee_id: string
+          p_limit?: number
+          p_request_key?: string
+        }
+        Returns: Json
+      }
       commission_process_shadow_2026082902: {
+        Args: {
+          p_actor_employee_id: string
+          p_limit?: number
+          p_request_key?: string
+        }
+        Returns: Json
+      }
+      commission_process_shadow_core_2026090201: {
         Args: {
           p_actor_employee_id: string
           p_limit?: number
@@ -12418,6 +13968,41 @@ export type Database = {
         }
         Returns: undefined
       }
+      commission_remove_employee_profile_2026083006: {
+        Args: {
+          p_actor_employee_id: string
+          p_profile_id: string
+          p_reason: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      commission_replace_employee_profile_2026083006: {
+        Args: {
+          p_actor_employee_id: string
+          p_change_reason: string
+          p_configuration: Json
+          p_effective_from: string
+          p_label: string
+          p_location_id: string
+          p_profile_id: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      commission_replace_employee_profile_2026083008: {
+        Args: {
+          p_actor_employee_id: string
+          p_change_reason: string
+          p_configuration: Json
+          p_effective_from: string
+          p_label: string
+          p_location_id: string
+          p_profile_id: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
       commission_resolve_assignment_2026082901: {
         Args: {
           p_effective_on: string
@@ -12435,6 +14020,18 @@ export type Database = {
           p_exception_id: string
           p_request_key: string
         }
+        Returns: Json
+      }
+      commission_return_review_batch_2026090201: {
+        Args: {
+          p_batch_id: string
+          p_expected_revision: number
+          p_reason: string
+        }
+        Returns: Json
+      }
+      commission_review_batch_detail_2026090201: {
+        Args: { p_batch_id: string }
         Returns: Json
       }
       commission_revoke_access_2026082901: {
@@ -12464,8 +14061,245 @@ export type Database = {
         Args: { p_actor_employee_id: string }
         Returns: Json
       }
+      commission_shadow_staff_report_2026090201: {
+        Args: {
+          p_actor_employee_id: string
+          p_period_end: string
+          p_period_start: string
+        }
+        Returns: Json
+      }
+      commission_source_module_overview_2026083003: {
+        Args: { p_actor_employee_id: string }
+        Returns: Json
+      }
+      commission_source_module_overview_2026083005: {
+        Args: { p_actor_employee_id: string }
+        Returns: Json
+      }
+      commission_submit_review_batch_2026090201: {
+        Args: {
+          p_actor_employee_id: string
+          p_batch_id: string
+          p_expected_revision: number
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      customer_loyalty_award_activate: {
+        Args: { p_source_reference: string }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_award_pending: {
+        Args: {
+          p_activation_milestone: string
+          p_description: string
+          p_mobile_user_id: string
+          p_points: number
+          p_source_reference: string
+          p_source_type: string
+        }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_award_reverse: {
+        Args: {
+          p_description: string
+          p_reversal_source_reference: string
+          p_source_reference: string
+        }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_reconcile_source_v1: {
+        Args: {
+          p_source_namespace: string
+          p_source_record_id: string
+          p_source_type: string
+        }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_record_service_event_v1: {
+        Args: {
+          p_event_reference: string
+          p_event_type: string
+          p_occurred_at: string
+          p_source_namespace: string
+          p_source_record_id: string
+        }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_register_code_source_v1: {
+        Args: {
+          p_customer_code: string
+          p_description: string
+          p_points: number
+          p_source_namespace: string
+          p_source_record_id: string
+          p_source_type: string
+        }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_register_source_v1: {
+        Args: {
+          p_description: string
+          p_mobile_user_id: string
+          p_points: number
+          p_source_namespace: string
+          p_source_record_id: string
+          p_source_type: string
+        }
+        Returns: {
+          activated_at: string | null
+          activation_milestone: string | null
+          created_at: string
+          description: string
+          id: string
+          legacy_ledger_id: string | null
+          mobile_user_id: string
+          points: number
+          reversal_of: string | null
+          reversed_at: string | null
+          source_reference: string
+          source_type: string
+          state: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'customer_loyalty_awards'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_loyalty_source_reference_v1: {
+        Args: {
+          p_source_namespace: string
+          p_source_record_id: string
+          p_source_type: string
+        }
+        Returns: string
+      }
       digest: { Args: { p_data: string; p_type: string }; Returns: string }
       exec_sql: { Args: { sql: string }; Returns: Json[] }
+      generate_customer_appointment_reference: { Args: never; Returns: string }
       get_my_sessions: {
         Args: never
         Returns: {
@@ -12619,6 +14453,48 @@ export type Database = {
         }[]
       }
       revoke_my_session: { Args: { session_id: string }; Returns: undefined }
+      staff_performance_source_facts_2026083101: {
+        Args: {
+          p_effective_from: string
+          p_effective_to: string
+          p_employee_id: string
+        }
+        Returns: {
+          created_at: string
+          effective_on: string
+          employee_id: string
+          event_type: string
+          event_version: number
+          id: string
+          owner_employee_id: string
+          source_fact_key: string
+          source_module: string
+          source_path: string
+          source_record_id: string
+          variables: Json
+        }[]
+      }
+      staff_performance_timeclock_events_2026083101: {
+        Args: {
+          p_effective_from: string
+          p_effective_to: string
+          p_employee_id: string
+        }
+        Returns: {
+          adjusted_device_ts: string
+          adjusted_scanned_at: string
+          device_ts: string
+          effective_at: string
+          event_type: string
+          id: string
+          punch_type: string
+          scanned_at: string
+        }[]
+      }
+      ticketing_actor_can_maintain_2026090202: {
+        Args: { p_employee_id: string }
+        Returns: boolean
+      }
       ticketing_actor_is_admin_2026082802: {
         Args: { p_employee_id: string }
         Returns: boolean
@@ -12643,7 +14519,31 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_append_fare_adjustment_commercial: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
       ticketing_append_refund_event_2026082903: {
+        Args: {
+          p_actor_employee_id: string
+          p_amount_gbp: number
+          p_event_date: string
+          p_event_type: string
+          p_expected_version: number
+          p_idempotency_key: string
+          p_notes: string
+          p_override_reason: string
+          p_reference: string
+          p_refund_id: string
+        }
+        Returns: Json
+      }
+      ticketing_append_refund_event_2026090201: {
         Args: {
           p_actor_employee_id: string
           p_amount_gbp: number
@@ -12758,6 +14658,28 @@ export type Database = {
         }
         Returns: Json
       }
+      ticketing_correct_booking_attribution_commercial_2026090201: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_correction: Json
+          p_expected_booking_version: number
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_correct_transaction_dates_2026090203: {
+        Args: {
+          p_actor_employee_id: string
+          p_booking_id: string
+          p_correction: Json
+          p_expected_booking_version: number
+          p_expected_transaction_version: number
+          p_idempotency_key: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       ticketing_create_quick_tk: {
         Args: {
           p_actor_employee_id: string
@@ -12767,6 +14689,14 @@ export type Database = {
         Returns: Json
       }
       ticketing_create_quick_tk_attributed: {
+        Args: {
+          p_actor_employee_id: string
+          p_entry: Json
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      ticketing_create_quick_tk_commercial: {
         Args: {
           p_actor_employee_id: string
           p_entry: Json
@@ -12804,6 +14734,13 @@ export type Database = {
           p_passenger_type: string
         }
         Returns: Json
+      }
+      ticketing_date_correction_context_matches_2026090203: {
+        Args: {
+          p_new: Database['public']['Tables']['ticket_transactions']['Row']
+          p_old: Database['public']['Tables']['ticket_transactions']['Row']
+        }
+        Returns: boolean
       }
       ticketing_enrich_service_business_dates_2026082304: {
         Args: { p_booking_id: string; p_response: Json }
@@ -12857,6 +14794,10 @@ export type Database = {
           p_old_primary_employee_id: string
         }
         Returns: boolean
+      }
+      ticketing_package_quote_pricing_2026083101: {
+        Args: { p_booking_id: string }
+        Returns: Json
       }
       ticketing_reconcile_package_booking_2026082902: {
         Args: { p_booking_id: string }

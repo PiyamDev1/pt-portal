@@ -24,15 +24,79 @@ response reports whether the employee-profile schema is available.
 **Errors:** `401` for no session; `403` for an inactive or missing employee; `500` for an unexpected
 private-data load failure.
 
+### GET `/api/accounting/commissions/review-batches`
+
+**Access:** Active Accounting or Accounts department members, plus Admin, Master Admin, and Super
+Admin roles. Membership is resolved from `employee_departments`, and the database repeats the
+authority check.
+
+**Input:** Optional integer `limit` from 1 to 100, default 25, and integer `offset` from 0 to
+100,000. All other query keys are rejected.
+
+**Success:** `200` with a bounded page of Commission review batches, their reporting periods,
+revision/state, staff and entry counts, native-currency subtotals, GBP book total, submission and
+approval evidence, and Accounting actions available to the caller.
+
+**Errors:** `400` for invalid filters; `401`/`403` for access failure; `503` when Commission review
+is not installed; `500` for an unexpected database failure.
+
+### GET `/api/accounting/commissions/review-batches/[batchId]`
+
+**Access:** Active Accounting or Accounts department members, plus Admin, Master Admin, and Super
+Admin roles. The database repeats the authority check.
+
+**Input:** Commission review batch UUID; no body.
+
+**Success:** `200` with the immutable batch summary, staff-level Salary, Ticketing, Application,
+Package, bonus, penalty and refund breakdown, native-currency net amounts, GBP book equivalents,
+immutable source references and adjustment reasons needed for double-checking, and any review
+warnings. Submitted batches include `isStale` and a server-derived `canApprove`; changed source
+results must be returned instead of approved.
+
+**Errors:** `400` for an invalid UUID; `401`/`403` for access failure; `404` for a missing or hidden
+batch; `503` when Commission review is not installed; `500` for an unexpected database failure.
+
+### POST `/api/accounting/commissions/review-batches/[batchId]/return`
+
+**Access:** Active Accounting or Accounts department members, plus Admin, Master Admin, and Super
+Admin roles. The database repeats the authority check and enforces the batch transition.
+
+**Input:** Commission review batch UUID and strict JSON `{ expectedRevision, reason }`. Revision is
+a positive integer used for optimistic concurrency; the trimmed audit reason must contain 3-500
+characters. Actor fields and additional keys are rejected.
+
+**Success:** `200` after atomically returning the submitted batch to Commission Admin with its
+reason and reviewer evidence retained in the audit history.
+
+**Errors:** `400` for invalid input; `401`/`403` for access failure; `404` for a missing batch; `409`
+when the batch changed or can no longer be returned; `503` when Commission review is not installed;
+`500` for an unexpected database failure.
+
+### POST `/api/accounting/commissions/review-batches/[batchId]/approve`
+
+**Access:** Active Accounting or Accounts department members, plus Admin, Master Admin, and Super
+Admin roles. The database repeats the authority check, prevents the submitter from approving their
+own batch, and enforces the batch transition.
+
+**Input:** Commission review batch UUID and strict JSON `{ expectedRevision }` containing a positive
+integer. Actor fields and additional keys are rejected.
+
+**Success:** `200` after final Accounting approval permanently locks the batch, its statement
+membership, totals, and approval evidence. Later corrections belong to a subsequent open period.
+
+**Errors:** `400` for invalid input; `401`/`403` for access or separation-of-duties failure; `404`
+for a missing batch; `409` when the batch changed or can no longer be approved; `503` when
+Commission review is not installed; `500` for an unexpected database failure.
+
 ### GET `/api/commissions/admin`
 
 **Access:** Authorised Commission Admin/HR staff only.
 
 **Input:** No body or query parameters.
 
-**Success:** `200` with active employee setup status, employee-owned profile history, recent PKR
-monthly conversion rates, Ticketing/Package/Application source coverage, open exceptions, bounded
-shadow overview, latest calculation run, schema version, and mode.
+**Success:** `200` with active employee setup status, employee-owned profile history, recent
+monthly rates for configured non-GBP pay currencies, Ticketing/Package/Application source coverage,
+open exceptions, bounded shadow overview, latest calculation run, schema version, and mode.
 
 **Errors:** `401`/`403` for access failure; `503` when management capability is unavailable; `500`
 for an unexpected load failure.
@@ -54,7 +118,7 @@ also use a flat package amount selected by the authoritative passenger-count ban
 awarded once per package rather than once per passenger. Per-passenger commission remains a separate
 method, and linked group bookings remain one package. Past effective dates are
 accepted only when they do not overlap a completed or later plan and do not rewrite calculated
-history. Tiered, bonus, salary, and PKR agreements use whole-month boundaries.
+history. Tiered, bonus, salary, and converted-currency agreements use whole-month boundaries.
 
 **Success:** `201` after one transaction creates the employee-owned snapshot plus a distinct policy,
 active immutable version, and effective assignment for each service. Copying records provenance but
@@ -102,9 +166,10 @@ an unexpected transactional failure.
 
 **Access:** Authorised Commission Admin/HR staff only. The database repeats the permission check.
 
-**Input:** Strict JSON `{ currency: "PKR", periodStart: "YYYY-MM-01", unitsPerGbp: number }` and
-an optional valid `Idempotency-Key`. The rate means the number of Pakistani rupees represented by
-one British pound for the selected month.
+**Input:** Strict JSON `{ currency: "EUR", periodStart: "YYYY-MM-01", unitsPerGbp: number }` and
+an optional valid `Idempotency-Key`. `currency` is an uppercase three-letter non-GBP pay-currency
+code; the rate is the number of that currency's units represented by one British pound for the
+selected month.
 
 **Success:** `200` after recording the audited monthly rate, re-queuing calculations held for that
 month, and attempting one bounded shadow-processing batch. A rate may be corrected until a
@@ -302,6 +367,76 @@ include historical revisions.
 
 **Errors:** `400` for invalid filters/cursor; `401`/`403` for access failure; `503` for missing
 capability; `500` when entries or employee labels cannot be loaded.
+
+### GET `/api/commissions/admin/staff-report`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the management check;
+all responses are private and non-cacheable.
+
+**Input:** Required calendar-month query `period=YYYY-MM`. Unknown query fields and invalid months
+are rejected. Employee identity is never accepted as an authority override.
+
+**Success:** `200` with current-revision staff and native-currency totals plus grouped Ticketing,
+Applications, Packages, refund, bonus, salary, and adjustment rows. `companyTotalGbp` is the common
+book value, while `readiness` reports pending events, period-scoped open exceptions, and incomplete
+bonus periods. `reviewBatch` is either `null` or the latest non-superseded exact-period batch with
+`id`, `revision`, `state`, `contentHash`, `entryCount`, and `isStale`, so a prepared or submitted
+review can be resumed safely after a refresh.
+
+**Errors:** `400` for invalid filters; `401`/`403` for access failure; `503` for missing workflow
+capability; `500` for an unexpected database or report-shape failure.
+
+### POST `/api/commissions/admin/adjustments`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the management check.
+
+**Input:** Valid 8-200 character `Idempotency-Key` and strict JSON `{ employeeId, category, amount,
+currency, periodStart, reason, evidence? }`. `category` is `adm`, `loss`, or `other`; `currency` is a
+three-letter code; `periodStart` is the first day of a month; and `reason` is 3-500 trimmed
+characters. This route creates debit penalties only. Actor, direction, and reversal fields are
+rejected.
+
+**Success:** `201` with the immutable adjustment, native amount, exchange-rate evidence, GBP book
+amount, and replay state. Adjustments are append-only and cannot be updated or deleted. Periods
+with a draft, submitted, or approved Accounting batch reject new penalties with `409`; a returned
+period can receive a correction before its replacement batch is prepared.
+
+**Errors:** `400` for invalid input/key or unavailable exchange-rate evidence; `401`/`403` for
+access failure; `404` for an inactive/missing employee; `503` for missing capability; `500` for an
+unexpected database failure.
+
+### POST `/api/commissions/admin/review-batches/prepare`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the management check.
+
+**Input:** Valid `Idempotency-Key` and strict JSON `{ periodStart }`, where `periodStart` is the
+first day of a completed calendar month. Actor or result overrides are rejected.
+
+**Success:** `200` with the draft batch ID, revision, immutable content hash, entry count, and
+`payable: false`. Preparation snapshots the current staff/source values only when the month has no
+pending/held events, period-scoped open exceptions, or incomplete bonus periods. Repeating the
+operation for an unchanged draft resumes that draft. If its sources changed before submission, the
+database retains the old draft as superseded audit evidence and creates the next immutable
+revision.
+
+**Errors:** `400` for invalid input/key or an open month; `401`/`403` for access failure; `409` when
+the month is not ready or already has a submitted/approved batch; `503` for missing capability;
+`500` for an unexpected database failure.
+
+### POST `/api/commissions/admin/review-batches/[batchId]/submit`
+
+**Access:** Authorised Commission Admin/HR staff only. The database repeats the management check.
+
+**Input:** UUID batch ID, valid `Idempotency-Key`, and strict JSON `{ expectedRevision }`. The
+positive revision is required for optimistic concurrency; actor and content fields are rejected.
+
+**Success:** `200` with the batch changed atomically from `draft` to `submitted_to_accounting`, its
+incremented revision, original content hash, submission time, and replay state. The database
+recomputes the source hash before accepting the handoff.
+
+**Errors:** `400` for invalid input/key; `401`/`403` for access failure; `404` for a missing batch;
+`409` for stale revision/state or changed source results; `503` for missing capability; `500` for
+an unexpected database failure.
 
 ### GET `/api/commissions/bonus-periods`
 

@@ -32,6 +32,7 @@ interface EmployeeSummary {
 interface SettingsClientProps {
   currentUser: AuthUser
   userRole: string
+  userDepartments?: string[]
   initialLocations: unknown[]
   initialDepts: unknown[]
   initialRoles: unknown[]
@@ -41,6 +42,7 @@ interface SettingsClientProps {
 export default function SettingsClient({
   currentUser,
   userRole,
+  userDepartments = [],
   initialLocations,
   initialDepts,
   initialRoles,
@@ -196,16 +198,6 @@ export default function SettingsClient({
                         Hierarchy Tree
                       </button>
                       <button
-                        onClick={() => setActiveTab('ticketing-flight-api')}
-                        className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
-                          activeTab === 'ticketing-flight-api'
-                            ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
-                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
-                        }`}
-                      >
-                        Ticket Flight API
-                      </button>
-                      <button
                         onClick={() => setActiveTab('frappe-provisioning')}
                         className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                           activeTab === 'frappe-provisioning'
@@ -255,6 +247,18 @@ export default function SettingsClient({
                   >
                     Data Maintenance
                   </button>
+                  {isOrgAdmin && (
+                    <button
+                      onClick={() => setActiveTab('ticketing-flight-api')}
+                      className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                        activeTab === 'ticketing-flight-api'
+                          ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                      }`}
+                    >
+                      Ticket Flight API
+                    </button>
+                  )}
                   {isOrgAdmin && (
                     <button
                       onClick={() => setActiveTab('timeclock-devices')}
@@ -349,6 +353,7 @@ export default function SettingsClient({
             loading={loading}
             setLoading={setLoading}
             userRole={userRole}
+            userDepartments={userDepartments}
           />
         )}
 

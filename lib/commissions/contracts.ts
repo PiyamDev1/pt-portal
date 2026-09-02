@@ -7,6 +7,7 @@ export const COMMISSION_PACKAGE_READINESS_CAPABILITY_VERSION = 2026083004
 export const COMMISSION_APPLICATION_CAPABILITY_VERSION = 2026083007
 export const COMMISSION_PROFILE_EDITING_CAPABILITY_VERSION = 2026083008
 export const COMMISSION_TICKETING_WAIVER_CAPABILITY_VERSION = 2026083101
+export const COMMISSION_ACCOUNTING_CAPABILITY_VERSION = 2026090201
 
 export const commissionSourceModules = ['ticketing', 'packages', 'applications'] as const
 export const commissionServiceCodes = [
@@ -47,6 +48,11 @@ export const commissionComponentTypes = [
 ] as const
 
 const uuidSchema = z.string().uuid()
+export const commissionCurrencyCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, 'Use a three-letter ISO currency code')
 const optionalMoneySchema = z
   .string()
   .trim()
@@ -198,7 +204,9 @@ export const commissionRetrySchema = z.object({}).strict()
 
 export const commissionMonthlyExchangeRateSchema = z
   .object({
-    currency: z.literal('PKR'),
+    currency: commissionCurrencyCodeSchema.refine((currency) => currency !== 'GBP', {
+      message: 'GBP is the book currency and always uses a rate of 1',
+    }),
     periodStart: z.iso.date(),
     unitsPerGbp: z.number().finite().positive().max(1_000_000_000),
   })
@@ -372,6 +380,7 @@ export const commissionRateSchema = z
     kind: z.enum(COMMISSION_RATE_KINDS),
     value: z.number().finite().min(0).max(1_000_000).default(0),
     tiers: z.array(profileTierSchema).max(12).default([]),
+    currency: commissionCurrencyCodeSchema.nullable().default(null),
   })
   .strict()
   .superRefine((rate, context) => {
@@ -491,17 +500,55 @@ export const commissionProfileSchema = z
       .default({ includeDateChanges: false }),
     compensation: z
       .object({
-        currency: z.enum(['GBP', 'PKR']).default('GBP'),
+        currency: commissionCurrencyCodeSchema.default('GBP'),
+        salaryCurrency: commissionCurrencyCodeSchema.nullable().default(null),
         monthlySalary: z.number().finite().min(0).max(1_000_000_000).default(0),
       })
       .strict()
-      .default({ currency: 'GBP', monthlySalary: 0 }),
+      .default({ currency: 'GBP', salaryCurrency: null, monthlySalary: 0 }),
+    ticketRefundCommission: z
+      .object({ treatment: z.enum(['retain', 'reverse_original']).default('retain') })
+      .strict()
+      .default({ treatment: 'retain' }),
     monthlyBonus: z
       .object({
         enabled: z.boolean(),
         thresholdGbp: z.number().finite().min(0).max(100_000_000),
         rewardKind: z.enum(['fixed_gbp', 'percentage_of_qualifying_profit']),
         rewardValue: z.number().finite().min(0).max(1_000_000),
+        currency: commissionCurrencyCodeSchema.nullable().default(null),
+        steps: z
+          .array(
+            z
+              .object({
+                thresholdGbp: z.number().finite().min(0).max(100_000_000),
+                rewardKind: z.enum(['fixed_gbp', 'percentage_of_qualifying_profit']),
+                rewardValue: z.number().finite().min(0).max(1_000_000),
+              })
+              .strict(),
+          )
+          .max(24)
+          .default([]),
+        recurring: z
+          .object({
+            enabled: z.boolean().default(false),
+            startsAtGbp: z.number().finite().min(0).max(100_000_000).default(0),
+            intervalGbp: z.number().finite().positive().max(100_000_000).default(1_000),
+            rewardKind: z
+              .enum(['fixed_gbp', 'percentage_of_qualifying_profit'])
+              .default('fixed_gbp'),
+            rewardValue: z.number().finite().min(0).max(1_000_000).default(0),
+            maxOccurrences: z.number().int().positive().max(10_000).nullable().default(null),
+          })
+          .strict()
+          .default({
+            enabled: false,
+            startsAtGbp: 0,
+            intervalGbp: 1_000,
+            rewardKind: 'fixed_gbp',
+            rewardValue: 0,
+            maxOccurrences: null,
+          }),
         eligibleServices: z
           .array(z.enum(['tk_primary', 'dc', 'r_er']))
           .min(1)
@@ -593,6 +640,61 @@ export const commissionProfileSchema = z
         message: 'Enter an assistance rate for every selected primary agent',
       })
     }
+
+    const bonusSteps =
+      profile.monthlyBonus.steps.length > 0
+        ? profile.monthlyBonus.steps
+        : [
+            {
+              thresholdGbp: profile.monthlyBonus.thresholdGbp,
+              rewardKind: profile.monthlyBonus.rewardKind,
+              rewardValue: profile.monthlyBonus.rewardValue,
+            },
+          ]
+    const thresholds = bonusSteps.map((step) => step.thresholdGbp)
+    bonusSteps.forEach((step, index) => {
+      if (step.rewardKind === 'percentage_of_qualifying_profit' && step.rewardValue > 100) {
+        context.addIssue({
+          code: 'custom',
+          path: ['monthlyBonus', 'steps', index, 'rewardValue'],
+          message: 'Percentage bonus rates cannot exceed 100%',
+        })
+      }
+    })
+    if (new Set(thresholds).size !== thresholds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['monthlyBonus', 'steps'],
+        message: 'Each monthly profit target must be unique',
+      })
+    }
+    if (profile.monthlyBonus.recurring.enabled && !profile.monthlyBonus.enabled) {
+      context.addIssue({
+        code: 'custom',
+        path: ['monthlyBonus', 'recurring', 'enabled'],
+        message: 'Enable the monthly profit bonus before adding a recurring bonus',
+      })
+    }
+    if (profile.monthlyBonus.recurring.enabled) {
+      const recurring = profile.monthlyBonus.recurring
+      if (recurring.startsAtGbp <= Math.max(...thresholds)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['monthlyBonus', 'recurring', 'startsAtGbp'],
+          message: 'The recurring bonus must start after the highest one-off target',
+        })
+      }
+      if (
+        recurring.rewardKind === 'percentage_of_qualifying_profit' &&
+        recurring.rewardValue > 100
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['monthlyBonus', 'recurring', 'rewardValue'],
+          message: 'Percentage bonus rates cannot exceed 100%',
+        })
+      }
+    }
   })
 
 export type CommissionProfileInput = z.infer<typeof commissionProfileSchema>
@@ -635,7 +737,7 @@ export type CommissionServicePolicyInput = {
 }
 
 export type StoredCommissionProfileConfiguration = {
-  uiVersion: 5
+  uiVersion: 6
   services: CommissionServicePolicyInput[]
   draft: CommissionProfileInput
 }
@@ -721,7 +823,11 @@ function componentForProfileRate(
     eligibleServices: [serviceCode],
     config: {
       serviceCode,
-      payCurrency: input.compensation.currency,
+      payCurrency: rate.currency || input.compensation.currency,
+      ...(serviceCode.startsWith('tk_') ||
+      ['dc', 'r_er', 'low_fare', 'higher_fare'].includes(serviceCode)
+        ? { ticketRefundTreatment: input.ticketRefundCommission.treatment }
+        : {}),
       ...(serviceCode === 'tk_assistance' ? { assistanceScope } : {}),
       ...(serviceCode === 'tk_primary' && rate.kind === 'tiered'
         ? { includeDateChangesInMarginalTiers: input.ticketTierOptions.includeDateChanges }
@@ -820,6 +926,19 @@ export function toStoredCommissionProfile(
   })
 
   if (input.monthlyBonus.enabled) {
+    const bonusSteps =
+      input.monthlyBonus.steps.length > 0
+        ? [...input.monthlyBonus.steps].sort(
+            (left, right) => left.thresholdGbp - right.thresholdGbp,
+          )
+        : [
+            {
+              thresholdGbp: input.monthlyBonus.thresholdGbp,
+              rewardKind: input.monthlyBonus.rewardKind,
+              rewardValue: input.monthlyBonus.rewardValue,
+            },
+          ]
+    const firstStep = bonusSteps[0]!
     services.push({
       sourceModule: 'ticketing',
       serviceCode: 'sales_bonus',
@@ -828,23 +947,30 @@ export function toStoredCommissionProfile(
         {
           componentType: 'sales_profit_bonus',
           recipientRole: 'sales_bonus',
-          thresholdGbp: input.monthlyBonus.thresholdGbp,
-          rewardKind: input.monthlyBonus.rewardKind,
-          rewardValue: input.monthlyBonus.rewardValue,
+          thresholdGbp: firstStep.thresholdGbp,
+          rewardKind: firstStep.rewardKind,
+          rewardValue: firstStep.rewardValue,
           eligibleServices: input.monthlyBonus.eligibleServices,
-          config: { period: 'calendar_month', payCurrency: input.compensation.currency },
+          config: {
+            period: 'calendar_month',
+            basis: 'employee_contributed_profit',
+            payCurrency: input.monthlyBonus.currency || input.compensation.currency,
+            bonusScheduleVersion: 1,
+            steps: bonusSteps,
+            recurring: input.monthlyBonus.recurring,
+          },
         },
       ],
     })
   }
 
-  return { uiVersion: 5, services, draft: input }
+  return { uiVersion: 6, services, draft: input }
 }
 
 export function createDefaultCommissionProfile(employeeId = ''): CommissionProfileInput {
   const now = new Date()
   const effectiveFrom = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`
-  const zeroRate: CommissionRate = { kind: 'none', value: 0, tiers: [] }
+  const zeroRate: CommissionRate = { kind: 'none', value: 0, tiers: [], currency: null }
 
   return {
     employeeId,
@@ -871,12 +997,23 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
     assistanceScope: { mode: 'all', employeeIds: [], agentRates: [] },
     applicationRouting: { mode: 'self', recipientEmployeeId: null },
     ticketTierOptions: { includeDateChanges: false },
-    compensation: { currency: 'GBP', monthlySalary: 0 },
+    compensation: { currency: 'GBP', salaryCurrency: null, monthlySalary: 0 },
+    ticketRefundCommission: { treatment: 'retain' },
     monthlyBonus: {
       enabled: false,
       thresholdGbp: 0,
       rewardKind: 'fixed_gbp',
       rewardValue: 0,
+      currency: null,
+      steps: [],
+      recurring: {
+        enabled: false,
+        startsAtGbp: 0,
+        intervalGbp: 1_000,
+        rewardKind: 'fixed_gbp',
+        rewardValue: 0,
+        maxOccurrences: null,
+      },
       eligibleServices: ['tk_primary'],
     },
   }
@@ -887,6 +1024,10 @@ export function profileNeedsWholeMonths(profile: CommissionProfileInput) {
     profile.services.tkPrimary.kind === 'tiered' ||
     profile.monthlyBonus.enabled ||
     profile.compensation.currency !== 'GBP' ||
+    (profile.compensation.salaryCurrency || profile.compensation.currency) !== 'GBP' ||
+    Object.values(profile.services).some(
+      (rate) => Boolean(rate.currency) && rate.currency !== 'GBP',
+    ) ||
     profile.compensation.monthlySalary > 0
   )
 }

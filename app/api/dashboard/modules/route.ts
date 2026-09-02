@@ -1,9 +1,14 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { MOBILE_NAVIGATION_METADATA_KEY } from '@/lib/mobileNavigation'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  const access = await requireStaffSession({ includeDepartments: true })
+  if (!access.authorized) return access.response
+
   const supabase = await getRouteSupabaseClient()
   const {
     data: { user },
@@ -17,7 +22,17 @@ export async function GET() {
     .eq('user_id', user.id)
 
   if (error) return apiError(error.message, 500)
-  return apiOk({ preferences: data || [] })
+  return apiOk(
+    {
+      preferences: data || [],
+      moduleAccess: {
+        role: access.employee.role,
+        departments: access.employee.departments,
+      },
+      mobileShortcutIds: user.user_metadata?.[MOBILE_NAVIGATION_METADATA_KEY],
+    },
+    { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+  )
 }
 
 export async function POST(request: Request) {

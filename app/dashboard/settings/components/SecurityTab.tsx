@@ -28,6 +28,7 @@ interface SecurityTabProps {
   loading: boolean
   setLoading: (loading: boolean) => void
   userRole: string
+  userDepartments?: string[]
 }
 
 type SecurityConfirmAction =
@@ -42,6 +43,7 @@ export default function SecurityTab({
   loading,
   setLoading,
   userRole,
+  userDepartments = [],
 }: SecurityTabProps) {
   const router = useRouter()
 
@@ -312,6 +314,7 @@ export default function SecurityTab({
           currentUser={currentUser}
           supabase={supabase}
           userRole={userRole}
+          userDepartments={userDepartments}
         />
 
         <PasswordChangeForm

@@ -2509,6 +2509,16 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$date_correction_hardening_assertion
 
 # Pause a real date correction after it has locked actor authorization, then
 # prove a concurrent role demotion cannot cross the privileged operation.
+date_correction_actor_role_before="$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
+  select role_id
+  from public.employees
+  where id = '4a000000-0000-0000-0000-000000000001'
+")"
+if [[ -z "$date_correction_actor_role_before" ]]; then
+  echo "Date-correction authorization-race actor was not found"
+  exit 1
+fi
+
 psql "$database_url" -v ON_ERROR_STOP=1 -c "
   create or replace function public.ticketing_test_pause_date_correction_auth_race()
   returns trigger
@@ -2587,11 +2597,7 @@ if psql "$database_url" -v ON_ERROR_STOP=1 -c "
   wait "$date_correction_auth_pid" || true
   psql "$database_url" -v ON_ERROR_STOP=1 -c "
     update public.employees
-    set role_id = (
-      select id from public.roles
-      where regexp_replace(lower(btrim(name)), '[_-]+', ' ', 'g') = 'maintenance admin'
-      order by id limit 1
-    )
+    set role_id = '$date_correction_actor_role_before'
     where id = '4a000000-0000-0000-0000-000000000001';
     drop trigger ticketing_test_pause_date_correction_auth_race on public.ticket_audit_events;
     drop function public.ticketing_test_pause_date_correction_auth_race();
@@ -2616,11 +2622,10 @@ if [[ "$(psql "$database_url" -Atq -v ON_ERROR_STOP=1 -c "
     and key_row.idempotency_key = 'date-hardening-concurrency-race'
   join public.employees actor
     on actor.id = '4a000000-0000-0000-0000-000000000001'
-  join public.roles actor_role on actor_role.id = actor.role_id
   where booking.normalized_pnr = 'DATE-HARD-HELD-1'
     and root.booking_date = date '2026-03-23'
     and root.time_limit_at = timestamp '2026-03-28 15:00' at time zone 'Europe/London'
-    and regexp_replace(lower(btrim(actor_role.name)), '[_-]+', ' ', 'g') = 'maintenance admin'
+    and actor.role_id = '$date_correction_actor_role_before'
 ")" != "1" ]]; then
   echo "Date-correction authorization race left incorrect operational or retry state"
   exit 1

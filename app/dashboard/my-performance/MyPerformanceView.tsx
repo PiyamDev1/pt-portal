@@ -6,6 +6,7 @@ import {
   BadgePoundSterling,
   CalendarCheck2,
   CheckCircle2,
+  ChevronDown,
   FileCheck2,
   HandHelping,
   Info,
@@ -16,7 +17,11 @@ import {
 import MyCommissionsView from '@/app/dashboard/my-commissions/MyCommissionsView'
 import type { PerformanceMetricSet } from '@/lib/performance/analytics'
 import type { MyPerformanceData } from '@/lib/performance/server'
-import { PERFORMANCE_TABS, type PerformanceView } from '@/lib/performance/view'
+import {
+  performancePeriodHref,
+  PERFORMANCE_TABS,
+  type PerformanceView,
+} from '@/lib/performance/view'
 
 const number = new Intl.NumberFormat('en-GB')
 const date = new Intl.DateTimeFormat('en-GB', {
@@ -38,12 +43,12 @@ function hours(minutes: number) {
 
 function Trend({ current, previous }: { current: number; previous: number }) {
   if (current === previous) {
-    return <span className="text-slate-500">Same as last month</span>
+    return <span className="text-slate-500">Same as previous month</span>
   }
   if (previous === 0) {
     return (
       <span className="inline-flex items-center gap-1 text-emerald-700">
-        <ArrowUpRight className="h-3.5 w-3.5" /> New this month
+        <ArrowUpRight className="h-3.5 w-3.5" /> New in this period
       </span>
     )
   }
@@ -198,10 +203,14 @@ export default function MyPerformanceView({
   data,
   employeeName,
   selectedView,
+  selectedPeriod,
+  currentPeriod,
 }: {
   data: MyPerformanceData
   employeeName: string
   selectedView: PerformanceView
+  selectedPeriod: string
+  currentPeriod: string
 }) {
   const { analytics } = data
   const firstName = employeeName.split(/\s+/)[0] || 'there'
@@ -227,12 +236,38 @@ export default function MyPerformanceView({
               with another employee.
             </p>
           </div>
-          <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm backdrop-blur">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
+          <form
+            action="/dashboard/my-performance"
+            method="get"
+            className="rounded-2xl bg-white/10 px-4 py-3 text-sm backdrop-blur"
+          >
+            <input type="hidden" name="view" value={selectedView} />
+            <label
+              htmlFor="performance-reporting-period"
+              className="text-[10px] font-black uppercase tracking-[0.16em] text-red-100"
+            >
               Reporting period
+            </label>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                id="performance-reporting-period"
+                name="period"
+                type="month"
+                defaultValue={selectedPeriod}
+                max={currentPeriod}
+                className="min-w-0 rounded-lg border border-white/20 bg-white px-2.5 py-1.5 text-xs font-black text-slate-950 outline-none focus:border-white focus:ring-2 focus:ring-white/30"
+              />
+              <button
+                type="submit"
+                className="rounded-lg border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-black text-white transition hover:bg-white/25"
+              >
+                View
+              </button>
+            </div>
+            <p className="mt-1.5 text-[10px] font-bold text-red-50/75">
+              Showing {analytics.currentMonthLabel}
             </p>
-            <p className="mt-1 font-black">{analytics.currentMonthLabel}</p>
-          </div>
+          </form>
         </div>
         <nav className="relative mt-6 grid gap-2 sm:grid-cols-3" aria-label="My performance pages">
           {PERFORMANCE_TABS.map((tab) => {
@@ -240,7 +275,7 @@ export default function MyPerformanceView({
             return (
               <Link
                 key={tab.id}
-                href={tab.href}
+                href={performancePeriodHref(tab.id, selectedPeriod)}
                 aria-current={active ? 'page' : undefined}
                 className={`rounded-xl border px-3.5 py-2.5 text-center text-xs font-black transition ${
                   active
@@ -263,7 +298,7 @@ export default function MyPerformanceView({
                 Recorded activity
               </p>
               <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                Work completed this month
+                Work completed in {analytics.currentMonthLabel}
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
                 Counts follow the current source record, so corrected, reversed, deleted and
@@ -348,10 +383,12 @@ export default function MyPerformanceView({
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                     Application mix
                   </p>
-                  <h3 className="mt-1 text-xl font-black text-slate-950">Completed this month</h3>
+                  <h3 className="mt-1 text-xl font-black text-slate-950">
+                    Completed in this period
+                  </h3>
                   {analytics.applicationBreakdown.length === 0 ? (
                     <p className="mt-6 rounded-2xl bg-slate-50 p-5 text-sm leading-6 text-slate-500">
-                      No completed application records are attributed to you this month.
+                      No completed application records are attributed to you in this period.
                     </p>
                   ) : (
                     <div className="mt-5 space-y-3">
@@ -371,19 +408,25 @@ export default function MyPerformanceView({
                 </article>
               </div>
 
-              <article className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
-                    Evidence
-                  </p>
-                  <h3 className="mt-1 text-xl font-black text-slate-950">Recent completed work</h3>
-                </div>
+              <details className="group overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden">
+                  <span>
+                    <span className="block text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
+                      Evidence
+                    </span>
+                    <span className="mt-1 block text-base font-black text-slate-950">
+                      Recent completed work · {analytics.recent.length} item
+                      {analytics.recent.length === 1 ? '' : 's'}
+                    </span>
+                  </span>
+                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition group-open:rotate-180" />
+                </summary>
                 {analytics.recent.length === 0 ? (
-                  <p className="px-6 py-12 text-center text-sm text-slate-500">
-                    No completed work is available in this reporting window.
+                  <p className="border-t border-slate-100 px-6 py-8 text-center text-sm text-slate-500">
+                    No completed work is available in this reporting period.
                   </p>
                 ) : (
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-slate-100 border-t border-slate-100">
                     {analytics.recent.map((item) => (
                       <Link
                         key={item.id}
@@ -401,7 +444,7 @@ export default function MyPerformanceView({
                     ))}
                   </div>
                 )}
-              </article>
+              </details>
             </>
           )}
         </section>
@@ -412,7 +455,7 @@ export default function MyPerformanceView({
           id="attendance"
           className="scroll-mt-24 rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
         >
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                 Attendance
@@ -424,12 +467,6 @@ export default function MyPerformanceView({
                 Hours use completed IN-to-OUT pairs. Missing punches are never estimated.
               </p>
             </div>
-            <Link
-              href="/dashboard/timeclock/history"
-              className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-black text-slate-700 transition hover:border-red-200 hover:text-[#8b1e2d]"
-            >
-              Review my punches <ArrowRight className="h-4 w-4" />
-            </Link>
           </div>
 
           {!data.attendanceReady && (
@@ -442,7 +479,7 @@ export default function MyPerformanceView({
               <AttendanceCard
                 label="Recorded hours"
                 value={hours(attendance.current.workedMinutes)}
-                note={`${hours(attendance.previous.workedMinutes)} last month`}
+                note={`${hours(attendance.previous.workedMinutes)} in the previous month`}
               />
               <AttendanceCard
                 label="Days present"
@@ -452,7 +489,7 @@ export default function MyPerformanceView({
               <AttendanceCard
                 label="Completed sessions"
                 value={number.format(attendance.current.completedShifts)}
-                note="Valid IN-to-OUT pairs in this month"
+                note="Valid IN-to-OUT pairs in this reporting period"
               />
               <AttendanceCard
                 label="Punch status"
@@ -472,6 +509,35 @@ export default function MyPerformanceView({
                 }
               />
             </div>
+          )}
+
+          {data.attendanceReady && (
+            <details className="group mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 marker:hidden [&::-webkit-details-marker]:hidden">
+                <span>
+                  <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-[#8b1e2d]">
+                    Evidence
+                  </span>
+                  <span className="mt-0.5 block text-sm font-black text-slate-800">
+                    Recorded attendance · {number.format(attendance.current.daysPresent)} day
+                    {attendance.current.daysPresent === 1 ? '' : 's'} present
+                  </span>
+                </span>
+                <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition group-open:rotate-180" />
+              </summary>
+              <div className="flex flex-col items-start gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="max-w-2xl text-xs leading-5 text-slate-500">
+                  These totals come from your recorded clock-in and clock-out events. Open the punch
+                  history to review the underlying timestamps or request a correction.
+                </p>
+                <Link
+                  href="/dashboard/timeclock/history"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-black text-slate-700 transition hover:border-red-200 hover:text-[#8b1e2d]"
+                >
+                  Review my punches <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </details>
           )}
         </section>
       )}
@@ -495,7 +561,12 @@ export default function MyPerformanceView({
               </p>
             </div>
           </div>
-          <MyCommissionsView data={data.commission} employeeName={employeeName} embedded />
+          <MyCommissionsView
+            data={data.commission}
+            employeeName={employeeName}
+            embedded
+            reportingPeriodLabel={analytics.currentMonthLabel}
+          />
         </section>
       )}
 

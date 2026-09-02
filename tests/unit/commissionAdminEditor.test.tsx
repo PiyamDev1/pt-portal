@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import AdminCommissionClient from '@/app/dashboard/admin-commission/AdminCommissionClient'
 import { createDefaultCommissionProfile } from '@/lib/commissions/contracts'
@@ -195,5 +195,54 @@ describe('Admin Commission editor modes', () => {
         expect.objectContaining({ method: 'PUT' }),
       )
     })
+  })
+
+  it('edits mixed currencies, refund treatment, and multiple recurring profit targets', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => ({
+      ok: true,
+      json: async () => (init?.method === 'PUT' ? {} : adminData()),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<AdminCommissionClient initialData={adminData()} />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit commission' })[0]!)
+    fireEvent.change(screen.getByLabelText('Employee default commission currency'), {
+      target: { value: 'usd' },
+    })
+    fireEvent.change(screen.getByLabelText('Salary currency override'), {
+      target: { value: 'pkr' },
+    })
+
+    const ticketRates = screen.getByRole('group', { name: 'Ticket sales' })
+    fireEvent.change(within(ticketRates).getByLabelText('Method'), {
+      target: { value: 'per_unit' },
+    })
+    fireEvent.change(screen.getByLabelText('Ticket sales payout currency override'), {
+      target: { value: 'eur' },
+    })
+    fireEvent.click(screen.getByLabelText('Reverse original commission'))
+    fireEvent.click(screen.getByLabelText(/Company profit target from this employee/))
+    fireEvent.click(screen.getByRole('button', { name: 'Add profit target' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Repeat a bonus/ }))
+    fireEvent.change(screen.getByLabelText('Reason for this commission plan'), {
+      target: { value: 'Mixed currency and bonus schedule update' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save edited commission' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/commissions/admin/profiles/${PROFILE_ID}`,
+        expect.objectContaining({ method: 'PUT' }),
+      )
+    })
+    const request = fetchMock.mock.calls.find(
+      ([url]) => url === `/api/commissions/admin/profiles/${PROFILE_ID}`,
+    )
+    const body = JSON.parse(String(request?.[1]?.body))
+    expect(body.compensation).toMatchObject({ currency: 'USD', salaryCurrency: 'PKR' })
+    expect(body.services.tkPrimary.currency).toBe('EUR')
+    expect(body.ticketRefundCommission.treatment).toBe('reverse_original')
+    expect(body.monthlyBonus.steps).toHaveLength(2)
+    expect(body.monthlyBonus.recurring.enabled).toBe(true)
   })
 })

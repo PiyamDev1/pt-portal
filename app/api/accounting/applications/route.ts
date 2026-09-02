@@ -1,8 +1,8 @@
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireAccountingAccess } from '@/lib/accounting/access'
+import { ACCOUNTING_PRIVATE_RESPONSE } from '@/lib/accounting/api'
 import {
   APPLICATION_SOURCE_KEYS,
   APPLICATION_SOURCE_LABELS,
@@ -225,42 +225,33 @@ function parseYear(value: string | null, currentYear: number) {
 }
 
 export async function GET(request: Request) {
+  const access = await requireAccountingAccess()
+  if (!access.authorized) return access.response
+
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!url || !key) {
-      return apiError('Supabase is not configured', 500)
-    }
-
-    const cookieStore = await cookies()
-    const supabase = createServerClient(url, key, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    })
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return apiError('Unauthorized', 401)
-    }
+    const supabase = access.supabase
 
     const { searchParams } = new URL(request.url)
     const currentYear = new Date().getUTCFullYear()
     const year = parseYear(searchParams.get('year'), currentYear)
     if (!year) {
-      return apiError(`year must be between 2000 and ${currentYear + 1}`, 400)
+      return apiError(
+        `year must be between 2000 and ${currentYear + 1}`,
+        400,
+        {},
+        ACCOUNTING_PRIVATE_RESPONSE,
+      )
     }
 
     const serviceParam = searchParams.get('service') || 'all'
     const validServices = new Set<string>(['all', ...APPLICATION_SOURCE_KEYS])
     if (!validServices.has(serviceParam)) {
-      return apiError('service must be all, nadra, pak_passport, gb_passport, or visa', 400)
+      return apiError(
+        'service must be all, nadra, pak_passport, gb_passport, or visa',
+        400,
+        {},
+        ACCOUNTING_PRIVATE_RESPONSE,
+      )
     }
     const service = serviceParam as ApplicationSourceKey | 'all'
 
@@ -298,8 +289,14 @@ export async function GET(request: Request) {
         service,
         warnings,
       }),
+      ACCOUNTING_PRIVATE_RESPONSE,
     )
   } catch (error) {
-    return apiError(toErrorMessage(error, 'Application accounting report failed'), 500)
+    return apiError(
+      toErrorMessage(error, 'Application accounting report failed'),
+      500,
+      {},
+      ACCOUNTING_PRIVATE_RESPONSE,
+    )
   }
 }

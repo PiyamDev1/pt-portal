@@ -11,8 +11,8 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
-  BadgePoundSterling,
   ArrowLeft,
+  BadgePoundSterling,
   BookOpen,
   Building2,
   Calculator,
@@ -45,7 +45,6 @@ const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
     label: 'My performance',
     icon: ChartNoAxesColumnIncreasing,
   },
-  { href: '/dashboard/accounting', label: 'Accounting', icon: BadgePoundSterling },
   { href: '/dashboard/settings?tab=security', label: 'My Account', icon: UserRound },
 ]
 
@@ -98,6 +97,11 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
         href: '/dashboard/accounting/applications',
         label: 'Applications',
         icon: FileText,
+      },
+      {
+        href: '/dashboard/accounting/commissions',
+        label: 'Commission review',
+        icon: BadgePoundSterling,
       },
     ],
   },
@@ -171,6 +175,7 @@ export default function PageHeader({
   showBack,
   backHref,
   backLabel,
+  performancePeriod,
 }: {
   employeeName?: string
   role?: string
@@ -179,6 +184,7 @@ export default function PageHeader({
   showBack?: boolean
   backHref?: string
   backLabel?: string
+  performancePeriod?: string
 }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -203,6 +209,10 @@ export default function PageHeader({
     ? { href: backHref, label: backLabel || 'Previous page' }
     : inferredParent
   const displayBack = (showBack ?? true) && parentNavigation
+  const menuHref = (item: MenuItem) =>
+    performancePeriod && item.href.startsWith('/dashboard/my-performance?view=')
+      ? `${item.href}&period=${encodeURIComponent(performancePeriod)}`
+      : item.href
 
   return (
     <>
@@ -331,7 +341,7 @@ export default function PageHeader({
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={menuHref(item)}
                       onClick={() => setMenuOpen(false)}
                       className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-slate-800 shadow-sm"
                     >

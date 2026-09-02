@@ -13,6 +13,7 @@ import {
   type PerformanceTimeclockEvent,
 } from '@/lib/performance/analytics'
 import { collectPagedRows } from '@/lib/performance/pagination'
+import { currentPerformancePeriod, resolvePerformancePeriod } from '@/lib/performance/view'
 import type { Database, Json } from '@/types/supabase'
 
 type PerformanceClient = SupabaseClient<Database>
@@ -52,6 +53,13 @@ function addUtcDays(value: string, days: number) {
   const parsed = new Date(`${value}T00:00:00Z`)
   parsed.setUTCDate(parsed.getUTCDate() + days)
   return parsed.toISOString()
+}
+
+function nextMonth(period: string) {
+  const [year, month] = period.split('-').map(Number)
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonthNumber = month === 12 ? 1 : month + 1
+  return `${String(nextYear).padStart(4, '0')}-${String(nextMonthNumber).padStart(2, '0')}`
 }
 
 async function loadSourceFacts(
@@ -163,13 +171,20 @@ async function loadTimeclockEvents(
 export async function loadMyPerformanceData(
   employeeId: string,
   now = new Date(),
+  reportingPeriod?: string,
 ): Promise<MyPerformanceData> {
   const supabase = performanceClient()
-  const reportingDate = formatLondonReportingDate(now)
+  const selectedPeriod = resolvePerformancePeriod(reportingPeriod, now)
+  const currentPeriod = currentPerformancePeriod(now)
+  const reportingNow =
+    selectedPeriod === currentPeriod
+      ? now
+      : new Date(londonDateStartUtc(`${nextMonth(selectedPeriod)}-01`).getTime() - 1)
+  const reportingDate = formatLondonReportingDate(reportingNow)
   const { effectiveFrom, effectiveTo } = performanceReportingWindow(reportingDate)
 
   const [commission, sourceResult, timeclockResult] = await Promise.all([
-    loadMyCommissionData(employeeId, now),
+    loadMyCommissionData(employeeId, reportingNow),
     loadSourceFacts(supabase, employeeId, effectiveFrom, effectiveTo),
     loadTimeclockEvents(supabase, employeeId, effectiveFrom, effectiveTo),
   ])
@@ -182,7 +197,7 @@ export async function loadMyPerformanceData(
       timeclockResult.events,
       employeeId,
       reportingDate,
-      now,
+      reportingNow,
     ),
     commission,
   }

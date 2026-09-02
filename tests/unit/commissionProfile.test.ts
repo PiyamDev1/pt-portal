@@ -32,7 +32,7 @@ describe('employee commission profile contract', () => {
     expect(stored.services.every((service) => service.components.length === 1)).toBe(true)
     expect(profile.assistanceScope).toEqual({ mode: 'all', employeeIds: [], agentRates: [] })
     expect(profile.applicationRouting).toEqual({ mode: 'self', recipientEmployeeId: null })
-    expect(stored.uiVersion).toBe(5)
+    expect(stored.uiVersion).toBe(6)
     expect(
       stored.services.every(
         (service) =>
@@ -302,7 +302,11 @@ describe('employee commission profile contract', () => {
       payCurrency: 'PKR',
       includeDateChangesInMarginalTiers: true,
     })
-    expect(stored.draft.compensation).toEqual({ currency: 'PKR', monthlySalary: 150_000 })
+    expect(stored.draft.compensation).toEqual({
+      currency: 'PKR',
+      salaryCurrency: null,
+      monthlySalary: 150_000,
+    })
     expect(profileNeedsWholeMonths(profile)).toBe(true)
   })
 
@@ -315,5 +319,114 @@ describe('employee commission profile contract', () => {
 
     expect(source.services.tkPrimary.value).toBe(5)
     expect(copy.services.tkPrimary.value).toBe(9)
+  })
+
+  it('stores mixed ISO payout currencies and the confirmed-refund policy in every ticket rule', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.compensation = { currency: 'USD', salaryCurrency: 'PKR', monthlySalary: 150_000 }
+    profile.services.tkPrimary = {
+      kind: 'per_unit',
+      value: 5,
+      tiers: [],
+      currency: 'EUR',
+    }
+    profile.services.applicationNadra = {
+      kind: 'per_event',
+      value: 10,
+      tiers: [],
+      currency: 'AED',
+    }
+    profile.ticketRefundCommission.treatment = 'reverse_original'
+
+    const parsed = commissionProfileSchema.parse(profile)
+    const stored = toStoredCommissionProfile(parsed)
+    const ticket = stored.services.find((service) => service.serviceCode === 'tk_primary')
+      ?.components[0]
+    const application = stored.services.find(
+      (service) => service.serviceCode === 'application_nadra',
+    )?.components[0]
+
+    expect(ticket?.config).toMatchObject({
+      payCurrency: 'EUR',
+      ticketRefundTreatment: 'reverse_original',
+    })
+    expect(application?.config).toMatchObject({ payCurrency: 'AED' })
+    expect(application?.config).not.toHaveProperty('ticketRefundTreatment')
+    expect(stored.draft.compensation).toEqual({
+      currency: 'USD',
+      salaryCurrency: 'PKR',
+      monthlySalary: 150_000,
+    })
+  })
+
+  it('stores additive and recurring employee-attributed company-profit targets', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.monthlyBonus = {
+      enabled: true,
+      thresholdGbp: 0,
+      rewardKind: 'fixed_gbp',
+      rewardValue: 0,
+      currency: 'USD',
+      steps: [
+        { thresholdGbp: 0, rewardKind: 'fixed_gbp', rewardValue: 0 },
+        { thresholdGbp: 2_000, rewardKind: 'fixed_gbp', rewardValue: 100 },
+      ],
+      recurring: {
+        enabled: true,
+        startsAtGbp: 3_000,
+        intervalGbp: 1_000,
+        rewardKind: 'fixed_gbp',
+        rewardValue: 50,
+        maxOccurrences: null,
+      },
+      eligibleServices: ['tk_primary', 'dc'],
+    }
+
+    const stored = toStoredCommissionProfile(commissionProfileSchema.parse(profile))
+    const bonus = stored.services.find((service) => service.serviceCode === 'sales_bonus')
+      ?.components[0]
+
+    expect(bonus?.config).toMatchObject({
+      basis: 'employee_contributed_profit',
+      payCurrency: 'USD',
+      steps: [
+        { thresholdGbp: 0, rewardKind: 'fixed_gbp', rewardValue: 0 },
+        { thresholdGbp: 2_000, rewardKind: 'fixed_gbp', rewardValue: 100 },
+      ],
+      recurring: {
+        enabled: true,
+        startsAtGbp: 3_000,
+        intervalGbp: 1_000,
+        rewardValue: 50,
+      },
+    })
+  })
+
+  it('rejects duplicate targets, overlapping recurrence, and excessive percentage rewards', () => {
+    const profile = createDefaultCommissionProfile(EMPLOYEE_ID)
+    profile.monthlyBonus.enabled = true
+    profile.monthlyBonus.steps = [
+      { thresholdGbp: 2_000, rewardKind: 'fixed_gbp', rewardValue: 100 },
+      { thresholdGbp: 2_000, rewardKind: 'fixed_gbp', rewardValue: 50 },
+    ]
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+
+    profile.monthlyBonus.steps[1] = {
+      thresholdGbp: 3_000,
+      rewardKind: 'percentage_of_qualifying_profit',
+      rewardValue: 101,
+    }
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
+
+    profile.monthlyBonus.steps[1].rewardValue = 10
+    profile.monthlyBonus.recurring = {
+      enabled: true,
+      startsAtGbp: 3_000,
+      intervalGbp: 1_000,
+      rewardKind: 'fixed_gbp',
+      rewardValue: 50,
+      maxOccurrences: null,
+    }
+    expect(commissionProfileSchema.safeParse(profile).success).toBe(false)
   })
 })

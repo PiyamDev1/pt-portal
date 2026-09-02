@@ -3,10 +3,10 @@ import { COMMISSION_SERVICE_LABELS } from '@/lib/commissions/contracts'
 export type CommissionEntryForAnalytics = {
   id: string
   entryMode: 'shadow' | 'live'
-  entryKind: 'ordinary' | 'sales_bonus' | 'manual_adjustment'
+  entryKind: 'ordinary' | 'sales_bonus' | 'manual_adjustment' | 'refund_reversal'
   amountGbp: number
   amountPayCurrency?: number
-  payCurrency?: 'GBP' | 'PKR'
+  payCurrency?: string
   earningOn: string
   createdAt: string
   supersedesEntryId: string | null
@@ -108,14 +108,14 @@ export function buildCommissionAnalytics(
       if (amount >= 0) currentCredits += amount
       else currentDebits += Math.abs(amount)
       currentCount += 1
+
+      const code = entry.serviceCode || entry.entryKind
+      const item = breakdown.get(code) || { amountGbp: 0, entryCount: 0 }
+      item.amountGbp += amount
+      item.entryCount += 1
+      breakdown.set(code, item)
     }
     if (date.getUTCFullYear() === year) yearToDate += amount
-
-    const code = entry.serviceCode || entry.entryKind
-    const item = breakdown.get(code) || { amountGbp: 0, entryCount: 0 }
-    item.amountGbp += amount
-    item.entryCount += 1
-    breakdown.set(code, item)
   }
 
   const positiveBreakdownTotal = Array.from(breakdown.values()).reduce(
@@ -160,7 +160,8 @@ export function buildCommissionAnalytics(
             : 0,
       }))
       .sort((left, right) => right.amountGbp - left.amountGbp),
-    recent: [...entries]
+    recent: entries
+      .filter((entry) => entry.earningOn.startsWith(currentMonthKey))
       .sort((left, right) => {
         const dateComparison = right.earningOn.localeCompare(left.earningOn)
         return dateComparison || right.createdAt.localeCompare(left.createdAt)

@@ -21,11 +21,20 @@ import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 import { DashboardModulesClient } from './DashboardModulesClient'
 import { NoticeBoardClient } from './NoticeBoardClient'
 import {
+  canAccessDashboardModule,
   DASHBOARD_GROUP_LABELS,
   DASHBOARD_MODULES,
   type DashboardModule,
 } from '@/lib/dashboardModules'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+
+type DepartmentMembership = {
+  departments?: { name?: string | null } | Array<{ name?: string | null }> | null
+}
+
+function relatedDepartmentName(value: DepartmentMembership['departments']) {
+  return Array.isArray(value) ? value[0]?.name : value?.name
+}
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
 function MobileDashboard({
@@ -199,15 +208,24 @@ export default async function Dashboard() {
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const { data: canManageCommission } = await getServiceSupabaseClient().rpc(
-    'commission_actor_can_manage_2026082901',
-    { p_employee_id: session.user.id },
-  )
+  const serviceSupabase = getServiceSupabaseClient()
+  const [{ data: canManageCommission }, { data: departmentMemberships }] = await Promise.all([
+    serviceSupabase.rpc('commission_actor_can_manage_2026082901', {
+      p_employee_id: session.user.id,
+    }),
+    serviceSupabase
+      .from('employee_departments')
+      .select('departments(name)')
+      .eq('employee_id', session.user.id),
+  ])
+  const departmentNames = ((departmentMemberships || []) as DepartmentMembership[])
+    .map((membership) => relatedDepartmentName(membership.departments))
+    .filter((name): name is string => Boolean(name))
   const visibleModules = DASHBOARD_MODULES.filter(
     (moduleItem) =>
       (moduleItem.id === 'commissions' && canManageCommission === true) ||
       (moduleItem.id !== 'commissions' &&
-        (!moduleItem.allowedRoles || moduleItem.allowedRoles.includes(role?.name || ''))),
+        canAccessDashboardModule(moduleItem, role?.name, departmentNames)),
   )
 
   return (

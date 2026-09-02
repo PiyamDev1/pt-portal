@@ -59,6 +59,13 @@ function moneyFormatter(currency = 'GBP') {
   })
 }
 
+function normalizeCurrencyInput(value: string) {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+    .slice(0, 3)
+}
+
 const money = moneyFormatter()
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
@@ -272,7 +279,7 @@ function RateEditor({
   packageRate?: boolean
   noneLabel?: string
   perEventLabel?: string
-  currency?: 'GBP' | 'PKR'
+  currency?: string
   tierUnitLabel?: string
   tierMethodLabel?: string
   tierRateLabel?: string
@@ -280,6 +287,7 @@ function RateEditor({
   secondTierRate?: number
   tierStep?: number
 }) {
+  const effectiveCurrency = rate.currency || currency
   const setKind = (kind: CommissionRateKind) => {
     onChange({
       kind,
@@ -291,6 +299,7 @@ function RateEditor({
             ? rate.tiers
             : [{ minUnit: 1, rateGbp: defaultTierRate }]
           : [],
+      currency: rate.currency,
     })
   }
 
@@ -301,6 +310,26 @@ function RateEditor({
         <p className="text-sm font-black text-slate-900">{title}</p>
         <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
       </div>
+      {rate.kind !== 'none' && (
+        <label className="mt-3 block text-[11px] font-bold text-slate-500">
+          Payout currency override
+          <input
+            value={rate.currency || ''}
+            onChange={(event) =>
+              onChange({ ...rate, currency: normalizeCurrencyInput(event.target.value) || null })
+            }
+            inputMode="text"
+            maxLength={3}
+            pattern="[A-Za-z]{3}"
+            placeholder={`Uses employee default (${currency})`}
+            aria-label={`${title} payout currency override`}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-black uppercase tracking-wider text-slate-900 sm:max-w-xs"
+          />
+          <span className="mt-1 block font-normal text-slate-400">
+            Leave blank to use {currency}. Enter a three-letter ISO code for a mixed-currency rate.
+          </span>
+        </label>
+      )}
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
         <label className="text-xs font-bold text-slate-600">
           Method
@@ -326,7 +355,7 @@ function RateEditor({
         </label>
         {rate.kind !== 'none' && rate.kind !== 'tiered' && rate.kind !== 'full_difference' && (
           <label className="text-xs font-bold text-slate-600">
-            {rate.kind === 'percentage' ? 'Rate (%)' : `Amount (${currency})`}
+            {rate.kind === 'percentage' ? 'Rate (%)' : `Amount (${effectiveCurrency})`}
             <DraftNumberInput
               min="0"
               max={rate.kind === 'percentage' ? 100 : 1_000_000}
@@ -372,7 +401,7 @@ function RateEditor({
                 />
               </label>
               <label className="text-[11px] font-bold text-slate-500">
-                {tierRateLabel || `${currency} per ${tierUnitLabel}`}
+                {tierRateLabel || `${effectiveCurrency} per ${tierUnitLabel}`}
                 <DraftNumberInput
                   min="0"
                   step="0.01"
@@ -539,7 +568,7 @@ function AssistanceScopeEditor({
                   </label>
                   {checked && (
                     <label className="text-[10px] font-black uppercase tracking-wide text-blue-700">
-                      {draft.compensation.currency} rate
+                      {draft.services.tkAssistance.currency || draft.compensation.currency} rate
                       <DraftNumberInput
                         min="0"
                         max="1000000"
@@ -612,6 +641,30 @@ function AgreementEditor({
     : conflictingCommissionProfile(draft, profiles, editingProfileId)
   const updateService = (key: ServiceKey, rate: CommissionRate) => {
     setDraft({ ...draft, services: { ...draft.services, [key]: rate } })
+  }
+  const bonusSteps =
+    draft.monthlyBonus.steps.length > 0
+      ? draft.monthlyBonus.steps
+      : [
+          {
+            thresholdGbp: draft.monthlyBonus.thresholdGbp,
+            rewardKind: draft.monthlyBonus.rewardKind,
+            rewardValue: draft.monthlyBonus.rewardValue,
+          },
+        ]
+  const updateBonusSteps = (steps: CommissionProfileInput['monthlyBonus']['steps']) => {
+    const first = steps[0]
+    if (!first) return
+    setDraft({
+      ...draft,
+      monthlyBonus: {
+        ...draft.monthlyBonus,
+        steps,
+        thresholdGbp: first.thresholdGbp,
+        rewardKind: first.rewardKind,
+        rewardValue: first.rewardValue,
+      },
+    })
   }
 
   return (
@@ -788,32 +841,56 @@ function AgreementEditor({
             </p>
             <h3 className="mt-1 text-xl font-black text-emerald-950">Local compensation</h3>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-emerald-800">
-              Fixed commission rates, tier values, and salary use this employee&apos;s pay currency.
-              Percentage targets remain based on GBP trading figures. PKR totals are converted to
-              GBP with the audited rate entered for that month.
+              Set a default commission currency, then override salary or individual service rates
+              when needed. Profit targets and the accounting book remain in GBP; every non-GBP
+              amount uses the audited monthly rate for its own currency.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-xs font-bold text-emerald-900">
-                Employee pay currency
-                <select
+                Default commission currency
+                <input
                   value={draft.compensation.currency}
                   onChange={(event) =>
                     setDraft({
                       ...draft,
                       compensation: {
                         ...draft.compensation,
-                        currency: event.target.value as 'GBP' | 'PKR',
+                        currency: normalizeCurrencyInput(event.target.value),
                       },
                     })
                   }
+                  inputMode="text"
+                  maxLength={3}
+                  pattern="[A-Za-z]{3}"
+                  required
+                  aria-label="Employee default commission currency"
                   className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
-                >
-                  <option value="GBP">GBP · British pounds</option>
-                  <option value="PKR">PKR · Pakistani rupees</option>
-                </select>
+                />
               </label>
               <label className="text-xs font-bold text-emerald-900">
-                Monthly salary ({draft.compensation.currency})
+                Salary currency override
+                <input
+                  value={draft.compensation.salaryCurrency || ''}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      compensation: {
+                        ...draft.compensation,
+                        salaryCurrency: normalizeCurrencyInput(event.target.value) || null,
+                      },
+                    })
+                  }
+                  inputMode="text"
+                  maxLength={3}
+                  pattern="[A-Za-z]{3}"
+                  placeholder={`Uses ${draft.compensation.currency || 'default'}`}
+                  aria-label="Salary currency override"
+                  className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black uppercase tracking-wider text-slate-900"
+                />
+              </label>
+              <label className="text-xs font-bold text-emerald-900">
+                Monthly salary (
+                {draft.compensation.salaryCurrency || draft.compensation.currency || 'currency'})
                 <DraftNumberInput
                   min="0"
                   max="1000000000"
@@ -829,13 +906,56 @@ function AgreementEditor({
                 />
               </label>
             </div>
-            {draft.compensation.currency === 'PKR' && (
+            {[draft.compensation.currency, draft.compensation.salaryCurrency]
+              .filter(Boolean)
+              .some((currency) => currency !== 'GBP') && (
               <p className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-900">
-                The month stays pending until an administrator records how many PKR equal £1. The
-                stored rate is then used for the GBP book equivalent; it never rewrites the PKR
-                salary or commission agreement.
+                The month stays pending until an administrator records the required units-per-£1
+                rate for every non-GBP currency. Book conversion never rewrites the employee&apos;s
+                original currency agreement.
               </p>
             )}
+            <fieldset className="mt-4 border-t border-emerald-200 pt-4">
+              <legend className="text-xs font-black uppercase tracking-wide text-emerald-900">
+                Confirmed ticket refunds
+              </legend>
+              <p className="mt-1 text-xs leading-5 text-emerald-800">
+                This policy is applied only after the refund has been marked correct. Provisional or
+                voided refunds never affect Commission.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    ['retain', 'Retain original commission'],
+                    ['reverse_original', 'Reverse original commission'],
+                  ] as const
+                ).map(([treatment, label]) => (
+                  <label
+                    key={treatment}
+                    className={`cursor-pointer rounded-xl border p-3 text-xs font-bold ${
+                      draft.ticketRefundCommission.treatment === treatment
+                        ? 'border-emerald-600 bg-white text-emerald-950'
+                        : 'border-emerald-200 text-emerald-800'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="ticket-refund-commission-treatment"
+                      value={treatment}
+                      checked={draft.ticketRefundCommission.treatment === treatment}
+                      onChange={() =>
+                        setDraft({
+                          ...draft,
+                          ticketRefundCommission: { treatment },
+                        })
+                      }
+                      className="mr-2 accent-emerald-700"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </section>
 
           <section>
@@ -956,7 +1076,7 @@ function AgreementEditor({
                   packageRate
                   tierUnitLabel="passenger"
                   tierMethodLabel="Passenger-count package bands"
-                  tierRateLabel={`${draft.compensation.currency} per package`}
+                  tierRateLabel={`${draft.services.packageSale.currency || draft.compensation.currency} per package`}
                   defaultTierRate={100}
                   secondTierRate={150}
                   tierStep={3}
@@ -1124,83 +1244,316 @@ function AgreementEditor({
                 onChange={(event) =>
                   setDraft({
                     ...draft,
-                    monthlyBonus: { ...draft.monthlyBonus, enabled: event.target.checked },
+                    monthlyBonus: {
+                      ...draft.monthlyBonus,
+                      enabled: event.target.checked,
+                      recurring: {
+                        ...draft.monthlyBonus.recurring,
+                        enabled: event.target.checked && draft.monthlyBonus.recurring.enabled,
+                      },
+                    },
                   })
                 }
                 className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#8b1e2d]"
               />
               <span>
                 <span className="block text-sm font-black text-slate-900">
-                  Monthly contributed-profit bonus
+                  Company profit target from this employee&apos;s sales
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  Reward the employee only after eligible ticketing work reaches a monthly profit
-                  threshold.
+                  Reward the employee after their eligible work contributes the configured amount of
+                  company profit in the month.
                 </span>
               </span>
             </label>
             {draft.monthlyBonus.enabled && (
-              <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
-                <label className="text-xs font-bold text-slate-600">
-                  Profit target (£)
-                  <DraftNumberInput
-                    min="0"
-                    step="0.01"
-                    value={draft.monthlyBonus.thresholdGbp}
-                    onValueChange={(thresholdGbp) =>
-                      setDraft({
-                        ...draft,
-                        monthlyBonus: {
-                          ...draft.monthlyBonus,
-                          thresholdGbp,
+              <div className="mt-5 space-y-5 border-t border-slate-100 pt-5">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-700">
+                      Incremental one-off targets
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Every reached row is added to the month&apos;s bonus. The measured company
+                      profit is the amount attributable to this employee&apos;s qualifying sales,
+                      rather than a pooled company total.
+                    </p>
+                  </div>
+                  <label className="text-xs font-bold text-slate-600">
+                    Bonus payout currency
+                    <input
+                      value={draft.monthlyBonus.currency || ''}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          monthlyBonus: {
+                            ...draft.monthlyBonus,
+                            currency: normalizeCurrencyInput(event.target.value) || null,
+                          },
+                        })
+                      }
+                      maxLength={3}
+                      pattern="[A-Za-z]{3}"
+                      placeholder={`Uses ${draft.compensation.currency}`}
+                      aria-label="Bonus payout currency"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-black uppercase tracking-wider sm:w-44"
+                    />
+                  </label>
+                </div>
+                <div className="space-y-3">
+                  {bonusSteps.map((step, index) => (
+                    <div
+                      key={`profit-target-${index}`}
+                      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end"
+                    >
+                      <label className="text-xs font-bold text-slate-600">
+                        Profit target (£)
+                        <DraftNumberInput
+                          min="0"
+                          step="0.01"
+                          value={step.thresholdGbp}
+                          onValueChange={(thresholdGbp) =>
+                            updateBonusSteps(
+                              bonusSteps.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, thresholdGbp } : item,
+                              ),
+                            )
+                          }
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-black"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Reward method
+                        <select
+                          value={step.rewardKind}
+                          onChange={(event) =>
+                            updateBonusSteps(
+                              bonusSteps.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      rewardKind: event.target
+                                        .value as CommissionProfileInput['monthlyBonus']['rewardKind'],
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"
+                        >
+                          <option value="fixed_gbp">Fixed amount</option>
+                          <option value="percentage_of_qualifying_profit">
+                            Percentage of profit
+                          </option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        {step.rewardKind === 'fixed_gbp'
+                          ? `Bonus (${draft.monthlyBonus.currency || draft.compensation.currency})`
+                          : 'Bonus rate (%)'}
+                        <DraftNumberInput
+                          min="0"
+                          max={step.rewardKind === 'fixed_gbp' ? 1_000_000 : 100}
+                          step="0.01"
+                          value={step.rewardValue}
+                          onValueChange={(rewardValue) =>
+                            updateBonusSteps(
+                              bonusSteps.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, rewardValue } : item,
+                              ),
+                            )
+                          }
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-black"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        disabled={bonusSteps.length === 1}
+                        onClick={() =>
+                          updateBonusSteps(bonusSteps.filter((_, itemIndex) => itemIndex !== index))
+                        }
+                        className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-[#8b1e2d] disabled:opacity-30"
+                        aria-label={`Remove profit target ${index + 1}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={bonusSteps.length >= 24}
+                    onClick={() => {
+                      const last = bonusSteps.at(-1)!
+                      updateBonusSteps([
+                        ...bonusSteps,
+                        {
+                          thresholdGbp: last.thresholdGbp + 1_000,
+                          rewardKind: 'fixed_gbp',
+                          rewardValue: 0,
                         },
-                      })
-                    }
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-black"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Reward method
-                  <select
-                    value={draft.monthlyBonus.rewardKind}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        monthlyBonus: {
-                          ...draft.monthlyBonus,
-                          rewardKind: event.target
-                            .value as CommissionProfileInput['monthlyBonus']['rewardKind'],
-                        },
-                      })
-                    }
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold"
+                      ])
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-50"
                   >
-                    <option value="fixed_gbp">Fixed amount</option>
-                    <option value="percentage_of_qualifying_profit">Percentage of profit</option>
-                  </select>
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  {draft.monthlyBonus.rewardKind === 'fixed_gbp'
-                    ? `Bonus (${draft.compensation.currency})`
-                    : 'Bonus rate (%)'}
-                  <DraftNumberInput
-                    min="0"
-                    max={draft.monthlyBonus.rewardKind === 'fixed_gbp' ? 1_000_000 : 100}
-                    step="0.01"
-                    value={draft.monthlyBonus.rewardValue}
-                    onValueChange={(rewardValue) =>
-                      setDraft({
-                        ...draft,
-                        monthlyBonus: {
-                          ...draft.monthlyBonus,
-                          rewardValue,
-                        },
-                      })
-                    }
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-black"
-                  />
-                </label>
-                <div className="sm:col-span-3">
+                    <Plus className="h-3.5 w-3.5" /> Add profit target
+                  </button>
+                </div>
+
+                <fieldset className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={draft.monthlyBonus.recurring.enabled}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          monthlyBonus: {
+                            ...draft.monthlyBonus,
+                            recurring: {
+                              ...draft.monthlyBonus.recurring,
+                              enabled: event.target.checked,
+                              startsAtGbp: event.target.checked
+                                ? Math.max(
+                                    draft.monthlyBonus.recurring.startsAtGbp,
+                                    Math.max(...bonusSteps.map((step) => step.thresholdGbp)) +
+                                      draft.monthlyBonus.recurring.intervalGbp,
+                                  )
+                                : draft.monthlyBonus.recurring.startsAtGbp,
+                            },
+                          },
+                        })
+                      }
+                      className="mt-0.5 h-4 w-4 accent-violet-700"
+                    />
+                    <span>
+                      <span className="block text-xs font-black text-violet-950">
+                        Repeat a bonus after the one-off targets
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-violet-800">
+                        Example: start at £3,000, then add £50 for every further £1,000.
+                      </span>
+                    </span>
+                  </label>
+                  {draft.monthlyBonus.recurring.enabled && (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      {[
+                        ['Starts at (£)', 'startsAtGbp'],
+                        ['Every further (£)', 'intervalGbp'],
+                      ].map(([label, key]) => (
+                        <label key={key} className="text-xs font-bold text-violet-900">
+                          {label}
+                          <DraftNumberInput
+                            min={key === 'intervalGbp' ? '0.01' : '0'}
+                            step="0.01"
+                            value={
+                              draft.monthlyBonus.recurring[key as 'startsAtGbp' | 'intervalGbp']
+                            }
+                            onValueChange={(value) =>
+                              setDraft({
+                                ...draft,
+                                monthlyBonus: {
+                                  ...draft.monthlyBonus,
+                                  recurring: { ...draft.monthlyBonus.recurring, [key]: value },
+                                },
+                              })
+                            }
+                            className="mt-1.5 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm font-black"
+                          />
+                        </label>
+                      ))}
+                      <label className="text-xs font-bold text-violet-900">
+                        Reward method
+                        <select
+                          value={draft.monthlyBonus.recurring.rewardKind}
+                          onChange={(event) =>
+                            setDraft({
+                              ...draft,
+                              monthlyBonus: {
+                                ...draft.monthlyBonus,
+                                recurring: {
+                                  ...draft.monthlyBonus.recurring,
+                                  rewardKind: event.target
+                                    .value as CommissionProfileInput['monthlyBonus']['rewardKind'],
+                                },
+                              },
+                            })
+                          }
+                          className="mt-1.5 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm font-bold"
+                        >
+                          <option value="fixed_gbp">Fixed amount</option>
+                          <option value="percentage_of_qualifying_profit">Percentage</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-bold text-violet-900">
+                        Reward
+                        <DraftNumberInput
+                          min="0"
+                          max={
+                            draft.monthlyBonus.recurring.rewardKind === 'fixed_gbp'
+                              ? 1_000_000
+                              : 100
+                          }
+                          step="0.01"
+                          value={draft.monthlyBonus.recurring.rewardValue}
+                          onValueChange={(rewardValue) =>
+                            setDraft({
+                              ...draft,
+                              monthlyBonus: {
+                                ...draft.monthlyBonus,
+                                recurring: { ...draft.monthlyBonus.recurring, rewardValue },
+                              },
+                            })
+                          }
+                          className="mt-1.5 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm font-black"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-violet-900">
+                        Maximum repeats
+                        <DraftNumberInput
+                          min="1"
+                          max="10000"
+                          step="1"
+                          value={draft.monthlyBonus.recurring.maxOccurrences || 1}
+                          onValueChange={(maxOccurrences) =>
+                            setDraft({
+                              ...draft,
+                              monthlyBonus: {
+                                ...draft.monthlyBonus,
+                                recurring: {
+                                  ...draft.monthlyBonus.recurring,
+                                  maxOccurrences,
+                                },
+                              },
+                            })
+                          }
+                          className="mt-1.5 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm font-black"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              monthlyBonus: {
+                                ...draft.monthlyBonus,
+                                recurring: {
+                                  ...draft.monthlyBonus.recurring,
+                                  maxOccurrences: null,
+                                },
+                              },
+                            })
+                          }
+                          className="mt-1 text-[10px] font-black text-violet-700"
+                        >
+                          {draft.monthlyBonus.recurring.maxOccurrences === null
+                            ? 'No maximum'
+                            : 'Remove maximum'}
+                        </button>
+                      </label>
+                    </div>
+                  )}
+                </fieldset>
+
+                <div>
                   <p className="text-xs font-bold text-slate-600">Eligible profit sources</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {(
@@ -1356,7 +1709,12 @@ function ProfileSummary({
           >
             <span className="text-slate-500">{label}</span>
             <span className="text-right font-black text-slate-800">
-              {rateLabel(rate, packageRate, config.compensation.currency, eventNoun)}
+              {rateLabel(
+                rate,
+                packageRate,
+                rate.currency || config.compensation.currency,
+                eventNoun,
+              )}
             </span>
           </div>
         ))}
@@ -1375,7 +1733,9 @@ function ProfileSummary({
                       (item) => item.employeeId === id,
                     )
                     return rate
-                      ? `${name} · ${moneyFormatter(config.compensation.currency).format(rate.value)}`
+                      ? `${name} · ${moneyFormatter(
+                          config.services.tkAssistance.currency || config.compensation.currency,
+                        ).format(rate.value)}`
                       : name
                   })
                   .join(', ')}
@@ -1388,11 +1748,21 @@ function ProfileSummary({
         </span>
       </div>
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
-        <span className="text-slate-500">Pay currency and salary</span>
+        <span className="text-slate-500">Default commission currency and salary</span>
         <span className="text-right font-black text-slate-800">
-          {config.compensation.currency} ·{' '}
-          {moneyFormatter(config.compensation.currency).format(config.compensation.monthlySalary)}
+          Commission {config.compensation.currency} · salary{' '}
+          {moneyFormatter(
+            config.compensation.salaryCurrency || config.compensation.currency,
+          ).format(config.compensation.monthlySalary)}
           /month
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
+        <span className="text-slate-500">Confirmed ticket refunds</span>
+        <span className="text-right font-black text-slate-800">
+          {config.ticketRefundCommission.treatment === 'reverse_original'
+            ? 'Reverse original commission'
+            : 'Retain original commission'}
         </span>
       </div>
       {config.services.tkPrimary.kind === 'tiered' && (
@@ -1407,7 +1777,11 @@ function ProfileSummary({
         <span className="text-slate-500">Monthly bonus</span>
         <span className="text-right font-black text-slate-800">
           {config.monthlyBonus.enabled
-            ? `From ${money.format(config.monthlyBonus.thresholdGbp)}`
+            ? `${
+                config.monthlyBonus.steps.length || 1
+              } target${(config.monthlyBonus.steps.length || 1) === 1 ? '' : 's'}${
+                config.monthlyBonus.recurring.enabled ? ' + recurring bonus' : ''
+              }`
             : 'Not included'}
         </span>
       </div>
@@ -1433,9 +1807,18 @@ export default function AdminCommissionClient({
   const [cancelProfile, setCancelProfile] = useState<CommissionAdminProfile | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [exchangeMonth, setExchangeMonth] = useState(currentMonthStart())
+  const [exchangeCurrency, setExchangeCurrency] = useState<string>(
+    initialData.exchangeRates.find((rate) => rate.periodStart === currentMonthStart())?.currency ||
+      'PKR',
+  )
   const [exchangeRate, setExchangeRate] = useState(
-    initialData.exchangeRates.find((rate) => rate.periodStart === currentMonthStart())
-      ?.unitsPerGbp || 0,
+    initialData.exchangeRates.find(
+      (rate) =>
+        rate.periodStart === currentMonthStart() &&
+        rate.currency ===
+          (initialData.exchangeRates.find((item) => item.periodStart === currentMonthStart())
+            ?.currency || 'PKR'),
+    )?.unitsPerGbp || 0,
   )
 
   const selectedEmployee = data.employees.find((employee) => employee.id === selectedId) || null
@@ -1644,13 +2027,15 @@ export default function AdminCommissionClient({
           'Idempotency-Key': requestKey('exchange'),
         },
         body: JSON.stringify({
-          currency: 'PKR',
+          currency: exchangeCurrency,
           periodStart: exchangeMonth,
           unitsPerGbp: exchangeRate,
         }),
       })
       await refresh()
-      setNotice('The monthly PKR conversion rate was saved and queued earnings were recalculated.')
+      setNotice(
+        `The monthly ${exchangeCurrency} conversion rate was saved and queued earnings were recalculated.`,
+      )
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save exchange rate')
     } finally {
@@ -1890,17 +2275,17 @@ export default function AdminCommissionClient({
 
       <form
         onSubmit={saveExchangeRate}
-        className="grid gap-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 lg:grid-cols-[minmax(0,1fr)_11rem_12rem_auto] lg:items-end"
+        className="grid gap-5 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 lg:grid-cols-[minmax(0,1fr)_8rem_11rem_12rem_auto] lg:items-end"
       >
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
             Monthly pay conversion
           </p>
-          <h2 className="mt-1 text-lg font-black text-emerald-950">PKR to GBP book rate</h2>
+          <h2 className="mt-1 text-lg font-black text-emerald-950">Currency to GBP book rate</h2>
           <p className="mt-1 max-w-xl text-xs leading-5 text-emerald-800">
-            Enter Pakistani rupees per £1 for the selected month. The local salary and commission
-            remain in PKR; this rate records the matching GBP amount for the books. Once used by a
-            calculation, the rate is locked.
+            Enter units per £1 for any non-GBP ISO currency used by salary, a service rate, or a
+            bonus. Original amounts remain in their payout currency while the matching GBP book
+            value is frozen. Once used by a calculation, the rate is locked.
           </p>
           {data.exchangeRates.length > 0 && (
             <p className="mt-2 text-[11px] font-bold text-emerald-700">
@@ -1908,10 +2293,30 @@ export default function AdminCommissionClient({
               {data.exchangeRates[0]!.unitsPerGbp.toLocaleString('en-GB', {
                 maximumFractionDigits: 6,
               })}{' '}
-              PKR per £1
+              {data.exchangeRates[0]!.currency} per £1
             </p>
           )}
         </div>
+        <label className="text-xs font-bold text-emerald-900">
+          Currency
+          <input
+            value={exchangeCurrency}
+            onChange={(event) => {
+              const currency = normalizeCurrencyInput(event.target.value)
+              setExchangeCurrency(currency)
+              setExchangeRate(
+                data.exchangeRates.find(
+                  (rate) => rate.periodStart === exchangeMonth && rate.currency === currency,
+                )?.unitsPerGbp || 0,
+              )
+            }}
+            maxLength={3}
+            pattern="[A-Za-z]{3}"
+            required
+            aria-label="Exchange rate currency"
+            className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black uppercase tracking-wider text-slate-900"
+          />
+        </label>
         <label className="text-xs font-bold text-emerald-900">
           Month
           <input
@@ -1921,8 +2326,9 @@ export default function AdminCommissionClient({
               const periodStart = `${event.target.value}-01`
               setExchangeMonth(periodStart)
               setExchangeRate(
-                data.exchangeRates.find((rate) => rate.periodStart === periodStart)?.unitsPerGbp ||
-                  0,
+                data.exchangeRates.find(
+                  (rate) => rate.periodStart === periodStart && rate.currency === exchangeCurrency,
+                )?.unitsPerGbp || 0,
               )
             }}
             required
@@ -1930,7 +2336,7 @@ export default function AdminCommissionClient({
           />
         </label>
         <label className="text-xs font-bold text-emerald-900">
-          PKR per £1
+          {exchangeCurrency || 'Currency'} per £1
           <DraftNumberInput
             min="0.000001"
             max="1000000000"
@@ -1943,7 +2349,13 @@ export default function AdminCommissionClient({
         </label>
         <button
           type="submit"
-          disabled={working || exchangeRate <= 0 || !data.schemaReady}
+          disabled={
+            working ||
+            exchangeCurrency.length !== 3 ||
+            exchangeCurrency === 'GBP' ||
+            exchangeRate <= 0 ||
+            !data.schemaReady
+          }
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 text-xs font-black text-white disabled:opacity-50"
         >
           {working ? (

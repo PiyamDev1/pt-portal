@@ -98,6 +98,11 @@ export default async function SettingsPage() {
     ? employeeData.data.roles[0]
     : employeeData?.data?.roles
   const userRole = role?.name || 'Employee'
+  const currentDepartmentIds = new Set(departmentsByEmployee.get(session.user.id) || [])
+  const userDepartments = (departments.data || [])
+    .filter((department) => currentDepartmentIds.has(department.id))
+    .map((department) => department.name)
+    .filter((name): name is string => Boolean(name))
   const normalizedRole = userRole.trim().toLowerCase()
   const hasAdminConsole = ['admin', 'master admin', 'maintenance admin', 'super admin'].includes(
     normalizedRole,
@@ -136,6 +141,7 @@ export default async function SettingsPage() {
               user_metadata: session.user.user_metadata,
             }}
             userRole={userRole}
+            userDepartments={userDepartments}
             initialLocations={locations.data || []}
             initialDepts={departments.data || []}
             initialRoles={roles.data || []}

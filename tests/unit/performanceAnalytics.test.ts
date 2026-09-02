@@ -238,6 +238,41 @@ describe('my performance analytics', () => {
     )
   })
 
+  it('ends the trend and evidence at the selected historical reporting month', () => {
+    const data = buildPerformanceAnalytics(
+      [
+        fact({
+          id: 'july-ticket',
+          sourceModule: 'ticketing',
+          sourceFactKey: 'transaction:july:issued',
+          sourceRecordId: 'ticket-july',
+          eventType: 'ticket_issued',
+          effectiveOn: '2026-07-12',
+          createdAt: '2026-07-12T12:00:00Z',
+          variables: { service_type: 'TK', passenger_ticket_count: 1 },
+        }),
+        fact({
+          id: 'june-ticket',
+          sourceModule: 'ticketing',
+          sourceFactKey: 'transaction:june:issued',
+          sourceRecordId: 'ticket-june',
+          eventType: 'ticket_issued',
+          effectiveOn: '2026-06-12',
+          createdAt: '2026-06-12T12:00:00Z',
+          variables: { service_type: 'TK', passenger_ticket_count: 1 },
+        }),
+      ],
+      [],
+      RIDA,
+      '2026-07-31',
+    )
+
+    expect(data.monthly.at(-1)?.key).toBe('2026-07')
+    expect(data.current.ticketsIssued).toBe(1)
+    expect(data.previous.ticketsIssued).toBe(1)
+    expect(data.recent.map((item) => item.id)).toEqual(['ticket:ticket-july'])
+  })
+
   it('pairs separate timeclock sessions without subtracting the break twice', () => {
     const data = buildPerformanceAnalytics(
       [],

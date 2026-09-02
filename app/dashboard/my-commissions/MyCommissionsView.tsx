@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   FileText,
   Info,
@@ -27,7 +28,7 @@ const shortMoney = new Intl.NumberFormat('en-GB', {
   maximumFractionDigits: 1,
 })
 
-function payMoney(currency: 'GBP' | 'PKR') {
+function payMoney(currency: string) {
   return new Intl.NumberFormat(currency === 'PKR' ? 'en-PK' : 'en-GB', {
     style: 'currency',
     currency,
@@ -50,7 +51,7 @@ function formatDate(value: string | null) {
 function formatRate(
   rate: CommissionRate,
   packageRate = false,
-  currency: 'GBP' | 'PKR' = 'GBP',
+  currency = 'GBP',
   eventNoun = 'booking',
 ) {
   const formatter = payMoney(currency)
@@ -188,10 +189,12 @@ export default function MyCommissionsView({
   data,
   employeeName,
   embedded = false,
+  reportingPeriodLabel,
 }: {
   data: MyCommissionData
   employeeName: string
   embedded?: boolean
+  reportingPeriodLabel?: string
 }) {
   const { analytics } = data
   const preview = Boolean(data.profile) && analytics.mode === 'shadow'
@@ -283,7 +286,9 @@ export default function MyCommissionsView({
             <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
-                  This month&apos;s local pay view
+                  {reportingPeriodLabel
+                    ? `${reportingPeriodLabel} local pay view`
+                    : "This month's local pay view"}
                 </p>
                 <SectionHeading className="mt-1 text-xl font-black text-emerald-950">
                   Salary and commission in {data.compensation.currency}
@@ -295,7 +300,7 @@ export default function MyCommissionsView({
               </div>
               {data.compensation.ratePending ? (
                 <span className="rounded-full bg-amber-200 px-3 py-1.5 text-xs font-black text-amber-950">
-                  Awaiting this month&apos;s PKR / GBP rate
+                  Awaiting the selected period&apos;s {data.compensation.currency} / GBP rate
                 </span>
               ) : (
                 <span className="rounded-full bg-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-950">
@@ -339,7 +344,7 @@ export default function MyCommissionsView({
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="This month"
+              label={reportingPeriodLabel || 'This month'}
               value={money.format(analytics.currentMonth.netGbp)}
               note={`${analytics.currentMonth.entryCount} calculated item${analytics.currentMonth.entryCount === 1 ? '' : 's'}`}
               icon={WalletCards}
@@ -348,7 +353,7 @@ export default function MyCommissionsView({
             <StatCard
               label="Credits"
               value={money.format(analytics.currentMonth.creditsGbp)}
-              note="Positive earnings in the current month"
+              note="Positive earnings in the selected period"
               icon={ArrowUpRight}
             />
             <StatCard
@@ -361,7 +366,11 @@ export default function MyCommissionsView({
             <StatCard
               label="Year to date"
               value={money.format(analytics.yearToDateGbp)}
-              note="Net calculated commission this calendar year"
+              note={
+                reportingPeriodLabel
+                  ? `Net calculated commission through ${reportingPeriodLabel}`
+                  : 'Net calculated commission this calendar year'
+              }
               icon={TrendingUp}
               tone="white"
             />
@@ -508,7 +517,12 @@ export default function MyCommissionsView({
                       >
                         <span className="text-slate-500">{label}</span>
                         <span className="text-right font-black text-slate-800">
-                          {formatRate(rate, packageRate, profile.compensation.currency, eventNoun)}
+                          {formatRate(
+                            rate,
+                            packageRate,
+                            rate.currency || profile.compensation.currency,
+                            eventNoun,
+                          )}
                         </span>
                       </div>
                     ))}
@@ -564,21 +578,25 @@ export default function MyCommissionsView({
               )}
             </article>
 
-            <article className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
-                  Activity
-                </p>
-                <SectionHeading className="mt-1 text-xl font-black text-slate-950">
-                  Recent calculations
-                </SectionHeading>
-              </div>
+            <details className="group overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden">
+                <span>
+                  <span className="block text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
+                    Evidence
+                  </span>
+                  <span className="mt-1 block text-base font-black text-slate-950">
+                    Recent calculations · {analytics.recent.length} item
+                    {analytics.recent.length === 1 ? '' : 's'}
+                  </span>
+                </span>
+                <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition group-open:rotate-180" />
+              </summary>
               {analytics.recent.length === 0 ? (
-                <div className="px-6 py-12 text-center text-sm text-slate-500">
-                  No commission items have been calculated yet.
+                <div className="border-t border-slate-100 px-6 py-8 text-center text-sm text-slate-500">
+                  No commission items have been calculated for this reporting period.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
                   {analytics.recent.map((entry) => (
                     <div
                       key={entry.id}
@@ -608,10 +626,10 @@ export default function MyCommissionsView({
                         className={`shrink-0 text-sm font-black ${entry.amountGbp >= 0 ? 'text-emerald-700' : 'text-[#8b1e2d]'}`}
                       >
                         {entry.amountGbp >= 0 ? '+' : '-'}
-                        {entry.payCurrency === 'PKR' && entry.amountPayCurrency !== undefined
-                          ? payMoney('PKR').format(Math.abs(entry.amountPayCurrency))
+                        {entry.payCurrency && entry.amountPayCurrency !== undefined
+                          ? payMoney(entry.payCurrency).format(Math.abs(entry.amountPayCurrency))
                           : money.format(Math.abs(entry.amountGbp))}
-                        {entry.payCurrency === 'PKR' && (
+                        {entry.payCurrency && entry.payCurrency !== 'GBP' && (
                           <span className="mt-0.5 block text-right text-[10px] font-bold text-slate-400">
                             {money.format(Math.abs(entry.amountGbp))} books
                           </span>
@@ -621,7 +639,7 @@ export default function MyCommissionsView({
                   ))}
                 </div>
               )}
-            </article>
+            </details>
           </section>
         </>
       )}

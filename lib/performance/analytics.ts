@@ -561,6 +561,7 @@ export function buildPerformanceAnalytics(
       .map(([kind, count]) => ({ kind, label: APPLICATION_LABELS[kind] || 'Other', count }))
       .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label)),
     recent: recent
+      .filter((item) => monthKey(item.effectiveOn) === currentMonthKey)
       .sort(
         (left, right) =>
           right.effectiveOn.localeCompare(left.effectiveOn) || right.id.localeCompare(left.id),

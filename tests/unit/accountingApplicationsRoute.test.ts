@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => {
   const tableData: Record<string, { data: unknown[] | null; error: { message: string } | null }> =
     {}
   const queryCalls: Array<{ table: string; op: string; args: unknown[] }> = []
-  const getUser = vi.fn()
+  const requireAccountingAccess = vi.fn()
 
   const from = vi.fn((table: string) => ({
     select: vi.fn((columns: string) => {
@@ -31,19 +31,17 @@ const mocks = vi.hoisted(() => {
     }),
   }))
 
-  const createServerClient = vi.fn(() => ({
-    auth: { getUser },
+  return {
     from,
-  }))
-  const cookies = vi.fn(async () => ({ getAll: vi.fn(() => []) }))
-
-  return { cookies, createServerClient, from, getUser, queryCalls, tableData }
+    queryCalls,
+    requireAccountingAccess,
+    tableData,
+  }
 })
 
-vi.mock('@supabase/auth-helpers-nextjs', () => ({
-  createServerClient: mocks.createServerClient,
+vi.mock('@/lib/accounting/access', () => ({
+  requireAccountingAccess: mocks.requireAccountingAccess,
 }))
-vi.mock('next/headers', () => ({ cookies: mocks.cookies }))
 
 import { GET } from '@/app/api/accounting/applications/route'
 
@@ -56,9 +54,12 @@ describe('GET /api/accounting/applications', () => {
     vi.clearAllMocks()
     mocks.queryCalls.length = 0
     for (const key of Object.keys(mocks.tableData)) delete mocks.tableData[key]
-    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    mocks.requireAccountingAccess.mockResolvedValue({
+      authorized: true,
+      supabase: { from: mocks.from },
+      user: { id: 'user-1' },
+      employee: { id: 'user-1', role: 'Accounting', departments: ['Accounting'] },
+    })
   })
 
   it('groups application categories into the correct calendar months', async () => {
@@ -426,7 +427,10 @@ describe('GET /api/accounting/applications', () => {
   })
 
   it('requires a logged-in portal user', async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    mocks.requireAccountingAccess.mockResolvedValue({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
 
     const response = await GET(new Request('http://localhost/api/accounting/applications'))
 

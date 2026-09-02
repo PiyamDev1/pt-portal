@@ -7,7 +7,11 @@ vi.mock('@/app/dashboard/my-commissions/MyCommissionsView', () => ({
 
 import MyPerformanceView from '@/app/dashboard/my-performance/MyPerformanceView'
 import type { MyPerformanceData } from '@/lib/performance/server'
-import { resolvePerformanceView, type PerformanceView } from '@/lib/performance/view'
+import {
+  resolvePerformancePeriod,
+  resolvePerformanceView,
+  type PerformanceView,
+} from '@/lib/performance/view'
 
 const metrics = {
   ticketsIssued: 1,
@@ -53,7 +57,13 @@ const data: MyPerformanceData = {
 
 function renderView(selectedView: PerformanceView) {
   return render(
-    <MyPerformanceView data={data} employeeName="Amina Khan" selectedView={selectedView} />,
+    <MyPerformanceView
+      data={data}
+      employeeName="Amina Khan"
+      selectedView={selectedView}
+      selectedPeriod="2026-08"
+      currentPeriod="2026-09"
+    />,
   )
 }
 
@@ -68,7 +78,7 @@ describe('MyPerformanceView tabs', () => {
   it('shows only Activity when the Activity tab is selected', () => {
     renderView('activity')
 
-    expect(screen.getByText('Work completed this month')).toBeTruthy()
+    expect(screen.getByText('Work completed in August 2026')).toBeTruthy()
     expect(screen.queryByText('Your recorded time')).toBeNull()
     expect(screen.queryByText('Salary and commission')).toBeNull()
     expect(screen.getByRole('link', { name: 'Activity' }).getAttribute('aria-current')).toBe('page')
@@ -77,7 +87,7 @@ describe('MyPerformanceView tabs', () => {
   it('shows only Attendance when the Attendance tab is selected', () => {
     renderView('attendance')
 
-    expect(screen.queryByText('Work completed this month')).toBeNull()
+    expect(screen.queryByText('Work completed in August 2026')).toBeNull()
     expect(screen.getByText('Your recorded time')).toBeTruthy()
     expect(screen.queryByText('Salary and commission')).toBeNull()
     expect(screen.getByRole('link', { name: 'Attendance' }).getAttribute('aria-current')).toBe(
@@ -88,7 +98,7 @@ describe('MyPerformanceView tabs', () => {
   it('shows only Earnings when the Earnings tab is selected', () => {
     renderView('earnings')
 
-    expect(screen.queryByText('Work completed this month')).toBeNull()
+    expect(screen.queryByText('Work completed in August 2026')).toBeNull()
     expect(screen.queryByText('Your recorded time')).toBeNull()
     expect(screen.getByText('Salary and commission')).toBeTruthy()
     expect(screen.getByText('Commission detail panel')).toBeTruthy()
@@ -101,13 +111,42 @@ describe('MyPerformanceView tabs', () => {
     renderView('activity')
 
     expect(screen.getByRole('link', { name: 'Activity' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance?view=activity',
+      '/dashboard/my-performance?view=activity&period=2026-08',
     )
     expect(screen.getByRole('link', { name: 'Attendance' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance?view=attendance',
+      '/dashboard/my-performance?view=attendance&period=2026-08',
     )
     expect(screen.getByRole('link', { name: 'Earnings & commission' }).getAttribute('href')).toBe(
-      '/dashboard/my-performance?view=earnings',
+      '/dashboard/my-performance?view=earnings&period=2026-08',
+    )
+  })
+
+  it('offers a server-submitted month selector that cannot choose a future period', () => {
+    renderView('attendance')
+
+    const selector = screen.getByLabelText('Reporting period') as HTMLInputElement
+    expect(selector.value).toBe('2026-08')
+    expect(selector.max).toBe('2026-09')
+    expect(document.querySelector('input[name="view"]')?.getAttribute('value')).toBe('attendance')
+  })
+
+  it('rejects invalid and future reporting periods on the server boundary', () => {
+    const now = new Date('2026-09-02T12:00:00Z')
+
+    expect(resolvePerformancePeriod('2026-08', now)).toBe('2026-08')
+    expect(resolvePerformancePeriod('2026-10', now)).toBe('2026-09')
+    expect(resolvePerformancePeriod('2026-13', now)).toBe('2026-09')
+    expect(resolvePerformancePeriod(['2026-07', '2026-08'], now)).toBe('2026-07')
+  })
+
+  it('keeps activity and attendance evidence collapsed by default', () => {
+    const activity = renderView('activity')
+    expect(screen.getByText('Recent completed work · 0 items').closest('details')?.open).toBe(false)
+    activity.unmount()
+
+    renderView('attendance')
+    expect(screen.getByText('Recorded attendance · 1 day present').closest('details')?.open).toBe(
+      false,
     )
   })
 })

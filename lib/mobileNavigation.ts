@@ -1,4 +1,8 @@
-import { DASHBOARD_MODULES, type DashboardModule } from '@/lib/dashboardModules'
+import {
+  canAccessDashboardModule,
+  DASHBOARD_MODULES,
+  type DashboardModule,
+} from '@/lib/dashboardModules'
 
 export const MOBILE_NAVIGATION_METADATA_KEY = 'mobile_nav_shortcuts'
 export const MOBILE_NAVIGATION_UPDATED_EVENT = 'pt-mobile-navigation-updated'
@@ -18,13 +22,10 @@ export function getMobileNavigationLabel(moduleItem: DashboardModule) {
   return MOBILE_LABELS[moduleItem.id] || moduleItem.title
 }
 
-export function getMobileShortcutOptions(userRole?: string | null) {
-  const normalizedRole = userRole?.trim().toLowerCase()
-
+export function getMobileShortcutOptions(userRole?: string | null, userDepartments: string[] = []) {
   return DASHBOARD_MODULES.filter((moduleItem) => {
     if (FIXED_MOBILE_NAV_IDS.has(moduleItem.id)) return false
-    if (!moduleItem.allowedRoles) return true
-    return moduleItem.allowedRoles.some((role) => role.toLowerCase() === normalizedRole)
+    return canAccessDashboardModule(moduleItem, userRole, userDepartments)
   })
 }
 

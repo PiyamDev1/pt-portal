@@ -68,7 +68,7 @@ export type MyCommissionData = {
   } | null
   analytics: CommissionAnalytics
   compensation: {
-    currency: 'GBP' | 'PKR'
+    currency: string
     monthlySalary: number
     currentMonthCommission: number
     currentMonthGrossPay: number
@@ -120,7 +120,7 @@ export type CommissionAdminException = {
 
 export type CommissionMonthlyExchangeRate = {
   id: string
-  currency: 'PKR'
+  currency: string
   periodStart: string
   unitsPerGbp: number
   setAt: string
@@ -199,6 +199,7 @@ async function loadCommissionEntryRows(
   employeeId: string,
   selection: string,
   earningFrom: string,
+  earningTo: string,
 ) {
   const rows: CommissionEntryRow[] = []
   const pageSize = 1000
@@ -209,6 +210,7 @@ async function loadCommissionEntryRows(
       .select(selection)
       .eq('recipient_employee_id', employeeId)
       .gte('earning_on', earningFrom)
+      .lte('earning_on', earningTo)
       .order('earning_on', { ascending: false })
       .order('created_at', { ascending: false })
       .range(offset, offset + pageSize - 1)
@@ -349,7 +351,7 @@ export async function loadMyCommissionData(
         .eq('employee_id', employeeId)
         .is('cancelled_at', null)
         .order('effective_from', { ascending: false }),
-      loadCommissionEntryRows(supabase, employeeId, entrySelection, analyticsFrom),
+      loadCommissionEntryRows(supabase, employeeId, entrySelection, analyticsFrom, today),
       supabase
         .from('commission_exceptions')
         .select('id', { count: 'exact', head: true })
@@ -364,11 +366,9 @@ export async function loadMyCommissionData(
       profileCapabilityReady
         ? supabase
             .from('commission_monthly_exchange_rates')
-            .select('units_per_gbp')
-            .eq('currency', 'PKR')
+            .select('currency, units_per_gbp')
             .eq('period_start', currentPeriodStart)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
+        : Promise.resolve({ data: [], error: null }),
     ])
 
   if (profilesResult.error && isSchemaMissing(profilesResult.error)) {
@@ -442,12 +442,14 @@ export async function loadMyCommissionData(
       id: entry.id,
       entryMode: entry.entry_mode === 'live' ? 'live' : 'shadow',
       entryKind:
-        entry.entry_kind === 'sales_bonus' || entry.entry_kind === 'manual_adjustment'
+        entry.entry_kind === 'sales_bonus' ||
+        entry.entry_kind === 'manual_adjustment' ||
+        entry.entry_kind === 'refund_reversal'
           ? entry.entry_kind
           : 'ordinary',
       amountGbp: numeric(entry.amount_gbp),
       amountPayCurrency: numeric(entry.amount_pay_currency),
-      payCurrency: entry.pay_currency === 'PKR' ? 'PKR' : 'GBP',
+      payCurrency: entry.pay_currency || 'GBP',
       earningOn: entry.earning_on,
       createdAt: entry.created_at,
       supersedesEntryId: entry.supersedes_entry_id,
@@ -486,33 +488,45 @@ export async function loadMyCommissionData(
     if (recipientError) throw recipientError
     applicationRoutingRecipientName = recipient?.full_name || 'Former staff member'
   }
-  const payCurrency = currentConfiguration?.compensation.currency || 'GBP'
+  const defaultCommissionCurrency = currentConfiguration?.compensation.currency || 'GBP'
   const monthlySalary = currentConfiguration?.compensation.monthlySalary || 0
+  const salaryCurrency =
+    currentConfiguration?.compensation.salaryCurrency || defaultCommissionCurrency
+  const compensationCurrency = monthlySalary > 0 ? salaryCurrency : defaultCommissionCurrency
   const currentMonth = today.slice(0, 7)
   const supersededEntryIds = new Set(
     entryRows
       .map((entry) => entry.supersedes_entry_id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   )
-  const currentPayEntries = entryRows.filter(
+  const currentEntries = entryRows.filter(
+    (entry) => !supersededEntryIds.has(entry.id) && entry.earning_on.startsWith(currentMonth),
+  )
+  const currentPayEntries = currentEntries.filter(
     (entry) =>
-      !supersededEntryIds.has(entry.id) &&
-      entry.earning_on.startsWith(currentMonth) &&
-      (entry.pay_currency === payCurrency || (payCurrency === 'GBP' && !entry.pay_currency)),
+      entry.pay_currency === compensationCurrency ||
+      (compensationCurrency === 'GBP' && !entry.pay_currency),
   )
   const currentMonthCommission = currentPayEntries.reduce(
     (total, entry) => total + numeric(entry.amount_pay_currency ?? entry.amount_gbp),
     0,
   )
   const unitsPerGbpValue =
-    payCurrency === 'GBP'
+    compensationCurrency === 'GBP'
       ? 1
-      : exchangeRateResult.data?.units_per_gbp ||
+      : exchangeRateResult.data?.find((rate) => rate.currency === compensationCurrency)
+          ?.units_per_gbp ||
         currentPayEntries.find((entry) => numeric(entry.exchange_rate_units_per_gbp) > 0)
           ?.exchange_rate_units_per_gbp ||
         null
   const unitsPerGbp = unitsPerGbpValue ? numeric(unitsPerGbpValue) : null
   const currentMonthGrossPay = monthlySalary + currentMonthCommission
+  const currentMonthCommissionBookGbp = currentEntries.reduce(
+    (total, entry) => total + numeric(entry.amount_gbp),
+    0,
+  )
+  const currentMonthSalaryBookGbp =
+    unitsPerGbp && unitsPerGbp > 0 ? monthlySalary / unitsPerGbp : null
 
   return {
     schemaReady: profileCapabilityReady,
@@ -531,16 +545,16 @@ export async function loadMyCommissionData(
       : null,
     analytics: buildCommissionAnalytics(entries, analyticsNow),
     compensation: {
-      currency: payCurrency,
+      currency: compensationCurrency,
       monthlySalary,
       currentMonthCommission: Math.round(currentMonthCommission * 100) / 100,
       currentMonthGrossPay: Math.round(currentMonthGrossPay * 100) / 100,
       currentMonthBookGbp:
-        unitsPerGbp && unitsPerGbp > 0
-          ? Math.round((currentMonthGrossPay / unitsPerGbp) * 100) / 100
+        currentMonthSalaryBookGbp !== null
+          ? Math.round((currentMonthCommissionBookGbp + currentMonthSalaryBookGbp) * 100) / 100
           : null,
       unitsPerGbp,
-      ratePending: payCurrency !== 'GBP' && !unitsPerGbp,
+      ratePending: compensationCurrency !== 'GBP' && !unitsPerGbp,
     },
     openExceptionCount: exceptionsResult.count || 0,
     lastCalculatedAt: runsResult.data?.[0]?.completed_at || null,
@@ -727,7 +741,7 @@ export async function loadCommissionAdminData(
     profiles,
     exchangeRates: (exchangeRatesResult.data || []).map((rate) => ({
       id: rate.id,
-      currency: 'PKR',
+      currency: rate.currency,
       periodStart: rate.period_start,
       unitsPerGbp: numeric(rate.units_per_gbp),
       setAt: rate.created_at,

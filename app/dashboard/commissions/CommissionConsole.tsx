@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
+import CommissionStaffReport from './CommissionStaffReport'
 import {
   AlertTriangle,
   ArrowRight,
@@ -22,10 +23,19 @@ import {
 
 type JsonRecord = Record<string, any>
 type MutationRunner = (work: () => Promise<unknown>, success: string) => Promise<void>
-type Tab = 'overview' | 'policies' | 'assignments' | 'preview' | 'shadow' | 'bonus' | 'exceptions'
+type Tab =
+  | 'overview'
+  | 'staff'
+  | 'policies'
+  | 'assignments'
+  | 'preview'
+  | 'shadow'
+  | 'bonus'
+  | 'exceptions'
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof Gauge }> = [
   { id: 'overview', label: 'Reconcile', icon: Gauge },
+  { id: 'staff', label: 'Staff report & Accounting', icon: Users },
   { id: 'shadow', label: 'Calculated results', icon: FileClock },
   { id: 'exceptions', label: 'Action queue', icon: AlertTriangle },
   { id: 'bonus', label: 'Monthly bonus', icon: BadgePoundSterling },
@@ -286,6 +296,7 @@ export default function CommissionConsole() {
       ) : (
         <>
           {activeTab === 'overview' && <Overview overview={overview} onNavigate={setActiveTab} />}
+          {activeTab === 'staff' && <CommissionStaffReport employees={options.employees || []} />}
           {activeTab === 'policies' && (
             <Policies items={policies} working={working} runMutation={runMutation} />
           )}

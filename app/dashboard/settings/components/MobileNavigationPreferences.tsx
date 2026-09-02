@@ -17,6 +17,7 @@ type MobileNavigationPreferencesProps = {
   currentUser: AuthUser
   supabase: SupabaseClient
   userRole: string
+  userDepartments?: string[]
 }
 
 const POSITION_LABELS = ['Left shortcut 1', 'Left shortcut 2', 'Right shortcut'] as const
@@ -25,8 +26,12 @@ export function MobileNavigationPreferences({
   currentUser,
   supabase,
   userRole,
+  userDepartments = [],
 }: MobileNavigationPreferencesProps) {
-  const availableModules = useMemo(() => getMobileShortcutOptions(userRole), [userRole])
+  const availableModules = useMemo(
+    () => getMobileShortcutOptions(userRole, userDepartments),
+    [userDepartments, userRole],
+  )
   const initialIds = resolveMobileShortcutIds(
     currentUser.user_metadata?.[MOBILE_NAVIGATION_METADATA_KEY],
     availableModules,
