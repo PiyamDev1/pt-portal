@@ -10,7 +10,6 @@ import { useMemo, useReducer, useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { StaffAddEmployeeForm } from './StaffAddEmployeeForm'
 
 interface Employee {
@@ -41,7 +40,6 @@ interface StaffTabProps {
   initialRoles: Role[]
   initialDepts: Department[]
   initialLocations: Location[]
-  supabase: SupabaseClient
   userRole?: string
   loading: boolean
   setLoading: (loading: boolean) => void
@@ -106,7 +104,6 @@ export default function StaffTab({
   initialRoles,
   initialDepts,
   initialLocations,
-  supabase,
   userRole = 'User',
   loading,
   setLoading,
@@ -115,6 +112,7 @@ export default function StaffTab({
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  const [approvalReason, setApprovalReason] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
   const [recoveryReason, setRecoveryReason] = useState('')
   const [uiState, dispatchUi] = useReducer(staffUiReducer, initialUiState)
@@ -151,8 +149,16 @@ export default function StaffTab({
     return map
   }, [initialDepts])
 
-  const isSuperAdmin = userRole === 'Master Admin'
-  const canManageHrMembership = ['Master Admin', 'Super Admin'].includes(userRole)
+  const normalizedUserRole = userRole.trim().toLowerCase()
+  const isMaintenanceAdmin = normalizedUserRole === 'maintenance admin'
+  const isOrganizationAdmin = ['admin', 'master admin', 'super admin'].includes(normalizedUserRole)
+  const isPrivilegedAdmin = ['master admin', 'super admin'].includes(normalizedUserRole)
+  const canManageHrMembership = isPrivilegedAdmin
+  const assignableRoles = isPrivilegedAdmin
+    ? initialRoles
+    : initialRoles.filter(
+        (role) => !['master admin', 'super admin'].includes(role.name.trim().toLowerCase()),
+      )
   const isHrDepartment = (department: Department) =>
     ['hr', 'humanresource', 'humanresources'].includes(
       department.name
@@ -404,66 +410,66 @@ export default function StaffTab({
       setLoading(false)
       return
     }
-    const { error } = await supabase
-      .from('employees')
-      .update({
-        role_id: editingEmployee.role_id,
-        department_id: selectedDepartmentIds[0] || null,
-        location_id: editingEmployee.location_id,
-        manager_id: editingEmployee.manager_id,
-      })
-      .eq('id', editingEmployee.id)
-
-    let membershipError: { message?: string } | null = null
-    if (!error) {
-      const originalEmployee = employees.find((employee) => employee.id === editingEmployee.id)
-      const originalDepartmentIds = originalEmployee
-        ? departmentIdsForEmployee(originalEmployee)
-        : []
-      const departmentIdsToDelete = originalDepartmentIds.filter(
-        (departmentId) => !selectedDepartmentIds.includes(departmentId),
-      )
-      const departmentIdsToInsert = selectedDepartmentIds.filter(
-        (departmentId) => !originalDepartmentIds.includes(departmentId),
-      )
-
-      if (departmentIdsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('employee_departments')
-          .delete()
-          .eq('employee_id', editingEmployee.id)
-          .in('department_id', departmentIdsToDelete)
-        membershipError = deleteError
-      }
-      if (!membershipError && departmentIdsToInsert.length > 0) {
-        const { error: insertError } = await supabase.from('employee_departments').insert(
-          departmentIdsToInsert.map((departmentId) => ({
+    if (isMaintenanceAdmin && approvalReason.trim().length < 10) {
+      toast.error('Explain the requested change in at least 10 characters')
+      setLoading(false)
+      return
+    }
+    try {
+      const endpoint = isMaintenanceAdmin
+        ? '/api/admin/approval-requests'
+        : '/api/admin/update-employee'
+      const body = isMaintenanceAdmin
+        ? {
+            target_employee_id: editingEmployee.id,
+            proposed_full_name: editingEmployee.full_name,
+            proposed_role_id: editingEmployee.role_id,
+            proposed_department_ids: selectedDepartmentIds,
+            proposed_location_id: editingEmployee.location_id,
+            proposed_manager_id: editingEmployee.manager_id || null,
+            request_reason: approvalReason.trim(),
+          }
+        : {
             employee_id: editingEmployee.id,
-            department_id: departmentId,
-          })),
-        )
-        membershipError = insertError
-      }
-    }
-
-    if (!error && !membershipError) {
-      const updatedEmployee = {
-        ...editingEmployee,
-        department_id: selectedDepartmentIds[0] || null,
-        department_ids: selectedDepartmentIds,
-      }
-      setEmployees((currentEmployees) =>
-        currentEmployees.map((emp) => (emp.id === editingEmployee.id ? updatedEmployee : emp)),
-      )
-      setEditingEmployee(null)
-      toast.success('Employee updated successfully')
-      router.refresh()
-    } else {
-      toast.error('Failed to update employee', {
-        description: error?.message || membershipError?.message,
+            full_name: editingEmployee.full_name,
+            role_id: editingEmployee.role_id,
+            department_ids: selectedDepartmentIds,
+            location_id: editingEmployee.location_id,
+            manager_id: editingEmployee.manager_id || null,
+          }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Failed to update employee')
+
+      if (!isMaintenanceAdmin) {
+        const updatedEmployee = {
+          ...editingEmployee,
+          department_id: selectedDepartmentIds[0] || null,
+          department_ids: selectedDepartmentIds,
+        }
+        setEmployees((currentEmployees) =>
+          currentEmployees.map((emp) => (emp.id === editingEmployee.id ? updatedEmployee : emp)),
+        )
+      }
+      setEditingEmployee(null)
+      setApprovalReason('')
+      toast.success(
+        isMaintenanceAdmin
+          ? 'Change submitted for Admin approval'
+          : 'Employee updated successfully',
+      )
+      if (!isMaintenanceAdmin) router.refresh()
+    } catch (error: unknown) {
+      toast.error('Failed to update employee', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const toggleEditingDepartment = (departmentId: string) => {
@@ -484,24 +490,27 @@ export default function StaffTab({
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
           <h3 className="font-bold text-slate-700">Staff Directory</h3>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-medium"
-          >
-            {showAddForm ? 'Cancel' : '+ Invite New Employee'}
-          </button>
+          {isOrganizationAdmin && (
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-medium"
+            >
+              {showAddForm ? 'Cancel' : '+ Invite New Employee'}
+            </button>
+          )}
         </div>
 
         <div className="border-b border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
-          Active staff assigned to the HR department receive Commission policy access. Only Master
-          Admin or Super Admin can add or remove HR membership.
+          Maintenance Admin can propose staff profile, role, department, branch, and hierarchy
+          corrections. Nothing changes until Admin approval; only Master or Super Admin can approve
+          HR membership or privileged accounts.
         </div>
 
         {showAddForm && (
           <StaffAddEmployeeForm
             loading={loading}
             newEmployee={newEmployee}
-            initialRoles={initialRoles}
+            initialRoles={assignableRoles}
             initialDepts={
               canManageHrMembership
                 ? initialDepts
@@ -520,7 +529,7 @@ export default function StaffTab({
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Branch</th>
-              <th className="px-4 py-3">Department</th>
+              <th className="px-4 py-3">Department / Manager</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Action</th>
             </tr>
@@ -536,7 +545,19 @@ export default function StaffTab({
                 <td
                   className={`px-4 py-3 font-medium ${emp.is_active === false ? 'line-through text-slate-400' : ''}`}
                 >
-                  {emp.full_name}
+                  {editingEmployee?.id === emp.id ? (
+                    <input
+                      className="w-full rounded border border-slate-300 p-1"
+                      value={editingEmployee.full_name}
+                      maxLength={200}
+                      onChange={(event) =>
+                        setEditingEmployee({ ...editingEmployee, full_name: event.target.value })
+                      }
+                      aria-label={`Name for ${emp.email}`}
+                    />
+                  ) : (
+                    emp.full_name
+                  )}
                   <div className="text-xs text-slate-400 font-normal">{emp.email}</div>
                 </td>
 
@@ -552,7 +573,15 @@ export default function StaffTab({
                       >
                         <option value="">- Role -</option>
                         {initialRoles.map((r) => (
-                          <option key={r.id} value={r.id}>
+                          <option
+                            key={r.id}
+                            value={r.id}
+                            disabled={
+                              isOrganizationAdmin &&
+                              !isPrivilegedAdmin &&
+                              ['master admin', 'super admin'].includes(r.name.trim().toLowerCase())
+                            }
+                          >
                             {r.name}
                           </option>
                         ))}
@@ -587,30 +616,71 @@ export default function StaffTab({
                                 department.id,
                               )}
                               onChange={() => toggleEditingDepartment(department.id)}
-                              disabled={isHrDepartment(department) && !canManageHrMembership}
+                              disabled={
+                                isOrganizationAdmin &&
+                                isHrDepartment(department) &&
+                                !canManageHrMembership
+                              }
                               className="h-3.5 w-3.5 rounded border-slate-300"
                             />
                             {department.name}
                           </label>
                         ))}
+                        <label className="mt-1 text-[11px] font-bold uppercase text-slate-500">
+                          Manager
+                          <select
+                            className="mt-1 w-full rounded border border-slate-300 bg-white p-1 text-xs font-normal normal-case text-slate-700"
+                            value={editingEmployee.manager_id || ''}
+                            onChange={(event) =>
+                              setEditingEmployee({
+                                ...editingEmployee,
+                                manager_id: event.target.value || null,
+                              })
+                            }
+                          >
+                            <option value="">No manager</option>
+                            {employees
+                              .filter((manager) => manager.id !== editingEmployee.id)
+                              .map((manager) => (
+                                <option key={manager.id} value={manager.id}>
+                                  {manager.full_name}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
                       </div>
                     </td>
                     <td className="px-2 py-3" />
-                    <td className="px-4 py-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleUpdateEmployee}
-                        className="text-green-600 font-bold hover:underline"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingEmployee(null)}
-                        className="text-slate-400 hover:underline"
-                      >
-                        Cancel
-                      </button>
+                    <td className="px-4 py-3">
+                      {isMaintenanceAdmin && (
+                        <textarea
+                          value={approvalReason}
+                          onChange={(event) => setApprovalReason(event.target.value)}
+                          maxLength={1000}
+                          placeholder="Reason for Admin approval"
+                          className="mb-2 min-h-20 w-full rounded border border-slate-300 p-2 text-xs"
+                          aria-label={`Approval reason for ${editingEmployee.full_name}`}
+                        />
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleUpdateEmployee}
+                          className="text-green-600 font-bold hover:underline"
+                        >
+                          {isMaintenanceAdmin ? 'Submit' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingEmployee(null)
+                            setApprovalReason('')
+                          }}
+                          className="text-slate-400 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </td>
                   </>
                 ) : (
@@ -636,6 +706,13 @@ export default function StaffTab({
                       ) : (
                         '-'
                       )}
+                      <div className="mt-1 text-xs text-slate-500">
+                        Manager:{' '}
+                        {emp.manager_id
+                          ? employees.find((manager) => manager.id === emp.manager_id)?.full_name ||
+                            'Unknown'
+                          : 'None'}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {emp.is_active === false ? (
@@ -651,26 +728,31 @@ export default function StaffTab({
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-wrap">
                         <button
-                          onClick={() => setEditingEmployee(emp)}
+                          onClick={() => {
+                            setApprovalReason('')
+                            setEditingEmployee(emp)
+                          }}
                           className="text-blue-600 hover:text-blue-800 font-medium"
                         >
                           Edit
                         </button>
-                        <button
-                          onClick={() => {
-                            setVerificationCode('')
-                            dispatchUi({
-                              type: 'setConfirmAction',
-                              payload: { type: 'reset', emp },
-                            })
-                          }}
-                          disabled={loading || uiState.resettingId === emp.id}
-                          className="text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
-                        >
-                          {uiState.resettingId === emp.id ? 'Working...' : 'Reset password'}
-                        </button>
+                        {isOrganizationAdmin && (
+                          <button
+                            onClick={() => {
+                              setVerificationCode('')
+                              dispatchUi({
+                                type: 'setConfirmAction',
+                                payload: { type: 'reset', emp },
+                              })
+                            }}
+                            disabled={loading || uiState.resettingId === emp.id}
+                            className="text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
+                          >
+                            {uiState.resettingId === emp.id ? 'Working...' : 'Reset password'}
+                          </button>
+                        )}
 
-                        {isSuperAdmin && (
+                        {isPrivilegedAdmin && (
                           <button
                             onClick={() => {
                               setVerificationCode('')
@@ -687,23 +769,25 @@ export default function StaffTab({
                           </button>
                         )}
 
-                        <button
-                          onClick={() => handleDisableEnable(emp)}
-                          disabled={uiState.togglingId === emp.id || loading}
-                          className={`font-medium ${
-                            emp.is_active === false
-                              ? 'text-green-600 hover:text-green-800'
-                              : 'text-yellow-600 hover:text-yellow-800'
-                          } disabled:opacity-50`}
-                        >
-                          {uiState.togglingId === emp.id
-                            ? 'Updating...'
-                            : emp.is_active === false
-                              ? 'Enable'
-                              : 'Disable'}
-                        </button>
+                        {isOrganizationAdmin && (
+                          <button
+                            onClick={() => handleDisableEnable(emp)}
+                            disabled={uiState.togglingId === emp.id || loading}
+                            className={`font-medium ${
+                              emp.is_active === false
+                                ? 'text-green-600 hover:text-green-800'
+                                : 'text-yellow-600 hover:text-yellow-800'
+                            } disabled:opacity-50`}
+                          >
+                            {uiState.togglingId === emp.id
+                              ? 'Updating...'
+                              : emp.is_active === false
+                                ? 'Enable'
+                                : 'Disable'}
+                          </button>
+                        )}
 
-                        {isSuperAdmin && (
+                        {isPrivilegedAdmin && (
                           <>
                             {uiState.deleteConfirmId === emp.id ? (
                               <div className="col-span-full bg-red-50 border border-red-200 rounded p-3 mt-2">

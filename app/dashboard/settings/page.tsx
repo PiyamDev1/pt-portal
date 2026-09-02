@@ -68,7 +68,7 @@ export default async function SettingsPage() {
       supabase
         .from('employees')
         .select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active'),
-      supabase.from('employee_departments').select('employee_id, department_id'),
+      serviceSupabase.from('employee_departments').select('employee_id, department_id'),
       supabase
         .from('employees')
         .select('full_name, roles(name), locations(name, branch_code)')

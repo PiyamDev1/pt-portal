@@ -368,7 +368,9 @@ Frappe staff routes require portal authorization; the webhook is signature-authe
 
 | Methods                          | Route                                                        |
 | -------------------------------- | ------------------------------------------------------------ |
+| `GET`, `POST`, `PATCH`           | `/api/admin/approval-requests`                               |
 | `GET`, `OPTIONS`, `POST`         | `/api/admin/add-employee`                                    |
+| `POST`                           | `/api/admin/update-employee`                                 |
 | `POST`                           | `/api/admin/delete-employee`                                 |
 | `POST`                           | `/api/admin/disable-enable-employee`                         |
 | `POST`                           | `/api/admin/reset-password`                                  |

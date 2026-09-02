@@ -74,6 +74,28 @@ describe('/api/admin/disable-enable-employee route', () => {
     expect(payload.error).toMatch(/invalid|required|isActive/i)
   })
 
+  it('requires Admin approval for Maintenance Admin account status changes', async () => {
+    mocks.requireStaffSession.mockResolvedValueOnce({
+      authorized: true,
+      user: { id: 'maintenance-1', email: 'maintenance@example.com' },
+      employee: {
+        id: 'maintenance-1',
+        email: 'maintenance@example.com',
+        fullName: 'Maintenance',
+        role: 'Maintenance Admin',
+        departments: [],
+      },
+    })
+
+    const response = await POST(makeRequest({ employeeId: 'emp-2', isActive: true }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.error).toContain('Admin or Super Admin')
+    expect(mocks.verifyFreshSecondFactor).not.toHaveBeenCalled()
+    expect(mocks.adminFrom).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when trying to disable own account', async () => {
     const response = await POST(makeRequest({ employeeId: 'u-1', isActive: false }))
     const payload = await response.json()

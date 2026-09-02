@@ -20,6 +20,7 @@ import { NoticeBoardTab } from './components/NoticeBoardTab'
 import { ServerControlTab } from './components/ServerControlTab'
 import { TimeclockDevicesTab } from './components/TimeclockDevicesTab'
 import { TicketingFlightApiTab } from './components/TicketingFlightApiTab'
+import { ApprovalQueueTab } from './components/ApprovalQueueTab'
 import Link from 'next/link'
 import type { AuthUser } from '@/app/types/auth'
 import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
@@ -48,6 +49,7 @@ export default function SettingsClient({
   const searchParams = useSearchParams()
   const normalizedRole = userRole.trim().toLowerCase()
   const isSuperAdmin = normalizedRole === 'super admin'
+  const isMaintenanceAdmin = normalizedRole === 'maintenance admin'
   // Organization admins can manage hierarchy/staff/branches.
   const isOrgAdmin = ['admin', 'master admin', 'super admin'].includes(normalizedRole)
   // Maintenance admins can access maintenance and document migration tooling.
@@ -130,6 +132,17 @@ export default function SettingsClient({
                 </button>
               )}
 
+              <button
+                onClick={() => setActiveTab('approval-queue')}
+                className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                  activeTab === 'approval-queue'
+                    ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                }`}
+              >
+                Approval Queue
+              </button>
+
               {isOrgAdmin && (
                 <button
                   onClick={() => setActiveTab('notice-board')}
@@ -143,21 +156,23 @@ export default function SettingsClient({
                 </button>
               )}
 
-              {isOrgAdmin && (
+              {(isOrgAdmin || isMaintenanceAdmin) && (
                 <>
                   <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-t md:border-slate-200 md:bg-slate-100">
                     Organization
                   </div>
-                  <button
-                    onClick={() => setActiveTab('branches')}
-                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
-                      activeTab === 'branches'
-                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
-                    }`}
-                  >
-                    Branches & Locations
-                  </button>
+                  {isOrgAdmin && (
+                    <button
+                      onClick={() => setActiveTab('branches')}
+                      className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                        activeTab === 'branches'
+                          ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                      }`}
+                    >
+                      Branches & Locations
+                    </button>
+                  )}
                   <button
                     onClick={() => setActiveTab('staff')}
                     className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
@@ -168,36 +183,40 @@ export default function SettingsClient({
                   >
                     Staff Management
                   </button>
-                  <button
-                    onClick={() => setActiveTab('hierarchy')}
-                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
-                      activeTab === 'hierarchy'
-                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
-                    }`}
-                  >
-                    Hierarchy Tree
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('ticketing-flight-api')}
-                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
-                      activeTab === 'ticketing-flight-api'
-                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
-                    }`}
-                  >
-                    Ticket Flight API
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('frappe-provisioning')}
-                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
-                      activeTab === 'frappe-provisioning'
-                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
-                    }`}
-                  >
-                    Frappe Transfer
-                  </button>
+                  {isOrgAdmin && (
+                    <>
+                      <button
+                        onClick={() => setActiveTab('hierarchy')}
+                        className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                          activeTab === 'hierarchy'
+                            ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                        }`}
+                      >
+                        Hierarchy Tree
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('ticketing-flight-api')}
+                        className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                          activeTab === 'ticketing-flight-api'
+                            ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                        }`}
+                      >
+                        Ticket Flight API
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('frappe-provisioning')}
+                        className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                          activeTab === 'frappe-provisioning'
+                            ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                        }`}
+                      >
+                        Frappe Transfer
+                      </button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -303,6 +322,18 @@ export default function SettingsClient({
 
         {activeTab === 'issue-reports' && canManageIssueReports && <IssueReportsTab />}
 
+        {activeTab === 'approval-queue' && hasAdminConsole && (
+          <ApprovalQueueTab
+            canReview={isOrgAdmin}
+            employees={
+              initialEmployees as unknown as { id: string; full_name: string; email: string }[]
+            }
+            roles={initialRoles as { id: string; name: string }[]}
+            departments={initialDepts as { id: string; name: string }[]}
+            locations={initialLocations as { id: string; name: string }[]}
+          />
+        )}
+
         {activeTab === 'notice-board' && isOrgAdmin && (
           <NoticeBoardTab
             roles={initialRoles as { id: string; name: string }[]}
@@ -338,7 +369,7 @@ export default function SettingsClient({
           />
         )}
 
-        {activeTab === 'staff' && isOrgAdmin && (
+        {activeTab === 'staff' && (isOrgAdmin || isMaintenanceAdmin) && (
           <StaffTab
             initialEmployees={
               initialEmployees as unknown as {
@@ -355,7 +386,6 @@ export default function SettingsClient({
             initialRoles={initialRoles as { id: string; name: string }[]}
             initialDepts={initialDepts as { id: string; name: string }[]}
             initialLocations={initialLocations as { id: string; name: string }[]}
-            supabase={supabase}
             userRole={userRole}
             loading={loading}
             setLoading={setLoading}
@@ -389,7 +419,9 @@ export default function SettingsClient({
 
         {activeTab === 'receipt-metrics' && canAccessMaintenance && <ReceiptMetricsTab />}
 
-        {activeTab === 'maintenance' && canAccessMaintenance && <MaintenanceTab />}
+        {activeTab === 'maintenance' && canAccessMaintenance && (
+          <MaintenanceTab canRunHighRiskActions={isOrgAdmin} />
+        )}
 
         {activeTab === 'timeclock-devices' && isOrgAdmin && (
           <TimeclockDevicesTab locations={initialLocations as { id: string; name: string }[]} />

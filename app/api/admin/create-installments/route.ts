@@ -8,7 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
-import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 const createTableSQL = `
@@ -32,7 +32,7 @@ const createTableSQL = `
 
 export async function POST(request: Request) {
   try {
-    const access = await requireMaintenanceSession()
+    const access = await requireAdminSession()
     if (!access.authorized) {
       return access.response
     }

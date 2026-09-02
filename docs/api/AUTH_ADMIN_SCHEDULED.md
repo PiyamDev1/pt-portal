@@ -263,6 +263,66 @@ password incorrect; `429` limited; `500` employee flag/database/internal failure
 
 ## Administration
 
+### GET `/api/admin/approval-requests`
+
+Lists staff-profile/access/hierarchy proposals in the Settings approval queue.
+
+**Access:** Active maintenance-role session. `Maintenance Admin` receives only requests they
+submitted; `Admin`, `Master Admin`, and `Super Admin` receive the latest 200 requests across all
+requesters. Limit: 120 requests per actor and IP per hour.
+
+**Input:** No body or query fields.
+
+**Success:** `200` `{ "requests": StaffApprovalRequest[] }`, newest first. Each row includes the
+target/requester IDs, complete proposed staff assignment, request reason, status, reviewer evidence,
+and timestamps. Read-only.
+
+**Errors:** `401` unauthenticated; `403` wrong role; `429` limited; `503` queue lookup failure.
+
+### POST `/api/admin/approval-requests`
+
+Submits a complete proposed staff record for later Admin review. It does not alter the employee.
+
+**Access:** Active `Maintenance Admin` session only. Admin roles apply changes directly instead of
+creating queue items. Limit: 30 requests per actor and IP per hour.
+
+**Input:** Strict JSON, maximum 16 KiB: `target_employee_id`, `proposed_role_id`, and every
+`proposed_department_ids` item are UUIDs; departments contain 1–50 unique values;
+`proposed_full_name` is a trimmed 1–200 character string without control characters;
+`proposed_location_id` and `proposed_manager_id` are UUID or `null`; `request_reason` is a trimmed
+10–1,000 character string. A proposal must change at least one current value and cannot make the
+target their own manager.
+
+**Success:** `201` `{ "request": { "id": string, "status": "pending", "created_at": string },
+"message": string }`. The request stores a private baseline snapshot used to prevent a later
+approval from overwriting newer Admin edits. Only one pending request per requester/target pair is
+allowed.
+
+**Errors:** `400` invalid/no-op proposal; `401` unauthenticated; `403` wrong role; `404` target
+missing; `409` pending duplicate; `429` limited; `500` insert failure; `503` lookup failure.
+
+### PATCH `/api/admin/approval-requests`
+
+Approves or rejects a pending staff proposal. Approval applies the complete proposal and records the
+review in the same database transaction.
+
+**Access:** Active `Admin`, `Master Admin`, or `Super Admin` session. A regular Admin cannot approve
+Master/Super role or account changes or HR membership changes; those require Master/Super Admin.
+Limit: 60 requests per actor and IP per hour.
+
+**Input:** Strict JSON, maximum 8 KiB: `request_id` UUID, `decision` (`approved | rejected`), and
+`review_reason` (trimmed 3–1,000 characters).
+
+**Success:** `200` `{ "result": { "requestId": string, "status": string,
+"idempotentReplay": boolean }, "message": string }`. Approval atomically updates `employees`, the
+legacy primary `department_id`, canonical `employee_departments`, and the queue review fields.
+Reporting cycles are rejected. Re-reviewing a completed request returns its existing status without
+reapplying it. Approval returns `409` if the employee changed after the proposal was submitted.
+
+**Errors:** `400` invalid decision/reason/assignment; `401` unauthenticated; `403` reviewer or
+privilege scope rejected; `404` request/employee/manager missing; `409` stale proposal; `429`
+limited; `500` atomic review failure.
+
 ### GET `/api/admin/add-employee`
 
 Public reachability diagnostic for the employee-onboarding route; it does not list employees.
@@ -346,6 +406,43 @@ already empty database yields the same table summary.
 **Errors:** `400` invalid body; `401` unauthenticated; `403` role/factor rejected; `429` limited;
 `500` reset RPC/internal failure.
 
+### POST `/api/admin/update-employee`
+
+Atomically updates a staff profile and its canonical `employee_departments` memberships without
+granting the browser direct write access to staff/access-control tables.
+
+**Access:** Active maintenance-role session. `Maintenance Admin` may change only `full_name` and
+`location_id`; changing a role, department membership, or manager requires `Admin`, `Master Admin`,
+or `Super Admin`. Only `Master Admin` or `Super Admin` may change HR membership, assign a `Master
+Admin`/`Super Admin` role, or modify an existing employee holding either privileged role. Limit: 60
+requests per actor and IP per hour. No fresh-factor check; destructive account operations use their
+separate factor-protected routes.
+
+**Input:** Strict JSON, maximum 16 KiB: `employee_id`, `role_id`, and each `department_ids` item are
+UUIDs; `department_ids` contains 1–50 unique values; `full_name` is a required trimmed 1–200
+character string without control characters; `location_id` and `manager_id` are UUID or `null`.
+Self-management is rejected.
+
+**Success:** `200` `{ "updatedEmployeeId": string, "message": string }`. Database capability
+`admin_update_employee_assignments_20260902` updates the employee record, legacy primary
+`department_id`, and all many-to-many memberships in one transaction. Repeating the same desired
+state is idempotent.
+
+**Errors:** `400` invalid body/assignment; `401` unauthenticated; `403` role or target scope
+rejected; `404` employee missing; `429` limited; `500` atomic update failure; `503` assignment
+lookup unavailable.
+
+```json
+{
+  "employee_id": "00000000-0000-4000-8000-000000000010",
+  "full_name": "Updated Staff Name",
+  "role_id": "00000000-0000-4000-8000-000000000001",
+  "department_ids": ["00000000-0000-4000-8000-000000000002"],
+  "location_id": null,
+  "manager_id": null
+}
+```
+
 ### POST `/api/admin/clear-lms`
 
 Compatibility endpoint that invokes the same atomic full LMS reset and returns its database result.
@@ -382,8 +479,9 @@ with `migration`, `requiredVersion`, and `currentVersion`; `500` configuration/R
 
 Backfills installment rows for LMS service transactions that do not yet have installments.
 
-**Access:** Active maintenance-role session (`Maintenance Admin`, `Admin`, `Master Admin`, or
-`Super Admin`). Limit: 3 requests per actor and IP per hour. No fresh-factor check.
+**Access:** Active `Admin`, `Master Admin`, or `Super Admin` session. This financial-data backfill is
+not available to `Maintenance Admin`. Limit: 3 requests per actor and IP per hour. No fresh-factor
+check.
 
 **Input:** No body fields. The route reads every `service` transaction and its loan term/balance.
 
@@ -429,9 +527,10 @@ role/factor; `404` target missing; `429` limited; `500` database/internal failur
 
 Enables or disables an employee account.
 
-**Access:** Any active staff session, but a non-`Master Admin`/`Super Admin` actor must be in the
-target's manager chain. Disabling requires a fresh `totp | backup | auto` factor; enabling does not.
-Limit: 20 requests per actor and IP per hour.
+**Access:** Any active staff session except `Maintenance Admin`, whose account-state changes require
+an `Admin`/`Master Admin`/`Super Admin` to perform them. Other non-`Master Admin`/`Super Admin`
+actors must be in the target's manager chain. Disabling requires a fresh `totp | backup | auto`
+factor; enabling does not. Limit: 20 requests per actor and IP per hour.
 
 **Input:** Strict JSON, maximum 4 KiB: `employeeId` (required trimmed string, 1–200), `isActive`
 (required boolean), `verificationCode` (optional trimmed string, maximum 100; required when

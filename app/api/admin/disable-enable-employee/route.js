@@ -57,6 +57,10 @@ export async function POST(request) {
     if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
     const { employeeId, isActive, verificationCode, verificationMethod } = body
 
+    if (access.employee.role.trim().toLowerCase() === 'maintenance admin') {
+      return apiError('An Admin or Super Admin must approve account status changes.', 403)
+    }
+
     if (!isActive) {
       const verification = await verifyFreshSecondFactor({
         userId: access.user.id,

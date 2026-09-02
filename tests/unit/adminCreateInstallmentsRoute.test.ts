@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const requireMaintenanceSession = vi.fn()
+  const requireAdminSession = vi.fn()
 
   const loanInstallmentsSelect = vi.fn()
   const loanInstallmentsInsertSelect = vi.fn()
@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => {
   const createClient = vi.fn(() => ({ from, rpc }))
 
   return {
-    requireMaintenanceSession,
+    requireAdminSession,
     loanInstallmentsSelect,
     loanInstallmentsInsertSelect,
     loanInstallmentsInsert,
@@ -44,7 +44,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/adminSessionAuth', () => ({
-  requireMaintenanceSession: mocks.requireMaintenanceSession,
+  requireAdminSession: mocks.requireAdminSession,
 }))
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -62,7 +62,7 @@ describe('POST /api/admin/create-installments', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 
-    mocks.requireMaintenanceSession.mockResolvedValue({
+    mocks.requireAdminSession.mockResolvedValue({
       authorized: true,
       user: { id: 'maintenance-1' },
     })
@@ -105,8 +105,8 @@ describe('POST /api/admin/create-installments', () => {
     process.env = originalEnv
   })
 
-  it('returns auth response when maintenance session is unauthorized', async () => {
-    mocks.requireMaintenanceSession.mockResolvedValueOnce({
+  it('returns auth response when admin session is unauthorized', async () => {
+    mocks.requireAdminSession.mockResolvedValueOnce({
       authorized: false,
       response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
     })
