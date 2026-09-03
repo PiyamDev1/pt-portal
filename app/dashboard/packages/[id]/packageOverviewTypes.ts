@@ -21,11 +21,23 @@ export type PackageEmployeeOption = {
   id: string
   full_name: string | null
   email?: string | null
+  location_id?: string | null
+  locations?:
+    | { id?: string | null; name?: string | null; branch_code?: string | null }
+    | Array<{ id?: string | null; name?: string | null; branch_code?: string | null }>
+    | null
+}
+
+export type PackageLocationOption = {
+  id: string
+  name: string
+  branch_code?: string | null
 }
 
 export type PackageOverviewClientProps = {
   packageId: string
   employees?: PackageEmployeeOption[]
+  locations?: PackageLocationOption[]
 }
 
 export type PackageResponse = {

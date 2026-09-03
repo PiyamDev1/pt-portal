@@ -77,6 +77,7 @@ import {
   type WorkspaceTab,
 } from './packageOperationsModel'
 import { getReservationCalculationTotals } from './packageOverviewModel'
+import type { PackageEmployeeOption, PackageLocationOption } from './packageOverviewTypes'
 import {
   getPackageCommissionEventErrorLabel,
   getPackageCommissionIssueLabel,
@@ -88,9 +89,11 @@ type Props = {
   packageFolder: TravelPackageFolder
   invoice: TravelPackageInvoice | null
   reservations?: TravelPackageReservation[]
-  employees?: Array<{ id: string; full_name: string | null; email?: string | null }>
+  employees?: PackageEmployeeOption[]
+  locations?: PackageLocationOption[]
   onPackageChange: (packageFolder: TravelPackageFolder) => void
   onInvoiceChange?: (invoice: TravelPackageInvoice) => void
+  onOpenReservations?: () => void
 }
 
 function commissionReadinessCopy(readiness: PackageCommissionReadiness) {
@@ -98,13 +101,15 @@ function commissionReadinessCopy(readiness: PackageCommissionReadiness) {
     case 'ready_to_close':
       return {
         title: 'Ready for Commission handoff',
-        detail: 'Closing this package will create a non-payable Commission shadow calculation.',
+        detail:
+          'After the customer returns, mark the folder Complete - Checked. Commission is then calculated from the reservation records and dated three days after return.',
         style: 'border-emerald-200 bg-emerald-50 text-emerald-950',
       }
     case 'processed':
       return {
         title: 'Commission shadow calculation completed',
-        detail: 'The source is reconciled and visible in the Commission shadow console.',
+        detail:
+          'This Complete - Checked package has been calculated from its reservation records and is visible to Commission Admin.',
         style: 'border-emerald-200 bg-emerald-50 text-emerald-950',
       }
     case 'processing':
@@ -148,8 +153,10 @@ export default function PackageOperationsWorkspace({
   invoice,
   reservations = [],
   employees = [],
+  locations = [],
   onPackageChange,
   onInvoiceChange,
+  onOpenReservations,
 }: Props) {
   const { confirm, prompt, dialog } = useAppDialog()
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('control')
@@ -221,10 +228,6 @@ export default function PackageOperationsWorkspace({
     receivedAt: '',
     receiptReference: '',
     notes: '',
-  })
-  const [discountAdjustmentForm, setDiscountAdjustmentForm] = useState({
-    amount: '',
-    reason: '',
   })
   const [planForm, setPlanForm] = useState({
     totalAmount: '',
@@ -388,14 +391,7 @@ export default function PackageOperationsWorkspace({
 
   useEffect(() => {
     void loadCommissionReadiness()
-  }, [
-    invoice?.updated_at,
-    loadCommissionReadiness,
-    packageFolder.updated_at,
-    passengers,
-    payments,
-    reservations,
-  ])
+  }, [loadCommissionReadiness, packageFolder.updated_at, passengers, payments, reservations])
 
   const groupFamilies = useMemo(
     () => packageFolder.selected_quote_snapshot?.group?.families || [],
@@ -424,7 +420,6 @@ export default function PackageOperationsWorkspace({
   )
   const selectedFamilyInvoice =
     selectedPaymentFamily && invoice?.quote_id === selectedPaymentFamily.quoteId ? invoice : null
-  const activePaymentInvoice = groupFamilies.length > 0 ? selectedFamilyInvoice : invoice
   const reservationSaleTotal = (quoteId?: string) =>
     reservations
       .filter((reservation) => !quoteId || reservation.quote_id === quoteId)
@@ -444,21 +439,21 @@ export default function PackageOperationsWorkspace({
     : 0
   const calculationTotals = getReservationCalculationTotals(reservations)
   const groupReservationTotal = Math.max(0, calculationTotals.sold - calculationTotals.discount)
+  const reservationDiscountTotal = selectedPaymentFamily
+    ? reservations
+        .filter((reservation) => reservation.quote_id === selectedPaymentFamily.quoteId)
+        .reduce((total, reservation) => total + Number(reservation.discount_total || 0), 0)
+    : calculationTotals.discount
   const paymentTotalDue = selectedPaymentFamily
-    ? (selectedFamilyInvoice?.total_sold ??
-      (selectedFamilyReservationTotal > 0
-        ? selectedFamilyReservationTotal
-        : selectedPaymentFamily.selection.combination.totalPrice))
-    : groupFamilies.length > 0
-      ? groupReservationTotal > 0
-        ? groupReservationTotal
-        : groupFamilies.reduce(
-            (total, family) => total + family.selection.combination.totalPrice,
-            0,
-          )
-      : Number(invoice?.total_sold || packageFolder.current_public_summary?.totalPrice || 0)
+    ? selectedFamilyReservationTotal
+    : groupReservationTotal
   const paymentBalance = Math.max(0, paymentTotalDue - paymentSummary.netPaid)
   const unrequestedPaymentBalance = Math.max(0, paymentBalance - paymentSummary.pending)
+  const paymentCurrency =
+    reservations.find(
+      (reservation) =>
+        !selectedPaymentFamily || reservation.quote_id === selectedPaymentFamily.quoteId,
+    )?.currency || paymentSummary.currency
 
   useEffect(() => {
     if (groupFamilies.length === 0) {
@@ -505,6 +500,17 @@ export default function PackageOperationsWorkspace({
   const commissionEventError = getPackageCommissionEventErrorLabel(
     commissionReadiness?.eventError || null,
   )
+  const packageLocation = locations.find((location) => location.id === packageFolder.location_id)
+  const salesEmployee = employees.find(
+    (employee) =>
+      employee.id ===
+      (packageFolder.sales_responsible_employee_id ||
+        packageFolder.sales_employee_id ||
+        packageFolder.assigned_agent_id),
+  )
+  const suggestedLocation = salesEmployee?.location_id
+    ? locations.find((location) => location.id === salesEmployee.location_id)
+    : null
   const availableStatuses = [
     packageFolder.status,
     ...getTravelPackageStatusTransitions(packageFolder.status),
@@ -624,6 +630,41 @@ export default function PackageOperationsWorkspace({
     }
   }
 
+  const autoResolveCommissionHandoff = async () => {
+    setSaving('commission-handoff')
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/commission-readiness/auto-resolve`,
+        { method: 'POST' },
+      )
+      const data = (await readApiResponse(response)) as {
+        actions?: string[]
+        packagePatch?: Partial<TravelPackageFolder>
+        readiness?: unknown
+        error?: string
+      }
+      if (!response.ok) throw new Error(data.error || 'Unable to resolve Commission handoff')
+      if (data.packagePatch) onPackageChange({ ...packageFolder, ...data.packagePatch })
+      const readiness = parsePackageCommissionReadiness(data.readiness)
+      if (readiness) setCommissionReadiness(readiness)
+      if (data.actions?.length) {
+        toast.success(data.actions.join(' '))
+      } else if (readiness?.issues.length) {
+        toast.info(
+          'No safe automatic fixes remain. Follow the instructions shown for this package.',
+        )
+      } else {
+        toast.success('Package handoff is already reconciled.')
+      }
+      return readiness
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to resolve Commission handoff')
+      return null
+    } finally {
+      setSaving(null)
+    }
+  }
+
   const changePackageStatus = async (status: TravelPackageFolderStatus) => {
     if (status === 'cancelled') {
       const reason = await prompt({
@@ -644,7 +685,8 @@ export default function PackageOperationsWorkspace({
         return
       }
       const payoutDate = getPackageCommissionPayoutDate(packageFolder.return_date)
-      const freshReadiness = await loadCommissionReadiness()
+      const freshReadiness =
+        (await autoResolveCommissionHandoff()) || (await loadCommissionReadiness())
       if (freshReadiness?.issues.includes('missing_sales_employee')) {
         toast.error('Assign the responsible sales employee before closing this package.')
         return
@@ -811,7 +853,7 @@ export default function PackageOperationsWorkspace({
           invoiceId: selectedFamilyInvoice?.id || null,
           quoteId: selectedPaymentFamily?.quoteId || null,
           groupMemberId: selectedPaymentFamily?.memberId || null,
-          currency: selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
+          currency: paymentCurrency || 'GBP',
           metadata: selectedPaymentFamily
             ? { familyLabel: selectedPaymentFamily.familyLabel }
             : undefined,
@@ -832,70 +874,9 @@ export default function PackageOperationsWorkspace({
         receiptReference: '',
         notes: '',
       })
-      toast.success('Payment recorded and invoice balance updated')
+      toast.success('Payment recorded and reservation balance updated')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to record payment')
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const addDiscountAdjustment = async () => {
-    if (!activePaymentInvoice) {
-      toast.error('Create this family invoice before adjusting its discount.')
-      return
-    }
-    const adjustment = Math.round(Number(discountAdjustmentForm.amount) * 100) / 100
-    const reason = discountAdjustmentForm.reason.trim()
-    if (!Number.isFinite(adjustment) || Math.abs(adjustment) < 0.01) {
-      toast.error('Enter a non-zero discount adjustment.')
-      return
-    }
-    if (!reason) {
-      toast.error('Enter a reason for the discount adjustment.')
-      return
-    }
-    const revisedDiscount =
-      Math.round((Number(activePaymentInvoice.discount_total || 0) + adjustment) * 100) / 100
-    if (revisedDiscount < 0) {
-      toast.error('This adjustment would make the invoice discount negative.')
-      return
-    }
-    if (revisedDiscount > Number(activePaymentInvoice.subtotal_sold || 0)) {
-      toast.error('The total discount cannot exceed the invoice subtotal.')
-      return
-    }
-
-    setSaving('discount-adjustment')
-    try {
-      const response = await fetch(`/api/travel-packages/${packageFolder.id}/invoice/lines`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId: activePaymentInvoice.id,
-          lineType: 'discount',
-          description:
-            adjustment > 0 ? `Discount adjustment - ${reason}` : `Discount reduction - ${reason}`,
-          quantity: 1,
-          unitSoldPrice: 0,
-          unitBookedCost: 0,
-          discountAmount: adjustment,
-          customerVisible: true,
-          sortOrder: 9000,
-        }),
-      })
-      const data = (await response.json()) as {
-        invoice?: TravelPackageInvoice | null
-        error?: string
-      }
-      if (!response.ok || !data.invoice) {
-        throw new Error(data.error || 'Failed to adjust invoice discount')
-      }
-      onInvoiceChange?.(data.invoice)
-      setDiscountAdjustmentForm({ amount: '', reason: '' })
-      toast.success('Discount adjusted and invoice balance recalculated')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to adjust invoice discount')
     } finally {
       setSaving(null)
     }
@@ -978,7 +959,7 @@ export default function PackageOperationsWorkspace({
   const deletePayment = async (payment: TravelPackagePayment) => {
     const shouldDelete = await confirm({
       title: 'Delete payment?',
-      message: `Delete the ${formatMoney(payment.amount, payment.currency)} payment record? The invoice balance will be recalculated.`,
+      message: `Delete the ${formatMoney(payment.amount, payment.currency)} payment record? The Payments balance will be recalculated against reservations.`,
       confirmLabel: 'Delete payment',
       type: 'danger',
     })
@@ -1011,8 +992,7 @@ export default function PackageOperationsWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...planForm,
-          invoiceId: invoice?.id || null,
-          currency: invoice?.currency || 'GBP',
+          currency: paymentCurrency || 'GBP',
           totalAmount: Number(planForm.totalAmount),
           depositAmount: Number(planForm.depositAmount || 0),
           installmentCount: Number(planForm.installmentCount),
@@ -1686,7 +1666,7 @@ export default function PackageOperationsWorkspace({
                       <div>
                         <p className="text-sm font-black text-cyan-950">Responsible agents</p>
                         <p className="mt-1 text-xs font-semibold text-cyan-800">
-                          Employee ownership by package stage.
+                          Employee ownership and the office branch responsible for this package.
                         </p>
                       </div>
                       {saving === 'package' && (
@@ -1694,6 +1674,43 @@ export default function PackageOperationsWorkspace({
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Saving
                         </span>
+                      )}
+                    </div>
+                    <div className="border-b border-cyan-100 bg-white px-3 py-3">
+                      <label className="grid gap-2 text-xs font-bold text-slate-700 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center">
+                        <span>
+                          Responsible office branch
+                          <span className="mt-0.5 block text-[11px] font-semibold text-slate-500">
+                            Office that owns this package
+                          </span>
+                        </span>
+                        <select
+                          value={packageFolder.location_id || ''}
+                          onChange={(event) =>
+                            void patchPackage({ locationId: event.target.value })
+                          }
+                          disabled={saving === 'package' || locations.length === 0}
+                          className="w-full border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <option value="">
+                            {locations.length === 0 ? 'No branches available' : 'Choose a branch'}
+                          </option>
+                          {locations.map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.name}
+                              {location.branch_code ? ` (${location.branch_code})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {!packageLocation && suggestedLocation && (
+                        <p className="mt-2 text-xs font-semibold text-cyan-800">
+                          Suggested from {salesEmployee?.full_name || 'the sales owner'}:{' '}
+                          {suggestedLocation.name}
+                          {suggestedLocation.branch_code
+                            ? ` (${suggestedLocation.branch_code})`
+                            : ''}
+                        </p>
                       )}
                     </div>
                     <div className="overflow-x-auto">
@@ -1829,11 +1846,33 @@ export default function PackageOperationsWorkspace({
                             {commissionReadiness.issues.map((issue) => (
                               <li key={issue} className="flex gap-2">
                                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>{getPackageCommissionIssueLabel(issue)}</span>
+                                <span>
+                                  {issue === 'missing_package_location'
+                                    ? suggestedLocation
+                                      ? `Choose the package branch. The sales owner belongs to ${suggestedLocation.name}${suggestedLocation.branch_code ? ` (${suggestedLocation.branch_code})` : ''}.`
+                                      : 'Choose the office branch responsible for this package in the Responsible agents section above.'
+                                    : getPackageCommissionIssueLabel(issue)}
+                                </span>
                               </li>
                             ))}
                           </ul>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => void autoResolveCommissionHandoff()}
+                          disabled={saving === 'commission-handoff'}
+                          className="mt-4 inline-flex items-center gap-2 border border-current/30 bg-white px-3 py-2 text-xs font-black disabled:opacity-50"
+                        >
+                          {saving === 'commission-handoff' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )}
+                          {commissionReadiness.issues.length > 0
+                            ? 'Resolve safe fixes automatically'
+                            : 'Refresh safe reconciliation'}
+                        </button>
 
                         {commissionEventError && (
                           <p className="mt-4 border border-current/20 bg-white/70 p-2 text-xs font-bold leading-5">
@@ -1842,7 +1881,7 @@ export default function PackageOperationsWorkspace({
                         )}
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-current/15 pt-3 text-[11px] font-bold opacity-75">
-                          <span>Shadow only - not payable</span>
+                          <span>Preview until Admin payroll approval</span>
                           {commissionReadiness.eventVersion && (
                             <span>Source version {commissionReadiness.eventVersion}</span>
                           )}
@@ -2310,19 +2349,13 @@ export default function PackageOperationsWorkspace({
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Full amount</p>
                   <p className="mt-1 text-lg font-black">
-                    {formatMoney(
-                      paymentTotalDue,
-                      selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
-                    )}
+                    {formatMoney(paymentTotalDue, paymentCurrency)}
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Net received</p>
                   <p className="mt-1 text-lg font-black">
-                    {formatMoney(
-                      paymentSummary.netPaid,
-                      invoice?.currency || paymentSummary.currency,
-                    )}
+                    {formatMoney(paymentSummary.netPaid, paymentCurrency)}
                   </p>
                   {paymentSummary.accountCredits > 0 && (
                     <p className="mt-1 text-xs font-bold text-sky-700">
@@ -2334,10 +2367,7 @@ export default function PackageOperationsWorkspace({
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Pending to pay</p>
                   <p className="mt-1 text-lg font-black">
-                    {formatMoney(
-                      paymentSummary.pending,
-                      invoice?.currency || paymentSummary.currency,
-                    )}
+                    {formatMoney(paymentSummary.pending, paymentCurrency)}
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-500">
                     Requested but not received
@@ -2346,37 +2376,24 @@ export default function PackageOperationsWorkspace({
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Refunds</p>
                   <p className="mt-1 text-lg font-black">
-                    {formatMoney(
-                      paymentSummary.refunds,
-                      invoice?.currency || paymentSummary.currency,
-                    )}
+                    {formatMoney(paymentSummary.refunds, paymentCurrency)}
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Invoice discount</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">
+                    Reservation discounts
+                  </p>
                   <p className="mt-1 text-lg font-black text-emerald-700">
-                    {activePaymentInvoice
-                      ? formatMoney(
-                          activePaymentInvoice.discount_total,
-                          activePaymentInvoice.currency,
-                        )
-                      : '-'}
+                    {formatMoney(reservationDiscountTotal, paymentCurrency)}
                   </p>
                 </div>
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Outstanding balance</p>
                   <p className="mt-1 text-lg font-black text-[#8b1e2d]">
-                    {formatMoney(
-                      paymentBalance,
-                      selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
-                    )}
+                    {formatMoney(paymentBalance, paymentCurrency)}
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    Still to request:{' '}
-                    {formatMoney(
-                      unrequestedPaymentBalance,
-                      selectedFamilyInvoice?.currency || invoice?.currency || 'GBP',
-                    )}
+                    Still to request: {formatMoney(unrequestedPaymentBalance, paymentCurrency)}
                   </p>
                 </div>
               </div>
@@ -2518,90 +2535,29 @@ export default function PackageOperationsWorkspace({
                 </form>
               )}
               {(groupFamilies.length === 0 || selectedPaymentFamily) && (
-                <section className="border border-emerald-200 bg-emerald-50 p-4">
+                <section className="flex flex-col gap-3 border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
                     <BadgePercent className="mt-0.5 h-5 w-5 shrink-0 text-emerald-800" />
                     <div>
-                      <h3 className="text-sm font-black text-emerald-950">Discount adjustment</h3>
-                      <p className="mt-1 text-xs text-emerald-900">
-                        Recorded as a separate auditable invoice line and excluded from money
-                        received.
+                      <h3 className="text-sm font-black text-emerald-950">
+                        Discounts come from Reservations
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-emerald-900">
+                        Edit the reservation financials to change the amount due. Payments, profit,
+                        and Commission all use those values; an optional customer invoice does not
+                        change them.
                       </p>
                     </div>
                   </div>
-                  {activePaymentInvoice ? (
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        void addDiscountAdjustment()
-                      }}
-                      className="mt-3 grid gap-3 md:grid-cols-[minmax(0,180px)_minmax(240px,1fr)_auto]"
+                  {onOpenReservations && (
+                    <button
+                      type="button"
+                      onClick={onOpenReservations}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 bg-emerald-800 px-4 py-2 text-xs font-black text-white"
                     >
-                      <label className="text-xs font-bold text-emerald-950">
-                        Adjustment (+/-)
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="e.g. 50 or -25"
-                          value={discountAdjustmentForm.amount}
-                          onChange={(event) =>
-                            setDiscountAdjustmentForm((current) => ({
-                              ...current,
-                              amount: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-emerald-300 bg-white px-3 py-2 text-sm"
-                          required
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-emerald-950">
-                        Reason
-                        <input
-                          value={discountAdjustmentForm.reason}
-                          onChange={(event) =>
-                            setDiscountAdjustmentForm((current) => ({
-                              ...current,
-                              reason: event.target.value,
-                            }))
-                          }
-                          placeholder="Reason shown on the invoice"
-                          className="mt-1 w-full border border-emerald-300 bg-white px-3 py-2 text-sm"
-                          required
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        disabled={saving === 'discount-adjustment'}
-                        className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 bg-emerald-800 px-4 py-2 text-xs font-black text-white disabled:bg-emerald-300"
-                      >
-                        {saving === 'discount-adjustment' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4" />
-                        )}
-                        Apply discount
-                      </button>
-                      <p className="text-xs font-semibold text-emerald-900 md:col-span-3">
-                        Current discount:{' '}
-                        {formatMoney(
-                          activePaymentInvoice.discount_total,
-                          activePaymentInvoice.currency,
-                        )}
-                        {' · '}Revised discount:{' '}
-                        {formatMoney(
-                          Math.max(
-                            0,
-                            Number(activePaymentInvoice.discount_total || 0) +
-                              (Number(discountAdjustmentForm.amount) || 0),
-                          ),
-                          activePaymentInvoice.currency,
-                        )}
-                      </p>
-                    </form>
-                  ) : (
-                    <p className="mt-3 border border-dashed border-emerald-300 bg-white p-3 text-sm font-semibold text-emerald-900">
-                      Create this family invoice first, then its discount can be adjusted here.
-                    </p>
+                      <Pencil className="h-4 w-4" />
+                      Open Reservations
+                    </button>
                   )}
                 </section>
               )}

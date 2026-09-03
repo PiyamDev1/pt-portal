@@ -159,8 +159,8 @@ describe('TicketItineraryDrawer', () => {
     const airportUrls = fetchMock.mock.calls
       .map(([input]) => String(input))
       .filter((url) => url.includes('/api/ticketing/airports'))
-    expect(airportUrls).toContain('/api/ticketing/airports?q=LHR&limit=20')
-    expect(airportUrls).toContain('/api/ticketing/airports?q=ISB&limit=20')
+    expect(airportUrls).toContain('/api/ticketing/airports?codes=LHR&limit=1')
+    expect(airportUrls).toContain('/api/ticketing/airports?codes=ISB&limit=1')
     expect(airportUrls).not.toContain('/api/ticketing/airports?limit=100')
   })
 

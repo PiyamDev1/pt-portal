@@ -1484,20 +1484,22 @@ function Exceptions({
     package_not_closed: 'The package is not closed.',
     missing_earned_date: 'The closed and earned dates are incomplete.',
     missing_sales_employee: 'Assign the package sales owner.',
-    missing_package_location: 'Assign the package branch.',
+    missing_package_location: 'Choose the office branch responsible for this package.',
     missing_reservations: 'Add the package reservation records.',
     unfinished_reservations: 'Finish or cancel every reservation.',
     missing_passengers: 'Add the package passenger records.',
     invalid_shared_transport_structure:
       'Keep exactly one physical Group main transport for the family invoice references.',
-    missing_active_invoice: 'Create the package invoice.',
-    invoice_not_settled: 'Settle and finalise every active invoice.',
+    missing_active_invoice: 'Legacy item: retry to remove the old invoice requirement.',
+    invoice_not_settled: 'Legacy item: retry to use the Payments balance instead.',
     supplier_commission_not_reconciled:
-      'Reconcile received supplier commission between reservations and invoices.',
-    invoice_sales_not_reconciled: 'Reconcile invoice sales with the reservation totals.',
-    invoice_cost_not_reconciled: 'Reconcile invoice booked cost with the reservation totals.',
-    package_payment_not_paid: 'The package payment state must be paid.',
-    pending_package_payments: 'Resolve pending package payment records.',
+      'Legacy item: supplier commission is now taken from reservations.',
+    invoice_sales_not_reconciled: 'Legacy item: invoices no longer control Package Commission.',
+    invoice_cost_not_reconciled: 'Legacy item: invoices no longer control Package Commission.',
+    package_payment_not_paid:
+      'Use the Payments tab until completed payments cover the reservation sale total.',
+    pending_package_payments:
+      'Resolve payment requests still needed to cover the reservation balance.',
     non_gbp_package_source: 'Convert or reconcile all package source values to GBP.',
   }
   const filtered = items.filter((item) => {

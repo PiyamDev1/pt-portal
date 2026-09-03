@@ -3,11 +3,13 @@ import type {
   TravelPackageFolder,
   TravelPackageInvoice,
   TravelPackagePayment,
+  TravelPackageReservation,
 } from '@/app/types/packages'
 import {
   calculatePackagePaymentSummary,
   canTransitionTravelPackageStatus,
   derivePackageWorkflow,
+  derivePackagePaymentStatus,
   getLifecycleTimestampUpdate,
   getPackageCommissionPayoutDate,
   hasPackageReturnDateElapsed,
@@ -137,6 +139,22 @@ it('uses a previous refund reimbursement as account credit without reducing pack
   })
 })
 
+it('marks Payments complete from the reservation balance even when an old request is overdue', () => {
+  const summary = calculatePackagePaymentSummary(
+    [
+      payment({ amount: 1000 }),
+      payment({
+        amount: 200,
+        payment_status: 'pending',
+        due_at: '2026-06-01T00:00:00.000Z',
+      }),
+    ],
+    Date.parse('2026-07-01T00:00:00.000Z'),
+  )
+
+  expect(derivePackagePaymentStatus(summary, 1000)).toBe('paid')
+})
+
 describe('package lifecycle', () => {
   it('allows operational progress but blocks skipping from selected to closed', () => {
     expect(canTransitionTravelPackageStatus('selected', 'awaiting_passports')).toBe(true)
@@ -191,6 +209,36 @@ describe('package workflow calculation', () => {
     expect(workflow.risks.find((risk) => risk.riskType === 'negative_margin')?.severity).toBe(
       'critical',
     )
+  })
+
+  it('uses reservations and Payments, not an optional invoice, for package payment status', () => {
+    const reservation = {
+      id: 'reservation-1',
+      package_id: 'package-1',
+      reservation_type: 'hotel',
+      status: 'confirmed',
+      sold_price_total: 1000,
+      discount_total: 100,
+      customer_refund_total: 0,
+      booked_cost_total: 700,
+      commission_expected_total: 0,
+      commission_received_total: 0,
+      supplier_refund_total: 0,
+      metadata: {},
+    } as TravelPackageReservation
+    const invoice = {
+      total_sold: 5000,
+      balance_due: 5000,
+      projected_margin: 0,
+    } as TravelPackageInvoice
+    const workflow = derivePackageWorkflow({
+      packageFolder: packageFolder({ passport_status: 'ready' }),
+      reservations: [reservation],
+      payments: [payment({ amount: 900 })],
+      invoice,
+    })
+
+    expect(workflow.paymentStatus).toBe('paid')
   })
 
   it('turns an overdue installment into the primary payment follow-up', () => {

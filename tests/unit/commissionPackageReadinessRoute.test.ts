@@ -62,7 +62,7 @@ describe('GET Package Commission readiness', () => {
     mocks.maybeSingle.mockResolvedValue({ data: { id: PACKAGE_ID }, error: null })
     mocks.rpc.mockImplementation(async (functionName: string) =>
       functionName === 'commission_schema_status'
-        ? { data: { ready: true, version: 2026090202, mode: 'shadow' }, error: null }
+        ? { data: { ready: true, version: 2026090301, mode: 'shadow' }, error: null }
         : { data: readiness, error: null },
     )
   })

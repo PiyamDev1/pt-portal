@@ -142,7 +142,9 @@ function AirportCodeField({
     const controller = new AbortController()
     const timeout = window.setTimeout(
       () => {
-        void loadTicketAirports({ query, limit: 20 }, controller.signal)
+        const lookup =
+          query.length === 3 ? { codes: [query] } : { query, limit: 20 }
+        void loadTicketAirports(lookup, controller.signal)
           .then((options) => {
             onAirportsLoaded(options)
             if (query.length === 3 && !options.some((option) => option.iataCode === query)) {

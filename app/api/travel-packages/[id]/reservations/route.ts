@@ -8,6 +8,7 @@ import type {
 } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { selectTravelPackageReservationColumns } from './columns'
+import { syncPackagePaymentStatus } from '@/lib/packagePaymentsServer'
 
 const SCHEMA_HINT =
   'Travel package reservation schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -205,6 +206,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       afterData: data,
     },
   )
+  await syncPackagePaymentStatus(supabase, id)
 
   return apiOk(
     { reservation: data as unknown as TravelPackageReservation, setupRequired: false },

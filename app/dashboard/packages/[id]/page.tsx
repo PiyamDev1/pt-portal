@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
-import type { PackageEmployeeOption } from './packageOverviewTypes'
+import type { PackageEmployeeOption, PackageLocationOption } from './packageOverviewTypes'
 import PackageOverviewClient from './PackageOverviewClient'
 import { getPackagePageHeader } from '../packagePageHeader'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
@@ -49,12 +49,16 @@ export default async function TravelPackageFolderPage({
     session.user.id,
     session.user.user_metadata?.full_name,
   )
-  const { data: employeeRows } = await supabase
-    .from('employees')
-    .select('id, full_name, email')
-    .eq('is_active', true)
-    .order('full_name', { ascending: true })
+  const [{ data: employeeRows }, { data: locationRows }] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('id, full_name, email, location_id, locations(id, name, branch_code)')
+      .eq('is_active', true)
+      .order('full_name', { ascending: true }),
+    supabase.from('locations').select('id, name, branch_code').order('name', { ascending: true }),
+  ])
   const employees = (employeeRows || []) as PackageEmployeeOption[]
+  const locations = (locationRows || []) as PackageLocationOption[]
 
   return (
     <DashboardClientWrapper>
@@ -67,7 +71,7 @@ export default async function TravelPackageFolderPage({
         />
 
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <PackageOverviewClient packageId={id} employees={employees} />
+          <PackageOverviewClient packageId={id} employees={employees} locations={locations} />
         </main>
       </div>
     </DashboardClientWrapper>

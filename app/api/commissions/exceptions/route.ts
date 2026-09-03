@@ -93,12 +93,22 @@ export async function GET(request: NextRequest) {
     : { data: [], error: null }
   if (sourceEventError) return commissionError('Unable to resolve Commission source details.', 500)
 
+  type SourceEventRow = NonNullable<typeof sourceEvents>[number]
+  const packageIdForSource = (source: SourceEventRow) => {
+    if (source.source_module === 'packages') return source.source_record_id
+    const variables =
+      source.variables && typeof source.variables === 'object' && !Array.isArray(source.variables)
+        ? source.variables
+        : {}
+    return typeof variables.package_id === 'string'
+      ? variables.package_id
+      : typeof variables.packageId === 'string'
+        ? variables.packageId
+        : null
+  }
   const packageIds = [
     ...new Set(
-      (sourceEvents || [])
-        .filter((source) => source.source_module === 'packages')
-        .map((source) => source.source_record_id)
-        .filter((id): id is string => !!id),
+      (sourceEvents || []).map(packageIdForSource).filter((id): id is string => Boolean(id)),
     ),
   ]
   const { data: packages, error: packageError } = packageIds.length
@@ -113,8 +123,9 @@ export async function GET(request: NextRequest) {
     {
       items: pageRows.map((row) => {
         const source = sourceEvents?.find((event) => event.id === row.source_event_id)
-        const sourcePackage = source?.source_record_id
-          ? packages?.find((item) => item.id === source.source_record_id)
+        const sourcePackageId = source ? packageIdForSource(source) : null
+        const sourcePackage = sourcePackageId
+          ? packages?.find((item) => item.id === sourcePackageId)
           : null
         const variables =
           source?.variables &&
@@ -142,8 +153,8 @@ export async function GET(request: NextRequest) {
             ? {
                 module: source.source_module,
                 recordId: source.source_record_id,
+                packageId: sourcePackageId,
                 factKey: source.source_fact_key,
-                path: source.source_path,
                 packageReference:
                   sourcePackage?.package_reference ||
                   (typeof variables.package_reference === 'string'
@@ -152,6 +163,9 @@ export async function GET(request: NextRequest) {
                       ? variables.packageReference
                       : null),
                 packageTitle: sourcePackage?.title || null,
+                path: sourcePackageId
+                  ? `/dashboard/packages/${sourcePackageId}`
+                  : source.source_path,
               }
             : null,
         }

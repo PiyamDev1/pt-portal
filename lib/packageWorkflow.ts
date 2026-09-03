@@ -9,6 +9,7 @@ import type {
   TravelPackageReservationType,
   TravelPackageTransportVoucher,
 } from '@/app/types/packages'
+import { getPackageReservationSaleTotal } from '@/lib/packageReservationFinancials'
 
 export type PackageWorkflowRisk = {
   riskType: string
@@ -210,12 +211,12 @@ export function calculatePackagePaymentSummary(
 
 export function derivePackagePaymentStatus(
   paymentSummary: PackagePaymentSummary,
-  invoice: TravelPackageInvoice | null,
+  reservationSaleTotal: number,
 ) {
   if (paymentSummary.refunds > 0 && paymentSummary.netPaid <= 0) return 'refunded'
-  if (paymentSummary.overdue > 0) return 'overdue'
-  if (invoice && invoice.total_sold > 0 && paymentSummary.netPaid >= invoice.total_sold)
+  if (reservationSaleTotal > 0 && paymentSummary.netPaid >= reservationSaleTotal - 0.009)
     return 'paid'
+  if (paymentSummary.overdue > 0) return 'overdue'
   if (paymentSummary.netPaid > 0) return 'partial'
   if (paymentSummary.pending > 0) return 'deposit_requested'
   return 'not_requested'
@@ -263,7 +264,10 @@ export function derivePackageWorkflow(input: {
   } = input
   const risks: PackageWorkflowRisk[] = []
   const paymentSummary = calculatePackagePaymentSummary(payments, now)
-  const paymentStatus = derivePackagePaymentStatus(paymentSummary, invoice)
+  const paymentStatus = derivePackagePaymentStatus(
+    paymentSummary,
+    getPackageReservationSaleTotal(reservations),
+  )
   const departureDays = daysUntil(packageFolder.departure_date, now)
   const returnDays = daysUntil(packageFolder.return_date, now)
   const expectedTypes = getExpectedReservationTypes(packageFolder)

@@ -13,6 +13,7 @@ import {
   getPackageCommissionPayoutDate,
   hasPackageReturnDateElapsed,
 } from '@/lib/packageWorkflow'
+import { syncPackagePaymentStatus } from '@/lib/packagePaymentsServer'
 
 const SCHEMA_HINT =
   'Travel package folder schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_folders.sql in Supabase SQL editor.'
@@ -211,6 +212,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         409,
       )
     }
+    if (status === 'closed' && !existing.location_id && requestedSalesEmployeeId) {
+      const { data: salesEmployee } = await supabase
+        .from('employees')
+        .select('location_id')
+        .eq('id', requestedSalesEmployeeId)
+        .maybeSingle()
+      if (salesEmployee?.location_id) update.location_id = salesEmployee.location_id
+    }
+    if (status === 'closed') {
+      await syncPackagePaymentStatus(supabase, id)
+    }
     update.status = status
     Object.assign(update, getLifecycleTimestampUpdate(status, undefined, requestedReturnDate))
     if (status === 'closed') {
@@ -257,6 +269,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (Object.prototype.hasOwnProperty.call(body, 'salesResponsibleEmployeeId')) {
     update.sales_responsible_employee_id = requestedSalesEmployeeId
     update.sales_employee_id = update.sales_responsible_employee_id
+    if (!existing.location_id && requestedSalesEmployeeId) {
+      const { data: salesEmployee } = await supabase
+        .from('employees')
+        .select('location_id')
+        .eq('id', requestedSalesEmployeeId)
+        .maybeSingle()
+      if (salesEmployee?.location_id) update.location_id = salesEmployee.location_id
+    }
   }
   if (Object.prototype.hasOwnProperty.call(body, 'bookingResponsibleEmployeeId')) {
     update.booking_responsible_employee_id = cleanOptionalId(body.bookingResponsibleEmployeeId)
@@ -266,6 +286,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (Object.prototype.hasOwnProperty.call(body, 'serviceResponsibleEmployeeId')) {
     update.service_responsible_employee_id = cleanOptionalId(body.serviceResponsibleEmployeeId)
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'locationId')) {
+    const locationId = cleanOptionalId(body.locationId)
+    if (locationId) {
+      const { data: location, error: locationError } = await supabase
+        .from('locations')
+        .select('id')
+        .eq('id', locationId)
+        .maybeSingle()
+      if (locationError || !location) return apiError('Choose a valid package branch', 400)
+    }
+    update.location_id = locationId
   }
   if (Object.prototype.hasOwnProperty.call(body, 'nextAction')) {
     update.next_action = cleanText(body.nextAction) || null

@@ -40,6 +40,7 @@ const reservation: TravelPackageReservation = {
 
 const mocks = vi.hoisted(() => {
   const getUser = vi.fn()
+  const syncPackagePaymentStatus = vi.fn()
 
   const listOrder = vi.fn()
   const listEq = vi.fn(() => ({ order: listOrder }))
@@ -73,6 +74,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     getUser,
+    syncPackagePaymentStatus,
     listOrder,
     listEq,
     listSelect,
@@ -93,6 +95,10 @@ vi.mock('@/lib/api/serverSupabase', () => ({
   getRouteSupabaseClient: mocks.getRouteSupabaseClient,
 }))
 
+vi.mock('@/lib/packagePaymentsServer', () => ({
+  syncPackagePaymentStatus: mocks.syncPackagePaymentStatus,
+}))
+
 import { GET, POST } from '@/app/api/travel-packages/[id]/reservations/route'
 import { PATCH } from '@/app/api/travel-packages/[id]/reservations/[reservationId]/route'
 
@@ -108,6 +114,7 @@ describe('travel package reservation routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
+    mocks.syncPackagePaymentStatus.mockResolvedValue({})
     mocks.listOrder.mockResolvedValue({ data: [reservation], error: null })
     mocks.insertSingle.mockResolvedValue({ data: reservation, error: null })
     mocks.updateSingle.mockResolvedValue({
@@ -174,6 +181,7 @@ describe('travel package reservation routes', () => {
         discount_total: 50,
       }),
     )
+    expect(mocks.syncPackagePaymentStatus).toHaveBeenCalledWith(expect.anything(), 'package-1')
   })
 
   it('rejects negative reservation offsets and directs agents to refunds', async () => {
@@ -206,5 +214,6 @@ describe('travel package reservation routes', () => {
     })
     expect(mocks.updateFirstEq).toHaveBeenCalledWith('id', 'reservation-1')
     expect(mocks.updateSecondEq).toHaveBeenCalledWith('package_id', 'package-1')
+    expect(mocks.syncPackagePaymentStatus).toHaveBeenCalledWith(expect.anything(), 'package-1')
   })
 })

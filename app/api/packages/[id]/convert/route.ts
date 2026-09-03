@@ -56,6 +56,7 @@ function isPackageSchemaError(error: unknown) {
 function selectQuoteColumns() {
   return `
     id,
+    location_id,
     title,
     package_type,
     status,
@@ -669,6 +670,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ]),
     user.id,
   ])
+  const { data: salesEmployee } = salesEmployeeId
+    ? await supabase.from('employees').select('location_id').eq('id', salesEmployeeId).maybeSingle()
+    : { data: null }
+  const packageLocationId = leadQuote.location_id || salesEmployee?.location_id || null
   const passengerSummary = groupContext
     ? addPassengerSummaries(entries)
     : buildPassengerSummary(payload)
@@ -732,6 +737,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       sales_responsible_employee_id: salesEmployeeId,
       booking_responsible_employee_id: salesEmployeeId,
       service_responsible_employee_id: salesEmployeeId,
+      location_id: packageLocationId,
       customer_name:
         leadQuote.selected_option!.selection.customerName ||
         leadQuote.customer_name ||

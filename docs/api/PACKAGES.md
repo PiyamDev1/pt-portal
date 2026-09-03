@@ -396,12 +396,15 @@ Updates lifecycle, customer, responsibility, and public-summary fields.
 `passportStatus` (`not_requested | requested | received_whatsapp | checked | issues_found | ready`),
 `customerName`, `customerPhone`, `customerEmail`, `destination`, `departureDate`, `returnDate`,
 `assignedAgentId`, `salesResponsibleEmployeeId`, `bookingResponsibleEmployeeId`,
-`modifyResponsibleEmployeeId`, `serviceResponsibleEmployeeId`, `nextAction`, `nextActionDueAt`,
+`modifyResponsibleEmployeeId`, `serviceResponsibleEmployeeId`, `locationId`, `nextAction`, `nextActionDueAt`,
 `cancellationReason`, `currentPublicSummary: object`. Responsibility value `none` clears the ID.
 Cancellation requires a new or existing reason. Selecting `closed` is presented to staff as
 **Complete - Checked** and is allowed only on or after a recorded return date. It stores the checker
 and check time in metadata and sets the Commission earning date to return date + 3 days. Other
 status transitions stamp their lifecycle timestamps; customer name refreshes the portal surname.
+Selecting Complete - Checked also refreshes the Payments status from the reservation sale total and
+completed Payment-tab movements. If the package has no branch, the sales owner's branch is used
+when available.
 
 **Success:** `200 { package: TravelPackageFolder, setupRequired: false }` plus audit event.
 
@@ -430,11 +433,28 @@ matches the current source snapshot.
 
 **Side effects:** None. Marking the folder Complete - Checked separately emits the immutable source
 event. Its effective date is three days after return, and future-dated events remain queued for the
-normal Commission cron. Invoice customer release is not required, although an outstanding balance
-still prevents authoritative handoff. This endpoint only reads readiness and processing state.
+normal Commission cron. Reservation financials and completed Payment-tab movements are authoritative;
+customer invoices are optional and cannot block or alter Commission. This endpoint only reads
+readiness and processing state.
 
 **Errors:** `400` invalid UUID; `401` signed out; `404` Package unavailable; `503` until Commission
-capability `2026090202` is installed; `500` database or response-contract failure.
+capability `2026090301` is installed; `500` database or response-contract failure.
+
+### POST `/api/travel-packages/[id]/commission-readiness/auto-resolve`
+
+Applies only deterministic Package handoff fixes: fills a missing package branch from the sales
+owner, recalculates payment status from reservations and completed Payments, and cancels superseded
+pending payment requests after the resulting balance reaches £0.00. It never completes reservations,
+changes financial values, or marks the folder Complete - Checked for the user.
+
+**Access:** A signed-in user must be able to read and update the Package through normal RLS.
+
+**Input:** Package UUID path segment; no query or body.
+
+**Success:** `200 { actions, packagePatch, payment, readiness }` with private no-store caching. Every
+applied fix is recorded in Package audit history.
+
+**Errors:** `400` invalid UUID; `401`; `404`; `503` capability missing; `500` reconciliation failure.
 
 ### POST `/api/travel-packages/[id]/quote-sync`
 

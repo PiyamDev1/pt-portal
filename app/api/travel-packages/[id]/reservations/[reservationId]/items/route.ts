@@ -11,6 +11,7 @@ import {
   selectTravelPackageReservationColumns,
   selectTravelPackageReservationItemColumns,
 } from '../../columns'
+import { syncPackagePaymentStatus } from '@/lib/packagePaymentsServer'
 
 const SCHEMA_HINT =
   'Travel package reservation item schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -220,6 +221,8 @@ export async function POST(
       { status: 201 },
     )
   }
+
+  await syncPackagePaymentStatus(supabase, id)
 
   return apiOk(
     {

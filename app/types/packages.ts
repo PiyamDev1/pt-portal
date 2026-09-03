@@ -397,6 +397,7 @@ export interface PackageResolvedSelection {
 
 export interface TravelPackageQuote {
   id: string
+  location_id?: string | null
   title: string
   package_type: TravelPackageType
   status: TravelPackageStatus

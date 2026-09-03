@@ -8,6 +8,7 @@ import type {
 } from '@/app/types/packages'
 import { selectTravelPackageReservationColumns } from '../columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import { syncPackagePaymentStatus } from '@/lib/packagePaymentsServer'
 
 const SCHEMA_HINT =
   'Travel package reservation schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -221,6 +222,7 @@ export async function PATCH(
       metadata: { changedFields: Object.keys(updatePayload).filter((key) => key !== 'updated_by') },
     },
   )
+  await syncPackagePaymentStatus(supabase, id)
 
   return apiOk({
     reservation: data as unknown as TravelPackageReservation,
@@ -273,6 +275,7 @@ export async function DELETE(
       beforeData: before,
     },
   )
+  await syncPackagePaymentStatus(supabase, id)
 
   return apiOk({ deleted: true, setupRequired: false })
 }

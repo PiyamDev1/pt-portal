@@ -39,6 +39,7 @@ function formatMoney(value: number, currency: string) {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value)
   } catch {

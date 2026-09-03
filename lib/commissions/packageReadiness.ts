@@ -28,20 +28,23 @@ export const PACKAGE_COMMISSION_ISSUE_LABELS: Record<string, string> = {
   package_not_closed: 'After return, double-check the folder and mark it Complete - Checked.',
   missing_earned_date: 'The package is missing its earned or closed date.',
   missing_sales_employee: 'Assign the responsible sales employee.',
-  missing_package_location: 'Assign the package to a branch.',
+  missing_package_location: 'Choose the office branch responsible for this package.',
   missing_reservations: 'Add the package reservations.',
   unfinished_reservations: 'Complete or cancel every reservation.',
   missing_passengers: 'Add at least one passenger.',
   invalid_shared_transport_structure:
     'Keep exactly one physical Group main transport for the family reference rows.',
-  missing_active_invoice: 'Create an active package invoice.',
-  invoice_not_settled: 'Settle the outstanding invoice balance. Customer release is not required.',
+  missing_active_invoice:
+    'Legacy check: refresh this package to remove the old invoice requirement.',
+  invoice_not_settled: 'Legacy check: refresh this package to use the Payments balance instead.',
   supplier_commission_not_reconciled:
-    'Reconcile received supplier commission between reservations and the invoice.',
-  invoice_sales_not_reconciled: 'Reconcile invoice sales with the reservation totals.',
-  invoice_cost_not_reconciled: 'Reconcile invoice booked cost with the reservation totals.',
-  package_payment_not_paid: 'Mark the package payment status as paid.',
-  pending_package_payments: 'Resolve every pending package payment.',
+    'Legacy check: supplier commission is now reconciled from reservations only.',
+  invoice_sales_not_reconciled: 'Legacy check: invoices no longer control Package Commission.',
+  invoice_cost_not_reconciled: 'Legacy check: invoices no longer control Package Commission.',
+  package_payment_not_paid:
+    'Record completed customer payments until the Payments outstanding balance is £0.00.',
+  pending_package_payments:
+    'Resolve pending payment requests that are still needed for the reservation balance.',
   non_gbp_package_source: 'Convert the package source records to GBP before Commission handoff.',
 }
 

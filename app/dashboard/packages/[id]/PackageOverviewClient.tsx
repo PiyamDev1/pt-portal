@@ -148,6 +148,7 @@ function createBlankAgentCommissionAllocation(): PackageAgentCommissionAllocatio
 export default function PackageOverviewClient({
   packageId,
   employees = [],
+  locations = [],
 }: PackageOverviewClientProps) {
   const { confirm, dialog } = useAppDialog()
   const [packageFolder, setPackageFolder] = useState<TravelPackageFolder | null>(null)
@@ -2699,8 +2700,10 @@ Please enter the access code and accept the data handling terms before downloadi
                   invoice={invoice}
                   reservations={reservations}
                   employees={employees}
+                  locations={locations}
                   onPackageChange={setPackageFolder}
                   onInvoiceChange={handleOperationsInvoiceChange}
+                  onOpenReservations={() => setActivePackageTab('reservations')}
                 />
               </section>
             </>

@@ -65,6 +65,7 @@ const item: TravelPackageReservationItem = {
 
 const mocks = vi.hoisted(() => {
   const getUser = vi.fn()
+  const syncPackagePaymentStatus = vi.fn()
 
   const parentSingle = vi.fn()
   const parentPackageEq = vi.fn(() => ({ single: parentSingle }))
@@ -108,6 +109,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     getUser,
+    syncPackagePaymentStatus,
     parentSingle,
     parentPackageEq,
     parentIdEq,
@@ -134,6 +136,10 @@ vi.mock('@/lib/api/serverSupabase', () => ({
   getRouteSupabaseClient: mocks.getRouteSupabaseClient,
 }))
 
+vi.mock('@/lib/packagePaymentsServer', () => ({
+  syncPackagePaymentStatus: mocks.syncPackagePaymentStatus,
+}))
+
 import { GET, POST } from '@/app/api/travel-packages/[id]/reservations/[reservationId]/items/route'
 import { PATCH } from '@/app/api/travel-packages/[id]/reservations/[reservationId]/items/[itemId]/route'
 
@@ -152,6 +158,7 @@ describe('travel package reservation item routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
+    mocks.syncPackagePaymentStatus.mockResolvedValue({})
     mocks.parentSingle.mockResolvedValue({ data: reservation, error: null })
     mocks.itemListOrder.mockResolvedValue({ data: [item], error: null })
     mocks.itemInsertSingle.mockResolvedValue({ data: item, error: null })

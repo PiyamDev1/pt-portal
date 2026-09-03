@@ -37,7 +37,7 @@ Invoices are derived from non-cancelled reservations/items and can be adjusted t
 
 Payments support deposits, payments, previous-package account credits, refunds, chargebacks, and commission. Account credit requires the previous package/refund reference. Refund records are positive movements so the original sale and booked-cost history remain auditable. Package payment and invoice totals are recalculated after financial mutations.
 
-Installment schedules and payment links belong to the package payment plan. Workflow sync marks overdue installments and raises follow-up risks. Staff should reconcile payments, refunds, supplier refunds, and commission before marking a returned folder Complete - Checked. The internal invoice must reconcile and have no outstanding balance, but it does not need to be released to the customer for commission.
+Installment schedules and payment links belong to the package payment plan. Workflow sync marks overdue installments and raises follow-up risks. Reservations are the financial and Commission source: maintain sold price, booked cost, discounts, refunds, and received supplier commission there. The Payments tab records customer money received and automatically marks the package Paid when completed payments leave a £0.00 reservation balance. Customer invoices are optional documents and do not control Package Commission.
 
 ## Documents and customer portals
 
@@ -80,6 +80,7 @@ Apply the package migrations in filename order:
 8. `20260731_add_travel_documents_package_category.sql`
 
 Commission-enabled environments must also apply `20260902_commission_package_return_payout.sql`
+and `20260903_commission_package_reservation_payment_authority.sql`
 after Commission capability `2026090201`. 9. `20260731_add_travel_package_sales_employee.sql` 10. `20260803_create_travel_package_third_party_document_shares.sql` 11. `20260807_add_package_responsibility_agents.sql` 12. `20260810_add_travel_package_reservation_refunds.sql` 13. `20260811_add_travel_package_discount_types.sql`
 
 For the saved Umrah transport supplier/rate matrix used by the quotation editor, also apply `20260714_create_umrah_transport_pricing.sql` between the July 12 and July 21 package migrations. The core quote editor can still use manually entered transport options when that separate pricing capability is absent.

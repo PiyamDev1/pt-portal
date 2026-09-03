@@ -49,7 +49,7 @@ describe('Package Commission readiness contract', () => {
 
   it('turns database reason codes into operational instructions', () => {
     expect(getPackageCommissionIssueLabel('invoice_sales_not_reconciled')).toContain(
-      'Reconcile invoice sales',
+      'invoices no longer control',
     )
     expect(getPackageCommissionEventErrorLabel('needs_policy')).toContain('Commission Admin')
     expect(getPackageCommissionIssueLabel('future_reason')).toBe(
