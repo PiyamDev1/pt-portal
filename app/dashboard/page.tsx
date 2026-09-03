@@ -75,6 +75,7 @@ function MobileDashboard({
             <Link
               key={moduleItem.id}
               href={moduleItem.href}
+              prefetch={false}
               className={`flex min-h-36 flex-col items-center justify-center gap-3 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center text-slate-950 shadow-md ring-1 ring-slate-900/5 active:scale-[0.99]`}
             >
               <div
@@ -103,6 +104,7 @@ function MobileDashboard({
               <Link
                 key={moduleItem.id}
                 href={moduleItem.href}
+                prefetch={false}
                 className={`flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]`}
               >
                 <div

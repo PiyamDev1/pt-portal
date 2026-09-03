@@ -7,7 +7,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import type { ComponentType } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -82,7 +81,6 @@ async function postPreference(
 }
 
 export function DashboardModulesClient({ modules }: { modules: DashboardModule[] }) {
-  const router = useRouter()
   const [preferences, setPreferences] = useState<Record<string, Preference>>({})
 
   useEffect(() => {
@@ -138,10 +136,6 @@ export function DashboardModulesClient({ modules }: { modules: DashboardModule[]
       }
     })
     void postPreference(moduleId, 'record-open')
-  }
-
-  function warmModule(moduleItem: DashboardModule) {
-    router.prefetch(moduleItem.href)
   }
 
   async function toggleFavorite(moduleId: string) {
@@ -202,9 +196,7 @@ export function DashboardModulesClient({ modules }: { modules: DashboardModule[]
 
         <Link
           href={moduleItem.href}
-          prefetch
-          onFocus={() => warmModule(moduleItem)}
-          onPointerEnter={() => warmModule(moduleItem)}
+          prefetch={false}
           onClick={() => recordOpen(moduleItem.id)}
           className={compact ? 'relative z-[1] block pr-8' : 'relative z-[1] block text-center'}
         >

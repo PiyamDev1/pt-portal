@@ -281,8 +281,9 @@ export async function POST(request: NextRequest) {
 
     const zipBuffer = await zip.generateAsync({
       type: 'nodebuffer',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 },
+      // Uploaded documents are predominantly PDFs and images, which are already
+      // compressed. Recompressing them burns server CPU for negligible savings.
+      compression: 'STORE',
     })
     logZipDebug('generated archive buffer', { bytes: zipBuffer.length })
 

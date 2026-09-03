@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Home, Settings } from 'lucide-react'
 import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
 import { DashboardModuleIcon } from './DashboardModuleIcon'
-import { RouteWarmup } from './RouteWarmup'
 import {
   getMobileNavigationLabel,
   MOBILE_NAVIGATION_UPDATED_EVENT,
@@ -92,6 +91,7 @@ export function MobileDashboardNav() {
             <Link
               key={`${item.type}-${href}`}
               href={href}
+              prefetch={false}
               aria-label={label}
               aria-current={active ? 'page' : undefined}
               className={`flex min-h-[3.25rem] flex-col items-center justify-center rounded-2xl px-1 text-[11px] font-black transition ${
@@ -115,7 +115,6 @@ export function MobileDashboardNav() {
 export default function DashboardClientWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="dashboard-mobile-shell">
-      <RouteWarmup />
       {children}
       <MobileDashboardNav />
       <PasskeySetupPrompt />

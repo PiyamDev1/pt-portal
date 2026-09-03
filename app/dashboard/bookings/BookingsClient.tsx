@@ -365,7 +365,7 @@ export default function BookingsClient({
     if (!autoRefresh) return
 
     const intervalId = setInterval(() => {
-      fetchBookingsThrottled()
+      if (document.visibilityState === 'visible') fetchBookingsThrottled()
     }, 120000)
 
     const onFocus = () => fetchBookingsThrottled()
