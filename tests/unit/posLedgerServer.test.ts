@@ -85,7 +85,10 @@ describe('POS live ledger server', () => {
       .mockReturnValueOnce(profileQuery)
       .mockReturnValueOnce(branchEmployeeQuery)
       .mockReturnValueOnce(ledgerQuery)
-    getServiceSupabaseClient.mockReturnValue({ from })
+    getServiceSupabaseClient.mockReturnValue({
+      from,
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST202' } }),
+    })
 
     const result = await loadPosLedger('staff-1', 'day', '2026-09-08')
 

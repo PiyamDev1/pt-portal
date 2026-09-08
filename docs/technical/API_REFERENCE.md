@@ -152,6 +152,28 @@ Availability derives from branch schedules/overrides, active service rules, capa
 
 Current LMS money/installment mutations require the `20260812` schema capability and execute through service-role-only atomic PostgreSQL functions. Apply `scripts/migrations/20260812_update_lms_installments_atomically.sql` after the main secure LMS migration so batch due-date/amount edits also commit as one transaction. Retryable operations use idempotency keys; account pagination is global at the database layer. Routes fail when required schema capabilities are absent rather than falling back to partial multi-write behavior.
 
+## POS daily transactions
+
+| Methods       | Route                                           |
+| ------------- | ----------------------------------------------- |
+| `GET`         | `/api/pos/bootstrap`                            |
+| `GET`         | `/api/pos/ledger`                               |
+| `POST`        | `/api/pos/transactions`                         |
+| `GET`         | `/api/pos/transactions/[transactionId]/receipt` |
+| `POST`        | `/api/pos/refunds`                              |
+| `POST`        | `/api/pos/shifts`                               |
+| `POST`        | `/api/pos/cash-movements`                       |
+| `GET`, `POST` | `/api/pos/suppliers`                            |
+| `POST`        | `/api/pos/corrections`                          |
+| `POST`        | `/api/pos/reconciliation`                       |
+| `GET`         | `/api/pos/reports`                              |
+| `POST`        | `/api/pos/loyalty/lookup`                       |
+| `POST`        | `/api/pos/import`                               |
+
+All POS routes are private and branch-derived. The capability-gated write surface uses strict bounded
+input, rate limits, retry-safe PostgreSQL functions, forced-RLS tables, append-only audit history, and
+fresh second-factor checks for controlled manager actions. See the [POS API](../api/POS.md).
+
 ## Quotes, package folders, and groups
 
 ### Quotation routes

@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
 
 describe('POS frontend preview', () => {
-  it('shows operational categories, supplier sorting, and compact transaction editing', () => {
+  beforeEach(() => window.localStorage.clear())
+
+  it('shows operational categories, supplier sorting, and immutable transaction actions', () => {
     render(<PosPreviewClient branchName="Bradford" />)
 
     const nadraMenu = screen.getByLabelText('NADRA Applications and certificates')
@@ -22,7 +24,7 @@ describe('POS frontend preview', () => {
 
     fireEvent.click(screen.getByLabelText('NICOP / CNIC'))
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByText('Pricing-table option matched from total price')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'NICOP / CNIC' })).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('PK Passport Application payment'))
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('false')
@@ -34,11 +36,10 @@ describe('POS frontend preview', () => {
 
     expect((screen.getByLabelText('Sort ledger') as HTMLSelectElement).value).toBe('Supplier')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    expect(screen.getByLabelText('Edit transaction name')).toBeTruthy()
-    expect(screen.getByLabelText('Edit transaction amount')).toBeTruthy()
-    expect(screen.getByLabelText('Edit transaction note')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Save edit' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Refund' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Receipt' })).toBeTruthy()
+    expect(screen.getByText('Tenders')).toBeTruthy()
+    expect(screen.queryByLabelText('Edit transaction amount')).toBeNull()
   })
 
   it('previews supplier confirmation and extra-coin transfer states', () => {
@@ -81,7 +82,7 @@ describe('POS frontend preview', () => {
     expect(screen.getByText('Active days')).toBeTruthy()
     expect(screen.getAllByText('Money in').length).toBeGreaterThan(0)
     expect(screen.getByText('Money out')).toBeTruthy()
-    expect(screen.getByText('Net movement')).toBeTruthy()
+    expect(screen.getAllByText('Net movement').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
     expect((screen.getByLabelText('Ledger month') as HTMLInputElement).value).toBe('2026-08')

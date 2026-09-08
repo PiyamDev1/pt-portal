@@ -1,6 +1,6 @@
 # POS Daily Transaction Module Plan
 
-**Status:** Implementation started — live read-only ledger vertical slice
+**Status:** Implementation complete in application code — controlled production migration pending
 **Module:** Point of Sale (POS) / branch daily transactions
 **Proposed route:** `/dashboard/pos`
 
@@ -8,25 +8,27 @@ This document describes a fast daily transaction workspace for branch staff. It 
 not an implementation contract. Runtime code, migrations, and active guides take precedence once the
 module is built.
 
-### Implementation snapshot — 8 September 2026
+### Implementation snapshot — 9 September 2026
 
-- `/dashboard/pos` reads the authenticated employee's branch and loads real, branch-scoped data from
-  `daily_ledger_entries`, `daily_payment_splits`, `accounting_categories`, `transaction_methods`, and
-  `supplier_vendors`.
-- Day/month navigation reloads bounded data through an authenticated, private/no-store API. The initial
-  page load is server-rendered and verifies the user with Supabase Auth rather than trusting a cached
-  session object.
-- Live cash/card/bank and net-movement totals replace the design's mock balance numbers. Till opening,
-  drawer balance, and reserve figures remain unavailable because the legacy schema cannot derive them.
-- The production database inventory contained no rows in the six legacy POS-related tables checked:
-  the five tables above plus `daily_till_closeout`.
-- Ledger access is currently derived through each entry's employee and that employee's branch because
-  `daily_ledger_entries` has no direct branch/location key. Server-side branch filtering is mandatory
-  while this legacy read path exists.
-- Quick entry, loyalty attachment, refunds, cash management, and supplier-balance mutations remain
-  preview-only. Do not enable writes until the transaction contract, RLS/grants, idempotent atomic RPC,
-  audit events, stable reference/status fields, till/reserve model, and required indexes are delivered by
-  reviewed migrations.
+- `/dashboard/pos` now contains the live branch workspace: normalized daily ledger, server-side search
+  and filters, quick entry, split tenders, explicitly armed loyalty scanning, tracked-service references,
+  till opening, cash/reserve movement, closeout and independent approval, supplier balances, refunds,
+  corrections, reconciliation, reports, receipts, retry-safe drafts, and historical CSV import.
+- `supabase/migrations/20260908214024_pos_module_complete.sql` supplies the normalized append-only POS
+  model, indexes, forced RLS, restricted grants, service-only atomic functions, idempotency records,
+  audit events, reference generation, loyalty lifecycle integration, supplier balances, and seed catalogue.
+- The application checks POS capability version `2026090801`. Until that capability is installed it keeps
+  the existing legacy ledger available read-only and visibly disables money writes.
+- Every API derives the authenticated employee and branch server-side, uses strict bounded schemas,
+  private/no-store responses, and rate limiting. Manager-only operations require a fresh TOTP or backup
+  code where specified.
+- Disposable PostgreSQL coverage installs the customer loyalty prerequisites, rolls the POS migration
+  back cleanly, installs it, and exercises split cash impact, retry idempotency, source enforcement,
+  supplier deposits/use, reserve transfers, refunds and proportional points reversal, immutable rows,
+  corrections, imports, and independent closeout approval.
+- Production deployment is deliberately pending because Supabase migration history also contains two
+  older unapplied Ticketing migrations. Apply all three together only after reviewing that deployment
+  scope; application code is safe to deploy first because of the capability gate.
 
 ## 1. Product Boundary
 
@@ -880,3 +882,47 @@ The following additions would make the first release easier and safer to operate
     the LMS supplier record?
 18. Which suppliers need balances at launch, and what are their opening balances?
 19. What minimum note or receipt reference should be required for supplier deposits and refunds?
+
+### Implemented decision record
+
+The first production-capable build uses these conservative defaults. They are server contracts, not
+client-side suggestions:
+
+1. Physical tills and staff shifts are modeled from V1. Every existing branch receives one shared
+   `Main till`, and more tills can be added without changing the transaction model.
+2. Each till is GBP-only. Multi-currency remains out of scope.
+3. The server catalogue is the source of truth. Remittance service fees, cargo/delivery, document help,
+   and printing/copying earn one point per whole GBP; tracked Ticketing, Packages, Applications, NADRA,
+   passport, and visa services never earn POS points.
+4. Eligible points are awarded immediately after an atomic posted transaction. A retry uses the same
+   source and cannot award twice.
+5. Partial refunds reverse points proportionally using cumulative floor calculation; the final refund
+   reverses all remaining points. A manager with fresh 2FA is required if the points balance indicates
+   that reversed points may already have been used.
+6. Linked refunds of £500 or more, linked refunds from a closed shift, all general refunds, supplier
+   opening balances, controlled cash deposits/withdrawals/corrections, expense corrections, imports,
+   and closeout approvals use manager controls. General refunds always require evidence, approval reason,
+   and fresh 2FA, and never invent a loyalty reversal without an original award.
+7. The counter who closes a till cannot approve that closeout. A different authorized manager must do so.
+8. POS stores a simple per-branch balance held with each LMS-backed supplier. Supplier deposit, use of
+   balance, refund, opening, and correction entries are append-only. Supplier names and aliases are
+   configured by managers and matched explicitly before posting.
+9. Historical rows use a dry-run-first CSV path (Excel can export the source sheet as CSV), stable source
+   and row keys for duplicate detection, original dates/references, a legacy marker, no drawer movement,
+   and no new loyalty awards.
+10. Receipt output supports a printable browser view, JSON for integrations, and a downloadable text
+    receipt. Email and WhatsApp delivery are deferred until a communication policy is selected.
+11. Network failures preserve the form draft and place the exact payload plus idempotency key in a local,
+    clearly labelled retry queue. The queue is never described as server-confirmed until replay succeeds.
+12. Coin reserve transfers require denomination counts. Drawer and reserve are separate expected balances,
+    while intentional transfers net to zero across the two physical cash locations.
+
+### Delivered application surface
+
+- Authenticated routes: `/api/pos/bootstrap`, `/ledger`, `/transactions`, `/refunds`, `/shifts`,
+  `/cash-movements`, `/suppliers`, `/reconciliation`, `/reports`, `/loyalty/lookup`, `/import`, and
+  `/transactions/[transactionId]/receipt`.
+- Workspace sections: Daily transactions, Open till, Closeout, Cash management, Supplier balances,
+  Refunds & corrections, Reports, Unreconciled, and manager-only Import history.
+- Operational fallback: if capability `2026090801` is absent, the old branch-scoped ledger stays readable
+  and all new writes remain unavailable.

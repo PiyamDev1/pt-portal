@@ -10,6 +10,7 @@ vi.mock('sonner', () => ({
     error: vi.fn(),
     info: vi.fn(),
     success: vi.fn(),
+    warning: vi.fn(),
   },
 }))
 
@@ -17,6 +18,7 @@ const LEDGER_HEIGHT_STORAGE_KEY = 'pt-portal:pos-preview:ledger-height'
 
 describe('POS preview interactions', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals()
     window.localStorage.clear()
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -44,6 +46,20 @@ describe('POS preview interactions', () => {
   })
 
   it('only exposes scan capture after arming and disarms after one scan', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          id: 'member-1',
+          customerCode: 'PYM-2345-6789-A',
+          maskedCode: 'PYM-2345••••-A',
+          name: 'Aisha Khan',
+          maskedEmail: 'ai•••@example.com',
+          availablePoints: 640,
+        }),
+      }),
+    )
     render(<PosPreviewClient branchName="Test branch" />)
 
     expect(screen.queryByPlaceholderText('Scan now or type loyalty code')).toBeNull()
@@ -51,10 +67,10 @@ describe('POS preview interactions', () => {
 
     const scanInput = screen.getByPlaceholderText('Scan now or type loyalty code')
     await waitFor(() => expect(document.activeElement).toBe(scanInput))
-    fireEvent.change(scanInput, { target: { value: 'PT-DEMO-1842' } })
+    fireEvent.change(scanInput, { target: { value: 'PYM-2345-6789-A' } })
     fireEvent.keyDown(scanInput, { key: 'Enter' })
 
-    expect(screen.getByText(/640 points/)).toBeTruthy()
+    await waitFor(() => expect(screen.getByText(/640 points/)).toBeTruthy())
     expect(screen.queryByPlaceholderText('Scan now or type loyalty code')).toBeNull()
   })
 

@@ -3,6 +3,7 @@
 import {
   Fragment,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -33,6 +34,7 @@ import {
   Pencil,
   Plane,
   ReceiptText,
+  RefreshCcw,
   RotateCcw,
   ScanBarcode,
   Search,
@@ -50,10 +52,14 @@ import type {
   PosLedgerPaymentMethod,
   PosLedgerSummary,
   PosLedgerTransaction,
+  PosBootstrapPayload,
+  PosLoyaltyMember,
+  PosMutationResult,
 } from '@/lib/pos/contracts'
+import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 
 type IconComponent = ComponentType<{ className?: string }>
-type PaymentMethod = 'Cash' | 'Card' | 'Bank'
+type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split'
 type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
 type LedgerPeriod = 'day' | 'month'
 
@@ -62,6 +68,8 @@ const DEFAULT_LEDGER_HEIGHT = 240
 const MIN_LEDGER_HEIGHT = 160
 const MAX_LEDGER_HEIGHT = 720
 const LEDGER_HEIGHT_STORAGE_KEY = 'pt-portal:pos-preview:ledger-height'
+const POS_DRAFT_STORAGE_KEY = 'pt-portal:pos:draft:v1'
+const POS_RETRY_STORAGE_KEY = 'pt-portal:pos:retry:v1'
 const SCAN_ARM_TIMEOUT_MS = 30_000
 
 type CategoryPreset = {
@@ -181,6 +189,33 @@ const CATEGORIES: CategoryPreset[] = [
     loyalty: true,
   },
   {
+    id: 'cargo-delivery',
+    label: 'Cargo / delivery',
+    caption: 'Loyalty eligible',
+    icon: Plane,
+    tone: 'border-cyan-200 bg-cyan-50 text-cyan-800',
+    direction: 'IN',
+    loyalty: true,
+  },
+  {
+    id: 'printing-copying',
+    label: 'Printing / copying',
+    caption: 'Loyalty eligible',
+    icon: FileText,
+    tone: 'border-lime-200 bg-lime-50 text-lime-800',
+    direction: 'IN',
+    loyalty: true,
+  },
+  {
+    id: 'other-service',
+    label: 'Other service',
+    caption: 'Note required',
+    icon: Sparkles,
+    tone: 'border-slate-200 bg-slate-50 text-slate-800',
+    direction: 'IN',
+    loyalty: false,
+  },
+  {
     id: 'supplier',
     label: 'Supplier payment',
     caption: 'Match a supplier',
@@ -235,6 +270,9 @@ const CATEGORY_MENU: Array<
   { id: 'ticket-package-menu', categoryId: 'ticket-package' },
   { id: 'remittance-menu', categoryId: 'remittance' },
   { id: 'document-help-menu', categoryId: 'document-help' },
+  { id: 'cargo-menu', categoryId: 'cargo-delivery' },
+  { id: 'printing-menu', categoryId: 'printing-copying' },
+  { id: 'other-menu', categoryId: 'other-service' },
   { id: 'supplier-menu', categoryId: 'supplier' },
   { id: 'expense-menu', categoryId: 'expense' },
   { id: 'refund-menu', categoryId: 'refund' },
@@ -421,13 +459,16 @@ const SUPPLIERS = [
   { name: 'Al Haram Travel', area: 'Packages', balance: 2150 },
 ]
 
-const NAV_ITEMS = [
-  { label: 'Daily transactions', icon: LayoutDashboard, active: true },
+const NAV_ITEMS: Array<{ label: PosWorkspaceView; icon: IconComponent; managerOnly?: boolean }> = [
+  { label: 'Daily transactions', icon: LayoutDashboard },
   { label: 'Open till', icon: Store },
   { label: 'Closeout', icon: ShieldCheck },
+  { label: 'Cash management', icon: Coins },
   { label: 'Supplier balances', icon: Building2 },
-  { label: 'Refunds', icon: RotateCcw },
+  { label: 'Refunds & corrections', icon: RotateCcw },
   { label: 'Reports', icon: BarChart3 },
+  { label: 'Unreconciled', icon: RefreshCcw },
+  { label: 'Import history', icon: FileText, managerOnly: true },
 ]
 
 const FILTERS = ['All', 'Cash', 'Card', 'Bank', 'Outgoing'] as const
@@ -542,10 +583,12 @@ function SummaryCard({
 export default function PosPreviewClient({
   branchName,
   initialLedger,
+  initialBootstrap,
   initialLoadError = null,
 }: {
   branchName: string
   initialLedger?: PosLedgerPayload
+  initialBootstrap?: PosBootstrapPayload
   initialLoadError?: string | null
 }) {
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -555,8 +598,46 @@ export default function PosPreviewClient({
     initialLedger ? `${initialLedger.context.period}:${initialLedger.context.date}` : null,
   )
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
+  const [activeView, setActiveView] = useState<PosWorkspaceView>('Daily transactions')
+  const [bootstrap, setBootstrap] = useState<PosBootstrapPayload>(
+    initialBootstrap || {
+      schemaReady: false,
+      capabilityVersion: 0,
+      branch: {
+        id: initialLedger?.context.branchId || '',
+        name: branchName,
+        timezone: initialLedger?.context.timezone || 'Europe/London',
+      },
+      catalogue: [],
+      tills: [],
+      activeShift: null,
+      balances: { openingFloat: 0, drawer: 0, reserve: 0 },
+      suppliers: [],
+      employees: [],
+      closeouts: [],
+      permissions: {
+        canPost: true,
+        canManage: false,
+        canApprove: false,
+        canImport: false,
+        canViewCrossBranch: false,
+      },
+      loadedAt: new Date().toISOString(),
+    },
+  )
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [outgoingFilter, setOutgoingFilter] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState('')
+  const [tillFilter, setTillFilter] = useState('')
+  const [agentFilter, setAgentFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
+  const [loyaltyFilter, setLoyaltyFilter] = useState('')
+  const [minAmountFilter, setMinAmountFilter] = useState('')
+  const [maxAmountFilter, setMaxAmountFilter] = useState('')
   const [sortBy, setSortBy] = useState<(typeof SORTS)[number]>('Supplier')
   const [ledgerPeriod, setLedgerPeriod] = useState<LedgerPeriod>(
     initialLedger?.context.period || 'day',
@@ -575,42 +656,77 @@ export default function PosPreviewClient({
   const [selectedTransactionId, setSelectedTransactionId] = useState(
     (initialLedger?.items || TRANSACTIONS)[0]?.id || '',
   )
-  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('document-help')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('25.00')
   const [amountPaid, setAmountPaid] = useState('20.00')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash')
+  const [splitCash, setSplitCash] = useState('0.00')
+  const [splitCard, setSplitCard] = useState('0.00')
+  const [splitBank, setSplitBank] = useState('0.00')
+  const [externalReference, setExternalReference] = useState('')
+  const [transactionNote, setTransactionNote] = useState('')
+  const [sourceRecordId, setSourceRecordId] = useState('')
+  const [selectedPricingId, setSelectedPricingId] = useState('')
+  const [manualPriceConfirmed, setManualPriceConfirmed] = useState(false)
   const [outgoingType, setOutgoingType] = useState<OutgoingType | null>(null)
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
+  const [supplierMovementType, setSupplierMovementType] = useState<
+    'DEPOSIT' | 'USE_BALANCE' | 'REFUND'
+  >('DEPOSIT')
   const [scanOpen, setScanOpen] = useState(false)
   const [scanValue, setScanValue] = useState('')
-  const [memberAttached, setMemberAttached] = useState(false)
+  const [member, setMember] = useState<PosLoyaltyMember | null>(null)
+  const [posting, setPosting] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
   const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
   const todayDate = initialLedger?.context.date || DEMO_TODAY
 
   const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
+  const catalogueKey =
+    categoryId === 'remittance'
+      ? 'remittance-fee'
+      : categoryId === 'supplier'
+        ? 'supplier-payment'
+        : categoryId === 'refund'
+          ? 'general-refund'
+          : categoryId
+  const liveCatalogueItem = bootstrap.catalogue.find((item) => item.key === catalogueKey) || null
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
   const numericAmountPaid = Number.parseFloat(amountPaid.replace(/,/g, '')) || 0
   const isTransfer = selectedCategory.direction === 'TRANSFER'
   const isOutgoing = !isTransfer && (numericAmount < 0 || selectedCategory.direction === 'OUT')
   const remainingBalance = Math.max(Math.abs(numericAmount) - Math.abs(numericAmountPaid), 0)
   const changeDue = Math.max(Math.abs(numericAmountPaid) - Math.abs(numericAmount), 0)
-  const isNadraService = isNadraCategory(categoryId)
+  const matchingPricingOptions = (liveCatalogueItem?.pricingOptions || []).filter(
+    (option) => Math.abs(option.price - Math.abs(numericAmount)) < 0.005,
+  )
 
-  const supplierMatch = useMemo(() => {
+  const supplierMatches = useMemo(() => {
     if (!isOutgoing || outgoingType !== 'Supplier payment') return null
     const needle = name.trim().toLowerCase()
-    if (!needle) return SUPPLIERS[0]
-    return (
-      SUPPLIERS.find(
+    const suppliers = bootstrap.schemaReady ? bootstrap.suppliers : SUPPLIERS
+    if (!needle) return suppliers.slice(0, 8)
+    return suppliers
+      .filter(
         (supplier) =>
           supplier.name.toLowerCase().includes(needle) ||
-          needle.includes(supplier.name.toLowerCase()),
-      ) || null
+          needle.includes(supplier.name.toLowerCase()) ||
+          ('alternateNames' in supplier &&
+            supplier.alternateNames.some((alias) => alias.toLowerCase().includes(needle))),
+      )
+      .slice(0, 8)
+  }, [bootstrap.schemaReady, bootstrap.suppliers, isOutgoing, name, outgoingType])
+
+  const supplierMatch = useMemo(() => {
+    if (!supplierMatches?.length) return null
+    return (
+      supplierMatches.find((supplier) => 'id' in supplier && supplier.id === selectedSupplierId) ||
+      supplierMatches[0]
     )
-  }, [isOutgoing, name, outgoingType])
+  }, [selectedSupplierId, supplierMatches])
 
   const filteredTransactions = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -705,7 +821,22 @@ export default function PosPreviewClient({
 
   useEffect(() => {
     if (!initialLedger) return
-    const requestKey = `${ledgerPeriod}:${ledgerDate}`
+    const requestKey = [
+      ledgerPeriod,
+      ledgerDate,
+      deferredSearch,
+      activeFilter,
+      categoryFilter,
+      statusFilter,
+      outgoingFilter,
+      supplierFilter,
+      tillFilter,
+      agentFilter,
+      sourceFilter,
+      loyaltyFilter,
+      minAmountFilter,
+      maxAmountFilter,
+    ].join(':')
     if (loadedLedgerKeyRef.current === requestKey && ledgerRefresh === 0) return
 
     const controller = new AbortController()
@@ -720,6 +851,21 @@ export default function PosPreviewClient({
     async function loadLedger() {
       try {
         const params = new URLSearchParams({ period: ledgerPeriod, date: ledgerDate })
+        if (deferredSearch.trim()) params.set('search', deferredSearch.trim())
+        if (activeFilter === 'Cash') params.set('paymentMethod', 'CASH')
+        if (activeFilter === 'Card') params.set('paymentMethod', 'CARD')
+        if (activeFilter === 'Bank') params.set('paymentMethod', 'BANK')
+        if (activeFilter === 'Outgoing') params.set('direction', 'OUT')
+        if (categoryFilter) params.set('categoryKey', categoryFilter)
+        if (statusFilter) params.set('status', statusFilter)
+        if (outgoingFilter) params.set('outgoingType', outgoingFilter)
+        if (supplierFilter) params.set('supplierId', supplierFilter)
+        if (tillFilter) params.set('tillId', tillFilter)
+        if (agentFilter) params.set('agentId', agentFilter)
+        if (sourceFilter) params.set('sourceType', sourceFilter)
+        if (loyaltyFilter) params.set('loyalty', loyaltyFilter)
+        if (minAmountFilter) params.set('minAmount', minAmountFilter)
+        if (maxAmountFilter) params.set('maxAmount', maxAmountFilter)
         const response = await fetch(`/api/pos/ledger?${params.toString()}`, {
           cache: 'no-store',
           credentials: 'include',
@@ -757,7 +903,24 @@ export default function PosPreviewClient({
       active = false
       controller.abort()
     }
-  }, [initialLedger, ledgerDate, ledgerPeriod, ledgerRefresh])
+  }, [
+    activeFilter,
+    agentFilter,
+    categoryFilter,
+    deferredSearch,
+    initialLedger,
+    ledgerDate,
+    ledgerPeriod,
+    ledgerRefresh,
+    loyaltyFilter,
+    maxAmountFilter,
+    minAmountFilter,
+    outgoingFilter,
+    sourceFilter,
+    statusFilter,
+    supplierFilter,
+    tillFilter,
+  ])
 
   useEffect(() => {
     const savedHeight = Number.parseInt(
@@ -784,6 +947,275 @@ export default function PosPreviewClient({
 
     return () => window.clearTimeout(timeout)
   }, [scanOpen])
+
+  const draftRestoredRef = useRef(false)
+  useEffect(() => {
+    try {
+      const savedDraft = JSON.parse(
+        window.localStorage.getItem(POS_DRAFT_STORAGE_KEY) || 'null',
+      ) as Record<string, string> | null
+      if (savedDraft) {
+        setCategoryId(savedDraft.categoryId || 'document-help')
+        setName(savedDraft.name || '')
+        setAmount(savedDraft.amount || '25.00')
+        setAmountPaid(savedDraft.amountPaid || '25.00')
+        setPaymentMethod((savedDraft.paymentMethod as PaymentMethod) || 'Cash')
+        setTransactionNote(savedDraft.transactionNote || '')
+        setSourceRecordId(savedDraft.sourceRecordId || '')
+        setExternalReference(savedDraft.externalReference || '')
+      }
+      const queued = JSON.parse(
+        window.localStorage.getItem(POS_RETRY_STORAGE_KEY) || '[]',
+      ) as unknown[]
+      setRetryCount(Array.isArray(queued) ? queued.length : 0)
+    } catch {
+      window.localStorage.removeItem(POS_DRAFT_STORAGE_KEY)
+      window.localStorage.removeItem(POS_RETRY_STORAGE_KEY)
+    } finally {
+      draftRestoredRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!draftRestoredRef.current) return
+    window.localStorage.setItem(
+      POS_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        categoryId,
+        name,
+        amount,
+        amountPaid,
+        paymentMethod,
+        transactionNote,
+        sourceRecordId,
+        externalReference,
+      }),
+    )
+  }, [
+    amount,
+    amountPaid,
+    categoryId,
+    externalReference,
+    name,
+    paymentMethod,
+    sourceRecordId,
+    transactionNote,
+  ])
+
+  const refreshWorkspace = useCallback(async () => {
+    const response = await fetch('/api/pos/bootstrap', {
+      cache: 'no-store',
+      credentials: 'include',
+    })
+    const payload = (await response.json()) as ApiResponse<PosBootstrapPayload>
+    if (!response.ok || 'error' in payload) {
+      throw new Error('error' in payload ? payload.error : 'Unable to refresh POS status.')
+    }
+    setBootstrap(payload)
+    setLedgerRefresh((current) => current + 1)
+  }, [])
+
+  function buildTransactionPayload(confirmDuplicate = false) {
+    const absoluteAmount = Math.abs(numericAmount)
+    const supplierBalanceOnly =
+      outgoingType === 'Supplier payment' && supplierMovementType === 'USE_BALANCE'
+    const supplierRefund = outgoingType === 'Supplier payment' && supplierMovementType === 'REFUND'
+    const directionIsOut = isOutgoing && !supplierRefund
+    const paidAmount = supplierBalanceOnly
+      ? 0
+      : directionIsOut || supplierRefund
+        ? absoluteAmount
+        : Math.abs(numericAmountPaid)
+    const tenders = supplierBalanceOnly
+      ? []
+      : paymentMethod === 'Split'
+        ? [
+            { method: 'CASH', amount: Number(splitCash) },
+            { method: 'CARD', amount: Number(splitCard) },
+            { method: 'BANK', amount: Number(splitBank) },
+          ].filter((tender) => tender.amount > 0)
+        : [
+            {
+              method: paymentMethod.toUpperCase(),
+              amount: paidAmount,
+              ...(paymentMethod !== 'Cash' && externalReference
+                ? { externalReference, reconciliationStatus: 'RECORDED' }
+                : {}),
+            },
+          ]
+    return {
+      shiftId: bootstrap.activeShift?.id,
+      catalogueKey,
+      direction: directionIsOut ? 'OUT' : 'IN',
+      ...(directionIsOut
+        ? {
+            outgoingType:
+              outgoingType === 'Supplier payment'
+                ? 'SUPPLIER_PAYMENT'
+                : outgoingType?.toUpperCase(),
+          }
+        : {}),
+      totalAmount: absoluteAmount,
+      customerName: name.trim() || 'Walk-in',
+      ...(transactionNote.trim() ? { note: transactionNote.trim() } : {}),
+      tenders,
+      ...(liveCatalogueItem?.trackedSourceType && sourceRecordId.trim()
+        ? {
+            source: {
+              type: liveCatalogueItem.trackedSourceType,
+              recordId: sourceRecordId.trim(),
+              displayReference: sourceRecordId.trim(),
+            },
+          }
+        : {}),
+      ...(selectedPricingId || matchingPricingOptions.length === 1
+        ? { pricingId: selectedPricingId || matchingPricingOptions[0].id }
+        : {}),
+      pricingConfirmed: manualPriceConfirmed,
+      ...(outgoingType === 'Supplier payment' && supplierMatch && 'id' in supplierMatch
+        ? { supplierId: supplierMatch.id, supplierMovementType }
+        : {}),
+      ...(member && liveCatalogueItem?.loyaltyEligible ? { loyaltyCode: member.customerCode } : {}),
+      confirmDuplicate,
+    }
+  }
+
+  async function sendTransaction(payload: ReturnType<typeof buildTransactionPayload>, key: string) {
+    const response = await fetch('/api/pos/transactions', {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+      body: JSON.stringify(payload),
+    })
+    const result = (await response.json()) as ApiResponse<PosMutationResult> & {
+      duplicateWarning?: boolean
+    }
+    if (!response.ok || 'error' in result) {
+      if (result.duplicateWarning) {
+        const confirmed = window.confirm(
+          'A similar transaction was posted recently. Post this transaction anyway?',
+        )
+        if (confirmed) return sendTransaction(buildTransactionPayload(true), key)
+      }
+      throw new Error('error' in result ? result.error : 'Unable to save the transaction.')
+    }
+    return result
+  }
+
+  async function submitTransaction() {
+    if (!bootstrap.schemaReady) {
+      toast.error('The POS database upgrade is not installed yet.')
+      return
+    }
+    if (!bootstrap.activeShift) {
+      setActiveView('Open till')
+      toast.error('Open a till before posting.')
+      return
+    }
+    if (isTransfer) {
+      setActiveView('Cash management')
+      toast.info('Use Cash management to count the coin denominations.')
+      return
+    }
+    if (categoryId === 'refund') {
+      setActiveView('Refunds & corrections')
+      return
+    }
+    if (outgoingType === 'Refund') {
+      setActiveView('Refunds & corrections')
+      toast.info('Use the controlled linked or general refund form.')
+      return
+    }
+    if (isOutgoing && !outgoingType) {
+      toast.error('Choose the outgoing type first')
+      return
+    }
+    if (outgoingType === 'Supplier payment' && !supplierConfirmed) {
+      toast.error('Confirm the supplier first')
+      return
+    }
+    if (liveCatalogueItem?.sourceRequired && !sourceRecordId.trim()) {
+      toast.error('Enter the tracked service reference first.')
+      return
+    }
+    if (
+      liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
+      !selectedPricingId &&
+      matchingPricingOptions.length !== 1 &&
+      !manualPriceConfirmed
+    ) {
+      toast.error('Select a matching price option or confirm the manual total.')
+      return
+    }
+    if (liveCatalogueItem?.noteRequired && transactionNote.trim().length < 3) {
+      toast.error('Add a note for this category.')
+      return
+    }
+    const payload = buildTransactionPayload()
+    const key = crypto.randomUUID()
+    setPosting(true)
+    try {
+      const result = await sendTransaction(payload, key)
+      window.localStorage.removeItem(POS_DRAFT_STORAGE_KEY)
+      setName('')
+      setTransactionNote('')
+      setSourceRecordId('')
+      setExternalReference('')
+      setMember(null)
+      toast.success(`Transaction ${result.reference || ''} posted`, {
+        description: result.loyaltyPointsAwarded
+          ? `${result.loyaltyPointsAwarded} loyalty points awarded.`
+          : 'The branch ledger and till totals were updated.',
+      })
+      await refreshWorkspace()
+      quickEntryInputRef.current?.focus()
+    } catch (error) {
+      if (!navigator.onLine || error instanceof TypeError) {
+        const queue = JSON.parse(
+          window.localStorage.getItem(POS_RETRY_STORAGE_KEY) || '[]',
+        ) as Array<{
+          key: string
+          payload: ReturnType<typeof buildTransactionPayload>
+        }>
+        queue.push({ key, payload })
+        window.localStorage.setItem(POS_RETRY_STORAGE_KEY, JSON.stringify(queue.slice(-20)))
+        setRetryCount(queue.slice(-20).length)
+        toast.warning('Saved to the retry queue', {
+          description: 'The draft is preserved and has not been confirmed by the server.',
+        })
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Unable to save the transaction.')
+      }
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  async function retryPendingTransactions() {
+    const queue = JSON.parse(window.localStorage.getItem(POS_RETRY_STORAGE_KEY) || '[]') as Array<{
+      key: string
+      payload: ReturnType<typeof buildTransactionPayload>
+    }>
+    if (!queue.length) return
+    setPosting(true)
+    const remaining = [...queue]
+    try {
+      while (remaining.length) {
+        const item = remaining[0]
+        await sendTransaction(item.payload, item.key)
+        remaining.shift()
+        window.localStorage.setItem(POS_RETRY_STORAGE_KEY, JSON.stringify(remaining))
+        setRetryCount(remaining.length)
+      }
+      toast.success('Retry queue posted')
+      await refreshWorkspace()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Retry stopped.')
+    } finally {
+      setPosting(false)
+    }
+  }
 
   const saveLedgerHeight = useCallback((height: number) => {
     const nextHeight = Math.min(Math.max(Math.round(height), MIN_LEDGER_HEIGHT), MAX_LEDGER_HEIGHT)
@@ -830,6 +1262,9 @@ export default function PosPreviewClient({
     setCategoryId(category.id)
     setExpandedCategoryGroups(categoryGroupId ? [categoryGroupId] : [])
     setSupplierConfirmed(false)
+    setSelectedSupplierId('')
+    setSelectedPricingId('')
+    setManualPriceConfirmed(false)
     setScanOpen(false)
     setScanValue('')
 
@@ -839,6 +1274,7 @@ export default function PosPreviewClient({
       setAmountPaid('0.00')
       setPaymentMethod('Cash')
       setOutgoingType('Supplier payment')
+      setSupplierMovementType('DEPOSIT')
       return
     }
     if (category.id === 'expense') {
@@ -883,31 +1319,33 @@ export default function PosPreviewClient({
     )
   }
 
-  function previewSave() {
-    if (isOutgoing && !outgoingType) {
-      toast.error('Choose the outgoing type first')
-      return
-    }
-    if (outgoingType === 'Supplier payment' && !supplierConfirmed) {
-      toast.error('Confirm the supplier first')
-      return
-    }
-
-    toast.success('Preview complete', {
-      description: 'This is a frontend design only. No transaction was saved.',
-    })
-  }
-
-  function attachDemoMember(scannedValue = scanValue) {
+  async function attachDemoMember(scannedValue = scanValue) {
     if (!scannedValue.trim()) {
       toast.error('Scan or enter a loyalty code first')
       scanInputRef.current?.focus()
       return
     }
-    setMemberAttached(true)
     setScanOpen(false)
     setScanValue('')
-    toast.success('Loyalty card recognised', { description: 'Aisha Khan · PT-1842' })
+    try {
+      const response = await fetch('/api/pos/loyalty/lookup', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: scannedValue.trim() }),
+      })
+      const payload = (await response.json()) as ApiResponse<PosLoyaltyMember>
+      if (!response.ok || 'error' in payload) {
+        throw new Error('error' in payload ? payload.error : 'Loyalty member not found.')
+      }
+      setMember(payload)
+      toast.success('Loyalty card recognised', {
+        description: `${payload.name} · ${payload.maskedCode}`,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Loyalty member not found.')
+    }
   }
 
   return (
@@ -926,17 +1364,21 @@ export default function PosPreviewClient({
                   Point of sale
                 </p>
                 <span className="rounded-full bg-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-950">
-                  {initialLedger ? 'Live ledger' : 'Design preview'}
+                  {bootstrap.schemaReady
+                    ? 'Live POS'
+                    : initialLedger
+                      ? 'Live ledger'
+                      : 'Design preview'}
                 </span>
-                {initialLedger && (
+                {initialLedger && !bootstrap.schemaReady && (
                   <span className="rounded-full bg-amber-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-950">
-                    Entry preview
+                    Upgrade pending
                   </span>
                 )}
               </div>
               <h1 className="text-xl font-black tracking-tight sm:text-2xl">Daily transactions</h1>
               <p className="text-xs text-red-50/80">
-                Live branch activity · quick entry remains preview-only
+                Branch-scoped ledger, till, payments, loyalty and closeout
               </p>
             </div>
           </div>
@@ -991,6 +1433,22 @@ export default function PosPreviewClient({
         />
       </section>
 
+      <label className="block xl:hidden">
+        <span className="sr-only">POS workspace section</span>
+        <select
+          aria-label="POS workspace section"
+          value={activeView}
+          onChange={(event) => setActiveView(event.target.value as PosWorkspaceView)}
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800 shadow-sm"
+        >
+          {NAV_ITEMS.filter((item) => !item.managerOnly || bootstrap.permissions.canManage).map(
+            (item) => (
+              <option key={item.label}>{item.label}</option>
+            ),
+          )}
+        </select>
+      </label>
+
       <div className="grid items-start gap-3 xl:grid-cols-[4rem_minmax(0,1fr)_15rem]">
         <aside className="group/posnav order-1 z-20 hidden w-16 overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm transition-[width,box-shadow] duration-200 hover:w-52 hover:shadow-xl focus-within:w-52 xl:block">
           <div className="flex h-12 items-center border-b border-slate-200 bg-slate-950 px-4 text-white">
@@ -1002,30 +1460,30 @@ export default function PosPreviewClient({
               <p className="text-xs font-black">Workspace</p>
             </div>
           </div>
-          <nav className="space-y-1 p-2" aria-label="POS preview navigation">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() =>
-                    toast('Design preview', { description: `${item.label} is not connected yet.` })
-                  }
-                  title={item.label}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
-                    item.active
-                      ? 'bg-red-50 text-[#8b1e2d]'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                  }`}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/posnav:opacity-100 group-focus-within/posnav:opacity-100">
-                    {item.label}
-                  </span>
-                </button>
-              )
-            })}
+          <nav className="space-y-1 p-2" aria-label="POS navigation">
+            {NAV_ITEMS.filter((item) => !item.managerOnly || bootstrap.permissions.canManage).map(
+              (item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setActiveView(item.label)}
+                    title={item.label}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
+                      activeView === item.label
+                        ? 'bg-red-50 text-[#8b1e2d]'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/posnav:opacity-100 group-focus-within/posnav:opacity-100">
+                      {item.label}
+                    </span>
+                  </button>
+                )
+              },
+            )}
           </nav>
         </aside>
 
@@ -1159,6 +1617,18 @@ export default function PosPreviewClient({
         </aside>
 
         <main className="order-3 min-w-0 space-y-3 xl:order-2">
+          <PosOperationsPanel
+            view={activeView}
+            bootstrap={bootstrap}
+            transactions={transactions.filter((transaction): transaction is PosLedgerTransaction =>
+              Boolean(transaction.reference && transaction.entryAgent && transaction.tenders),
+            )}
+            period={ledgerPeriod}
+            date={ledgerDate}
+            selectedTransactionId={selectedTransactionId}
+            onSelectedTransaction={setSelectedTransactionId}
+            onRefresh={refreshWorkspace}
+          />
           <section className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1333,6 +1803,144 @@ export default function PosPreviewClient({
                     {filter}
                   </button>
                 ))}
+                <select
+                  aria-label="Category filter"
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All categories</option>
+                  {bootstrap.catalogue.map((item) => (
+                    <option key={item.id} value={item.key}>
+                      {item.label}
+                      {item.optionLabel ? ` · ${item.optionLabel}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Status filter"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All statuses</option>
+                  <option value="POSTED">Posted</option>
+                  <option value="PARTIALLY_REFUNDED">Partially refunded</option>
+                  <option value="REFUNDED">Refunded</option>
+                  <option value="CORRECTED">Corrected</option>
+                  <option value="UNRECONCILED">Unreconciled</option>
+                </select>
+                <select
+                  aria-label="Outgoing type filter"
+                  value={outgoingFilter}
+                  onChange={(event) => setOutgoingFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All outgoing types</option>
+                  <option value="REFUND">Refund</option>
+                  <option value="EXPENSE">Expense</option>
+                  <option value="SUPPLIER_PAYMENT">Supplier payment</option>
+                </select>
+                <select
+                  aria-label="Supplier filter"
+                  value={supplierFilter}
+                  onChange={(event) => setSupplierFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All suppliers</option>
+                  {bootstrap.suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Till filter"
+                  value={tillFilter}
+                  onChange={(event) => setTillFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All tills</option>
+                  {bootstrap.tills.map((till) => (
+                    <option key={till.id} value={till.id}>
+                      {till.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Agent filter"
+                  value={agentFilter}
+                  onChange={(event) => setAgentFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All agents</option>
+                  {bootstrap.employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Source filter"
+                  value={sourceFilter}
+                  onChange={(event) => setSourceFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All source states</option>
+                  <option value="LMS">LMS</option>
+                  <option value="TICKETING">Ticketing</option>
+                  <option value="APPLICATIONS">Applications</option>
+                  <option value="PACKAGES">Packages</option>
+                  <option value="POS">POS</option>
+                  <option value="LEGACY">Legacy</option>
+                </select>
+                <select
+                  aria-label="Loyalty filter"
+                  value={loyaltyFilter}
+                  onChange={(event) => setLoyaltyFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
+                >
+                  <option value="">All loyalty states</option>
+                  <option value="ATTACHED">Attached</option>
+                  <option value="AWARDED">Awarded</option>
+                  <option value="REVERSED">Reversed</option>
+                  <option value="NONE">No loyalty</option>
+                </select>
+                <input
+                  aria-label="Minimum amount filter"
+                  value={minAmountFilter}
+                  onChange={(event) => setMinAmountFilter(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="Min £"
+                  className="h-8 w-20 rounded-lg border border-slate-200 px-2 text-[11px]"
+                />
+                <input
+                  aria-label="Maximum amount filter"
+                  value={maxAmountFilter}
+                  onChange={(event) => setMaxAmountFilter(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="Max £"
+                  className="h-8 w-20 rounded-lg border border-slate-200 px-2 text-[11px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveFilter('All')
+                    setCategoryFilter('')
+                    setStatusFilter('')
+                    setOutgoingFilter('')
+                    setSupplierFilter('')
+                    setTillFilter('')
+                    setAgentFilter('')
+                    setSourceFilter('')
+                    setLoyaltyFilter('')
+                    setMinAmountFilter('')
+                    setMaxAmountFilter('')
+                  }}
+                  className="rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-black text-rose-700"
+                >
+                  Clear filters
+                </button>
                 <span className="ml-auto self-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   Branch scoped
                 </span>
@@ -1589,21 +2197,20 @@ export default function PosPreviewClient({
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {selectedTransaction.outgoingType === 'EXPENSE' &&
+                    bootstrap.permissions.canManage && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('Refunds & corrections')}
+                        className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Correct
+                      </button>
+                    )}
                   <button
                     type="button"
-                    onClick={() =>
-                      setEditingTransactionId((current) =>
-                        current === selectedTransaction.id ? null : selectedTransaction.id,
-                      )
-                    }
-                    className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    {editingTransactionId === selectedTransaction.id ? 'Done' : 'Edit'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => chooseCategory(CATEGORIES.find((item) => item.id === 'refund')!)}
+                    onClick={() => setActiveView('Refunds & corrections')}
                     className="h-8 rounded-lg bg-[#8b1e2d] px-2.5 text-[11px] font-black text-white hover:bg-[#6f1422]"
                   >
                     Refund
@@ -1611,7 +2218,13 @@ export default function PosPreviewClient({
                   <button
                     type="button"
                     onClick={() =>
-                      toast('Receipt preview', { description: selectedTransaction.id })
+                      selectedTransaction.isLegacy
+                        ? toast.info('Imported legacy rows retain their original reference only.')
+                        : window.open(
+                            `/api/pos/transactions/${selectedTransaction.id}/receipt`,
+                            '_blank',
+                            'noopener,noreferrer',
+                          )
                     }
                     className="hidden h-8 rounded-lg border border-slate-200 px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50 sm:block"
                   >
@@ -1621,7 +2234,6 @@ export default function PosPreviewClient({
                     type="button"
                     onClick={() => {
                       setSelectedTransactionId('')
-                      setEditingTransactionId(null)
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
                     aria-label="Close transaction details"
@@ -1630,37 +2242,43 @@ export default function PosPreviewClient({
                   </button>
                 </div>
               </div>
-              {editingTransactionId === selectedTransaction.id && (
-                <div className="grid gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 sm:grid-cols-[1fr_9rem_1fr_auto]">
-                  <input
-                    aria-label="Edit transaction name"
-                    defaultValue={selectedTransaction.name}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold outline-none focus:border-[#8b1e2d]"
-                  />
-                  <input
-                    aria-label="Edit transaction amount"
-                    defaultValue={Math.abs(selectedTransaction.amount).toFixed(2)}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold outline-none focus:border-[#8b1e2d]"
-                  />
-                  <input
-                    aria-label="Edit transaction note"
-                    defaultValue={selectedTransaction.note}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold outline-none focus:border-[#8b1e2d]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingTransactionId(null)
-                      toast.success('Edit previewed', {
-                        description: 'No transaction was changed.',
-                      })
-                    }}
-                    className="h-8 rounded-lg bg-slate-950 px-3 text-[11px] font-black text-white"
-                  >
-                    Save edit
-                  </button>
+              <div className="grid gap-3 border-t border-slate-100 bg-slate-50 px-3 py-2 text-[10px] text-slate-600 sm:grid-cols-4">
+                <div>
+                  <b className="text-slate-900">Tenders</b>
+                  {(selectedTransaction.tenders || []).map((tender) => (
+                    <p key={tender.id || `${tender.method}:${tender.amount}`}>
+                      {tender.method} {formatMoney(tender.amount)} · {tender.reconciliationStatus}
+                    </p>
+                  ))}
                 </div>
-              )}
+                <div>
+                  <b className="text-slate-900">Source links</b>
+                  {(selectedTransaction.sourceLinks || []).map((source) => (
+                    <p key={source.id}>
+                      {source.sourceType} · {source.displayReference || source.recordId}
+                    </p>
+                  ))}
+                  {!selectedTransaction.sourceLinks?.length && <p>None</p>}
+                </div>
+                <div>
+                  <b className="text-slate-900">Refunds</b>
+                  <p>{formatMoney(selectedTransaction.refundableRemaining || 0)} refundable</p>
+                  {(selectedTransaction.refunds || []).map((refund) => (
+                    <p key={refund.id}>
+                      {refund.reference} · {formatMoney(refund.amount)}
+                    </p>
+                  ))}
+                </div>
+                <div>
+                  <b className="text-slate-900">Audit</b>
+                  {(selectedTransaction.auditEvents || []).slice(0, 3).map((event) => (
+                    <p key={event.id}>
+                      {event.eventType} · {event.actor}
+                    </p>
+                  ))}
+                  {!selectedTransaction.auditEvents?.length && <p>Immutable source row</p>}
+                </div>
+              </div>
             </section>
           )}
 
@@ -1691,20 +2309,24 @@ export default function PosPreviewClient({
             <div className="space-y-2 p-2.5">
               {!isTransfer && (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2">
-                  {memberAttached ? (
+                  {member ? (
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
                           <UserRound className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-black text-slate-900">Aisha Khan</p>
-                          <p className="mt-0.5 text-[11px] text-slate-500">PT-1842 · 640 points</p>
+                          <p className="truncate text-xs font-black text-slate-900">
+                            {member.name}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {member.maskedCode} · {member.availablePoints} points
+                          </p>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setMemberAttached(false)}
+                        onClick={() => setMember(null)}
                         className="text-xs font-black text-rose-700"
                       >
                         Remove
@@ -1755,10 +2377,10 @@ export default function PosPreviewClient({
                         </label>
                         <button
                           type="button"
-                          onClick={() => attachDemoMember('DEMO-PT-1842')}
+                          onClick={() => void attachDemoMember()}
                           className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white"
                         >
-                          Use demo card
+                          Look up code
                         </button>
                       </div>
                       <p className="text-[10px] text-slate-500">
@@ -1831,6 +2453,7 @@ export default function PosPreviewClient({
                     onChange={(event) => {
                       setName(event.target.value)
                       setSupplierConfirmed(false)
+                      setSelectedSupplierId('')
                     }}
                     placeholder={isTransfer ? 'Coin reserve' : 'Walk-in or type a name'}
                     className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
@@ -1847,6 +2470,8 @@ export default function PosPreviewClient({
                       onChange={(event) => {
                         setAmount(event.target.value)
                         setSupplierConfirmed(false)
+                        setSelectedPricingId('')
+                        setManualPriceConfirmed(false)
                       }}
                       inputMode="decimal"
                       aria-label="Transaction amount"
@@ -1873,6 +2498,37 @@ export default function PosPreviewClient({
                 )}
               </div>
 
+              {!isTransfer && (
+                <div
+                  className={`grid gap-2 ${liveCatalogueItem?.sourceRequired ? 'sm:grid-cols-2' : ''}`}
+                >
+                  {liveCatalogueItem?.sourceRequired && (
+                    <label>
+                      <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                        {liveCatalogueItem.trackedSourceType} source reference
+                      </span>
+                      <input
+                        value={sourceRecordId}
+                        onChange={(event) => setSourceRecordId(event.target.value)}
+                        placeholder="Required tracked-service record ID/reference"
+                        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                      />
+                    </label>
+                  )}
+                  <label>
+                    <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Note {liveCatalogueItem?.noteRequired ? '(required)' : '(optional)'}
+                    </span>
+                    <input
+                      value={transactionNote}
+                      onChange={(event) => setTransactionNote(event.target.value)}
+                      placeholder="Receipt reference or operational note"
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                    />
+                  </label>
+                </div>
+              )}
+
               {!isOutgoing && !isTransfer && (
                 <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
                   <span
@@ -1893,13 +2549,49 @@ export default function PosPreviewClient({
                   {remainingBalance > 0 && (
                     <span className="text-slate-500">Linked service or LMS keeps the balance</span>
                   )}
-                  {isNadraService && (
-                    <span className="ml-auto rounded-full bg-sky-50 px-2.5 py-1 text-sky-700 ring-1 ring-inset ring-sky-200">
-                      Pricing-table option matched from total price
-                    </span>
-                  )}
+                  {liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
+                    matchingPricingOptions.length === 1 && (
+                      <span className="ml-auto rounded-full bg-sky-50 px-2.5 py-1 text-sky-700 ring-1 ring-inset ring-sky-200">
+                        Matched {matchingPricingOptions[0].label}
+                      </span>
+                    )}
                 </div>
               )}
+
+              {liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
+                matchingPricingOptions.length > 1 && (
+                  <label className="block">
+                    <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Confirm pricing option
+                    </span>
+                    <select
+                      value={selectedPricingId}
+                      onChange={(event) => setSelectedPricingId(event.target.value)}
+                      className="h-9 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-900"
+                    >
+                      <option value="">Choose the matching option</option>
+                      {matchingPricingOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label} · {formatMoney(option.price)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+              {liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
+                matchingPricingOptions.length === 0 && (
+                  <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[11px] font-semibold text-amber-900">
+                    <input
+                      type="checkbox"
+                      checked={manualPriceConfirmed}
+                      onChange={(event) => setManualPriceConfirmed(event.target.checked)}
+                      className="mt-0.5"
+                    />
+                    No unique active pricing row matches this total. Confirm the manually entered
+                    price.
+                  </label>
+                )}
 
               {isOutgoing && (
                 <div>
@@ -1914,6 +2606,7 @@ export default function PosPreviewClient({
                         onClick={() => {
                           setOutgoingType(type)
                           setSupplierConfirmed(false)
+                          setSelectedSupplierId('')
                         }}
                         className={`rounded-xl border px-2 py-3 text-[11px] font-black transition sm:text-xs ${
                           outgoingType === type
@@ -1958,11 +2651,55 @@ export default function PosPreviewClient({
                         <p className="mt-1 text-sm font-black text-slate-950">
                           {supplierMatch?.name || 'No configured supplier found'}
                         </p>
+                        {bootstrap.schemaReady && supplierMatches && supplierMatches.length > 1 && (
+                          <label className="mt-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                            Matching suppliers
+                            <select
+                              value={
+                                selectedSupplierId ||
+                                ('id' in supplierMatches[0] ? supplierMatches[0].id : '')
+                              }
+                              onChange={(event) => {
+                                setSelectedSupplierId(event.target.value)
+                                setSupplierConfirmed(false)
+                              }}
+                              className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
+                            >
+                              {supplierMatches.map((supplier) =>
+                                'id' in supplier ? (
+                                  <option key={supplier.id} value={supplier.id}>
+                                    {supplier.name} · {formatMoney(supplier.balance)}
+                                  </option>
+                                ) : null,
+                              )}
+                            </select>
+                          </label>
+                        )}
                         {supplierMatch && (
                           <p className="mt-1 text-[11px] text-slate-600">
-                            {supplierMatch.area} · balance {formatMoney(supplierMatch.balance)}
+                            {'sourceArea' in supplierMatch
+                              ? supplierMatch.sourceArea || 'LMS supplier'
+                              : supplierMatch.area}{' '}
+                            · balance {formatMoney(supplierMatch.balance)}
                           </p>
                         )}
+                        <label className="mt-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                          Supplier action
+                          <select
+                            value={supplierMovementType}
+                            onChange={(event) => {
+                              setSupplierMovementType(
+                                event.target.value as typeof supplierMovementType,
+                              )
+                              setSupplierConfirmed(false)
+                            }}
+                            className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
+                          >
+                            <option value="DEPOSIT">Pay / deposit funds</option>
+                            <option value="USE_BALANCE">Use supplier balance</option>
+                            <option value="REFUND">Supplier refund / credit</option>
+                          </select>
+                        </label>
                       </div>
                     </div>
                     {supplierMatch && !supplierConfirmed && (
@@ -1988,9 +2725,7 @@ export default function PosPreviewClient({
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      toast('Refund lookup preview', { description: 'No data will change.' })
-                    }
+                    onClick={() => setActiveView('Refunds & corrections')}
                     className="shrink-0 rounded-xl bg-rose-800 px-3 py-2 text-[11px] font-black text-white"
                   >
                     Find original
@@ -2003,10 +2738,16 @@ export default function PosPreviewClient({
                   <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
                     Payment method
                   </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['Cash', 'Card', 'Bank'] as PaymentMethod[]).map((method) => {
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['Cash', 'Card', 'Bank', 'Split'] as PaymentMethod[]).map((method) => {
                       const Icon =
-                        method === 'Cash' ? Banknote : method === 'Card' ? CreditCard : Landmark
+                        method === 'Cash'
+                          ? Banknote
+                          : method === 'Card'
+                            ? CreditCard
+                            : method === 'Bank'
+                              ? Landmark
+                              : WalletCards
                       return (
                         <button
                           key={method}
@@ -2024,6 +2765,45 @@ export default function PosPreviewClient({
                       )
                     })}
                   </div>
+                  {paymentMethod === 'Split' && (
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <label className="text-[9px] font-black uppercase text-slate-500">
+                        Cash
+                        <input
+                          value={splitCash}
+                          onChange={(event) => setSplitCash(event.target.value)}
+                          inputMode="decimal"
+                          className="mt-1 h-8 w-full rounded-lg border px-2 text-xs"
+                        />
+                      </label>
+                      <label className="text-[9px] font-black uppercase text-slate-500">
+                        Card
+                        <input
+                          value={splitCard}
+                          onChange={(event) => setSplitCard(event.target.value)}
+                          inputMode="decimal"
+                          className="mt-1 h-8 w-full rounded-lg border px-2 text-xs"
+                        />
+                      </label>
+                      <label className="text-[9px] font-black uppercase text-slate-500">
+                        Bank
+                        <input
+                          value={splitBank}
+                          onChange={(event) => setSplitBank(event.target.value)}
+                          inputMode="decimal"
+                          className="mt-1 h-8 w-full rounded-lg border px-2 text-xs"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {(paymentMethod === 'Card' || paymentMethod === 'Bank') && (
+                    <input
+                      value={externalReference}
+                      onChange={(event) => setExternalReference(event.target.value)}
+                      placeholder="External payment reference (optional)"
+                      className="mt-2 h-8 w-full rounded-lg border border-slate-200 px-3 text-xs"
+                    />
+                  )}
                 </div>
               )}
 
@@ -2043,7 +2823,7 @@ export default function PosPreviewClient({
                           isOutgoing ? numericAmount : numericAmountPaid,
                         )}`}
                   </span>
-                  {selectedCategory.loyalty && memberAttached && !isOutgoing && (
+                  {liveCatalogueItem?.loyaltyEligible && member && !isOutgoing && (
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">
                       +{Math.floor(Math.abs(numericAmountPaid))} pts
                     </span>
@@ -2051,11 +2831,18 @@ export default function PosPreviewClient({
                 </div>
                 <button
                   type="button"
-                  onClick={previewSave}
-                  className="flex min-h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#7f1d2d] to-[#a52338] px-4 py-2 text-xs font-black text-white shadow-md shadow-red-950/15 transition hover:brightness-105 active:scale-[0.99]"
+                  onClick={() => void submitTransaction()}
+                  disabled={posting || (bootstrap.schemaReady && !bootstrap.activeShift)}
+                  className="flex min-h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#7f1d2d] to-[#a52338] px-4 py-2 text-xs font-black text-white shadow-md shadow-red-950/15 transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {isTransfer ? <Coins className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}
-                  {isTransfer ? 'Preview coin transfer' : 'Preview transaction'}
+                  {posting
+                    ? 'Posting…'
+                    : isTransfer
+                      ? 'Open cash management'
+                      : bootstrap.schemaReady
+                        ? 'Post transaction'
+                        : 'POS upgrade pending'}
                 </button>
               </div>
             </div>
@@ -2063,7 +2850,17 @@ export default function PosPreviewClient({
 
           <div className="flex items-center justify-center gap-2 text-center text-[11px] font-semibold text-slate-400">
             <Clock3 className="h-3.5 w-3.5" />
-            Live branch ledger · quick entry and balances beyond tender totals remain preview-only
+            <span>Live branch POS · immutable transactions and branch-scoped controls</span>
+            {retryCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void retryPendingTransactions()}
+                disabled={posting}
+                className="font-black text-amber-700 underline"
+              >
+                Retry {retryCount} unconfirmed {retryCount === 1 ? 'transaction' : 'transactions'}
+              </button>
+            )}
           </div>
         </main>
       </div>

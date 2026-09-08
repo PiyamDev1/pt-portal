@@ -4,8 +4,10 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import type { StaffSession } from '@/lib/auth/staffSession'
 import type { PosLedgerPayload } from '@/lib/pos/contracts'
 import { loadPosLedger } from '@/lib/pos/ledgerServer'
+import { loadPosBootstrap } from '@/lib/pos/server'
 import PosPreviewClient from './PosPreviewClient'
 
 export const metadata: Metadata = {
@@ -47,9 +49,14 @@ export default async function PosPreviewPage() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(id, name, branch_code, timezone)')
+    .select('id,email,full_name, roles(name), locations(id, name, branch_code, timezone)')
     .eq('id', user.id)
     .single()
+
+  const { data: memberships } = await supabase
+    .from('employee_departments')
+    .select('departments(name)')
+    .eq('employee_id', user.id)
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
@@ -57,6 +64,32 @@ export default async function PosPreviewPage() {
   const ledgerDate = currentDateInTimezone(timezone)
   let initialLoadError: string | null = null
   let initialLedger: PosLedgerPayload
+  const departmentNames = (
+    (memberships || []) as unknown as Array<{
+      departments: { name?: string | null } | Array<{ name?: string | null }> | null
+    }>
+  )
+    .map((membership) => {
+      const departments = membership.departments
+      return Array.isArray(departments) ? departments[0]?.name : departments?.name
+    })
+    .filter((name): name is string => Boolean(name))
+  const access: StaffSession = {
+    user: { id: user.id, email: user.email || employee?.email || '' },
+    employee: {
+      id: user.id,
+      email: employee?.email || user.email || '',
+      fullName: employee?.full_name || user.email || 'Staff member',
+      role: role?.name || '',
+      departments: departmentNames,
+    },
+  }
+  const initialBootstrap = await loadPosBootstrap(access).catch((error) => {
+    console.error('[pos] initial bootstrap load failed', {
+      errorType: error instanceof Error ? error.name : typeof error,
+    })
+    return null
+  })
 
   try {
     initialLedger = await loadPosLedger(user.id, 'day', ledgerDate)
@@ -104,6 +137,7 @@ export default async function PosPreviewPage() {
           <PosPreviewClient
             branchName={location?.name || initialLedger.context.branchName}
             initialLedger={initialLedger}
+            initialBootstrap={initialBootstrap || undefined}
             initialLoadError={initialLoadError}
           />
         </main>
