@@ -6,19 +6,23 @@ describe('POS frontend preview', () => {
   it('shows operational categories, supplier sorting, and compact transaction editing', () => {
     render(<PosPreviewClient branchName="Bradford" />)
 
-    const nadraMenu = screen.getByLabelText('NADRA NICOP and certificates')
+    const nadraMenu = screen.getByLabelText('NADRA Applications and certificates')
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByLabelText('NICOP · Normal')).toBeTruthy()
-    expect(screen.getByLabelText('NICOP · Urgent')).toBeTruthy()
+    expect(screen.getByLabelText('NICOP / CNIC')).toBeTruthy()
+    expect(screen.getByLabelText('POC')).toBeTruthy()
     expect(screen.getByLabelText('FRC')).toBeTruthy()
+    expect(screen.getByLabelText('CRC')).toBeTruthy()
+    expect(screen.getByLabelText('POA')).toBeTruthy()
+    expect(screen.getByLabelText('Amount paid now')).toBeTruthy()
+    expect(screen.getByText('Balance remaining £5.00')).toBeTruthy()
 
-    fireEvent.click(nadraMenu)
+    fireEvent.click(screen.getByLabelText('NICOP / CNIC'))
+    expect(nadraMenu.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Pricing-table option matched from total price')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('PK Passport Application payment'))
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByLabelText('NICOP · Normal')).toBeNull()
-
-    fireEvent.click(nadraMenu)
-    expect(screen.getByLabelText('NICOP · Normal')).toBeTruthy()
-    expect(screen.getByLabelText('PK Passport Application payment')).toBeTruthy()
+    expect(screen.queryByLabelText('NICOP / CNIC')).toBeNull()
     expect(screen.getByLabelText('GB Passport Application payment')).toBeTruthy()
     expect(screen.getByLabelText('Visa Application payment')).toBeTruthy()
     expect(screen.getByLabelText('Ticket & Package Tracked booking')).toBeTruthy()

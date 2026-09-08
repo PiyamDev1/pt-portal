@@ -221,10 +221,7 @@ be able to award points by changing a client-side flag.
 
 The first branch-facing category list should use the operational names staff already recognise:
 
-- `NADRA`.
-- `NICOP - Normal`.
-- `NICOP - Urgent`.
-- `FRC`.
+- `NADRA`, expanding to the pricing-table service types `NICOP/CNIC`, `POC`, `FRC`, `CRC`, and `POA`.
 - `PK Passport`.
 - `GB Passport`.
 - `Visa`.
@@ -236,6 +233,9 @@ The first branch-facing category list should use the operational names staff alr
 
 The catalogue remains configurable, but staff-facing labels should stay stable. Tracked application,
 ticket, and package categories must retain their source links and remain ineligible for POS loyalty.
+Normal, Executive, Fast, or similar speed labels are pricing options, not POS subcategories. POS should
+match the entered total price to the active pricing row and derive the option when the match is unique.
+If no price or more than one option matches, show a small confirmation choice instead of guessing.
 
 ### Tracked services: no POS loyalty
 
@@ -309,6 +309,11 @@ allocations, or central supplier accounts yet. Supplier entries do not earn POS 
 
 Each transaction may have one or more payment tenders. The sum of the tender amounts must equal the
 amount being recorded, except where an explicit source system owns an outstanding balance.
+
+Quick entry should show `Total price` and `Amount paid now` as separate fields and calculate `Balance
+remaining` or `Change due` immediately. A remaining balance must be linked to the originating tracked
+service or an explicit LMS account; POS displays it for entry clarity but must not create a shadow debt
+balance of its own.
 
 Example:
 
@@ -670,9 +675,10 @@ The POS left rail should be POS navigation, not a duplicate dashboard module men
 
 The right rail should be labelled `Quick entry categories`. Main categories should remain square tiles.
 A tile with service variants should expand and collapse a compact subcategory list directly beneath it;
-for example, the `NADRA` tile reveals list rows for `NICOP - Normal`, `NICOP - Urgent`, and `FRC`.
-The dashboard module catalogue should contain one POS module entry, while POS categories remain internal
-presets.
+for example, the `NADRA` tile reveals separate colour-coded rows for `NICOP/CNIC`, `POC`, `FRC`, `CRC`,
+and `POA`. Opening another expandable category or selecting a different main category should close the
+previous list. The dashboard module catalogue should contain one POS module entry, while POS categories
+remain internal presets.
 
 On desktop, the POS navigation rail should default to icon-only width and expand on pointer hover or
 keyboard focus. The daily ledger should use the released width, keep its column header visible, and

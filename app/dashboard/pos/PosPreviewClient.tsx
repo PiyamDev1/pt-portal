@@ -62,29 +62,20 @@ type PreviewTransaction = {
 
 const CATEGORIES: CategoryPreset[] = [
   {
-    id: 'nadra',
-    label: 'NADRA',
-    caption: 'Application payment',
+    id: 'nicop-cnic',
+    label: 'NICOP / CNIC',
+    caption: 'Price identifies service speed',
     icon: FileText,
-    tone: 'border-sky-200 bg-sky-50 text-sky-800',
+    tone: 'border-blue-200 bg-blue-50 text-blue-800',
     direction: 'IN',
     loyalty: false,
   },
   {
-    id: 'nicop-normal',
-    label: 'NICOP · Normal',
-    caption: 'NADRA service',
+    id: 'poc',
+    label: 'POC',
+    caption: 'Pakistan Origin Card',
     icon: FileText,
     tone: 'border-violet-200 bg-violet-50 text-violet-800',
-    direction: 'IN',
-    loyalty: false,
-  },
-  {
-    id: 'nicop-urgent',
-    label: 'NICOP · Urgent',
-    caption: 'NADRA service',
-    icon: FileText,
-    tone: 'border-rose-200 bg-rose-50 text-rose-800',
     direction: 'IN',
     loyalty: false,
   },
@@ -94,6 +85,24 @@ const CATEGORIES: CategoryPreset[] = [
     caption: 'NADRA certificate',
     icon: FileText,
     tone: 'border-cyan-200 bg-cyan-50 text-cyan-800',
+    direction: 'IN',
+    loyalty: false,
+  },
+  {
+    id: 'crc',
+    label: 'CRC',
+    caption: 'Child registration',
+    icon: FileText,
+    tone: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    direction: 'IN',
+    loyalty: false,
+  },
+  {
+    id: 'poa',
+    label: 'POA',
+    caption: 'Power of attorney',
+    icon: FileText,
+    tone: 'border-amber-200 bg-amber-50 text-amber-900',
     direction: 'IN',
     loyalty: false,
   },
@@ -196,9 +205,9 @@ const CATEGORY_MENU: Array<
   {
     id: 'nadra-services',
     label: 'NADRA',
-    caption: 'NICOP and certificates',
+    caption: 'Applications and certificates',
     icon: FileText,
-    children: ['nicop-normal', 'nicop-urgent', 'frc'],
+    children: ['nicop-cnic', 'poc', 'frc', 'crc', 'poa'],
   },
   { id: 'pk-passport-menu', categoryId: 'pk-passport' },
   { id: 'gb-passport-menu', categoryId: 'gb-passport' },
@@ -343,6 +352,11 @@ const NAV_ITEMS = [
 
 const FILTERS = ['All', 'Cash', 'Card', 'Bank', 'Outgoing'] as const
 const SORTS = ['Supplier', 'Newest'] as const
+const NADRA_SERVICE_IDS = ['nicop-cnic', 'poc', 'frc', 'crc', 'poa']
+
+function isNadraCategory(categoryId: string) {
+  return NADRA_SERVICE_IDS.includes(categoryId)
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('en-GB', {
@@ -402,6 +416,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const [categoryId, setCategoryId] = useState('document-help')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('25.00')
+  const [amountPaid, setAmountPaid] = useState('20.00')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash')
   const [outgoingType, setOutgoingType] = useState<OutgoingType | null>(null)
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
@@ -411,8 +426,12 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
 
   const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
+  const numericAmountPaid = Number.parseFloat(amountPaid.replace(/,/g, '')) || 0
   const isTransfer = selectedCategory.direction === 'TRANSFER'
   const isOutgoing = !isTransfer && (numericAmount < 0 || selectedCategory.direction === 'OUT')
+  const remainingBalance = Math.max(Math.abs(numericAmount) - Math.abs(numericAmountPaid), 0)
+  const changeDue = Math.max(Math.abs(numericAmountPaid) - Math.abs(numericAmount), 0)
+  const isNadraService = isNadraCategory(categoryId)
 
   const supplierMatch = useMemo(() => {
     if (!isOutgoing || outgoingType !== 'Supplier payment') return null
@@ -459,14 +478,16 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const selectedTransaction =
     TRANSACTIONS.find((transaction) => transaction.id === selectedTransactionId) || null
 
-  function chooseCategory(category: CategoryPreset) {
+  function chooseCategory(category: CategoryPreset, categoryGroupId?: string) {
     setCategoryId(category.id)
+    setExpandedCategoryGroups(categoryGroupId ? [categoryGroupId] : [])
     setSupplierConfirmed(false)
     setScanOpen(false)
 
     if (category.id === 'supplier') {
       setName('British Airways')
       setAmount('-300.00')
+      setAmountPaid('0.00')
       setPaymentMethod('Cash')
       setOutgoingType('Supplier payment')
       return
@@ -474,6 +495,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     if (category.id === 'expense') {
       setName('Office supplies')
       setAmount('-18.40')
+      setAmountPaid('0.00')
       setPaymentMethod('Cash')
       setOutgoingType('Expense')
       return
@@ -481,6 +503,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     if (category.id === 'refund') {
       setName('Aisha Khan')
       setAmount('-45.00')
+      setAmountPaid('0.00')
       setPaymentMethod('Card')
       setOutgoingType('Refund')
       return
@@ -488,13 +511,17 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     if (category.id === 'extra-coins') {
       setName('Coin reserve')
       setAmount('20.00')
+      setAmountPaid('0.00')
       setPaymentMethod('Cash')
       setOutgoingType(null)
       return
     }
 
     setName('')
-    setAmount(category.id === 'ticket-package' ? '420.00' : '25.00')
+    const nextAmount =
+      category.id === 'ticket-package' ? '420.00' : isNadraCategory(category.id) ? '50.00' : '25.00'
+    setAmount(nextAmount)
+    setAmountPaid(nextAmount)
     setPaymentMethod(category.id === 'ticket-package' ? 'Card' : 'Cash')
     setOutgoingType(null)
   }
@@ -503,7 +530,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     setExpandedCategoryGroups((current) =>
       current.includes(groupId)
         ? current.filter((expandedId) => expandedId !== groupId)
-        : [...current, groupId],
+        : [groupId],
     )
   }
 
@@ -690,7 +717,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                     {expanded && (
                       <div
                         id={`${menuItem.id}-subcategories`}
-                        className="col-span-2 space-y-1 rounded-xl bg-slate-950 p-1.5"
+                        className="col-span-2 space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2"
                       >
                         {menuItem.children.map((childId) => {
                           const category = CATEGORIES.find((item) => item.id === childId)
@@ -701,16 +728,23 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                             <button
                               key={category.id}
                               type="button"
-                              onClick={() => chooseCategory(category)}
+                              onClick={() => chooseCategory(category, menuItem.id)}
                               aria-label={category.label}
                               aria-pressed={selected}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-black transition ${
+                              className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-[11px] font-black shadow-sm transition hover:translate-x-0.5 ${
                                 selected
-                                  ? 'bg-[#8b1e2d] text-white'
-                                  : 'bg-white/5 text-slate-100 hover:bg-white/10'
+                                  ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white'
+                                  : category.tone
                               }`}
                             >
-                              <span>{category.label}</span>
+                              <span>
+                                <span className="block">{category.label}</span>
+                                <span
+                                  className={`mt-0.5 block text-[9px] font-medium ${selected ? 'text-red-100' : 'opacity-65'}`}
+                                >
+                                  {category.caption}
+                                </span>
+                              </span>
                               {selected && <Check className="h-3.5 w-3.5" />}
                             </button>
                           )
@@ -1174,7 +1208,9 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                 </div>
               ) : null}
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div
+                className={`grid gap-3 ${!isOutgoing && !isTransfer ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
+              >
                 <label>
                   <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">
                     {isTransfer
@@ -1195,7 +1231,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                 </label>
                 <label>
                   <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">
-                    Amount
+                    {!isOutgoing && !isTransfer ? 'Total price' : 'Amount'}
                   </span>
                   <span className="relative block">
                     <BadgePoundSterling className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -1211,7 +1247,52 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                     />
                   </span>
                 </label>
+                {!isOutgoing && !isTransfer && (
+                  <label>
+                    <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">
+                      Amount paid now
+                    </span>
+                    <span className="relative block">
+                      <Banknote className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={amountPaid}
+                        onChange={(event) => setAmountPaid(event.target.value)}
+                        inputMode="decimal"
+                        aria-label="Amount paid now"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-base font-black text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                      />
+                    </span>
+                  </label>
+                )}
               </div>
+
+              {!isOutgoing && !isTransfer && (
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+                  <span
+                    className={`rounded-full px-2.5 py-1 ${
+                      remainingBalance > 0
+                        ? 'bg-amber-100 text-amber-800'
+                        : changeDue > 0
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {remainingBalance > 0
+                      ? `Balance remaining ${formatMoney(remainingBalance)}`
+                      : changeDue > 0
+                        ? `Change due ${formatMoney(changeDue)}`
+                        : 'Paid in full'}
+                  </span>
+                  {remainingBalance > 0 && (
+                    <span className="text-slate-500">Linked service or LMS keeps the balance</span>
+                  )}
+                  {isNadraService && (
+                    <span className="ml-auto rounded-full bg-sky-50 px-2.5 py-1 text-sky-700 ring-1 ring-inset ring-sky-200">
+                      Pricing-table option matched from total price
+                    </span>
+                  )}
+                </div>
+              )}
 
               {isOutgoing && (
                 <div>
@@ -1351,11 +1432,13 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                   <span>
                     {isTransfer
                       ? `${formatMoney(numericAmount)} moves between cash locations`
-                      : `${paymentMethod} impact ${isOutgoing ? '−' : '+'}${formatMoney(numericAmount)}`}
+                      : `${paymentMethod} impact ${isOutgoing ? '−' : '+'}${formatMoney(
+                          isOutgoing ? numericAmount : numericAmountPaid,
+                        )}`}
                   </span>
                   {selectedCategory.loyalty && memberAttached && !isOutgoing && (
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">
-                      +{Math.floor(Math.abs(numericAmount))} pts
+                      +{Math.floor(Math.abs(numericAmountPaid))} pts
                     </span>
                   )}
                 </div>
