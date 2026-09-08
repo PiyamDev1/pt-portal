@@ -1,12 +1,32 @@
 # POS Daily Transaction Module Plan
 
-**Status:** Proposal for product discussion  
+**Status:** Implementation started — live read-only ledger vertical slice
 **Module:** Point of Sale (POS) / branch daily transactions
 **Proposed route:** `/dashboard/pos`
 
 This document describes a fast daily transaction workspace for branch staff. It is a planning artifact,
 not an implementation contract. Runtime code, migrations, and active guides take precedence once the
 module is built.
+
+### Implementation snapshot — 8 September 2026
+
+- `/dashboard/pos` reads the authenticated employee's branch and loads real, branch-scoped data from
+  `daily_ledger_entries`, `daily_payment_splits`, `accounting_categories`, `transaction_methods`, and
+  `supplier_vendors`.
+- Day/month navigation reloads bounded data through an authenticated, private/no-store API. The initial
+  page load is server-rendered and verifies the user with Supabase Auth rather than trusting a cached
+  session object.
+- Live cash/card/bank and net-movement totals replace the design's mock balance numbers. Till opening,
+  drawer balance, and reserve figures remain unavailable because the legacy schema cannot derive them.
+- The production database inventory contained no rows in the six legacy POS-related tables checked:
+  the five tables above plus `daily_till_closeout`.
+- Ledger access is currently derived through each entry's employee and that employee's branch because
+  `daily_ledger_entries` has no direct branch/location key. Server-side branch filtering is mandatory
+  while this legacy read path exists.
+- Quick entry, loyalty attachment, refunds, cash management, and supplier-balance mutations remain
+  preview-only. Do not enable writes until the transaction contract, RLS/grants, idempotent atomic RPC,
+  audit events, stable reference/status fields, till/reserve model, and required indexes are delivered by
+  reviewed migrations.
 
 ## 1. Product Boundary
 

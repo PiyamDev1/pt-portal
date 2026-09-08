@@ -44,6 +44,13 @@ import {
   X,
 } from 'lucide-react'
 import { PosRegisterIcon } from '@/app/components/icons/PosRegisterIcon'
+import type { ApiResponse } from '@/lib/api/http'
+import type {
+  PosLedgerPayload,
+  PosLedgerPaymentMethod,
+  PosLedgerSummary,
+  PosLedgerTransaction,
+} from '@/lib/pos/contracts'
 
 type IconComponent = ComponentType<{ className?: string }>
 type PaymentMethod = 'Cash' | 'Card' | 'Bank'
@@ -67,19 +74,11 @@ type CategoryPreset = {
   loyalty: boolean
 }
 
-type PreviewTransaction = {
-  id: string
-  date: string
-  time: string
-  name: string
-  category: string
-  method: PaymentMethod
-  amount: number
-  points: number
-  status: string
-  note: string
-  supplier?: string
-}
+type PreviewTransaction = Omit<
+  PosLedgerTransaction,
+  'reference' | 'entryAgent' | 'sourceLinkId' | 'tenders'
+> &
+  Partial<Pick<PosLedgerTransaction, 'reference' | 'entryAgent' | 'sourceLinkId' | 'tenders'>>
 
 const CATEGORIES: CategoryPreset[] = [
   {
@@ -434,6 +433,15 @@ const NAV_ITEMS = [
 const FILTERS = ['All', 'Cash', 'Card', 'Bank', 'Outgoing'] as const
 const SORTS = ['Supplier', 'Newest'] as const
 const NADRA_SERVICE_IDS = ['nicop-cnic', 'poc', 'frc', 'crc', 'poa']
+const EMPTY_LEDGER_SUMMARY: PosLedgerSummary = {
+  moneyIn: 0,
+  moneyOut: 0,
+  netMovement: 0,
+  cashNet: 0,
+  cardNet: 0,
+  bankNet: 0,
+  unreconciledCount: 0,
+}
 
 function isNadraCategory(categoryId: string) {
   return NADRA_SERVICE_IDS.includes(categoryId)
@@ -466,6 +474,17 @@ function formatLedgerMonth(date: string) {
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${date.slice(0, 7)}-01T12:00:00Z`))
+}
+
+function formatLoadedAt(value: string | null) {
+  if (!value) return 'Not loaded'
+  const date = new Date(value)
+  if (Number.isNaN(date.valueOf())) return 'Not loaded'
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date)
 }
 
 function shiftLedgerDate(date: string, period: LedgerPeriod, offset: number) {
@@ -520,17 +539,42 @@ function SummaryCard({
   )
 }
 
-export default function PosPreviewClient({ branchName }: { branchName: string }) {
+export default function PosPreviewClient({
+  branchName,
+  initialLedger,
+  initialLoadError = null,
+}: {
+  branchName: string
+  initialLedger?: PosLedgerPayload
+  initialLoadError?: string | null
+}) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const quickEntryInputRef = useRef<HTMLInputElement>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const loadedLedgerKeyRef = useRef(
+    initialLedger ? `${initialLedger.context.period}:${initialLedger.context.date}` : null,
+  )
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [sortBy, setSortBy] = useState<(typeof SORTS)[number]>('Supplier')
-  const [ledgerPeriod, setLedgerPeriod] = useState<LedgerPeriod>('day')
-  const [ledgerDate, setLedgerDate] = useState(DEMO_TODAY)
-  const [selectedTransactionId, setSelectedTransactionId] = useState(TRANSACTIONS[0].id)
+  const [ledgerPeriod, setLedgerPeriod] = useState<LedgerPeriod>(
+    initialLedger?.context.period || 'day',
+  )
+  const [ledgerDate, setLedgerDate] = useState(initialLedger?.context.date || DEMO_TODAY)
+  const [transactions, setTransactions] = useState<PreviewTransaction[]>(
+    initialLedger?.items || TRANSACTIONS,
+  )
+  const [ledgerSummary, setLedgerSummary] = useState<PosLedgerSummary>(
+    initialLedger?.summary || EMPTY_LEDGER_SUMMARY,
+  )
+  const [ledgerLoadedAt, setLedgerLoadedAt] = useState(initialLedger?.context.loadedAt || null)
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [ledgerError, setLedgerError] = useState<string | null>(initialLoadError)
+  const [ledgerRefresh, setLedgerRefresh] = useState(0)
+  const [selectedTransactionId, setSelectedTransactionId] = useState(
+    (initialLedger?.items || TRANSACTIONS)[0]?.id || '',
+  )
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('document-help')
   const [name, setName] = useState('')
@@ -544,6 +588,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const [memberAttached, setMemberAttached] = useState(false)
   const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
   const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
+  const todayDate = initialLedger?.context.date || DEMO_TODAY
 
   const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
@@ -569,14 +614,22 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
 
   const filteredTransactions = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    const matches = TRANSACTIONS.filter((transaction) => {
+    const matches = transactions.filter((transaction) => {
       const matchesPeriod =
         ledgerPeriod === 'month'
           ? transaction.date.startsWith(ledgerDate.slice(0, 7))
           : transaction.date === ledgerDate
       const matchesSearch =
         !needle ||
-        [transaction.id, transaction.name, transaction.category, transaction.note]
+        [
+          transaction.id,
+          transaction.reference,
+          transaction.name,
+          transaction.category,
+          transaction.note,
+          transaction.supplier,
+          transaction.entryAgent,
+        ]
           .join(' ')
           .toLowerCase()
           .includes(needle)
@@ -601,7 +654,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
       }
       return right.time.localeCompare(left.time)
     })
-  }, [activeFilter, ledgerDate, ledgerPeriod, search, sortBy])
+  }, [activeFilter, ledgerDate, ledgerPeriod, search, sortBy, transactions])
 
   const monthlySummary = useMemo(() => {
     const moneyIn = filteredTransactions.reduce(
@@ -622,7 +675,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   }, [filteredTransactions])
 
   const selectedTransaction =
-    TRANSACTIONS.find((transaction) => transaction.id === selectedTransactionId) || null
+    transactions.find((transaction) => transaction.id === selectedTransactionId) || null
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -649,6 +702,62 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [])
+
+  useEffect(() => {
+    if (!initialLedger) return
+    const requestKey = `${ledgerPeriod}:${ledgerDate}`
+    if (loadedLedgerKeyRef.current === requestKey && ledgerRefresh === 0) return
+
+    const controller = new AbortController()
+    let active = true
+    window.queueMicrotask(() => {
+      if (active) {
+        setLedgerLoading(true)
+        setLedgerError(null)
+      }
+    })
+
+    async function loadLedger() {
+      try {
+        const params = new URLSearchParams({ period: ledgerPeriod, date: ledgerDate })
+        const response = await fetch(`/api/pos/ledger?${params.toString()}`, {
+          cache: 'no-store',
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        const payload = (await response.json()) as ApiResponse<PosLedgerPayload>
+        if (!response.ok || 'error' in payload) {
+          throw new Error('error' in payload ? payload.error : 'Unable to load the POS ledger.')
+        }
+        if (!active) return
+
+        loadedLedgerKeyRef.current = requestKey
+        setTransactions(payload.items)
+        setLedgerSummary(payload.summary)
+        setLedgerLoadedAt(payload.context.loadedAt)
+        setSelectedTransactionId(payload.items[0]?.id || '')
+        setLedgerError(
+          payload.context.truncated
+            ? 'Only the newest 500 entries are shown for this period. Narrow the date range.'
+            : null,
+        )
+      } catch (error) {
+        if (!active || (error instanceof DOMException && error.name === 'AbortError')) return
+        setTransactions([])
+        setLedgerSummary(EMPTY_LEDGER_SUMMARY)
+        setSelectedTransactionId('')
+        setLedgerError(error instanceof Error ? error.message : 'Unable to load the POS ledger.')
+      } finally {
+        if (active) setLedgerLoading(false)
+      }
+    }
+
+    void loadLedger()
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [initialLedger, ledgerDate, ledgerPeriod, ledgerRefresh])
 
   useEffect(() => {
     const savedHeight = Number.parseInt(
@@ -816,13 +925,18 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-100">
                   Point of sale
                 </p>
-                <span className="rounded-full bg-amber-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-950">
-                  Design preview
+                <span className="rounded-full bg-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-950">
+                  {initialLedger ? 'Live ledger' : 'Design preview'}
                 </span>
+                {initialLedger && (
+                  <span className="rounded-full bg-amber-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-950">
+                    Entry preview
+                  </span>
+                )}
               </div>
               <h1 className="text-xl font-black tracking-tight sm:text-2xl">Daily transactions</h1>
               <p className="text-xs text-red-50/80">
-                Quick entry, till balance and today&apos;s branch activity
+                Live branch activity · quick entry remains preview-only
               </p>
             </div>
           </div>
@@ -836,9 +950,11 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
             </div>
             <div className="rounded-xl bg-emerald-400/15 px-3 py-2 ring-1 ring-emerald-200/25">
               <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-emerald-100">
-                <span className="h-2 w-2 rounded-full bg-emerald-300" /> Till open
+                <span className="h-2 w-2 rounded-full bg-emerald-300" /> Live data
               </p>
-              <p className="text-xs font-black">Shift 08:42–now</p>
+              <p className="text-xs font-black">
+                {ledgerLoading ? 'Refreshing…' : `Synced ${formatLoadedAt(ledgerLoadedAt)}`}
+              </p>
             </div>
           </div>
         </div>
@@ -846,32 +962,32 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
 
       <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          label="Cash drawer"
-          value="£1,248.60"
-          detail="£806.20 opening + net cash"
+          label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} cash net`}
+          value={formatSignedMoney(ledgerSummary.cashNet)}
+          detail="Posted cash tenders"
           icon={Banknote}
           tone="bg-emerald-50 text-emerald-700"
         />
         <SummaryCard
-          label="Extra coins"
-          value="£82.00"
-          detail="Separate branch reserve"
-          icon={Coins}
-          tone="bg-amber-50 text-amber-700"
-        />
-        <SummaryCard
-          label="Card today"
-          value="£980.00"
-          detail="1 refund pending"
+          label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} card net`}
+          value={formatSignedMoney(ledgerSummary.cardNet)}
+          detail={`${ledgerSummary.unreconciledCount} unreconciled tender${ledgerSummary.unreconciledCount === 1 ? '' : 's'}`}
           icon={CreditCard}
           tone="bg-blue-50 text-blue-700"
         />
         <SummaryCard
-          label="Bank today"
-          value="£420.00"
-          detail="All items recorded"
+          label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} bank net`}
+          value={formatSignedMoney(ledgerSummary.bankNet)}
+          detail="Recorded bank tenders"
           icon={Landmark}
           tone="bg-violet-50 text-violet-700"
+        />
+        <SummaryCard
+          label="Net movement"
+          value={formatSignedMoney(ledgerSummary.netMovement)}
+          detail={`${formatMoney(ledgerSummary.moneyIn)} in · ${formatMoney(ledgerSummary.moneyOut)} out`}
+          icon={Coins}
+          tone="bg-amber-50 text-amber-700"
         />
       </section>
 
@@ -1050,7 +1166,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                   <h2 className="text-base font-black text-slate-950">
                     {ledgerPeriod === 'month'
                       ? 'Monthly ledger'
-                      : ledgerDate === DEMO_TODAY
+                      : ledgerDate === todayDate
                         ? "Today's ledger"
                         : 'Daily ledger'}
                   </h2>
@@ -1127,10 +1243,10 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                   type="button"
                   onClick={() => {
                     setLedgerPeriod('day')
-                    setLedgerDate(DEMO_TODAY)
+                    setLedgerDate(todayDate)
                   }}
                   className={`h-9 rounded-xl border px-3 text-[10px] font-black transition ${
-                    ledgerPeriod === 'day' && ledgerDate === DEMO_TODAY
+                    ledgerPeriod === 'day' && ledgerDate === todayDate
                       ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
@@ -1223,6 +1339,25 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
               </div>
             )}
 
+            {ledgerError && (
+              <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-900">
+                <span>{ledgerError}</span>
+                <button
+                  type="button"
+                  onClick={() => setLedgerRefresh((current) => current + 1)}
+                  className="shrink-0 rounded-lg bg-amber-900 px-2.5 py-1.5 font-black text-white"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {ledgerLoading && (
+              <div className="border-b border-blue-100 bg-blue-50 px-4 py-2 text-[11px] font-semibold text-blue-800">
+                Loading live branch ledger…
+              </div>
+            )}
+
             <div className="hidden overflow-auto md:block" style={{ height: ledgerHeight }}>
               <table className="w-full min-w-[780px] border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
@@ -1280,7 +1415,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                         <td className="px-3 py-2">
                           <p className="text-xs font-black text-slate-900">{transaction.time}</p>
                           <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                            {transaction.id}
+                            {transaction.reference || transaction.id}
                           </p>
                         </td>
                         <td className="px-3 py-2">
@@ -1436,7 +1571,9 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
                       Expanded transaction
                     </p>
-                    <h2 className="text-xs font-black text-slate-950">{selectedTransaction.id}</h2>
+                    <h2 className="text-xs font-black text-slate-950">
+                      {selectedTransaction.reference || selectedTransaction.id}
+                    </h2>
                   </div>
                   <span className="hidden h-7 w-px bg-slate-200 sm:block" />
                   <p className="truncate text-xs text-slate-600">
@@ -1926,7 +2063,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
 
           <div className="flex items-center justify-center gap-2 text-center text-[11px] font-semibold text-slate-400">
             <Clock3 className="h-3.5 w-3.5" />
-            Mock balances and transactions · frontend preview only
+            Live branch ledger · quick entry and balances beyond tender totals remain preview-only
           </div>
         </main>
       </div>

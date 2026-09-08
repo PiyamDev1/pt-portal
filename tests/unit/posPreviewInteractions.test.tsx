@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
+import type { PosLedgerPayload } from '@/lib/pos/contracts'
 
 vi.mock('sonner', () => ({
   toast: {
@@ -55,5 +56,36 @@ describe('POS preview interactions', () => {
 
     expect(screen.getByText(/640 points/)).toBeTruthy()
     expect(screen.queryByPlaceholderText('Scan now or type loyalty code')).toBeNull()
+  })
+
+  it('shows an empty live ledger without falling back to design transactions', () => {
+    const liveLedger: PosLedgerPayload = {
+      items: [],
+      summary: {
+        moneyIn: 0,
+        moneyOut: 0,
+        netMovement: 0,
+        cashNet: 0,
+        cardNet: 0,
+        bankNet: 0,
+        unreconciledCount: 0,
+      },
+      context: {
+        branchId: 'branch-1',
+        branchName: 'Test branch',
+        timezone: 'Europe/London',
+        period: 'day',
+        date: '2026-09-08',
+        loadedAt: '2026-09-08T12:00:00.000Z',
+        source: 'daily_ledger_entries',
+        truncated: false,
+      },
+    }
+
+    render(<PosPreviewClient branchName="Test branch" initialLedger={liveLedger} />)
+
+    expect(screen.getByText('Live ledger')).toBeTruthy()
+    expect(screen.getByText('No matching transactions')).toBeTruthy()
+    expect(screen.queryByText('POS-0908-014')).toBeNull()
   })
 })
