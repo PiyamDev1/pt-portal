@@ -1,13 +1,15 @@
 'use client'
 
-import { useMemo, useState, type ComponentType } from 'react'
+import { Fragment, useMemo, useState, type ComponentType } from 'react'
 import { toast } from 'sonner'
 import {
   ArrowDownLeft,
   ArrowUpRight,
   BadgePoundSterling,
   Banknote,
+  BarChart3,
   Building2,
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
@@ -36,6 +38,7 @@ import { PosRegisterIcon } from '@/app/components/icons/PosRegisterIcon'
 type IconComponent = ComponentType<{ className?: string }>
 type PaymentMethod = 'Cash' | 'Card' | 'Bank'
 type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
+type LedgerPeriod = 'day' | 'month'
 
 type CategoryPreset = {
   id: string
@@ -49,6 +52,7 @@ type CategoryPreset = {
 
 type PreviewTransaction = {
   id: string
+  date: string
   time: string
   name: string
   category: string
@@ -224,6 +228,7 @@ const CATEGORY_MENU: Array<
 const TRANSACTIONS: PreviewTransaction[] = [
   {
     id: 'POS-0908-014',
+    date: '2026-09-08',
     time: '14:18',
     name: 'Walk-in',
     category: 'Document help',
@@ -235,6 +240,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-013',
+    date: '2026-09-08',
     time: '13:52',
     name: 'Aisha Khan',
     category: 'Ticketing',
@@ -246,6 +252,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-012',
+    date: '2026-09-08',
     time: '13:21',
     name: 'British Airways',
     category: 'Ticketing · Supplier',
@@ -258,6 +265,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-011',
+    date: '2026-09-08',
     time: '12:46',
     name: 'Aisha Khan',
     category: 'Partial refund',
@@ -269,6 +277,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-010',
+    date: '2026-09-08',
     time: '11:40',
     name: 'Coin reserve',
     category: 'Extra coins',
@@ -280,6 +289,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-009',
+    date: '2026-09-08',
     time: '10:15',
     name: 'Office supplies',
     category: 'Expense',
@@ -291,6 +301,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-008',
+    date: '2026-09-08',
     time: '09:48',
     name: 'Emirates',
     category: 'Ticket & Package · Supplier',
@@ -303,6 +314,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-007',
+    date: '2026-09-08',
     time: '09:22',
     name: 'Bilal Ahmed',
     category: 'NICOP · Normal',
@@ -314,6 +326,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-006',
+    date: '2026-09-08',
     time: '09:05',
     name: 'Walk-in',
     category: 'GB Passport',
@@ -325,6 +338,7 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
   {
     id: 'POS-0908-005',
+    date: '2026-09-08',
     time: '08:51',
     name: 'Walk-in',
     category: 'Remittance',
@@ -333,6 +347,55 @@ const TRANSACTIONS: PreviewTransaction[] = [
     points: 0,
     status: 'Posted',
     note: 'Remittance counter payment',
+  },
+  {
+    id: 'POS-0907-018',
+    date: '2026-09-07',
+    time: '16:10',
+    name: 'Ayesha Travel',
+    category: 'Ticket & Package · Supplier',
+    method: 'Bank',
+    amount: -500,
+    points: 0,
+    status: 'Supplier payment',
+    note: 'Package supplier deposit',
+    supplier: 'Ayesha Travel',
+  },
+  {
+    id: 'POS-0907-017',
+    date: '2026-09-07',
+    time: '13:35',
+    name: 'Sara Ali',
+    category: 'NICOP / CNIC',
+    method: 'Cash',
+    amount: 50,
+    points: 0,
+    status: 'Posted',
+    note: 'NADRA application payment',
+  },
+  {
+    id: 'POS-0906-012',
+    date: '2026-09-06',
+    time: '12:20',
+    name: 'Walk-in',
+    category: 'Document help',
+    method: 'Cash',
+    amount: 18,
+    points: 18,
+    status: 'Posted',
+    note: 'Printing and document assistance',
+  },
+  {
+    id: 'POS-0901-004',
+    date: '2026-09-01',
+    time: '10:05',
+    name: 'Office supplies',
+    category: 'Expense',
+    method: 'Cash',
+    amount: -24.5,
+    points: 0,
+    status: 'Posted',
+    note: 'Printer paper',
   },
 ]
 
@@ -348,6 +411,7 @@ const NAV_ITEMS = [
   { label: 'Closeout', icon: ShieldCheck },
   { label: 'Supplier balances', icon: Building2 },
   { label: 'Refunds', icon: RotateCcw },
+  { label: 'Reports', icon: BarChart3 },
 ]
 
 const FILTERS = ['All', 'Cash', 'Card', 'Bank', 'Outgoing'] as const
@@ -363,6 +427,28 @@ function formatMoney(value: number) {
     style: 'currency',
     currency: 'GBP',
   }).format(Math.abs(value))
+}
+
+function formatSignedMoney(value: number) {
+  return `${value < 0 ? '−' : '+'}${formatMoney(value)}`
+}
+
+function formatLedgerDate(date: string, includeYear = false) {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: includeYear ? 'numeric' : undefined,
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T12:00:00Z`))
+}
+
+function formatLedgerMonth(date: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${date.slice(0, 7)}-01T12:00:00Z`))
 }
 
 function statusTone(status: string) {
@@ -411,6 +497,8 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [sortBy, setSortBy] = useState<(typeof SORTS)[number]>('Supplier')
+  const [ledgerPeriod, setLedgerPeriod] = useState<LedgerPeriod>('day')
+  const [ledgerDate, setLedgerDate] = useState('2026-09-08')
   const [selectedTransactionId, setSelectedTransactionId] = useState(TRANSACTIONS[0].id)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('document-help')
@@ -422,7 +510,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [memberAttached, setMemberAttached] = useState(false)
-  const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>(['nadra-services'])
+  const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
 
   const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
@@ -449,6 +537,10 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const filteredTransactions = useMemo(() => {
     const needle = search.trim().toLowerCase()
     const matches = TRANSACTIONS.filter((transaction) => {
+      const matchesPeriod =
+        ledgerPeriod === 'month'
+          ? transaction.date.startsWith(ledgerDate.slice(0, 7))
+          : transaction.date === ledgerDate
       const matchesSearch =
         !needle ||
         [transaction.id, transaction.name, transaction.category, transaction.note]
@@ -459,10 +551,13 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
         activeFilter === 'All' ||
         transaction.method === activeFilter ||
         (activeFilter === 'Outgoing' && transaction.amount < 0)
-      return matchesSearch && matchesFilter
+      return matchesPeriod && matchesSearch && matchesFilter
     })
 
     return matches.sort((left, right) => {
+      if (ledgerPeriod === 'month' && left.date !== right.date) {
+        return right.date.localeCompare(left.date)
+      }
       if (sortBy === 'Newest') return right.time.localeCompare(left.time)
 
       if (left.supplier && !right.supplier) return -1
@@ -473,7 +568,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
       }
       return right.time.localeCompare(left.time)
     })
-  }, [activeFilter, search, sortBy])
+  }, [activeFilter, ledgerDate, ledgerPeriod, search, sortBy])
 
   const selectedTransaction =
     TRANSACTIONS.find((transaction) => transaction.id === selectedTransactionId) || null
@@ -685,7 +780,10 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                 const childSelected = menuItem.children.includes(categoryId)
 
                 return (
-                  <div key={menuItem.id} className="col-span-2 grid grid-cols-2 gap-1.5">
+                  <div
+                    key={menuItem.id}
+                    className={`grid gap-1.5 ${expanded ? 'col-span-2 grid-cols-2' : ''}`}
+                  >
                     <button
                       type="button"
                       onClick={() => toggleCategoryGroup(menuItem.id)}
@@ -693,7 +791,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                       aria-expanded={expanded}
                       aria-controls={`${menuItem.id}-subcategories`}
                       className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
-                        childSelected
+                        expanded || childSelected
                           ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
                           : 'border-sky-200 bg-sky-50 text-sky-800'
                       }`}
@@ -798,17 +896,58 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
             <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-black text-slate-950">Today&apos;s ledger</h2>
+                  <h2 className="text-base font-black text-slate-950">
+                    {ledgerPeriod === 'month'
+                      ? 'Monthly ledger'
+                      : ledgerDate === '2026-09-08'
+                        ? "Today's ledger"
+                        : 'Daily ledger'}
+                  </h2>
                   <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-600">
                     {filteredTransactions.length}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500">
-                  Tuesday, 8 September ·{' '}
+                  {ledgerPeriod === 'month'
+                    ? `${formatLedgerMonth(ledgerDate)} · grouped by day · `
+                    : `${formatLedgerDate(ledgerDate, true)} · `}
                   {sortBy === 'Supplier' ? 'suppliers first' : 'newest first'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <div className="flex h-9 rounded-xl border border-slate-200 bg-white p-1">
+                  {(['day', 'month'] as LedgerPeriod[]).map((period) => (
+                    <button
+                      key={period}
+                      type="button"
+                      onClick={() => setLedgerPeriod(period)}
+                      aria-pressed={ledgerPeriod === period}
+                      className={`rounded-lg px-2 text-[10px] font-black capitalize transition ${
+                        ledgerPeriod === period
+                          ? 'bg-slate-950 text-white'
+                          : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      {period}
+                    </button>
+                  ))}
+                </div>
+                <label className="relative">
+                  <span className="sr-only">
+                    {ledgerPeriod === 'month' ? 'Ledger month' : 'Ledger date'}
+                  </span>
+                  <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type={ledgerPeriod === 'month' ? 'month' : 'date'}
+                    value={ledgerPeriod === 'month' ? ledgerDate.slice(0, 7) : ledgerDate}
+                    onChange={(event) =>
+                      setLedgerDate(
+                        ledgerPeriod === 'month' ? `${event.target.value}-01` : event.target.value,
+                      )
+                    }
+                    className="h-9 rounded-xl border border-slate-200 bg-white pl-8 pr-2 text-[10px] font-bold text-slate-700 outline-none focus:border-[#8b1e2d]"
+                  />
+                </label>
                 <label className="relative min-w-0 flex-1 lg:w-56">
                   <span className="sr-only">Search transactions</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -886,98 +1025,137 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTransactions.map((transaction) => (
-                    <tr
-                      key={transaction.id}
-                      onClick={() => setSelectedTransactionId(transaction.id)}
-                      className={`cursor-pointer transition hover:bg-slate-50 ${
-                        selectedTransactionId === transaction.id ? 'bg-red-50/50' : 'bg-white'
-                      }`}
-                    >
-                      <td className="px-3 py-2">
-                        <p className="text-xs font-black text-slate-900">{transaction.time}</p>
-                        <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                          {transaction.id}
-                        </p>
-                      </td>
-                      <td className="px-3 py-2">
-                        <p className="text-xs font-bold text-slate-900">{transaction.name}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-500">{transaction.category}</p>
-                      </td>
-                      <td className="px-3 py-2">
-                        {transaction.supplier ? (
-                          <span className="inline-flex rounded-md bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-700">
-                            {transaction.supplier}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-300">—</span>
+                  {filteredTransactions.map((transaction, index) => (
+                    <Fragment key={transaction.id}>
+                      {ledgerPeriod === 'month' &&
+                        (index === 0 ||
+                          filteredTransactions[index - 1].date !== transaction.date) && (
+                          <tr>
+                            <td
+                              colSpan={8}
+                              className="border-y-4 border-white bg-slate-100 px-3 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-[11px] font-black text-slate-800">
+                                  {formatLedgerDate(transaction.date)}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {
+                                    filteredTransactions.filter(
+                                      (item) => item.date === transaction.date,
+                                    ).length
+                                  }{' '}
+                                  entries · net{' '}
+                                  {formatSignedMoney(
+                                    filteredTransactions
+                                      .filter((item) => item.date === transaction.date)
+                                      .reduce((total, item) => total + item.amount, 0),
+                                  )}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                          {transaction.method === 'Cash' ? (
-                            <Banknote className="h-3.5 w-3.5" />
-                          ) : transaction.method === 'Card' ? (
-                            <CreditCard className="h-3.5 w-3.5" />
+                      <tr
+                        onClick={() => setSelectedTransactionId(transaction.id)}
+                        className={`cursor-pointer transition hover:bg-slate-50 ${
+                          selectedTransactionId === transaction.id ? 'bg-red-50/50' : 'bg-white'
+                        }`}
+                      >
+                        <td className="px-3 py-2">
+                          <p className="text-xs font-black text-slate-900">{transaction.time}</p>
+                          <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                            {transaction.id}
+                          </p>
+                        </td>
+                        <td className="px-3 py-2">
+                          <p className="text-xs font-bold text-slate-900">{transaction.name}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {transaction.category}
+                          </p>
+                        </td>
+                        <td className="px-3 py-2">
+                          {transaction.supplier ? (
+                            <span className="inline-flex rounded-md bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-700">
+                              {transaction.supplier}
+                            </span>
                           ) : (
-                            <Landmark className="h-3.5 w-3.5" />
+                            <span className="text-xs text-slate-300">—</span>
                           )}
-                          {transaction.method}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs font-black text-emerald-700">
-                        {transaction.amount > 0 ? formatMoney(transaction.amount) : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs font-black text-rose-700">
-                        {transaction.amount < 0 ? formatMoney(transaction.amount) : '—'}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${statusTone(transaction.status)}`}
-                        >
-                          {transaction.status}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-slate-400">
-                        <ChevronRight className="h-4 w-4" />
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                            {transaction.method === 'Cash' ? (
+                              <Banknote className="h-3.5 w-3.5" />
+                            ) : transaction.method === 'Card' ? (
+                              <CreditCard className="h-3.5 w-3.5" />
+                            ) : (
+                              <Landmark className="h-3.5 w-3.5" />
+                            )}
+                            {transaction.method}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs font-black text-emerald-700">
+                          {transaction.amount > 0 ? formatMoney(transaction.amount) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs font-black text-rose-700">
+                          {transaction.amount < 0 ? formatMoney(transaction.amount) : '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${statusTone(transaction.status)}`}
+                          >
+                            {transaction.status}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-slate-400">
+                          <ChevronRight className="h-4 w-4" />
+                        </td>
+                      </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
 
             <div className="max-h-60 divide-y divide-slate-100 overflow-y-auto md:hidden">
-              {filteredTransactions.map((transaction) => (
-                <button
-                  key={transaction.id}
-                  type="button"
-                  onClick={() => setSelectedTransactionId(transaction.id)}
-                  className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-slate-50"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-black text-slate-900">
-                        {transaction.name}
-                      </p>
-                      <span className="text-[10px] font-semibold text-slate-400">
-                        {transaction.time}
-                      </span>
+              {filteredTransactions.map((transaction, index) => (
+                <Fragment key={transaction.id}>
+                  {ledgerPeriod === 'month' &&
+                    (index === 0 || filteredTransactions[index - 1].date !== transaction.date) && (
+                      <div className="border-y-4 border-white bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-800">
+                        {formatLedgerDate(transaction.date)}
+                      </div>
+                    )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTransactionId(transaction.id)}
+                    className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-slate-50"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-black text-slate-900">
+                          {transaction.name}
+                        </p>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          {transaction.time}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-slate-500">{transaction.category}</p>
                     </div>
-                    <p className="mt-1 truncate text-xs text-slate-500">{transaction.category}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p
-                      className={`text-sm font-black ${transaction.amount < 0 ? 'text-rose-700' : 'text-emerald-700'}`}
-                    >
-                      {transaction.amount < 0 ? '−' : '+'}
-                      {formatMoney(transaction.amount)}
-                    </p>
-                    <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                      {transaction.method}
-                    </p>
-                  </div>
-                </button>
+                    <div className="shrink-0 text-right">
+                      <p
+                        className={`text-sm font-black ${transaction.amount < 0 ? 'text-rose-700' : 'text-emerald-700'}`}
+                      >
+                        {transaction.amount < 0 ? '−' : '+'}
+                        {formatMoney(transaction.amount)}
+                      </p>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                        {transaction.method}
+                      </p>
+                    </div>
+                  </button>
+                </Fragment>
               ))}
             </div>
 
@@ -1119,14 +1297,14 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
               </span>
             </div>
 
-            <div className="space-y-3 p-3">
+            <div className="space-y-2 p-2.5">
               {!isTransfer && (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2.5">
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2">
                   {memberAttached ? (
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                          <UserRound className="h-5 w-5" />
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                          <UserRound className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
                           <p className="truncate text-xs font-black text-slate-900">Aisha Khan</p>
@@ -1170,8 +1348,8 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                       className="flex w-full items-center justify-between gap-3 text-left"
                     >
                       <span className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#8b1e2d] shadow-sm ring-1 ring-slate-200">
-                          <ScanBarcode className="h-5 w-5" />
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#8b1e2d] shadow-sm ring-1 ring-slate-200">
+                          <ScanBarcode className="h-4 w-4" />
                         </span>
                         <span>
                           <span className="block text-xs font-black text-slate-900">
@@ -1209,10 +1387,10 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
               ) : null}
 
               <div
-                className={`grid gap-3 ${!isOutgoing && !isTransfer ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
+                className={`grid gap-2 ${!isOutgoing && !isTransfer ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
               >
                 <label>
-                  <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">
+                  <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                     {isTransfer
                       ? 'Movement note'
                       : isOutgoing
@@ -1226,11 +1404,11 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                       setSupplierConfirmed(false)
                     }}
                     placeholder={isTransfer ? 'Coin reserve' : 'Walk-in or type a name'}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
                   />
                 </label>
                 <label>
-                  <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">
+                  <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                     {!isOutgoing && !isTransfer ? 'Total price' : 'Amount'}
                   </span>
                   <span className="relative block">
@@ -1243,13 +1421,13 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                       }}
                       inputMode="decimal"
                       aria-label="Transaction amount"
-                      className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-base font-black text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-black text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
                     />
                   </span>
                 </label>
                 {!isOutgoing && !isTransfer && (
                   <label>
-                    <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">
+                    <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                       Amount paid now
                     </span>
                     <span className="relative block">
@@ -1259,7 +1437,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                         onChange={(event) => setAmountPaid(event.target.value)}
                         inputMode="decimal"
                         aria-label="Amount paid now"
-                        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-base font-black text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                        className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-black text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
                       />
                     </span>
                   </label>
@@ -1296,7 +1474,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
 
               {isOutgoing && (
                 <div>
-                  <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
+                  <p className="mb-1 text-[9px] font-black uppercase tracking-wide text-slate-500">
                     What type of outgoing is this?
                   </p>
                   <div className="grid grid-cols-3 gap-2">
@@ -1405,7 +1583,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                           key={method}
                           type="button"
                           onClick={() => setPaymentMethod(method)}
-                          className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition ${
+                          className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] font-black transition ${
                             paymentMethod === method
                               ? 'border-slate-950 bg-slate-950 text-white'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -1420,7 +1598,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                 </div>
               )}
 
-              <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2 text-xs text-slate-600">
                   {isTransfer ? (
                     <Coins className="h-4 w-4 text-amber-600" />

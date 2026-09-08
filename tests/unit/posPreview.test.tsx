@@ -7,6 +7,10 @@ describe('POS frontend preview', () => {
     render(<PosPreviewClient branchName="Bradford" />)
 
     const nadraMenu = screen.getByLabelText('NADRA Applications and certificates')
+    expect(nadraMenu.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByLabelText('NICOP / CNIC')).toBeNull()
+
+    fireEvent.click(nadraMenu)
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByLabelText('NICOP / CNIC')).toBeTruthy()
     expect(screen.getByLabelText('POC')).toBeTruthy()
@@ -53,5 +57,23 @@ describe('POS frontend preview', () => {
     fireEvent.click(screen.getByLabelText('Extra coins Drawer ↔ reserve'))
     expect(screen.getByText('Internal transfer')).toBeTruthy()
     expect(screen.getByText('Extra-coin reserve')).toBeTruthy()
+  })
+
+  it('switches between dated daily and separated monthly ledger views', () => {
+    render(<PosPreviewClient branchName="Bradford" />)
+
+    expect(screen.getByTitle('Reports')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Ledger date'), {
+      target: { value: '2026-09-07' },
+    })
+    expect(screen.getByRole('heading', { name: 'Daily ledger' })).toBeTruthy()
+    expect(screen.getAllByText('Ayesha Travel').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'month' }))
+    expect(screen.getByRole('heading', { name: 'Monthly ledger' })).toBeTruthy()
+    expect(screen.getByLabelText('Ledger month')).toBeTruthy()
+    expect(screen.getAllByText('Tuesday 8 September').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Monday 7 September').length).toBeGreaterThan(0)
   })
 })

@@ -626,6 +626,11 @@ The first POS ledger should be a clearer replacement for the current Excel colum
 Date | Type | Name | Payment method | In | Out | Note | Agent | Reference | Status
 ```
 
+The ledger header should provide `Day` and `Month` views with a native date/month selector. Day view
+opens on today but allows any earlier business date, including yesterday. Month view groups entries by
+business date, keeps supplier sorting within each day, and inserts a clearly spaced date band between
+days showing the date, entry count, and daily net total.
+
 Reports should provide:
 
 - Gross receipts.
