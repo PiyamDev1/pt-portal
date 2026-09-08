@@ -6,15 +6,23 @@ describe('POS frontend preview', () => {
   it('shows operational categories, supplier sorting, and compact transaction editing', () => {
     render(<PosPreviewClient branchName="Bradford" />)
 
-    expect(screen.getByRole('button', { name: /NADRA Application payment/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /NICOP · Normal NADRA service/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /NICOP · Urgent NADRA service/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /FRC NADRA certificate/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /PK Passport Application payment/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /GB Passport Application payment/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Visa Application payment/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Ticket & Package Tracked booking/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Remittance Fee · loyalty eligible/i })).toBeTruthy()
+    const nadraMenu = screen.getByLabelText('NADRA NICOP and certificates')
+    expect(nadraMenu.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByLabelText('NICOP · Normal')).toBeTruthy()
+    expect(screen.getByLabelText('NICOP · Urgent')).toBeTruthy()
+    expect(screen.getByLabelText('FRC')).toBeTruthy()
+
+    fireEvent.click(nadraMenu)
+    expect(nadraMenu.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByLabelText('NICOP · Normal')).toBeNull()
+
+    fireEvent.click(nadraMenu)
+    expect(screen.getByLabelText('NICOP · Normal')).toBeTruthy()
+    expect(screen.getByLabelText('PK Passport Application payment')).toBeTruthy()
+    expect(screen.getByLabelText('GB Passport Application payment')).toBeTruthy()
+    expect(screen.getByLabelText('Visa Application payment')).toBeTruthy()
+    expect(screen.getByLabelText('Ticket & Package Tracked booking')).toBeTruthy()
+    expect(screen.getByLabelText('Remittance Fee · loyalty eligible')).toBeTruthy()
 
     expect((screen.getByLabelText('Sort ledger') as HTMLSelectElement).value).toBe('Supplier')
 
@@ -31,14 +39,14 @@ describe('POS frontend preview', () => {
     expect(screen.getByRole('heading', { name: 'Daily transactions' })).toBeTruthy()
     expect(screen.getByText('Bradford')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /Supplier payment Match a supplier/i }))
+    fireEvent.click(screen.getByLabelText('Supplier payment Match a supplier'))
     expect(screen.getByText('Possible supplier match')).toBeTruthy()
     expect(screen.getAllByText('British Airways').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Use this supplier' }))
     expect(screen.getByText('Supplier confirmed')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /Extra coins Drawer/i }))
+    fireEvent.click(screen.getByLabelText('Extra coins Drawer ↔ reserve'))
     expect(screen.getByText('Internal transfer')).toBeTruthy()
     expect(screen.getByText('Extra-coin reserve')).toBeTruthy()
   })

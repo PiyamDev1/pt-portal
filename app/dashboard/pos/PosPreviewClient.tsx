@@ -189,6 +189,29 @@ const CATEGORIES: CategoryPreset[] = [
   },
 ]
 
+const CATEGORY_MENU: Array<
+  | { id: string; label: string; caption: string; icon: IconComponent; children: string[] }
+  | { id: string; categoryId: string }
+> = [
+  {
+    id: 'nadra-services',
+    label: 'NADRA',
+    caption: 'NICOP and certificates',
+    icon: FileText,
+    children: ['nicop-normal', 'nicop-urgent', 'frc'],
+  },
+  { id: 'pk-passport-menu', categoryId: 'pk-passport' },
+  { id: 'gb-passport-menu', categoryId: 'gb-passport' },
+  { id: 'visa-menu', categoryId: 'visa' },
+  { id: 'ticket-package-menu', categoryId: 'ticket-package' },
+  { id: 'remittance-menu', categoryId: 'remittance' },
+  { id: 'document-help-menu', categoryId: 'document-help' },
+  { id: 'supplier-menu', categoryId: 'supplier' },
+  { id: 'expense-menu', categoryId: 'expense' },
+  { id: 'refund-menu', categoryId: 'refund' },
+  { id: 'extra-coins-menu', categoryId: 'extra-coins' },
+]
+
 const TRANSACTIONS: PreviewTransaction[] = [
   {
     id: 'POS-0908-014',
@@ -384,6 +407,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [memberAttached, setMemberAttached] = useState(false)
+  const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>(['nadra-services'])
 
   const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
@@ -473,6 +497,14 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     setAmount(category.id === 'ticket-package' ? '420.00' : '25.00')
     setPaymentMethod(category.id === 'ticket-package' ? 'Card' : 'Cash')
     setOutgoingType(null)
+  }
+
+  function toggleCategoryGroup(groupId: string) {
+    setExpandedCategoryGroups((current) =>
+      current.includes(groupId)
+        ? current.filter((expandedId) => expandedId !== groupId)
+        : [...current, groupId],
+    )
   }
 
   function previewSave() {
@@ -618,32 +650,109 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
             </div>
             <ChevronDown className="h-4 w-4 text-slate-400 xl:hidden" />
           </div>
-          <div className="grid max-h-[31rem] grid-cols-2 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-4 xl:grid-cols-2">
-            {CATEGORIES.map((category) => {
+          <div className="grid max-h-[31rem] grid-cols-2 gap-1.5 overflow-y-auto pr-1">
+            {CATEGORY_MENU.map((menuItem) => {
+              if ('children' in menuItem) {
+                const Icon = menuItem.icon
+                const expanded = expandedCategoryGroups.includes(menuItem.id)
+                const childSelected = menuItem.children.includes(categoryId)
+
+                return (
+                  <div key={menuItem.id} className="col-span-2 grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleCategoryGroup(menuItem.id)}
+                      aria-label={`${menuItem.label} ${menuItem.caption}`}
+                      aria-expanded={expanded}
+                      aria-controls={`${menuItem.id}-subcategories`}
+                      className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                        childSelected
+                          ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
+                          : 'border-sky-200 bg-sky-50 text-sky-800'
+                      }`}
+                    >
+                      <span className="flex w-full items-start justify-between">
+                        <Icon className="h-4 w-4" />
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                        />
+                      </span>
+                      <span>
+                        <span className="block text-[11px] font-black leading-tight">
+                          {menuItem.label}
+                        </span>
+                        <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-65">
+                          {menuItem.caption}
+                        </span>
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div
+                        id={`${menuItem.id}-subcategories`}
+                        className="col-span-2 space-y-1 rounded-xl bg-slate-950 p-1.5"
+                      >
+                        {menuItem.children.map((childId) => {
+                          const category = CATEGORIES.find((item) => item.id === childId)
+                          if (!category) return null
+                          const selected = category.id === categoryId
+
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => chooseCategory(category)}
+                              aria-label={category.label}
+                              aria-pressed={selected}
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-black transition ${
+                                selected
+                                  ? 'bg-[#8b1e2d] text-white'
+                                  : 'bg-white/5 text-slate-100 hover:bg-white/10'
+                              }`}
+                            >
+                              <span>{category.label}</span>
+                              {selected && <Check className="h-3.5 w-3.5" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              const category = CATEGORIES.find((item) => item.id === menuItem.categoryId)
+              if (!category) return null
               const Icon = category.icon
               const selected = category.id === categoryId
+
               return (
                 <button
-                  key={category.id}
+                  key={menuItem.id}
                   type="button"
                   onClick={() => chooseCategory(category)}
+                  aria-label={`${category.label} ${category.caption}`}
                   aria-pressed={selected}
-                  className={`group min-h-[4.4rem] rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                  className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
                     selected
-                      ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white shadow-md shadow-red-950/10'
-                      : category.tone
+                      ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white shadow-sm'
+                      : `${category.tone} hover:border-slate-300`
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <Icon className="h-4 w-4" />
-                    {selected && <Check className="h-3.5 w-3.5" />}
-                  </div>
-                  <p className="mt-1.5 text-[11px] font-black leading-tight">{category.label}</p>
-                  <p
-                    className={`mt-0.5 text-[9px] leading-tight ${selected ? 'text-red-100' : 'opacity-70'}`}
-                  >
-                    {category.caption}
-                  </p>
+                  <span className="flex w-full items-start justify-between">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </span>
+                  <span>
+                    <span className="block text-[11px] font-black leading-tight">
+                      {category.label}
+                    </span>
+                    <span
+                      className={`mt-0.5 block text-[9px] leading-tight ${selected ? 'text-red-100' : 'opacity-65'}`}
+                    >
+                      {category.caption}
+                    </span>
+                  </span>
                 </button>
               )
             })}

@@ -668,8 +668,11 @@ The POS left rail should be POS navigation, not a duplicate dashboard module men
 - Reports.
 - Unreconciled card/bank items.
 
-The right rail should be labelled `Quick entry categories`. The dashboard module catalogue should
-contain one POS module entry, while POS categories remain internal presets.
+The right rail should be labelled `Quick entry categories`. Main categories should remain square tiles.
+A tile with service variants should expand and collapse a compact subcategory list directly beneath it;
+for example, the `NADRA` tile reveals list rows for `NICOP - Normal`, `NICOP - Urgent`, and `FRC`.
+The dashboard module catalogue should contain one POS module entry, while POS categories remain internal
+presets.
 
 On desktop, the POS navigation rail should default to icon-only width and expand on pointer hover or
 keyboard focus. The daily ledger should use the released width, keep its column header visible, and
