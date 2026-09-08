@@ -1602,13 +1602,16 @@ begin
   end if;
 
   if refund_kind_value = 'LINKED' then
-    select transaction_row, shift.status into original_row, original_shift_status
+    select * into original_row
     from public.pos_transactions transaction_row
-    join public.pos_shifts shift on shift.id = transaction_row.shift_id
     where transaction_row.id = nullif(p_request ->> 'originalTransactionId', '')::uuid
       and transaction_row.location_id = actor_location_id
-    for update of transaction_row;
+    for update;
     if not found then raise exception 'Original POS transaction not found' using errcode = 'P0002'; end if;
+    select status into original_shift_status
+    from public.pos_shifts
+    where id = original_row.shift_id
+    for share;
     if original_row.direction <> 'IN' or original_row.amount_paid <= 0 then
       raise exception 'Only received customer payments can be refunded' using errcode = '22023';
     end if;
