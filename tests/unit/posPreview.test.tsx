@@ -64,16 +64,41 @@ describe('POS frontend preview', () => {
 
     expect(screen.getByTitle('Reports')).toBeTruthy()
 
-    fireEvent.change(screen.getByLabelText('Ledger date'), {
-      target: { value: '2026-09-07' },
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Previous day' }))
+    expect((screen.getByLabelText('Ledger date') as HTMLInputElement).value).toBe('2026-09-07')
     expect(screen.getByRole('heading', { name: 'Daily ledger' })).toBeTruthy()
     expect(screen.getAllByText('Ayesha Travel').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
+    expect(screen.getByRole('heading', { name: "Today's ledger" })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous day' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'month' }))
     expect(screen.getByRole('heading', { name: 'Monthly ledger' })).toBeTruthy()
     expect(screen.getByLabelText('Ledger month')).toBeTruthy()
     expect(screen.getAllByText('Tuesday 8 September').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Monday 7 September').length).toBeGreaterThan(0)
+    expect(screen.getByText('Active days')).toBeTruthy()
+    expect(screen.getAllByText('Money in').length).toBeGreaterThan(0)
+    expect(screen.getByText('Money out')).toBeTruthy()
+    expect(screen.getByText('Net movement')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect((screen.getByLabelText('Ledger month') as HTMLInputElement).value).toBe('2026-08')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+    expect(screen.getByRole('heading', { name: "Today's ledger" })).toBeTruthy()
+    expect((screen.getByLabelText('Ledger date') as HTMLInputElement).value).toBe('2026-09-08')
+  })
+
+  it('offers keyboard shortcuts for search and quick entry', () => {
+    render(<PosPreviewClient branchName="Bradford" />)
+
+    fireEvent.keyDown(window, { key: '/' })
+    expect(document.activeElement).toBe(screen.getByLabelText('Search transactions'))
+
+    fireEvent.blur(screen.getByLabelText('Search transactions'))
+    fireEvent.keyDown(window, { key: 'n' })
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Walk-in or type a name'))
   })
 })

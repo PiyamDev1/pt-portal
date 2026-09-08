@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useMemo, useState, type ComponentType } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { toast } from 'sonner'
 import {
   ArrowDownLeft,
@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   Coins,
@@ -39,6 +40,8 @@ type IconComponent = ComponentType<{ className?: string }>
 type PaymentMethod = 'Cash' | 'Card' | 'Bank'
 type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
 type LedgerPeriod = 'day' | 'month'
+
+const DEMO_TODAY = '2026-09-08'
 
 type CategoryPreset = {
   id: string
@@ -451,6 +454,17 @@ function formatLedgerMonth(date: string) {
   }).format(new Date(`${date.slice(0, 7)}-01T12:00:00Z`))
 }
 
+function shiftLedgerDate(date: string, period: LedgerPeriod, offset: number) {
+  const value = new Date(`${date}T12:00:00Z`)
+  if (period === 'month') {
+    value.setUTCDate(1)
+    value.setUTCMonth(value.getUTCMonth() + offset)
+  } else {
+    value.setUTCDate(value.getUTCDate() + offset)
+  }
+  return value.toISOString().slice(0, 10)
+}
+
 function statusTone(status: string) {
   if (status === 'Posted') return 'bg-emerald-50 text-emerald-700 ring-emerald-600/10'
   if (status === 'Pending') return 'bg-amber-50 text-amber-700 ring-amber-600/10'
@@ -493,12 +507,14 @@ function SummaryCard({
 }
 
 export default function PosPreviewClient({ branchName }: { branchName: string }) {
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const quickEntryInputRef = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [sortBy, setSortBy] = useState<(typeof SORTS)[number]>('Supplier')
   const [ledgerPeriod, setLedgerPeriod] = useState<LedgerPeriod>('day')
-  const [ledgerDate, setLedgerDate] = useState('2026-09-08')
+  const [ledgerDate, setLedgerDate] = useState(DEMO_TODAY)
   const [selectedTransactionId, setSelectedTransactionId] = useState(TRANSACTIONS[0].id)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('document-help')
@@ -570,8 +586,52 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     })
   }, [activeFilter, ledgerDate, ledgerPeriod, search, sortBy])
 
+  const monthlySummary = useMemo(() => {
+    const moneyIn = filteredTransactions.reduce(
+      (total, transaction) => total + Math.max(transaction.amount, 0),
+      0,
+    )
+    const moneyOut = filteredTransactions.reduce(
+      (total, transaction) => total + Math.abs(Math.min(transaction.amount, 0)),
+      0,
+    )
+
+    return {
+      days: new Set(filteredTransactions.map((transaction) => transaction.date)).size,
+      moneyIn,
+      moneyOut,
+      net: moneyIn - moneyOut,
+    }
+  }, [filteredTransactions])
+
   const selectedTransaction =
     TRANSACTIONS.find((transaction) => transaction.id === selectedTransactionId) || null
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+
+      const target = event.target as HTMLElement | null
+      const isTyping =
+        target?.isContentEditable ||
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'SELECT' ||
+        target?.tagName === 'TEXTAREA'
+      if (isTyping) return
+
+      if (event.key === '/') {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+      }
+      if (event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        quickEntryInputRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
 
   function chooseCategory(category: CategoryPreset, categoryGroupId?: string) {
     setCategoryId(category.id)
@@ -899,7 +959,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                   <h2 className="text-base font-black text-slate-950">
                     {ledgerPeriod === 'month'
                       ? 'Monthly ledger'
-                      : ledgerDate === '2026-09-08'
+                      : ledgerDate === DEMO_TODAY
                         ? "Today's ledger"
                         : 'Daily ledger'}
                   </h2>
@@ -932,31 +992,74 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                     </button>
                   ))}
                 </div>
-                <label className="relative">
-                  <span className="sr-only">
-                    {ledgerPeriod === 'month' ? 'Ledger month' : 'Ledger date'}
-                  </span>
-                  <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type={ledgerPeriod === 'month' ? 'month' : 'date'}
-                    value={ledgerPeriod === 'month' ? ledgerDate.slice(0, 7) : ledgerDate}
-                    onChange={(event) =>
-                      setLedgerDate(
-                        ledgerPeriod === 'month' ? `${event.target.value}-01` : event.target.value,
-                      )
+                <div className="flex h-9 items-center rounded-xl border border-slate-200 bg-white">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLedgerDate((current) => shiftLedgerDate(current, ledgerPeriod, -1))
                     }
-                    className="h-9 rounded-xl border border-slate-200 bg-white pl-8 pr-2 text-[10px] font-bold text-slate-700 outline-none focus:border-[#8b1e2d]"
-                  />
-                </label>
+                    aria-label={ledgerPeriod === 'month' ? 'Previous month' : 'Previous day'}
+                    className="flex h-full w-8 items-center justify-center rounded-l-xl text-slate-500 hover:bg-slate-100"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <label className="relative h-full">
+                    <span className="sr-only">
+                      {ledgerPeriod === 'month' ? 'Ledger month' : 'Ledger date'}
+                    </span>
+                    <CalendarDays className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type={ledgerPeriod === 'month' ? 'month' : 'date'}
+                      value={ledgerPeriod === 'month' ? ledgerDate.slice(0, 7) : ledgerDate}
+                      onChange={(event) =>
+                        setLedgerDate(
+                          ledgerPeriod === 'month'
+                            ? `${event.target.value}-01`
+                            : event.target.value,
+                        )
+                      }
+                      className="h-full w-[8.5rem] border-x border-slate-200 bg-white pl-7 pr-1 text-[10px] font-bold text-slate-700 outline-none focus:bg-red-50/40"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLedgerDate((current) => shiftLedgerDate(current, ledgerPeriod, 1))
+                    }
+                    aria-label={ledgerPeriod === 'month' ? 'Next month' : 'Next day'}
+                    className="flex h-full w-8 items-center justify-center rounded-r-xl text-slate-500 hover:bg-slate-100"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLedgerPeriod('day')
+                    setLedgerDate(DEMO_TODAY)
+                  }}
+                  className={`h-9 rounded-xl border px-3 text-[10px] font-black transition ${
+                    ledgerPeriod === 'day' && ledgerDate === DEMO_TODAY
+                      ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Today
+                </button>
                 <label className="relative min-w-0 flex-1 lg:w-56">
                   <span className="sr-only">Search transactions</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
+                    ref={searchInputRef}
+                    aria-label="Search transactions"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search reference or name"
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-semibold text-slate-900 outline-none transition placeholder:font-normal focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-xs font-semibold text-slate-900 outline-none transition placeholder:font-normal focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
                   />
+                  <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-black text-slate-400">
+                    /
+                  </kbd>
                 </label>
                 <label className="sr-only" htmlFor="ledger-sort">
                   Sort ledger
@@ -985,6 +1088,27 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                 </button>
               </div>
             </div>
+
+            {ledgerPeriod === 'month' && (
+              <div className="grid grid-cols-2 border-b border-slate-200 bg-white sm:grid-cols-4">
+                {[
+                  { label: 'Active days', value: String(monthlySummary.days) },
+                  { label: 'Money in', value: formatMoney(monthlySummary.moneyIn) },
+                  { label: 'Money out', value: formatMoney(monthlySummary.moneyOut) },
+                  { label: 'Net movement', value: formatSignedMoney(monthlySummary.net) },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="border-r border-t border-slate-100 px-3 py-1.5 last:border-r-0 sm:border-t-0"
+                  >
+                    <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                      {item.label}
+                    </span>
+                    <span className="ml-2 text-xs font-black text-slate-900">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {filtersOpen && (
               <div className="flex flex-wrap gap-2 border-b border-slate-200 bg-white px-4 py-3">
@@ -1279,8 +1403,11 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
           <section className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-[0_20px_55px_-38px_rgba(15,23,42,0.55)]">
             <div className="flex flex-col gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-950 to-slate-800 px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                   Quick transaction
+                  <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[9px] tracking-normal text-slate-300">
+                    N
+                  </kbd>
                 </p>
                 <h2 className="text-sm font-black">{selectedCategory.label}</h2>
               </div>
@@ -1398,6 +1525,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                         : 'Customer or name'}
                   </span>
                   <input
+                    ref={quickEntryInputRef}
                     value={name}
                     onChange={(event) => {
                       setName(event.target.value)

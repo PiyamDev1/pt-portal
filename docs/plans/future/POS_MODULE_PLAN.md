@@ -630,6 +630,10 @@ The ledger header should provide `Day` and `Month` views with a native date/mont
 opens on today but allows any earlier business date, including yesterday. Month view groups entries by
 business date, keeps supplier sorting within each day, and inserts a clearly spaced date band between
 days showing the date, entry count, and daily net total.
+Previous/next controls should move one day or month at a time, while a `Today` shortcut returns directly
+to the current daily ledger. Monthly view should include a compact summary of active days, money in,
+money out, and net movement. Keyboard shortcuts should focus ledger search (`/`) and Quick Entry (`N`)
+when the user is not already typing in a field.
 
 Reports should provide:
 
