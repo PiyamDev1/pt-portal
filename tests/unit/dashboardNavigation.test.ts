@@ -14,6 +14,7 @@ describe('dashboard parent navigation', () => {
     '/dashboard/my-commissions',
     '/dashboard/my-performance',
     '/dashboard/packages',
+    '/dashboard/pos',
     '/dashboard/pricing',
     '/dashboard/settings',
     '/dashboard/ticketing',

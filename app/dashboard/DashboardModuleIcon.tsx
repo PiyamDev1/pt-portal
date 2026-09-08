@@ -14,6 +14,7 @@ import {
   Ticket,
 } from 'lucide-react'
 import { PackageTravelIcon } from '@/app/components/icons/PackageTravelIcon'
+import { PosRegisterIcon } from '@/app/components/icons/PosRegisterIcon'
 import type { DashboardModule } from '@/lib/dashboardModules'
 
 type IconProps = { className?: string }
@@ -30,6 +31,7 @@ const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
   heart: HeartPulse,
   'package-travel': PackageTravelIcon,
   plane: Plane,
+  'pos-register': PosRegisterIcon,
   settings: Settings,
   ticket: Ticket,
 }
