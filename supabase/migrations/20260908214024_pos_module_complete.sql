@@ -1406,7 +1406,7 @@ begin
     customer_phone_value, case when loyalty_code_value is not null then loyalty_user.id end,
     loyalty_source_reference_value, loyalty_points_value, supplier_id_value, supplier_movement_value,
     note_value, search_text_value, p_actor_employee_id, key_value,
-    encode(digest(canonical_request::text, 'sha256'), 'hex')
+    encode(public.digest(canonical_request::text, 'sha256'), 'hex')
   );
 
   for tender_entry in select value, ordinality from jsonb_array_elements(tenders_value) with ordinality loop
@@ -1758,7 +1758,7 @@ begin
     p_actor_employee_id, case when manager_required then p_actor_employee_id end,
     approval_reason_value, case when manager_required then fresh_factor_method_value end,
     points_to_reverse, adjustment_award.id, key_value,
-    encode(digest(canonical_request::text, 'sha256'), 'hex')
+    encode(public.digest(canonical_request::text, 'sha256'), 'hex')
   );
   if points_to_reverse > 0 then
     insert into public.pos_loyalty_adjustments (
@@ -2032,7 +2032,7 @@ begin
     case when original_row.supplier_movement_type is not null then 'CORRECTION' end,
     reason_value, concat_ws(' ', reference_value, original_row.reference_number, original_row.customer_name,
       reason_value, 'expense correction'), p_actor_employee_id, key_value,
-    encode(digest(canonical_request::text, 'sha256'), 'hex'),
+    encode(public.digest(canonical_request::text, 'sha256'), 'hex'),
     jsonb_build_object('correctsTransactionId', original_row.id)
   );
 
@@ -2308,7 +2308,7 @@ begin
     catalogue_row.id, amount_value, amount_value, customer_name_value, note_value,
     concat_ws(' ', reference_value, customer_name_value, catalogue_row.label,
       catalogue_row.option_label, note_value, source_value, row_key_value),
-    p_actor_employee_id, key_value, encode(digest(canonical_request::text, 'sha256'), 'hex'),
+    p_actor_employee_id, key_value, encode(public.digest(canonical_request::text, 'sha256'), 'hex'),
     source_value, row_key_value, jsonb_build_object('originalReference', p_row ->> 'originalReference')
   );
   insert into public.pos_transaction_tenders (
