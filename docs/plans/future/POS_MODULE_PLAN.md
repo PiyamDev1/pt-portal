@@ -119,6 +119,13 @@ Default to the active business day, newest first. Each transaction row should sh
 The row should open a detail drawer containing payment splits, source links, loyalty history, refunds,
 notes, and audit history. Refund should be launched from this detail view.
 
+On desktop, the bottom edge of the ledger is a resize handle. Staff can drag it vertically to choose how
+many rows remain visible for their screen and workflow. Save the chosen height locally for that browser
+and user workstation, clamp it to usable minimum and maximum heights, and keep the table header sticky.
+Double-clicking the handle resets it to the product default. The handle must also support keyboard
+adjustment and reset; mobile may use the default bounded height when resizing would conflict with touch
+scrolling.
+
 ### Search and filters
 
 Search and filtering are core daily POS features, not reporting-only features. Provide a prominent
@@ -188,6 +195,11 @@ Scan flow:
 
 Requirements:
 
+- The scanner starts disarmed. Clicking `Scan loyalty card` arms a clearly visible, focused capture field
+  for one scan and a short timeout (30 seconds initially).
+- Enter submits the captured scan, Escape or `Cancel` disarms it, and a completed or failed lookup
+  disarms it before another scan can be accepted. The operator must deliberately choose `Scan again` to
+  reopen the capture window.
 - Use the existing canonical loyalty customer code/member identity; do not create a second POS card
   number system.
 - Normalize and validate the scanned value server-side.
@@ -196,6 +208,23 @@ Requirements:
 - A failed scan must not block the cash transaction.
 - Do not log raw card/customer codes in operational logs.
 - Record who attached the loyalty member and when, if audit requires it.
+
+A plug-and-play keyboard-wedge scanner is presented to Windows and the browser as a keyboard. The POS
+page can control when it interprets input as a loyalty scan, but it cannot electrically disable that
+device or reliably distinguish every scanner keystroke from fast human typing. If scans must be unable
+to type into whichever field currently has focus, use one of these deployment controls:
+
+- Configure the scanner for trigger/manual mode instead of continuous or presentation mode, with the
+  trigger inaccessible to customers.
+- For the NetumScan A5, evaluate its documented `USB COM` plus `Command Trigger Mode` combination and
+  use an approved Web Serial or local-device bridge that sends start/end commands only during the armed
+  window. Confirm the command set against the exact device firmware before implementation.
+- Reposition or shutter the scanner so a customer cannot present a barcode while the operator is doing
+  sensitive work.
+
+Do not implement timing-based global keystroke blocking as the security boundary: it can corrupt normal
+typing and cannot guarantee that the first characters of an unsolicited scan do not reach a focused
+field.
 
 Scanning identifies the customer. It does not redeem points.
 
@@ -770,6 +799,8 @@ The following additions would make the first release easier and safer to operate
 
 - A new agent can record a basic cash service in five interactions or fewer after opening the POS.
 - A USB scan attaches the correct loyalty member without blocking a transaction when it fails.
+- Loyalty scanning is visibly disarmed by default, accepts one scan only after an operator action, and
+  disarms on success, failure, cancellation, or timeout.
 - Ticket, application, passport, visa, and package entries never receive POS loyalty points.
 - An eligible untracked service awards points exactly once after a successful save.
 - A cash/card/bank split affects the cash drawer only by its cash component.
@@ -799,6 +830,8 @@ The following additions would make the first release easier and safer to operate
 - Closed tills cannot receive ordinary unapproved mutations.
 - Users cannot view or mutate another branch’s records without explicit permission.
 - The ledger and composer remain usable on narrow mobile screens and during repeated keyboard entry.
+- A desktop user can resize the ledger vertically, retain that choice after reload, adjust the handle by
+  keyboard, and restore the default height by double-clicking or using the reset key.
 - Every refund, correction, loyalty reversal, and closeout approval is auditable.
 
 ## 18. Decisions To Make Together

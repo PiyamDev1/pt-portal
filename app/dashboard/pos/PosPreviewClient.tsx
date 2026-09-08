@@ -1,6 +1,15 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { toast } from 'sonner'
 import {
   ArrowDownLeft,
@@ -42,6 +51,11 @@ type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
 type LedgerPeriod = 'day' | 'month'
 
 const DEMO_TODAY = '2026-09-08'
+const DEFAULT_LEDGER_HEIGHT = 240
+const MIN_LEDGER_HEIGHT = 160
+const MAX_LEDGER_HEIGHT = 720
+const LEDGER_HEIGHT_STORAGE_KEY = 'pt-portal:pos-preview:ledger-height'
+const SCAN_ARM_TIMEOUT_MS = 30_000
 
 type CategoryPreset = {
   id: string
@@ -509,6 +523,7 @@ function SummaryCard({
 export default function PosPreviewClient({ branchName }: { branchName: string }) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const quickEntryInputRef = useRef<HTMLInputElement>(null)
+  const scanInputRef = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -525,8 +540,10 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
   const [outgoingType, setOutgoingType] = useState<OutgoingType | null>(null)
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
+  const [scanValue, setScanValue] = useState('')
   const [memberAttached, setMemberAttached] = useState(false)
   const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
+  const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
 
   const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
@@ -633,11 +650,79 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [])
 
+  useEffect(() => {
+    const savedHeight = Number.parseInt(
+      window.localStorage.getItem(LEDGER_HEIGHT_STORAGE_KEY) || '',
+      10,
+    )
+    if (!Number.isFinite(savedHeight)) return
+
+    const frame = window.requestAnimationFrame(() => {
+      setLedgerHeight(Math.min(Math.max(savedHeight, MIN_LEDGER_HEIGHT), MAX_LEDGER_HEIGHT))
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  useEffect(() => {
+    if (!scanOpen) return
+
+    scanInputRef.current?.focus()
+    const timeout = window.setTimeout(() => {
+      setScanOpen(false)
+      setScanValue('')
+      toast.info('Scanner disarmed', { description: 'The 30-second scan window expired.' })
+    }, SCAN_ARM_TIMEOUT_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [scanOpen])
+
+  const saveLedgerHeight = useCallback((height: number) => {
+    const nextHeight = Math.min(Math.max(Math.round(height), MIN_LEDGER_HEIGHT), MAX_LEDGER_HEIGHT)
+    setLedgerHeight(nextHeight)
+    window.localStorage.setItem(LEDGER_HEIGHT_STORAGE_KEY, String(nextHeight))
+  }, [])
+
+  function startLedgerResize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+
+    event.preventDefault()
+    const startY = event.clientY
+    const startHeight = ledgerHeight
+    const handle = event.currentTarget
+    let latestHeight = startHeight
+    handle.setPointerCapture(event.pointerId)
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      latestHeight = Math.min(
+        Math.max(startHeight + moveEvent.clientY - startY, MIN_LEDGER_HEIGHT),
+        MAX_LEDGER_HEIGHT,
+      )
+      setLedgerHeight(Math.round(latestHeight))
+    }
+
+    function finishResize() {
+      handle.removeEventListener('pointermove', handlePointerMove)
+      handle.removeEventListener('pointerup', finishResize)
+      handle.removeEventListener('pointercancel', finishResize)
+      saveLedgerHeight(latestHeight)
+    }
+
+    handle.addEventListener('pointermove', handlePointerMove)
+    handle.addEventListener('pointerup', finishResize)
+    handle.addEventListener('pointercancel', finishResize)
+  }
+
+  function resetLedgerHeight() {
+    saveLedgerHeight(DEFAULT_LEDGER_HEIGHT)
+    toast.success('Ledger height reset')
+  }
+
   function chooseCategory(category: CategoryPreset, categoryGroupId?: string) {
     setCategoryId(category.id)
     setExpandedCategoryGroups(categoryGroupId ? [categoryGroupId] : [])
     setSupplierConfirmed(false)
     setScanOpen(false)
+    setScanValue('')
 
     if (category.id === 'supplier') {
       setName('British Airways')
@@ -704,9 +789,15 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
     })
   }
 
-  function attachDemoMember() {
+  function attachDemoMember(scannedValue = scanValue) {
+    if (!scannedValue.trim()) {
+      toast.error('Scan or enter a loyalty code first')
+      scanInputRef.current?.focus()
+      return
+    }
     setMemberAttached(true)
     setScanOpen(false)
+    setScanValue('')
     toast.success('Loyalty card recognised', { description: 'Aisha Khan · PT-1842' })
   }
 
@@ -1132,7 +1223,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
               </div>
             )}
 
-            <div className="hidden max-h-60 overflow-auto md:block">
+            <div className="hidden overflow-auto md:block" style={{ height: ledgerHeight }}>
               <table className="w-full min-w-[780px] border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                   <tr className="border-b border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
@@ -1242,7 +1333,10 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
               </table>
             </div>
 
-            <div className="max-h-60 divide-y divide-slate-100 overflow-y-auto md:hidden">
+            <div
+              className="divide-y divide-slate-100 overflow-y-auto md:hidden"
+              style={{ height: ledgerHeight }}
+            >
               {filteredTransactions.map((transaction, index) => (
                 <Fragment key={transaction.id}>
                   {ledgerPeriod === 'month' &&
@@ -1281,6 +1375,39 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                   </button>
                 </Fragment>
               ))}
+            </div>
+
+            <div
+              role="separator"
+              aria-label="Resize ledger"
+              aria-orientation="horizontal"
+              aria-valuemin={MIN_LEDGER_HEIGHT}
+              aria-valuemax={MAX_LEDGER_HEIGHT}
+              aria-valuenow={ledgerHeight}
+              tabIndex={0}
+              title="Drag to resize ledger · double-click to reset"
+              onPointerDown={startLedgerResize}
+              onDoubleClick={resetLedgerHeight}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  saveLedgerHeight(ledgerHeight - 24)
+                }
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  saveLedgerHeight(ledgerHeight + 24)
+                }
+                if (event.key === 'Home') {
+                  event.preventDefault()
+                  resetLedgerHeight()
+                }
+              }}
+              className="group flex h-4 touch-none cursor-ns-resize select-none items-center justify-center border-t border-slate-200 bg-slate-50 outline-none transition hover:bg-red-50 focus-visible:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b1e2d]"
+            >
+              <span className="h-1 w-14 rounded-full bg-slate-300 transition group-hover:bg-[#8b1e2d] group-focus-visible:bg-[#8b1e2d]" />
+              <span className="sr-only">
+                Drag up or down to resize. Use arrow keys to adjust or Home to reset.
+              </span>
             </div>
 
             {filteredTransactions.length === 0 && (
@@ -1447,31 +1574,68 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                       </button>
                     </div>
                   ) : scanOpen ? (
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <label className="relative min-w-0 flex-1">
-                        <span className="sr-only">Scan or enter loyalty code</span>
-                        <ScanBarcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <input
-                          autoFocus
-                          placeholder="Scan or type loyalty code"
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') attachDemoMember()
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                          Scanner armed for 30 seconds
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScanOpen(false)
+                            setScanValue('')
                           }}
-                          className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-semibold outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={attachDemoMember}
-                        className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white"
-                      >
-                        Use demo card
-                      </button>
+                          className="text-[11px] font-black text-slate-600 hover:text-slate-950"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <label className="relative min-w-0 flex-1">
+                          <span className="sr-only">Scan or enter loyalty code</span>
+                          <ScanBarcode className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            ref={scanInputRef}
+                            autoFocus
+                            value={scanValue}
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder="Scan now or type loyalty code"
+                            onChange={(event) => setScanValue(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                attachDemoMember()
+                              }
+                              if (event.key === 'Escape') {
+                                setScanOpen(false)
+                                setScanValue('')
+                              }
+                            }}
+                            className="h-10 w-full rounded-xl border border-emerald-300 bg-white pl-9 pr-3 text-xs font-semibold outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => attachDemoMember('DEMO-PT-1842')}
+                          className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white"
+                        >
+                          Use demo card
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        One scan is accepted, then scanning disarms automatically. Press Esc to
+                        cancel.
+                      </p>
                     </div>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setScanOpen(true)}
+                      onClick={() => {
+                        setScanValue('')
+                        setScanOpen(true)
+                      }}
                       className="flex w-full items-center justify-between gap-3 text-left"
                     >
                       <span className="flex items-center gap-3">
@@ -1483,7 +1647,7 @@ export default function PosPreviewClient({ branchName }: { branchName: string })
                             Scan loyalty card
                           </span>
                           <span className="mt-0.5 block text-[11px] text-slate-500">
-                            Optional · USB scanner ready
+                            Disarmed · click to allow one scan
                           </span>
                         </span>
                       </span>
