@@ -221,6 +221,28 @@ describe('GET /api/ticketing/bookings?pnr=', () => {
     expect(await hiddenOrMissing.json()).toEqual({ items: [], hasMore: false, nextCursor: null })
   })
 
+  it('returns all four supported passenger fare groups for a Date Change', async () => {
+    const row = bookingRow()
+    row.ticket_transactions.ticket_passenger_fare_lines = [
+      { passenger_type: 'INF', quantity: 1 },
+      { passenger_type: 'CHD', quantity: 1 },
+      { passenger_type: 'YTH', quantity: 1 },
+      { passenger_type: 'ADT', quantity: 1 },
+    ]
+    mocks.bookingLimit.mockResolvedValueOnce({ data: [row], error: null })
+
+    const response = await GET(request())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.items[0].fares).toEqual([
+      { passengerType: 'ADT', quantity: 1 },
+      { passengerType: 'YTH', quantity: 1 },
+      { passengerType: 'CHD', quantity: 1 },
+      { passengerType: 'INF', quantity: 1 },
+    ])
+  })
+
   it('pages more than ten identical-PNR matches without silently hiding later records', async () => {
     const firstPageRows = Array.from({ length: 11 }, (_, index) =>
       bookingRow(`80000000-0000-4000-8000-${String(99 - index).padStart(12, '0')}`, 'ABC123'),

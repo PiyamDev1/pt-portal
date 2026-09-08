@@ -44,6 +44,24 @@ describe('ticketingAppendServiceTransactionSchema', () => {
     expect(ticketingAppendServiceTransactionSchema.parse(entry)).toEqual(entry)
   })
 
+  it('accepts a DC affecting every supported passenger type', () => {
+    const passengerTypes = ['ADT', 'YTH', 'CHD', 'INF'] as const
+    const entry = {
+      ...validEntry(),
+      selectedPassengerIds: passengerTypes.map(
+        (_, index) => `40000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      ),
+      fares: passengerTypes.map((passengerType) => ({
+        passengerType,
+        quantity: 1,
+        unitSupplierCost: 10,
+        unitSalePrice: 30,
+      })),
+    }
+
+    expect(ticketingAppendServiceTransactionSchema.parse(entry)).toEqual(entry)
+  })
+
   it('rejects missing or contradictory payment dates', () => {
     expect(
       ticketingAppendServiceTransactionSchema.safeParse({

@@ -166,6 +166,49 @@ describe('TicketFollowOnEntryForm', () => {
     expect(screen.queryByText(/commission|profit|margin|earnings/i)).toBeNull()
   })
 
+  it('submits a Date Change affecting ADT, YTH, CHD, and INF passengers', async () => {
+    const passengerTypes = ['ADT', 'YTH', 'CHD', 'INF'] as const
+    const booking = {
+      ...bookingOption(),
+      fares: passengerTypes.map((passengerType) => ({ passengerType, quantity: 1 })),
+      passengers: passengerTypes.map((passengerType, index) => ({
+        id: `a1000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        passengerType,
+        position: 1,
+        fullName: `${passengerType} Passenger`,
+      })),
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ items: [booking], hasMore: false, nextCursor: null }))
+      .mockResolvedValueOnce(Response.json({ transactionId: 'child-1' }, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <TicketFollowOnEntryForm serviceType="DC" timezone="Europe/London" onCreated={vi.fn()} />,
+    )
+
+    findPnr()
+    await screen.findByText('Root TK verified')
+    selectAllPassengers()
+    for (const passengerType of passengerTypes) {
+      fireEvent.change(screen.getByLabelText(`${passengerType} unit service cost`), {
+        target: { value: '10.00' },
+      })
+      fireEvent.change(screen.getByLabelText(`${passengerType} unit customer charge`), {
+        target: { value: '30.00' },
+      })
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Save DC' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const body = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(body.fares.map((fare: { passengerType: string }) => fare.passengerType)).toEqual(
+      passengerTypes,
+    )
+    expect(body.selectedPassengerIds).toHaveLength(4)
+  })
+
   it('locks a staff/family date change to airline cost plus the £25 admin fee', async () => {
     const fetchMock = vi
       .fn()

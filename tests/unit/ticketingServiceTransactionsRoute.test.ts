@@ -290,6 +290,37 @@ describe('POST /api/ticketing/bookings/[bookingId]/transactions', () => {
     )
   })
 
+  it('accepts a DC affecting ADT, YTH, CHD, and INF passengers', async () => {
+    const passengerTypes = ['ADT', 'YTH', 'CHD', 'INF'] as const
+    const entry = {
+      ...validEntry(),
+      selectedPassengerIds: passengerTypes.map(
+        (_, index) => `a1000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      ),
+      fares: passengerTypes.map((passengerType) => ({
+        passengerType,
+        quantity: 1,
+        unitSupplierCost: 10,
+        unitSalePrice: 30,
+      })),
+    }
+    mocks.state.append = {
+      data: {
+        ...rpcResult(),
+        transaction: { ...rpcResult().transaction, passengerTicketCount: 4 },
+      },
+      error: null,
+    }
+
+    const response = await POST(request(entry, 'all-passenger-types'), context())
+
+    expect(response.status).toBe(201)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_append_service_transaction_allocated',
+      expect.objectContaining({ p_entry: entry }),
+    )
+  })
+
   it.each([
     {
       name: 'version conflict',

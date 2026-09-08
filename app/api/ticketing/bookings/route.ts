@@ -153,7 +153,7 @@ function bookingItem(row: BookingRow, staffFamilyChangeFeeGbp: number) {
 
   if (
     fares.length < 1 ||
-    fares.length > 3 ||
+    fares.length > PASSENGER_TYPES.length ||
     new Set(fares.map((fare) => fare.passengerType)).size !== fares.length ||
     fares.reduce((total, fare) => total + fare.quantity, 0) > 99 ||
     fares.some(

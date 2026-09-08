@@ -37,7 +37,7 @@ export const ticketingAppendServiceTransactionSchema = z
     paidAt: isoDateSchema.nullable(),
     currency: z.literal('GBP'),
     selectedPassengerIds: z.array(z.string().uuid()).min(1).max(99),
-    fares: z.array(ticketingServiceFareSchema).min(1).max(3),
+    fares: z.array(ticketingServiceFareSchema).min(1).max(TICKET_PASSENGER_TYPES.length),
   })
   .strict()
   .superRefine((entry, context) => {
@@ -89,7 +89,10 @@ export const ticketingAppendServiceTransactionSchema = z
       })
     }
 
-    if (entry.selectedPassengerIds.length !== entry.fares.reduce((total, fare) => total + fare.quantity, 0)) {
+    if (
+      entry.selectedPassengerIds.length !==
+      entry.fares.reduce((total, fare) => total + fare.quantity, 0)
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['selectedPassengerIds'],
