@@ -217,6 +217,26 @@ option should define:
 Loyalty eligibility defaults to false and is controlled by the server-side catalogue. Agents must not
 be able to award points by changing a client-side flag.
 
+### Initial quick-entry catalogue
+
+The first branch-facing category list should use the operational names staff already recognise:
+
+- `NADRA`.
+- `NICOP - Normal`.
+- `NICOP - Urgent`.
+- `FRC`.
+- `PK Passport`.
+- `GB Passport`.
+- `Visa`.
+- `Ticket & Package`.
+- `Remittance` (loyalty applies to the service fee, not money being transferred).
+- `Document help` and other explicitly approved untracked services.
+- `Supplier payment`, `Expense`, and `Refunds` for the three permitted outgoing workflows.
+- `Extra coins` for drawer-to-reserve transfers.
+
+The catalogue remains configurable, but staff-facing labels should stay stable. Tracked application,
+ticket, and package categories must retain their source links and remain ineligible for POS loyalty.
+
 ### Tracked services: no POS loyalty
 
 The following remain excluded from POS loyalty because their service lifecycle and loyalty logic are
@@ -650,6 +670,13 @@ The POS left rail should be POS navigation, not a duplicate dashboard module men
 
 The right rail should be labelled `Quick entry categories`. The dashboard module catalogue should
 contain one POS module entry, while POS categories remain internal presets.
+
+On desktop, the POS navigation rail should default to icon-only width and expand on pointer hover or
+keyboard focus. The daily ledger should use the released width, keep its column header visible, and
+scroll inside a bounded height so the quick-transaction composer remains visible on a normal desktop
+screen. Supplier should be a visible ledger field, with supplier grouping/sorting available by default.
+Opening a transaction should reveal a compact detail strip with edit, refund, and receipt actions rather
+than a tall card that pushes quick entry below the fold.
 
 ## 15. Additional Improvements
 
