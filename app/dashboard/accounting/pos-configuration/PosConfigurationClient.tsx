@@ -5,16 +5,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   Building2,
   CheckCircle2,
+  ChevronDown,
   FolderTree,
   ImageIcon,
   Layers3,
+  Lightbulb,
   Link2,
   Loader2,
+  LockKeyhole,
   Plus,
   RefreshCcw,
   Save,
+  Search,
   Settings2,
   ShieldCheck,
   Store,
@@ -112,6 +117,38 @@ const ICON_OPTIONS = [
   ['shapes', 'Other'],
   ['sparkles', 'General'],
 ] as const
+
+const SERVICE_REQUIREMENTS = [
+  {
+    label: 'Customer required',
+    field: 'customer_required',
+    hint: 'Staff must identify the customer before posting.',
+  },
+  {
+    label: 'Note required',
+    field: 'note_required',
+    hint: 'Staff must explain the transaction in a note.',
+  },
+  {
+    label: 'Price required',
+    field: 'price_required',
+    hint: 'Staff must select or confirm the service price.',
+  },
+  {
+    label: 'Source reference required',
+    field: 'source_required',
+    hint: 'The transaction must link to its originating record.',
+  },
+  {
+    label: 'Active in POS',
+    field: 'is_active',
+    hint: 'Inactive services are hidden from new transactions.',
+  },
+] as const satisfies ReadonlyArray<{
+  label: string
+  field: keyof ServiceRow
+  hint: string
+}>
 
 const TABS: Array<{
   id: ConfigurationTab
@@ -286,10 +323,83 @@ function SectionHeader({ title, description }: { title: string; description: str
   )
 }
 
+function SectionGuide({
+  title,
+  description,
+  steps,
+  note,
+}: {
+  title: string
+  description: string
+  steps: string[]
+  note: string
+}) {
+  return (
+    <aside className="grid gap-4 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 lg:grid-cols-[1fr_1.35fr]">
+      <div className="flex gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
+          <BookOpen className="h-4 w-4" />
+        </span>
+        <div>
+          <h2 className="text-sm font-black text-slate-950">{title}</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+        </div>
+      </div>
+      <div>
+        <ol className="grid gap-2 sm:grid-cols-3">
+          {steps.map((step, index) => (
+            <li key={step} className="flex gap-2 text-xs leading-5 text-slate-700">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-800">
+                {index + 1}
+              </span>
+              {step}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
+          <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {note}
+        </p>
+      </div>
+    </aside>
+  )
+}
+
+function ListToolbar({
+  value,
+  onChange,
+  count,
+  noun,
+}: {
+  value: string
+  onChange: (value: string) => void
+  count: number
+  noun: string
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <label className="relative block w-full sm:max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+        <input
+          type="search"
+          aria-label={`Search ${noun}`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={`Search ${noun}…`}
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+        />
+      </label>
+      <span className="text-[11px] font-bold text-slate-500">
+        {count} {noun}
+      </span>
+    </div>
+  )
+}
+
 export default function PosConfigurationClient() {
   const [data, setData] = useState<Configuration | null>(null)
   const [busy, setBusy] = useState('')
   const [activeTab, setActiveTab] = useState<ConfigurationTab>('overview')
+  const [recordSearch, setRecordSearch] = useState('')
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState('')
   const [newCategory, setNewCategory] = useState({ key: '', label: '', description: '' })
   const [newService, setNewService] = useState({
@@ -467,10 +577,35 @@ export default function PosConfigurationClient() {
           row.supplier_vendor_id === supplier.supplier_vendor_id,
       ),
   )
+  const searchNeedle = normalized(recordSearch)
+  const visibleCategories = data.categories.filter(
+    (category) =>
+      !searchNeedle ||
+      normalized(category.label).includes(searchNeedle) ||
+      normalized(category.description || '').includes(searchNeedle) ||
+      normalized(category.category_key).includes(searchNeedle),
+  )
   const visibleServices = data.services.filter((service) => {
     const category = data.categories.find((row) => row.id === service.category_id)
-    return !serviceCategoryFilter || category?.category_key === serviceCategoryFilter
+    const matchesCategory =
+      !serviceCategoryFilter || category?.category_key === serviceCategoryFilter
+    const matchesSearch =
+      !searchNeedle ||
+      normalized(serviceDisplayLabel(service)).includes(searchNeedle) ||
+      normalized(service.item_key).includes(searchNeedle) ||
+      normalized(category?.label || '').includes(searchNeedle)
+    return matchesCategory && matchesSearch
   })
+  const visibleSuppliers = data.suppliers.filter(
+    (supplier) =>
+      !searchNeedle ||
+      [
+        supplier.name,
+        ...supplier.alternate_names,
+        supplier.source_area || '',
+        supplier.source_reference || '',
+      ].some((value) => normalized(value).includes(searchNeedle)),
+  )
   const overviewCards = [
     { label: 'Active categories', value: activeCategories.length, icon: FolderTree },
     { label: 'Active services', value: activeServices.length, icon: Layers3 },
@@ -574,28 +709,61 @@ export default function PosConfigurationClient() {
   }
 
   return (
-    <div className="space-y-5 pb-10">
-      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
-            <Settings2 className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-2xl font-black text-slate-950">POS configuration</h1>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              Organise what staff see in Quick Transaction. Changes affect future entries only;
-              stable keys and historical ledger labels remain protected.
-            </p>
+    <div className="space-y-5 pb-12">
+      <header className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-sm">
+        <div className="flex flex-col justify-between gap-5 p-5 sm:flex-row sm:items-center lg:p-6">
+          <div className="flex items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-950/20">
+              <Settings2 className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
+                Accounting workspace
+              </p>
+              <h1 className="mt-1 text-2xl font-black">POS configuration</h1>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">
+                Control what staff can select in Quick Transaction. Work through the sections from
+                left to right, then check the live POS before staff use the changes.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+            <span
+              className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black ${
+                data.configurationReady
+                  ? 'bg-emerald-400/15 text-emerald-200 ring-1 ring-inset ring-emerald-400/30'
+                  : 'bg-amber-400/15 text-amber-200 ring-1 ring-inset ring-amber-400/30'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${data.configurationReady ? 'bg-emerald-300' : 'bg-amber-300'}`}
+              />
+              {data.configurationReady ? 'Ready to configure' : 'Upgrade required'}
+            </span>
+            <button
+              type="button"
+              onClick={() => void load().catch((error) => toast.error(error.message))}
+              disabled={busy !== ''}
+              className="flex h-9 items-center justify-center gap-2 rounded-lg bg-white px-3 text-xs font-black text-slate-800 disabled:opacity-50"
+            >
+              <RefreshCcw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} /> Refresh
+            </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void load().catch((error) => toast.error(error.message))}
-          disabled={busy !== ''}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
-        >
-          <RefreshCcw className="h-3.5 w-3.5" /> Refresh
-        </button>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 bg-white/5 px-5 py-3 text-[11px] text-slate-300 lg:px-6">
+          <span className="flex items-center gap-1.5">
+            <LockKeyhole className="h-3.5 w-3.5 text-emerald-300" /> Historical ledger labels stay
+            unchanged
+          </span>
+          <span className="flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" /> Stable system keys are
+            protected
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" /> Changes apply to future
+            transactions
+          </span>
+        </div>
       </header>
 
       {!data.configurationReady && (
@@ -613,24 +781,35 @@ export default function PosConfigurationClient() {
 
       <nav
         aria-label="POS configuration sections"
-        className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-5"
+        className="sticky top-2 z-20 flex overflow-x-auto rounded-xl border border-slate-200 bg-white/95 shadow-md backdrop-blur sm:grid sm:grid-cols-5 sm:overflow-hidden"
       >
-        {TABS.map((tab) => {
+        {TABS.map((tab, index) => {
           const Icon = tab.icon
           const selected = activeTab === tab.id
           return (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id)
+                setRecordSearch('')
+              }}
               aria-current={selected ? 'page' : undefined}
-              className={`flex min-h-14 items-center gap-2 border-b border-slate-100 px-3 text-left transition last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 ${
-                selected ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-50'
+              className={`flex min-h-16 min-w-44 items-center gap-2.5 border-r border-slate-100 px-3 text-left transition last:border-r-0 sm:min-w-0 ${
+                selected
+                  ? 'bg-emerald-700 text-white'
+                  : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-900'
               }`}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${selected ? 'bg-white/15' : 'bg-slate-100'}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </span>
               <span>
-                <span className="block text-xs font-black">{tab.label}</span>
+                <span className="block text-xs font-black">
+                  {index + 1}. {tab.label}
+                </span>
                 <span
                   className={`block text-[10px] ${selected ? 'text-emerald-100' : 'text-slate-400'}`}
                 >
@@ -739,818 +918,1053 @@ export default function PosConfigurationClient() {
       )}
 
       {activeTab === 'categories' && (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <SectionHeader
-            title="Categories"
-            description="Top-level choices shown in the POS category rail."
+        <div className="space-y-4">
+          <SectionGuide
+            title="Start with the main choices staff see"
+            description="Categories are the large buttons in Quick Transaction. Keep them broad, familiar and few in number; detailed choices belong under Services."
+            steps={[
+              'Use a plain-language label.',
+              'Add a short description for staff.',
+              'Set the order, then save.',
+            ]}
+            note="Deactivate an old category instead of renaming it into a different purpose. Existing ledger entries keep their original labels."
           />
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (hasDuplicateCategory(newCategory.key, newCategory.label)) {
-                toast.error('A category already uses this key or active label.')
-                return
-              }
-              void mutate('new-category', {
-                action: 'UPSERT_CATEGORY',
-                key: newCategory.key,
-                label: newCategory.label,
-                description: newCategory.description || undefined,
-                iconKey: 'sparkles',
-                displayOrder: data.categories.length * 10 + 10,
-                supplierPaymentsEnabled: false,
-                isActive: true,
-              }).then((saved) => saved && setNewCategory({ key: '', label: '', description: '' }))
-            }}
-            className="grid gap-2 border-b border-slate-200 bg-emerald-50/40 p-4 lg:grid-cols-[1fr_1fr_1.5fr_auto]"
-          >
-            <input
-              required
-              value={newCategory.key}
-              onChange={(event) =>
-                setNewCategory({ ...newCategory, key: slugify(event.target.value) })
-              }
-              placeholder="Stable key"
-              className={SMALL_FIELD_CLASS}
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <SectionHeader
+              title="Categories"
+              description="Top-level choices shown in the POS category rail. Supplier payments can be enabled only where they make operational sense."
             />
-            <input
-              required
-              value={newCategory.label}
-              onChange={(event) => setNewCategory({ ...newCategory, label: event.target.value })}
-              placeholder="Category label"
-              className={SMALL_FIELD_CLASS}
-            />
-            <input
-              value={newCategory.description}
-              onChange={(event) =>
-                setNewCategory({ ...newCategory, description: event.target.value })
-              }
-              placeholder="Plain-language description"
-              className={SMALL_FIELD_CLASS}
-            />
-            <button
-              disabled={busy !== '' || !data.configurationReady}
-              className="flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (hasDuplicateCategory(newCategory.key, newCategory.label)) {
+                  toast.error('A category already uses this key or active label.')
+                  return
+                }
+                void mutate('new-category', {
+                  action: 'UPSERT_CATEGORY',
+                  key: newCategory.key,
+                  label: newCategory.label,
+                  description: newCategory.description || undefined,
+                  iconKey: 'sparkles',
+                  displayOrder: data.categories.length * 10 + 10,
+                  supplierPaymentsEnabled: false,
+                  isActive: true,
+                }).then((saved) => saved && setNewCategory({ key: '', label: '', description: '' }))
+              }}
+              className="grid gap-3 border-b border-emerald-100 bg-emerald-50/50 p-4 lg:grid-cols-[1fr_1fr_1.5fr_auto] lg:items-end"
             >
-              <Plus className="h-3.5 w-3.5" /> Add category
-            </button>
-          </form>
-          <div className="divide-y divide-slate-100">
-            {data.categories.map((category) => (
-              <article
-                key={category.id}
-                className="grid gap-3 p-4 xl:grid-cols-[1fr_1.6fr_9rem_5rem_auto] xl:items-end"
+              <label className="text-[11px] font-black text-emerald-950">
+                Stable key
+                <input
+                  required
+                  value={newCategory.key}
+                  onChange={(event) =>
+                    setNewCategory({ ...newCategory, key: slugify(event.target.value) })
+                  }
+                  placeholder="e.g. photo-services"
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                />
+              </label>
+              <label className="text-[11px] font-black text-emerald-950">
+                Staff-facing label
+                <input
+                  required
+                  value={newCategory.label}
+                  onChange={(event) =>
+                    setNewCategory({ ...newCategory, label: event.target.value })
+                  }
+                  placeholder="e.g. Photo Services"
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                />
+              </label>
+              <label className="text-[11px] font-black text-emerald-950">
+                Helpful description
+                <input
+                  value={newCategory.description}
+                  onChange={(event) =>
+                    setNewCategory({ ...newCategory, description: event.target.value })
+                  }
+                  placeholder="Explain when staff should choose it"
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                />
+              </label>
+              <button
+                disabled={busy !== '' || !data.configurationReady}
+                className="flex h-8 self-end items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
               >
-                <label className="text-xs font-bold text-slate-600">
-                  Label
-                  <input
-                    value={category.label}
-                    onChange={(event) => updateCategory(category.id, { label: event.target.value })}
-                    className={FIELD_CLASS}
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Description
-                  <input
-                    value={category.description || ''}
-                    onChange={(event) =>
-                      updateCategory(category.id, { description: event.target.value })
-                    }
-                    className={FIELD_CLASS}
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Icon
-                  <select
-                    value={category.icon_key}
-                    onChange={(event) =>
-                      updateCategory(category.id, { icon_key: event.target.value })
-                    }
-                    className={FIELD_CLASS}
-                  >
-                    {ICON_OPTIONS.map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Order
-                  <input
-                    type="number"
-                    min={0}
-                    value={category.display_order}
-                    onChange={(event) =>
-                      updateCategory(category.id, { display_order: Number(event.target.value) })
-                    }
-                    className={FIELD_CLASS}
-                  />
-                </label>
-                <div className="flex flex-wrap items-center justify-end gap-3">
-                  <span
-                    title="Stable key"
-                    className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-500"
-                  >
-                    {category.category_key}
-                  </span>
-                  <label className="flex items-center gap-1.5 text-xs font-bold">
-                    <input
-                      type="checkbox"
-                      checked={category.supplier_payments_enabled}
-                      onChange={(event) =>
-                        updateCategory(category.id, {
-                          supplier_payments_enabled: event.target.checked,
-                        })
-                      }
-                    />{' '}
-                    Pay suppliers
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs font-bold">
-                    <input
-                      type="checkbox"
-                      checked={category.is_active}
-                      onChange={(event) =>
-                        updateCategory(category.id, { is_active: event.target.checked })
-                      }
-                    />{' '}
-                    Active
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void saveCategory(category)}
-                    disabled={busy !== '' || !data.configurationReady}
-                    className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50"
-                  >
-                    <Save className="h-3.5 w-3.5" /> Save
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {activeTab === 'services' && (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <SectionHeader
-            title="Services and subservices"
-            description="Configure how each Quick Transaction service behaves. Loyalty is managed elsewhere."
-          />
-          <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <label className="text-xs font-bold text-slate-600">
-              Show category
-              <select
-                aria-label="Service category filter"
-                value={serviceCategoryFilter}
-                onChange={(event) => setServiceCategoryFilter(event.target.value)}
-                className="ml-2 h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
-              >
-                <option value="">All categories</option>
-                {data.categories.map((row) => (
-                  <option key={row.id} value={row.category_key}>
-                    {row.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="text-[11px] font-bold text-slate-400">
-              {visibleServices.length} configured service{visibleServices.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              const category = data.categories.find(
-                (row) => row.category_key === newService.categoryKey,
-              )
-              if (!category) return
-              if (hasDuplicateService(newService.key, newService.label, category.id)) {
-                toast.error('A service already uses this key or active label in the category.')
-                return
-              }
-              void mutate('new-service', {
-                action: 'UPSERT_SERVICE',
-                key: newService.key,
-                categoryKey: newService.categoryKey,
-                label: newService.label,
-                classification: newService.direction === 'OUT' ? 'EXPENSE' : 'SERVICE',
-                direction: newService.direction,
-                displayOrder: 100,
-                logoKey: null,
-                allowedPaymentMethods: ['CASH', 'CARD', 'BANK'],
-                customerRequired: false,
-                noteRequired: newService.direction === 'OUT',
-                priceRequired: false,
-                sourceRequired: false,
-                isActive: true,
-              }).then((saved) => saved && setNewService({ ...newService, key: '', label: '' }))
-            }}
-            className="grid gap-2 border-b border-slate-200 bg-emerald-50/40 p-4 lg:grid-cols-[1fr_1fr_1fr_8rem_auto]"
-          >
-            <select
-              value={newService.categoryKey}
-              onChange={(event) =>
-                setNewService({ ...newService, categoryKey: event.target.value })
-              }
-              className={SMALL_FIELD_CLASS}
-            >
-              {data.categories.map((row) => (
-                <option key={row.id} value={row.category_key}>
-                  {row.label}
-                </option>
-              ))}
-            </select>
-            <input
-              required
-              value={newService.key}
-              onChange={(event) =>
-                setNewService({ ...newService, key: slugify(event.target.value) })
-              }
-              placeholder="Stable service key"
-              className={SMALL_FIELD_CLASS}
+                <Plus className="h-3.5 w-3.5" /> Add category
+              </button>
+            </form>
+            <ListToolbar
+              value={recordSearch}
+              onChange={setRecordSearch}
+              count={visibleCategories.length}
+              noun="categories"
             />
-            <input
-              required
-              value={newService.label}
-              onChange={(event) => setNewService({ ...newService, label: event.target.value })}
-              placeholder="Service label"
-              className={SMALL_FIELD_CLASS}
-            />
-            <select
-              value={newService.direction}
-              onChange={(event) =>
-                setNewService({ ...newService, direction: event.target.value as 'IN' | 'OUT' })
-              }
-              className={SMALL_FIELD_CLASS}
-            >
-              <option value="IN">Money in</option>
-              <option value="OUT">Money out</option>
-            </select>
-            <button
-              disabled={busy !== '' || !data.configurationReady}
-              className="flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add service
-            </button>
-          </form>
-          <div className="grid gap-3 p-4 xl:grid-cols-2">
-            {visibleServices.map((service) => {
-              const category = data.categories.find((row) => row.id === service.category_id)
-              const protectedContract =
-                Boolean(service.tracked_source_type) ||
-                ['donation', 'other-income'].includes(service.item_key)
-              return (
+            <div className="divide-y divide-slate-100">
+              {visibleCategories.map((category) => (
                 <article
-                  key={service.id}
-                  className="space-y-3 rounded-xl border border-slate-200 p-3 shadow-sm"
+                  key={category.id}
+                  className="grid gap-3 p-4 xl:grid-cols-[1fr_1.6fr_9rem_5rem_auto] xl:items-end"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                        {category?.label || 'Category'}
-                      </p>
-                      <p className="font-mono text-[10px] text-slate-400">{service.item_key}</p>
-                    </div>
-                    {service.tracked_source_type && (
-                      <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700">
-                        {service.tracked_source_type} linked
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_7rem_5rem]">
-                    <label className="text-xs font-bold text-slate-600">
-                      Label
-                      <input
-                        value={serviceDisplayLabel(service)}
-                        onChange={(event) =>
-                          updateService(service.id, {
-                            label: event.target.value,
-                            option_label: event.target.value,
-                          })
-                        }
-                        className={FIELD_CLASS}
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Category
-                      <select
-                        value={service.category_id}
-                        disabled={Boolean(service.tracked_source_type)}
-                        onChange={(event) =>
-                          updateService(service.id, { category_id: event.target.value })
-                        }
-                        className={FIELD_CLASS}
-                      >
-                        {data.categories.map((row) => (
-                          <option key={row.id} value={row.id}>
-                            {row.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Direction
-                      <select
-                        value={service.default_direction}
-                        disabled={protectedContract}
-                        onChange={(event) =>
-                          updateService(service.id, {
-                            default_direction: event.target.value as 'IN' | 'OUT',
-                            classification: event.target.value === 'OUT' ? 'EXPENSE' : 'SERVICE',
-                          })
-                        }
-                        className={FIELD_CLASS}
-                      >
-                        <option value="IN">Money in</option>
-                        <option value="OUT">Money out</option>
-                      </select>
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Order
-                      <input
-                        type="number"
-                        min={0}
-                        value={service.display_order}
-                        onChange={(event) =>
-                          updateService(service.id, { display_order: Number(event.target.value) })
-                        }
-                        className={FIELD_CLASS}
-                      />
-                    </label>
-                  </div>
-                  <fieldset>
-                    <legend className="text-xs font-bold text-slate-600">
-                      Allowed payment methods
-                    </legend>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {(['CASH', 'CARD', 'BANK'] as const).map((method) => (
-                        <label
-                          key={method}
-                          className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] font-bold"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={service.allowed_payment_methods.includes(method)}
-                            onChange={(event) => {
-                              const methods = event.target.checked
-                                ? [...new Set([...service.allowed_payment_methods, method])]
-                                : service.allowed_payment_methods.filter(
-                                    (value) => value !== method,
-                                  )
-                              if (methods.length)
-                                updateService(service.id, { allowed_payment_methods: methods })
-                            }}
-                          />{' '}
-                          {method[0] + method.slice(1).toLocaleLowerCase()}
-                        </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Label
+                    <input
+                      value={category.label}
+                      onChange={(event) =>
+                        updateCategory(category.id, { label: event.target.value })
+                      }
+                      className={FIELD_CLASS}
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Description
+                    <input
+                      value={category.description || ''}
+                      onChange={(event) =>
+                        updateCategory(category.id, { description: event.target.value })
+                      }
+                      className={FIELD_CLASS}
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Icon
+                    <select
+                      value={category.icon_key}
+                      onChange={(event) =>
+                        updateCategory(category.id, { icon_key: event.target.value })
+                      }
+                      className={FIELD_CLASS}
+                    >
+                      {ICON_OPTIONS.map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
                       ))}
-                    </div>
-                  </fieldset>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      ['Customer required', 'customer_required'],
-                      ['Note required', 'note_required'],
-                      ['Price required', 'price_required'],
-                      ['Source reference required', 'source_required'],
-                      ['Active', 'is_active'],
-                    ].map(([label, field]) => (
-                      <label
-                        key={field}
-                        className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-bold"
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={
-                            field === 'source_required' && Boolean(service.tracked_source_type)
-                          }
-                          checked={Boolean(service[field as keyof ServiceRow])}
-                          onChange={(event) =>
-                            updateService(service.id, { [field]: event.target.checked })
-                          }
-                        />{' '}
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  <LogoEditor
-                    kind="service"
-                    label={serviceDisplayLabel(service)}
-                    logoKey={service.logo_key}
-                    logoUrl={service.logo_url}
-                    disabled={!data.configurationReady || busy !== ''}
-                    onChange={(logoKey, logoUrl) =>
-                      updateService(service.id, { logo_key: logoKey, logo_url: logoUrl })
-                    }
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] text-slate-500">
-                      Loyalty eligibility and rates are preserved but edited only in the Loyalty
-                      module.
-                    </p>
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Order
+                    <input
+                      type="number"
+                      min={0}
+                      value={category.display_order}
+                      onChange={(event) =>
+                        updateCategory(category.id, { display_order: Number(event.target.value) })
+                      }
+                      className={FIELD_CLASS}
+                    />
+                  </label>
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <span
+                      title="Stable key"
+                      className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-500"
+                    >
+                      {category.category_key}
+                    </span>
+                    <label className="flex items-center gap-1.5 text-xs font-bold">
+                      <input
+                        type="checkbox"
+                        checked={category.supplier_payments_enabled}
+                        onChange={(event) =>
+                          updateCategory(category.id, {
+                            supplier_payments_enabled: event.target.checked,
+                          })
+                        }
+                      />{' '}
+                      Pay suppliers
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold">
+                      <input
+                        type="checkbox"
+                        checked={category.is_active}
+                        onChange={(event) =>
+                          updateCategory(category.id, { is_active: event.target.checked })
+                        }
+                      />{' '}
+                      Active
+                    </label>
                     <button
                       type="button"
-                      onClick={() => void saveService(service)}
+                      onClick={() => void saveCategory(category)}
                       disabled={busy !== '' || !data.configurationReady}
-                      className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50"
+                      className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50"
                     >
-                      <Save className="h-3.5 w-3.5" /> Save service
+                      <Save className="h-3.5 w-3.5" /> Save
                     </button>
                   </div>
                 </article>
-              )
-            })}
-          </div>
-        </section>
+              ))}
+              {visibleCategories.length === 0 && (
+                <p className="px-4 py-10 text-center text-sm text-slate-500">
+                  No categories match your search.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
       )}
 
-      {activeTab === 'suppliers' && (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <SectionHeader
-            title="Suppliers"
-            description="Manage unique supplier identities, matching aliases, settlement behavior and logos."
+      {activeTab === 'services' && (
+        <div className="space-y-4">
+          <SectionGuide
+            title="Define the choices inside each category"
+            description="Services are the smaller options staff choose after a category. This is also where you decide what information and payment methods a transaction requires."
+            steps={[
+              'Choose the parent category.',
+              'Set payment and information rules.',
+              'Add a logo if it helps recognition.',
+            ]}
+            note="Source-linked services are protected because Applications, Ticketing and Packages own those records. Loyalty rules remain in the Loyalty module."
           />
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              const aliases = newSupplier.aliases
-                .split(',')
-                .map((value) => value.trim())
-                .filter(Boolean)
-              if (hasDuplicateSupplier(newSupplier.name, aliases)) {
-                toast.error('A supplier name or alias is already in use.')
-                return
-              }
-              void mutate('new-supplier', {
-                action: 'UPSERT_SUPPLIER',
-                name: newSupplier.name,
-                aliases,
-                sourceArea: newSupplier.sourceArea || undefined,
-                sourceReference: newSupplier.sourceReference || undefined,
-                settlementMode: newSupplier.settlementMode,
-                logoKey: newSupplier.logoKey,
-                isActive: true,
-              }).then(
-                (saved) =>
-                  saved &&
-                  setNewSupplier({
-                    name: '',
-                    aliases: '',
-                    sourceArea: '',
-                    sourceReference: '',
-                    settlementMode: 'DEPOSIT_ACCOUNT',
-                    logoKey: null,
-                    logoUrl: null,
-                  }),
-              )
-            }}
-            className="grid gap-3 border-b border-slate-200 bg-emerald-50/40 p-4 lg:grid-cols-[1fr_1fr]"
-          >
-            <div className="grid gap-2 sm:grid-cols-2">
-              <input
-                required
-                value={newSupplier.name}
-                onChange={(event) => setNewSupplier({ ...newSupplier, name: event.target.value })}
-                placeholder="Supplier name"
-                className={SMALL_FIELD_CLASS}
-              />
-              <input
-                value={newSupplier.aliases}
-                onChange={(event) =>
-                  setNewSupplier({ ...newSupplier, aliases: event.target.value })
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <SectionHeader
+              title="Services and subservices"
+              description="Configure how each Quick Transaction service behaves. Loyalty is managed elsewhere."
+            />
+            <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+              <label className="text-xs font-bold text-slate-600">
+                Filter by category
+                <select
+                  aria-label="Service category filter"
+                  value={serviceCategoryFilter}
+                  onChange={(event) => setServiceCategoryFilter(event.target.value)}
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                >
+                  <option value="">All categories</option>
+                  {data.categories.map((row) => (
+                    <option key={row.id} value={row.category_key}>
+                      {row.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600">
+                Find a service
+                <span className="relative mt-1 block">
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="search"
+                    aria-label="Search services"
+                    value={recordSearch}
+                    onChange={(event) => setRecordSearch(event.target.value)}
+                    placeholder="Name, key or category…"
+                    className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </span>
+              </label>
+              <span className="text-[11px] font-bold text-slate-400">
+                {visibleServices.length} configured service{visibleServices.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                const category = data.categories.find(
+                  (row) => row.category_key === newService.categoryKey,
+                )
+                if (!category) return
+                if (hasDuplicateService(newService.key, newService.label, category.id)) {
+                  toast.error('A service already uses this key or active label in the category.')
+                  return
                 }
-                placeholder="Matching aliases, comma separated"
-                className={SMALL_FIELD_CLASS}
-              />
-              <input
-                value={newSupplier.sourceArea}
-                onChange={(event) =>
-                  setNewSupplier({ ...newSupplier, sourceArea: event.target.value })
-                }
-                placeholder="Source area, e.g. Ticketing"
-                className={SMALL_FIELD_CLASS}
-              />
-              <input
-                value={newSupplier.sourceReference}
-                onChange={(event) =>
-                  setNewSupplier({ ...newSupplier, sourceReference: event.target.value })
-                }
-                placeholder="External reference (optional)"
-                className={SMALL_FIELD_CLASS}
-              />
-              <select
-                aria-label="New supplier settlement mode"
-                value={newSupplier.settlementMode}
-                onChange={(event) =>
-                  setNewSupplier({
-                    ...newSupplier,
-                    settlementMode: event.target.value as typeof newSupplier.settlementMode,
-                  })
-                }
-                className={SMALL_FIELD_CLASS}
-              >
-                <option value="DEPOSIT_ACCOUNT">Deposit account</option>
-                <option value="PAY_ON_DEMAND">Pay on demand</option>
-              </select>
+                void mutate('new-service', {
+                  action: 'UPSERT_SERVICE',
+                  key: newService.key,
+                  categoryKey: newService.categoryKey,
+                  label: newService.label,
+                  classification: newService.direction === 'OUT' ? 'EXPENSE' : 'SERVICE',
+                  direction: newService.direction,
+                  displayOrder: 100,
+                  logoKey: null,
+                  allowedPaymentMethods: ['CASH', 'CARD', 'BANK'],
+                  customerRequired: false,
+                  noteRequired: newService.direction === 'OUT',
+                  priceRequired: false,
+                  sourceRequired: false,
+                  isActive: true,
+                }).then((saved) => saved && setNewService({ ...newService, key: '', label: '' }))
+              }}
+              className="grid gap-3 border-b border-emerald-100 bg-emerald-50/50 p-4 lg:grid-cols-[1fr_1fr_1fr_8rem_auto] lg:items-end"
+            >
+              <label className="text-[11px] font-black text-emerald-950">
+                Parent category
+                <select
+                  value={newService.categoryKey}
+                  onChange={(event) =>
+                    setNewService({ ...newService, categoryKey: event.target.value })
+                  }
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                >
+                  {data.categories.map((row) => (
+                    <option key={row.id} value={row.category_key}>
+                      {row.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[11px] font-black text-emerald-950">
+                Stable key
+                <input
+                  required
+                  value={newService.key}
+                  onChange={(event) =>
+                    setNewService({ ...newService, key: slugify(event.target.value) })
+                  }
+                  placeholder="e.g. passport-photo"
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                />
+              </label>
+              <label className="text-[11px] font-black text-emerald-950">
+                Staff-facing label
+                <input
+                  required
+                  value={newService.label}
+                  onChange={(event) => setNewService({ ...newService, label: event.target.value })}
+                  placeholder="e.g. Passport Photo"
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                />
+              </label>
+              <label className="text-[11px] font-black text-emerald-950">
+                Money direction
+                <select
+                  value={newService.direction}
+                  onChange={(event) =>
+                    setNewService({ ...newService, direction: event.target.value as 'IN' | 'OUT' })
+                  }
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                >
+                  <option value="IN">Money in</option>
+                  <option value="OUT">Money out</option>
+                </select>
+              </label>
               <button
                 disabled={busy !== '' || !data.configurationReady}
                 className="flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
               >
-                <Plus className="h-3.5 w-3.5" /> Add supplier
+                <Plus className="h-3.5 w-3.5" /> Add service
               </button>
+            </form>
+            <div className="grid gap-3 p-4 xl:grid-cols-2">
+              {visibleServices.map((service) => {
+                const category = data.categories.find((row) => row.id === service.category_id)
+                const protectedContract =
+                  Boolean(service.tracked_source_type) ||
+                  ['donation', 'other-income'].includes(service.item_key)
+                return (
+                  <details
+                    key={service.id}
+                    className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm open:border-emerald-300 open:ring-2 open:ring-emerald-50"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center gap-3 p-3 marker:hidden hover:bg-slate-50">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                        {service.logo_url ? (
+                          <Image
+                            src={service.logo_url}
+                            alt=""
+                            width={40}
+                            height={28}
+                            unoptimized
+                            className="max-h-7 w-auto max-w-9 object-contain"
+                          />
+                        ) : (
+                          <Layers3 className="h-4 w-4 text-slate-400" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-slate-900">
+                          {serviceDisplayLabel(service)}
+                        </span>
+                        <span className="block truncate text-[11px] text-slate-500">
+                          {category?.label || 'Category'} · {service.item_key}
+                        </span>
+                      </span>
+                      <span
+                        className={`hidden rounded-full px-2 py-1 text-[10px] font-black sm:inline-flex ${service.default_direction === 'IN' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}
+                      >
+                        {service.default_direction === 'IN' ? 'Money in' : 'Money out'}
+                      </span>
+                      <span
+                        className={`hidden rounded-full px-2 py-1 text-[10px] font-black sm:inline-flex ${service.is_active ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-500'}`}
+                      >
+                        {service.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-3 border-t border-slate-200 bg-slate-50/40 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                            {category?.label || 'Category'}
+                          </p>
+                          <p className="font-mono text-[10px] text-slate-400">{service.item_key}</p>
+                        </div>
+                        {service.tracked_source_type && (
+                          <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700">
+                            {service.tracked_source_type} linked
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_7rem_5rem]">
+                        <label className="text-xs font-bold text-slate-600">
+                          Label
+                          <input
+                            value={serviceDisplayLabel(service)}
+                            onChange={(event) =>
+                              updateService(service.id, {
+                                label: event.target.value,
+                                option_label: event.target.value,
+                              })
+                            }
+                            className={FIELD_CLASS}
+                          />
+                        </label>
+                        <label className="text-xs font-bold text-slate-600">
+                          Category
+                          <select
+                            value={service.category_id}
+                            disabled={Boolean(service.tracked_source_type)}
+                            onChange={(event) =>
+                              updateService(service.id, { category_id: event.target.value })
+                            }
+                            className={FIELD_CLASS}
+                          >
+                            {data.categories.map((row) => (
+                              <option key={row.id} value={row.id}>
+                                {row.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-xs font-bold text-slate-600">
+                          Direction
+                          <select
+                            value={service.default_direction}
+                            disabled={protectedContract}
+                            onChange={(event) =>
+                              updateService(service.id, {
+                                default_direction: event.target.value as 'IN' | 'OUT',
+                                classification:
+                                  event.target.value === 'OUT' ? 'EXPENSE' : 'SERVICE',
+                              })
+                            }
+                            className={FIELD_CLASS}
+                          >
+                            <option value="IN">Money in</option>
+                            <option value="OUT">Money out</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-bold text-slate-600">
+                          Order
+                          <input
+                            type="number"
+                            min={0}
+                            value={service.display_order}
+                            onChange={(event) =>
+                              updateService(service.id, {
+                                display_order: Number(event.target.value),
+                              })
+                            }
+                            className={FIELD_CLASS}
+                          />
+                        </label>
+                      </div>
+                      <fieldset>
+                        <legend className="text-xs font-bold text-slate-600">
+                          Allowed payment methods
+                        </legend>
+                        <p className="mt-0.5 text-[10px] text-slate-500">
+                          Staff will only see the selected methods. At least one must remain
+                          enabled.
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {(['CASH', 'CARD', 'BANK'] as const).map((method) => (
+                            <label
+                              key={method}
+                              className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] font-bold"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={service.allowed_payment_methods.includes(method)}
+                                onChange={(event) => {
+                                  const methods = event.target.checked
+                                    ? [...new Set([...service.allowed_payment_methods, method])]
+                                    : service.allowed_payment_methods.filter(
+                                        (value) => value !== method,
+                                      )
+                                  if (methods.length)
+                                    updateService(service.id, { allowed_payment_methods: methods })
+                                }}
+                              />{' '}
+                              {method[0] + method.slice(1).toLocaleLowerCase()}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                      <div>
+                        <p className="text-xs font-bold text-slate-600">Information requirements</p>
+                        <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                          {SERVICE_REQUIREMENTS.map(({ label, field, hint }) => (
+                            <label
+                              key={field}
+                              title={hint}
+                              className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px]"
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={
+                                  field === 'source_required' &&
+                                  Boolean(service.tracked_source_type)
+                                }
+                                checked={Boolean(service[field as keyof ServiceRow])}
+                                onChange={(event) =>
+                                  updateService(service.id, { [field]: event.target.checked })
+                                }
+                                className="mt-0.5"
+                              />
+                              <span>
+                                <span className="block font-black text-slate-800">{label}</span>
+                                <span className="mt-0.5 block leading-4 text-slate-500">
+                                  {hint}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <LogoEditor
+                        kind="service"
+                        label={serviceDisplayLabel(service)}
+                        logoKey={service.logo_key}
+                        logoUrl={service.logo_url}
+                        disabled={!data.configurationReady || busy !== ''}
+                        onChange={(logoKey, logoUrl) =>
+                          updateService(service.id, { logo_key: logoKey, logo_url: logoUrl })
+                        }
+                      />
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] text-slate-500">
+                          Loyalty eligibility and rates are preserved but edited only in the Loyalty
+                          module.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void saveService(service)}
+                          disabled={busy !== '' || !data.configurationReady}
+                          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50"
+                        >
+                          <Save className="h-3.5 w-3.5" /> Save service
+                        </button>
+                      </div>
+                    </div>
+                  </details>
+                )
+              })}
+              {visibleServices.length === 0 && (
+                <p className="col-span-full py-10 text-center text-sm text-slate-500">
+                  No services match these filters.
+                </p>
+              )}
             </div>
-            <LogoEditor
-              kind="supplier"
-              label={newSupplier.name || 'New supplier'}
-              logoKey={newSupplier.logoKey}
-              logoUrl={newSupplier.logoUrl}
-              disabled={!data.configurationReady || busy !== ''}
-              onChange={(logoKey, logoUrl) => setNewSupplier({ ...newSupplier, logoKey, logoUrl })}
+          </section>
+        </div>
+      )}
+
+      {activeTab === 'suppliers' && (
+        <div className="space-y-4">
+          <SectionGuide
+            title="Keep one clean record for each supplier"
+            description="Supplier records control matching, logos and whether payments build a deposit balance. Aliases help match names from imported or external records."
+            steps={[
+              'Search before adding a supplier.',
+              'Add known spelling aliases.',
+              'Choose the correct settlement mode.',
+            ]}
+            note="Use Deposit account only when we hold a running balance with that supplier. Use Pay on demand when each booking is paid separately."
+          />
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <SectionHeader
+              title="Suppliers"
+              description="Manage unique supplier identities, matching aliases, settlement behavior and logos."
             />
-          </form>
-          <div className="grid gap-3 p-4 xl:grid-cols-2">
-            {data.suppliers.map((supplier) => (
-              <article
-                key={supplier.supplier_vendor_id}
-                className="space-y-3 rounded-xl border border-slate-200 p-3 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-black ${supplier.is_system ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                const aliases = newSupplier.aliases
+                  .split(',')
+                  .map((value) => value.trim())
+                  .filter(Boolean)
+                if (hasDuplicateSupplier(newSupplier.name, aliases)) {
+                  toast.error('A supplier name or alias is already in use.')
+                  return
+                }
+                void mutate('new-supplier', {
+                  action: 'UPSERT_SUPPLIER',
+                  name: newSupplier.name,
+                  aliases,
+                  sourceArea: newSupplier.sourceArea || undefined,
+                  sourceReference: newSupplier.sourceReference || undefined,
+                  settlementMode: newSupplier.settlementMode,
+                  logoKey: newSupplier.logoKey,
+                  isActive: true,
+                }).then(
+                  (saved) =>
+                    saved &&
+                    setNewSupplier({
+                      name: '',
+                      aliases: '',
+                      sourceArea: '',
+                      sourceReference: '',
+                      settlementMode: 'DEPOSIT_ACCOUNT',
+                      logoKey: null,
+                      logoUrl: null,
+                    }),
+                )
+              }}
+              className="grid gap-3 border-b border-emerald-100 bg-emerald-50/50 p-4 lg:grid-cols-[1fr_1fr]"
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-[11px] font-black text-emerald-950">
+                  Supplier name
+                  <input
+                    required
+                    value={newSupplier.name}
+                    onChange={(event) =>
+                      setNewSupplier({ ...newSupplier, name: event.target.value })
+                    }
+                    placeholder="Registered or trading name"
+                    className={`${SMALL_FIELD_CLASS} mt-1`}
+                  />
+                </label>
+                <label className="text-[11px] font-black text-emerald-950">
+                  Matching aliases
+                  <input
+                    value={newSupplier.aliases}
+                    onChange={(event) =>
+                      setNewSupplier({ ...newSupplier, aliases: event.target.value })
+                    }
+                    placeholder="Comma-separated alternative names"
+                    className={`${SMALL_FIELD_CLASS} mt-1`}
+                  />
+                </label>
+                <label className="text-[11px] font-black text-emerald-950">
+                  Business area
+                  <input
+                    value={newSupplier.sourceArea}
+                    onChange={(event) =>
+                      setNewSupplier({ ...newSupplier, sourceArea: event.target.value })
+                    }
+                    placeholder="e.g. Ticketing"
+                    className={`${SMALL_FIELD_CLASS} mt-1`}
+                  />
+                </label>
+                <label className="text-[11px] font-black text-emerald-950">
+                  External reference
+                  <input
+                    value={newSupplier.sourceReference}
+                    onChange={(event) =>
+                      setNewSupplier({ ...newSupplier, sourceReference: event.target.value })
+                    }
+                    placeholder="Optional account or supplier code"
+                    className={`${SMALL_FIELD_CLASS} mt-1`}
+                  />
+                </label>
+                <label className="text-[11px] font-black text-emerald-950">
+                  Settlement mode
+                  <select
+                    aria-label="New supplier settlement mode"
+                    value={newSupplier.settlementMode}
+                    onChange={(event) =>
+                      setNewSupplier({
+                        ...newSupplier,
+                        settlementMode: event.target.value as typeof newSupplier.settlementMode,
+                      })
+                    }
+                    className={`${SMALL_FIELD_CLASS} mt-1`}
                   >
-                    {supplier.is_system ? 'Protected supplier' : 'Custom supplier'}
-                  </span>
-                  <label className="flex items-center gap-1.5 text-xs font-bold">
-                    <input
-                      type="checkbox"
-                      checked={supplier.is_active}
-                      onChange={(event) =>
-                        updateSupplier(supplier.supplier_vendor_id, {
-                          is_active: event.target.checked,
-                        })
-                      }
-                    />{' '}
-                    Active
-                  </label>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">
-                    Name
-                    <input
-                      aria-label={`${supplier.name} name`}
-                      value={supplier.name}
-                      disabled={supplier.is_system}
-                      onChange={(event) =>
-                        updateSupplier(supplier.supplier_vendor_id, { name: event.target.value })
-                      }
-                      className={FIELD_CLASS}
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Settlement
-                    <select
-                      aria-label={`${supplier.name} settlement mode`}
-                      value={supplier.settlement_mode}
-                      disabled={supplier.is_system}
-                      onChange={(event) =>
-                        updateSupplier(supplier.supplier_vendor_id, {
-                          settlement_mode: event.target.value as SupplierRow['settlement_mode'],
-                        })
-                      }
-                      className={FIELD_CLASS}
+                    <option value="DEPOSIT_ACCOUNT">Deposit account</option>
+                    <option value="PAY_ON_DEMAND">Pay on demand</option>
+                  </select>
+                </label>
+                <button
+                  disabled={busy !== '' || !data.configurationReady}
+                  className="flex h-8 self-end items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add supplier
+                </button>
+              </div>
+              <LogoEditor
+                kind="supplier"
+                label={newSupplier.name || 'New supplier'}
+                logoKey={newSupplier.logoKey}
+                logoUrl={newSupplier.logoUrl}
+                disabled={!data.configurationReady || busy !== ''}
+                onChange={(logoKey, logoUrl) =>
+                  setNewSupplier({ ...newSupplier, logoKey, logoUrl })
+                }
+              />
+            </form>
+            <ListToolbar
+              value={recordSearch}
+              onChange={setRecordSearch}
+              count={visibleSuppliers.length}
+              noun="suppliers"
+            />
+            <div className="grid gap-3 p-4 xl:grid-cols-2">
+              {visibleSuppliers.map((supplier) => (
+                <details
+                  key={supplier.supplier_vendor_id}
+                  className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm open:border-emerald-300 open:ring-2 open:ring-emerald-50"
+                >
+                  <summary className="flex cursor-pointer list-none items-center gap-3 p-3 marker:hidden hover:bg-slate-50">
+                    <span className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1">
+                      {supplier.logo_url ? (
+                        <Image
+                          src={supplier.logo_url}
+                          alt=""
+                          width={52}
+                          height={28}
+                          unoptimized
+                          className="max-h-7 w-auto max-w-12 object-contain"
+                        />
+                      ) : (
+                        <Building2 className="h-4 w-4 text-slate-400" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black text-slate-900">
+                        {supplier.name}
+                      </span>
+                      <span className="block truncate text-[11px] text-slate-500">
+                        {supplier.source_area || 'No business area'} ·{' '}
+                        {supplier.settlement_mode === 'DEPOSIT_ACCOUNT'
+                          ? 'Deposit account'
+                          : 'Pay on demand'}
+                      </span>
+                    </span>
+                    <span
+                      className={`hidden rounded-full px-2 py-1 text-[10px] font-black sm:inline-flex ${supplier.is_active ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-500'}`}
                     >
-                      <option value="DEPOSIT_ACCOUNT">Deposit account</option>
-                      <option value="PAY_ON_DEMAND">Pay on demand</option>
-                    </select>
-                  </label>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">
-                    Aliases
-                    <input
-                      aria-label={`${supplier.name} aliases`}
-                      value={supplier.alternate_names.join(', ')}
-                      onChange={(event) =>
+                      {supplier.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-3 border-t border-slate-200 bg-slate-50/40 p-4">
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-black ${supplier.is_system ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}
+                      >
+                        {supplier.is_system ? 'Protected supplier' : 'Custom supplier'}
+                      </span>
+                      <label className="flex items-center gap-1.5 text-xs font-bold">
+                        <input
+                          type="checkbox"
+                          checked={supplier.is_active}
+                          onChange={(event) =>
+                            updateSupplier(supplier.supplier_vendor_id, {
+                              is_active: event.target.checked,
+                            })
+                          }
+                        />{' '}
+                        Active
+                      </label>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-xs font-bold text-slate-600">
+                        Name
+                        <input
+                          aria-label={`${supplier.name} name`}
+                          value={supplier.name}
+                          disabled={supplier.is_system}
+                          onChange={(event) =>
+                            updateSupplier(supplier.supplier_vendor_id, {
+                              name: event.target.value,
+                            })
+                          }
+                          className={FIELD_CLASS}
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Settlement
+                        <select
+                          aria-label={`${supplier.name} settlement mode`}
+                          value={supplier.settlement_mode}
+                          disabled={supplier.is_system}
+                          onChange={(event) =>
+                            updateSupplier(supplier.supplier_vendor_id, {
+                              settlement_mode: event.target.value as SupplierRow['settlement_mode'],
+                            })
+                          }
+                          className={FIELD_CLASS}
+                        >
+                          <option value="DEPOSIT_ACCOUNT">Deposit account</option>
+                          <option value="PAY_ON_DEMAND">Pay on demand</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-bold text-slate-600 sm:col-span-2">
+                        Aliases
+                        <input
+                          aria-label={`${supplier.name} aliases`}
+                          value={supplier.alternate_names.join(', ')}
+                          onChange={(event) =>
+                            updateSupplier(supplier.supplier_vendor_id, {
+                              alternate_names: event.target.value
+                                .split(',')
+                                .map((value) => value.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                          placeholder="Comma-separated matching names"
+                          className={FIELD_CLASS}
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Source area
+                        <input
+                          value={supplier.source_area || ''}
+                          onChange={(event) =>
+                            updateSupplier(supplier.supplier_vendor_id, {
+                              source_area: event.target.value,
+                            })
+                          }
+                          className={FIELD_CLASS}
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        External reference
+                        <input
+                          value={supplier.source_reference || ''}
+                          onChange={(event) =>
+                            updateSupplier(supplier.supplier_vendor_id, {
+                              source_reference: event.target.value,
+                            })
+                          }
+                          className={FIELD_CLASS}
+                        />
+                      </label>
+                    </div>
+                    <LogoEditor
+                      kind="supplier"
+                      label={supplier.name}
+                      logoKey={supplier.logo_key}
+                      logoUrl={supplier.logo_url}
+                      disabled={!data.configurationReady || busy !== ''}
+                      onChange={(logoKey, logoUrl) =>
                         updateSupplier(supplier.supplier_vendor_id, {
-                          alternate_names: event.target.value
-                            .split(',')
-                            .map((value) => value.trim())
-                            .filter(Boolean),
+                          logo_key: logoKey,
+                          logo_url: logoUrl,
                         })
                       }
-                      placeholder="Comma-separated matching names"
-                      className={FIELD_CLASS}
                     />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Source area
-                    <input
-                      value={supplier.source_area || ''}
-                      onChange={(event) =>
-                        updateSupplier(supplier.supplier_vendor_id, {
-                          source_area: event.target.value,
-                        })
-                      }
-                      className={FIELD_CLASS}
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    External reference
-                    <input
-                      value={supplier.source_reference || ''}
-                      onChange={(event) =>
-                        updateSupplier(supplier.supplier_vendor_id, {
-                          source_reference: event.target.value,
-                        })
-                      }
-                      className={FIELD_CLASS}
-                    />
-                  </label>
-                </div>
-                <LogoEditor
-                  kind="supplier"
-                  label={supplier.name}
-                  logoKey={supplier.logo_key}
-                  logoUrl={supplier.logo_url}
-                  disabled={!data.configurationReady || busy !== ''}
-                  onChange={(logoKey, logoUrl) =>
-                    updateSupplier(supplier.supplier_vendor_id, {
-                      logo_key: logoKey,
-                      logo_url: logoUrl,
-                    })
-                  }
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => void saveSupplier(supplier)}
-                    disabled={busy !== '' || !data.configurationReady}
-                    className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50"
-                  >
-                    <Save className="h-3.5 w-3.5" /> Save supplier
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void saveSupplier(supplier)}
+                        disabled={busy !== '' || !data.configurationReady}
+                        className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50"
+                      >
+                        <Save className="h-3.5 w-3.5" /> Save supplier
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              ))}
+              {visibleSuppliers.length === 0 && (
+                <p className="col-span-full py-10 text-center text-sm text-slate-500">
+                  No suppliers match your search.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
       )}
 
       {activeTab === 'assignments' && (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <SectionHeader
-            title="Category-to-supplier assignments"
-            description="Controls exactly which suppliers appear after staff choose a supplier-payment category."
+        <div className="space-y-4">
+          <SectionGuide
+            title="Decide which suppliers appear in Pay supplier"
+            description="Assignments prevent staff choosing an unrelated supplier. For example, Remittance should show remittance providers and Ticketing should show travel suppliers."
+            steps={[
+              'Choose the POS category.',
+              'Choose an unassigned supplier.',
+              'Optionally make it the default.',
+            ]}
+            note="A default saves a click but does not bypass confirmation. Removing an assignment hides that supplier from future POS payments only."
           />
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!assignment.supplierId) {
-                toast.error('Choose an unassigned supplier.')
-                return
-              }
-              void mutate('assignment', { action: 'SET_ASSIGNMENT', ...assignment, isActive: true })
-            }}
-            className="grid gap-2 border-b border-slate-200 bg-emerald-50/40 p-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-center"
-          >
-            <select
-              aria-label="Assignment category"
-              value={assignment.categoryKey}
-              onChange={(event) =>
-                setAssignment({ ...assignment, categoryKey: event.target.value, supplierId: '' })
-              }
-              className={SMALL_FIELD_CLASS}
-            >
-              {data.categories
-                .filter((row) => row.supplier_payments_enabled)
-                .map((row) => (
-                  <option key={row.id} value={row.category_key}>
-                    {row.label}
-                  </option>
-                ))}
-            </select>
-            <select
-              aria-label="Assignment supplier"
-              value={assignment.supplierId}
-              onChange={(event) => setAssignment({ ...assignment, supplierId: event.target.value })}
-              className={SMALL_FIELD_CLASS}
-            >
-              <option value="">Choose unassigned supplier</option>
-              {availableAssignmentSuppliers.map((row) => (
-                <option key={row.supplier_vendor_id} value={row.supplier_vendor_id}>
-                  {row.name}
-                </option>
-              ))}
-            </select>
-            <label className="flex h-8 items-center gap-1.5 text-xs font-bold">
-              <input
-                type="checkbox"
-                checked={assignment.isDefault}
-                onChange={(event) =>
-                  setAssignment({ ...assignment, isDefault: event.target.checked })
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <SectionHeader
+              title="Category-to-supplier assignments"
+              description="Controls exactly which suppliers appear after staff choose a supplier-payment category."
+            />
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!assignment.supplierId) {
+                  toast.error('Choose an unassigned supplier.')
+                  return
                 }
-              />{' '}
-              Default for category
-            </label>
-            <button
-              disabled={busy !== '' || !data.configurationReady || !assignment.supplierId}
-              className="flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
+                void mutate('assignment', {
+                  action: 'SET_ASSIGNMENT',
+                  ...assignment,
+                  isActive: true,
+                })
+              }}
+              className="grid gap-3 border-b border-emerald-100 bg-emerald-50/50 p-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end"
             >
-              <Plus className="h-3.5 w-3.5" /> Add assignment
-            </button>
-          </form>
-          <div className="space-y-4 p-4">
-            {data.categories
-              .filter((category) => category.supplier_payments_enabled)
-              .map((category) => {
-                const rows = activeAssignments.filter((row) => row.category_id === category.id)
-                return (
-                  <article key={category.id} className="rounded-xl border border-slate-200 p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-black text-slate-900">{category.label}</p>
-                        <p className="text-[10px] text-slate-500">
-                          {rows.length} supplier{rows.length === 1 ? '' : 's'} available in POS
-                        </p>
+              <label className="text-[11px] font-black text-emerald-950">
+                POS category
+                <select
+                  aria-label="Assignment category"
+                  value={assignment.categoryKey}
+                  onChange={(event) =>
+                    setAssignment({
+                      ...assignment,
+                      categoryKey: event.target.value,
+                      supplierId: '',
+                    })
+                  }
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                >
+                  {data.categories
+                    .filter((row) => row.supplier_payments_enabled)
+                    .map((row) => (
+                      <option key={row.id} value={row.category_key}>
+                        {row.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="text-[11px] font-black text-emerald-950">
+                Supplier to add
+                <select
+                  aria-label="Assignment supplier"
+                  value={assignment.supplierId}
+                  onChange={(event) =>
+                    setAssignment({ ...assignment, supplierId: event.target.value })
+                  }
+                  className={`${SMALL_FIELD_CLASS} mt-1`}
+                >
+                  <option value="">Choose unassigned supplier</option>
+                  {availableAssignmentSuppliers.map((row) => (
+                    <option key={row.supplier_vendor_id} value={row.supplier_vendor_id}>
+                      {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex h-8 items-center gap-1.5 text-xs font-bold">
+                <input
+                  type="checkbox"
+                  checked={assignment.isDefault}
+                  onChange={(event) =>
+                    setAssignment({ ...assignment, isDefault: event.target.checked })
+                  }
+                />{' '}
+                Default for category
+              </label>
+              <button
+                disabled={busy !== '' || !data.configurationReady || !assignment.supplierId}
+                className="flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-black text-white disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add assignment
+              </button>
+            </form>
+            <div className="space-y-4 p-4">
+              {data.categories
+                .filter((category) => category.supplier_payments_enabled)
+                .map((category) => {
+                  const rows = activeAssignments.filter((row) => row.category_id === category.id)
+                  return (
+                    <article key={category.id} className="rounded-xl border border-slate-200 p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-black text-slate-900">{category.label}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {rows.length} supplier{rows.length === 1 ? '' : 's'} available in POS
+                          </p>
+                        </div>
+                        <Store className="h-4 w-4 text-emerald-700" />
                       </div>
-                      <Store className="h-4 w-4 text-emerald-700" />
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {rows.map((row) => {
-                        const supplier = data.suppliers.find(
-                          (item) => item.supplier_vendor_id === row.supplier_vendor_id,
-                        )
-                        if (!supplier) return null
-                        return (
-                          <div
-                            key={`${row.category_id}-${row.supplier_vendor_id}`}
-                            className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-black text-slate-800">
-                                {supplier.name}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                {row.is_default
-                                  ? 'Default supplier'
-                                  : supplier.settlement_mode === 'DEPOSIT_ACCOUNT'
-                                    ? 'Deposit account'
-                                    : 'Pay on demand'}
-                              </p>
-                            </div>
-                            <div className="flex gap-1">
-                              {!row.is_default && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {rows.map((row) => {
+                          const supplier = data.suppliers.find(
+                            (item) => item.supplier_vendor_id === row.supplier_vendor_id,
+                          )
+                          if (!supplier) return null
+                          return (
+                            <div
+                              key={`${row.category_id}-${row.supplier_vendor_id}`}
+                              className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-black text-slate-800">
+                                  {supplier.name}
+                                </p>
+                                <p className="text-[10px] text-slate-500">
+                                  {row.is_default
+                                    ? 'Default supplier'
+                                    : supplier.settlement_mode === 'DEPOSIT_ACCOUNT'
+                                      ? 'Deposit account'
+                                      : 'Pay on demand'}
+                                </p>
+                              </div>
+                              <div className="flex gap-1">
+                                {!row.is_default && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void mutate(
+                                        `default-${row.category_id}-${row.supplier_vendor_id}`,
+                                        {
+                                          action: 'SET_ASSIGNMENT',
+                                          categoryKey: category.category_key,
+                                          supplierId: row.supplier_vendor_id,
+                                          isDefault: true,
+                                          isActive: true,
+                                        },
+                                      )
+                                    }
+                                    disabled={busy !== '' || !data.configurationReady}
+                                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600"
+                                  >
+                                    Make default
+                                  </button>
+                                )}
                                 <button
                                   type="button"
+                                  aria-label={`Remove ${supplier.name} from ${category.label}`}
                                   onClick={() =>
                                     void mutate(
-                                      `default-${row.category_id}-${row.supplier_vendor_id}`,
+                                      `unassign-${row.category_id}-${row.supplier_vendor_id}`,
                                       {
                                         action: 'SET_ASSIGNMENT',
                                         categoryKey: category.category_key,
                                         supplierId: row.supplier_vendor_id,
-                                        isDefault: true,
-                                        isActive: true,
+                                        isDefault: false,
+                                        isActive: false,
                                       },
                                     )
                                   }
                                   disabled={busy !== '' || !data.configurationReady}
-                                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600"
+                                  className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-50 text-rose-700"
                                 >
-                                  Make default
+                                  <X className="h-3.5 w-3.5" />
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                aria-label={`Remove ${supplier.name} from ${category.label}`}
-                                onClick={() =>
-                                  void mutate(
-                                    `unassign-${row.category_id}-${row.supplier_vendor_id}`,
-                                    {
-                                      action: 'SET_ASSIGNMENT',
-                                      categoryKey: category.category_key,
-                                      supplierId: row.supplier_vendor_id,
-                                      isDefault: false,
-                                      isActive: false,
-                                    },
-                                  )
-                                }
-                                disabled={busy !== '' || !data.configurationReady}
-                                className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-50 text-rose-700"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
+                              </div>
                             </div>
-                          </div>
-                        )
-                      })}
-                      {rows.length === 0 && (
-                        <p className="text-xs text-slate-400">No suppliers assigned.</p>
-                      )}
-                    </div>
-                  </article>
-                )
-              })}
-          </div>
-        </section>
+                          )
+                        })}
+                        {rows.length === 0 && (
+                          <p className="text-xs text-slate-400">No suppliers assigned.</p>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+            </div>
+          </section>
+        </div>
       )}
     </div>
   )

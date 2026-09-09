@@ -87,15 +87,24 @@ describe('POS configuration workspace', () => {
     render(<PosConfigurationClient />)
 
     expect(await screen.findByText('No duplicates detected')).toBeTruthy()
-    for (const tab of ['Overview', 'Categories', 'Services', 'Suppliers', 'Assignments']) {
-      expect(screen.getByRole('button', { name: new RegExp(`^${tab}`) })).toBeTruthy()
+    for (const [index, tab] of [
+      'Overview',
+      'Categories',
+      'Services',
+      'Suppliers',
+      'Assignments',
+    ].entries()) {
+      expect(
+        screen.getByRole('button', { name: new RegExp(`^${index + 1}\\. ${tab}`) }),
+      ).toBeTruthy()
     }
 
-    fireEvent.click(screen.getByRole('button', { name: /^Services/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^3\. Services/ }))
     expect(screen.getByText('Services and subservices')).toBeTruthy()
     expect(screen.queryByLabelText(/loyalty/i)).toBeNull()
     expect(screen.getByText(/edited only in the Loyalty module/)).toBeTruthy()
 
+    fireEvent.click(screen.getByText('Remittance · ria').closest('summary')!)
     fireEvent.click(screen.getByRole('button', { name: 'Save service' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
     const request = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
