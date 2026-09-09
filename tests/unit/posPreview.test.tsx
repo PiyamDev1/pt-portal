@@ -47,6 +47,10 @@ describe('POS frontend preview', () => {
     expect(screen.queryByLabelText('Extra coins Drawer ↔ reserve')).toBeNull()
 
     expect((screen.getByLabelText('Sort ledger') as HTMLSelectElement).value).toBe('Supplier')
+    const ledgerHeaders = Array.from(document.querySelectorAll('thead th')).map((header) =>
+      header.textContent?.trim(),
+    )
+    expect(ledgerHeaders.indexOf('Supplier')).toBeLessThan(ledgerHeaders.indexOf('Name / category'))
 
     expect(screen.getByRole('button', { name: 'Refund' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Receipt' })).toBeTruthy()
@@ -148,6 +152,9 @@ describe('POS frontend preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open POS tutorial' }))
     expect(screen.getByText('Choose a POS tutorial chapter')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Start the full 52-step tour' }))
+    expect(screen.getAllByText('Tutorial customer').length).toBeGreaterThan(0)
+    expect(screen.getByText('Tutorial examples')).toBeTruthy()
+    expect(screen.getByText('Browser only · nothing posted')).toBeTruthy()
     fireEvent.click(await screen.findByRole('button', { name: 'Next →' }))
     expect(await screen.findByRole('button', { name: '← Previous' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))

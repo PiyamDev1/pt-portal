@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
 import { posTourStorageKey } from '@/app/dashboard/pos/PosGuidedTour'
@@ -105,5 +105,50 @@ describe('POS preview interactions', () => {
     expect(screen.getByText('Live ledger')).toBeTruthy()
     expect(screen.getByText('No matching transactions')).toBeTruthy()
     expect(screen.queryByText('POS-0908-014')).toBeNull()
+  })
+
+  it('refreshes the live ledger every two minutes', async () => {
+    const liveLedger: PosLedgerPayload = {
+      items: [],
+      summary: {
+        moneyIn: 0,
+        moneyOut: 0,
+        netMovement: 0,
+        cashNet: 0,
+        cardNet: 0,
+        bankNet: 0,
+        unreconciledCount: 0,
+      },
+      context: {
+        branchId: 'branch-1',
+        branchName: 'Test branch',
+        timezone: 'Europe/London',
+        period: 'day',
+        date: '2026-09-08',
+        loadedAt: '2026-09-08T12:00:00.000Z',
+        source: 'pos_transactions',
+        truncated: false,
+      },
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(liveLedger),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    let automaticSync: (() => void) | undefined
+    vi.spyOn(window, 'setInterval').mockImplementation((handler, timeout) => {
+      if (timeout === 120_000) automaticSync = handler as () => void
+      return 1
+    })
+
+    render(<PosPreviewClient branchName="Test branch" initialLedger={liveLedger} />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(automaticSync).toBeTypeOf('function')
+
+    await act(async () => {
+      automaticSync?.()
+    })
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
   })
 })

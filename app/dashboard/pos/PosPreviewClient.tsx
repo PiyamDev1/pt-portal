@@ -75,6 +75,8 @@ const LEDGER_HEIGHT_STORAGE_KEY = 'pt-portal:pos-preview:ledger-height'
 const POS_DRAFT_STORAGE_KEY = 'pt-portal:pos:draft:v1'
 const POS_RETRY_STORAGE_KEY = 'pt-portal:pos:retry:v1'
 const SCAN_ARM_TIMEOUT_MS = 30_000
+const LEDGER_AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000
+const LEDGER_FOCUS_SYNC_THROTTLE_MS = 30 * 1000
 
 const CATEGORY_GROUP_TONES: Record<string, string> = {
   applications: 'border-sky-200 bg-sky-50 text-sky-800',
@@ -623,6 +625,134 @@ const TRANSACTIONS: PreviewTransaction[] = [
   },
 ]
 
+const TUTORIAL_TRANSACTIONS: PosLedgerTransaction[] = [
+  {
+    id: 'tutorial-transaction-1',
+    reference: 'TUTORIAL-001',
+    date: DEMO_TODAY,
+    time: '14:18',
+    name: 'Tutorial customer',
+    category: 'Document Assistance',
+    categoryKey: 'document-assistance',
+    method: 'Cash',
+    amount: 25,
+    accountImpact: 25,
+    points: 25,
+    status: 'Posted',
+    note: 'Example document assistance payment',
+    entryAgent: 'Tutorial agent',
+    sourceLinkId: null,
+    sourceLinks: [],
+    refunds: [],
+    auditEvents: [],
+    refundableRemaining: 25,
+    tenders: [{ method: 'Cash', amount: 25, direction: 'IN', reconciliationStatus: 'RECORDED' }],
+  },
+  {
+    id: 'tutorial-transaction-2',
+    reference: 'TUTORIAL-002',
+    date: DEMO_TODAY,
+    time: '13:42',
+    name: 'Tutorial remittance customer',
+    category: 'Remittance · Ria',
+    categoryKey: 'remittance',
+    method: 'Cash',
+    amount: 150,
+    accountImpact: 150,
+    points: 150,
+    status: 'Posted',
+    note: 'Example remittance receipt',
+    supplier: 'Ria',
+    entryAgent: 'Tutorial agent',
+    sourceLinkId: null,
+    sourceLinks: [],
+    refunds: [],
+    auditEvents: [],
+    refundableRemaining: 150,
+    tenders: [{ method: 'Cash', amount: 150, direction: 'IN', reconciliationStatus: 'RECORDED' }],
+  },
+  {
+    id: 'tutorial-transaction-3',
+    reference: 'TUTORIAL-003',
+    date: DEMO_TODAY,
+    time: '12:55',
+    name: 'Tutorial traveller',
+    category: 'Ticketing',
+    categoryKey: 'ticketing-packages',
+    method: 'Card',
+    amount: 420,
+    accountImpact: 420,
+    points: 0,
+    status: 'Posted',
+    note: 'Example ticket payment',
+    supplier: 'Polani Travel',
+    entryAgent: 'Tutorial agent',
+    sourceLinkId: null,
+    sourceLinks: [],
+    refunds: [],
+    auditEvents: [],
+    refundableRemaining: 420,
+    tenders: [{ method: 'Card', amount: 420, direction: 'IN', reconciliationStatus: 'RECORDED' }],
+  },
+  {
+    id: 'tutorial-transaction-4',
+    reference: 'TUTORIAL-004',
+    date: DEMO_TODAY,
+    time: '11:30',
+    name: 'Polani Travel',
+    category: 'Ticketing & Packages · Supplier',
+    categoryKey: 'ticketing-packages',
+    method: 'Bank',
+    amount: -250,
+    accountImpact: -250,
+    points: 0,
+    status: 'Supplier payment',
+    note: 'Example supplier balance payment',
+    supplier: 'Polani Travel',
+    outgoingType: 'SUPPLIER_PAYMENT',
+    entryAgent: 'Tutorial agent',
+    sourceLinkId: null,
+    sourceLinks: [],
+    refunds: [],
+    auditEvents: [],
+    refundableRemaining: 0,
+    tenders: [{ method: 'Bank', amount: 250, direction: 'OUT', reconciliationStatus: 'RECORDED' }],
+  },
+  {
+    id: 'tutorial-transaction-5',
+    reference: 'TUTORIAL-005',
+    date: DEMO_TODAY,
+    time: '10:12',
+    name: 'Tutorial stationery',
+    category: 'General expense',
+    categoryKey: 'other',
+    method: 'Cash',
+    amount: -18.4,
+    accountImpact: -18.4,
+    points: 0,
+    status: 'Posted',
+    note: 'Example office supplies expense',
+    outgoingType: 'EXPENSE',
+    entryAgent: 'Tutorial agent',
+    sourceLinkId: null,
+    sourceLinks: [],
+    refunds: [],
+    auditEvents: [],
+    refundableRemaining: 0,
+    tenders: [{ method: 'Cash', amount: 18.4, direction: 'OUT', reconciliationStatus: 'RECORDED' }],
+  },
+]
+
+const TUTORIAL_LEDGER_SUMMARY: PosLedgerSummary = {
+  moneyIn: 595,
+  moneyOut: 268.4,
+  netMovement: 326.6,
+  cashNet: 156.6,
+  cardNet: 420,
+  bankNet: -250,
+  unreconciledCount: 0,
+}
+
 const SUPPLIERS = [
   { name: 'British Airways', area: 'Ticketing', balance: 1240 },
   { name: 'Emirates', area: 'Ticketing', balance: 860 },
@@ -766,6 +896,8 @@ export default function PosPreviewClient({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const quickEntryInputRef = useRef<HTMLInputElement>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const lastAutomaticSyncAtRef = useRef(0)
+  const hasLedgerSnapshotRef = useRef(Boolean(initialLedger))
   const loadedLedgerKeyRef = useRef(
     initialLedger ? `${initialLedger.context.period}:${initialLedger.context.date}` : null,
   )
@@ -818,7 +950,7 @@ export default function PosPreviewClient({
   )
   const [ledgerDate, setLedgerDate] = useState(initialLedger?.context.date || DEMO_TODAY)
   const [transactions, setTransactions] = useState<PreviewTransaction[]>(
-    initialLedger?.items || TRANSACTIONS,
+    initialLedger?.items || (initialBootstrap?.schemaReady ? [] : TRANSACTIONS),
   )
   const [ledgerSummary, setLedgerSummary] = useState<PosLedgerSummary>(
     initialLedger?.summary || EMPTY_LEDGER_SUMMARY,
@@ -828,7 +960,7 @@ export default function PosPreviewClient({
   const [ledgerError, setLedgerError] = useState<string | null>(initialLoadError)
   const [ledgerRefresh, setLedgerRefresh] = useState(0)
   const [selectedTransactionId, setSelectedTransactionId] = useState(
-    (initialLedger?.items || TRANSACTIONS)[0]?.id || '',
+    (initialLedger?.items || (initialBootstrap?.schemaReady ? [] : TRANSACTIONS))[0]?.id || '',
   )
   const [categoryId, setCategoryId] = useState('document-assistance')
   const [entryMode, setEntryMode] = useState<'CUSTOMER_PAYMENT' | 'SUPPLIER_PAYMENT'>(
@@ -863,6 +995,7 @@ export default function PosPreviewClient({
   const [tutorialMenuOpen, setTutorialMenuOpen] = useState(false)
   const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
   const todayDate = initialLedger?.context.date || DEMO_TODAY
+  const liveLedgerEnabled = Boolean(initialLedger || bootstrap.schemaReady)
 
   const iconByKey: Record<string, IconComponent> = {
     'file-text': FileText,
@@ -1004,9 +1137,20 @@ export default function PosPreviewClient({
     (source) => source.categoryKey === selectedTopCategoryKey,
   )
 
+  const displayedTransactions = useMemo(
+    () =>
+      tutorialOpen
+        ? TUTORIAL_TRANSACTIONS.map((transaction) => ({ ...transaction, date: ledgerDate }))
+        : transactions,
+    [ledgerDate, transactions, tutorialOpen],
+  )
+  const displayedLedgerSummary = tutorialOpen ? TUTORIAL_LEDGER_SUMMARY : ledgerSummary
+
   const filteredTransactions = useMemo(() => {
+    if (tutorialOpen) return displayedTransactions
+
     const needle = search.trim().toLowerCase()
-    const matches = transactions.filter((transaction) => {
+    const matches = displayedTransactions.filter((transaction) => {
       const matchesPeriod =
         ledgerPeriod === 'month'
           ? transaction.date.startsWith(ledgerDate.slice(0, 7))
@@ -1046,7 +1190,7 @@ export default function PosPreviewClient({
       }
       return right.time.localeCompare(left.time)
     })
-  }, [activeFilter, ledgerDate, ledgerPeriod, search, sortBy, transactions])
+  }, [activeFilter, displayedTransactions, ledgerDate, ledgerPeriod, search, sortBy, tutorialOpen])
 
   const monthlySummary = useMemo(() => {
     const moneyIn = filteredTransactions.reduce(
@@ -1067,8 +1211,9 @@ export default function PosPreviewClient({
     }
   }, [filteredTransactions])
 
-  const selectedTransaction =
-    transactions.find((transaction) => transaction.id === selectedTransactionId) || null
+  const selectedTransaction = tutorialOpen
+    ? displayedTransactions[0] || null
+    : displayedTransactions.find((transaction) => transaction.id === selectedTransactionId) || null
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -1097,7 +1242,7 @@ export default function PosPreviewClient({
   }, [])
 
   useEffect(() => {
-    if (!initialLedger) return
+    if (!liveLedgerEnabled) return
     const requestKey = [
       ledgerPeriod,
       ledgerDate,
@@ -1155,10 +1300,13 @@ export default function PosPreviewClient({
         if (!active) return
 
         loadedLedgerKeyRef.current = requestKey
+        hasLedgerSnapshotRef.current = true
         setTransactions(payload.items)
         setLedgerSummary(payload.summary)
         setLedgerLoadedAt(payload.context.loadedAt)
-        setSelectedTransactionId(payload.items[0]?.id || '')
+        setSelectedTransactionId((current) =>
+          payload.items.some((item) => item.id === current) ? current : payload.items[0]?.id || '',
+        )
         setLedgerError(
           payload.context.truncated
             ? 'Only the newest 500 entries are shown for this period. Narrow the date range.'
@@ -1166,9 +1314,11 @@ export default function PosPreviewClient({
         )
       } catch (error) {
         if (!active || (error instanceof DOMException && error.name === 'AbortError')) return
-        setTransactions([])
-        setLedgerSummary(EMPTY_LEDGER_SUMMARY)
-        setSelectedTransactionId('')
+        if (!hasLedgerSnapshotRef.current) {
+          setTransactions([])
+          setLedgerSummary(EMPTY_LEDGER_SUMMARY)
+          setSelectedTransactionId('')
+        }
         setLedgerError(error instanceof Error ? error.message : 'Unable to load the POS ledger.')
       } finally {
         if (active) setLedgerLoading(false)
@@ -1185,7 +1335,7 @@ export default function PosPreviewClient({
     agentFilter,
     categoryFilter,
     deferredSearch,
-    initialLedger,
+    liveLedgerEnabled,
     ledgerDate,
     ledgerPeriod,
     ledgerRefresh,
@@ -1198,6 +1348,38 @@ export default function PosPreviewClient({
     supplierFilter,
     tillFilter,
   ])
+
+  useEffect(() => {
+    if (!liveLedgerEnabled || tutorialOpen) return
+    if (lastAutomaticSyncAtRef.current === 0) lastAutomaticSyncAtRef.current = Date.now()
+
+    const requestAutomaticSync = (force = false) => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return
+      const now = Date.now()
+      if (!force && now - lastAutomaticSyncAtRef.current < LEDGER_FOCUS_SYNC_THROTTLE_MS) return
+      lastAutomaticSyncAtRef.current = now
+      setLedgerRefresh((current) => current + 1)
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') requestAutomaticSync()
+    }
+    const handleWindowFocus = () => requestAutomaticSync()
+    const handleOnline = () => requestAutomaticSync(true)
+    const interval = window.setInterval(
+      () => requestAutomaticSync(true),
+      LEDGER_AUTO_SYNC_INTERVAL_MS,
+    )
+
+    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('online', handleOnline)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('online', handleOnline)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [liveLedgerEnabled, tutorialOpen])
 
   useEffect(() => {
     const savedHeight = Number.parseInt(
@@ -1728,18 +1910,37 @@ export default function PosPreviewClient({
             </div>
             <div
               data-pos-tour="sync"
-              className="rounded-xl bg-emerald-400/15 px-3 py-2 ring-1 ring-emerald-200/25"
+              title={
+                tutorialOpen
+                  ? 'The tutorial uses browser-only examples and never changes the live ledger'
+                  : 'The ledger refreshes every two minutes and when this window becomes active'
+              }
+              aria-live="polite"
+              className={`rounded-xl px-3 py-2 ring-1 ${
+                tutorialOpen
+                  ? 'bg-amber-300/15 ring-amber-200/25'
+                  : 'bg-emerald-400/15 ring-emerald-200/25'
+              }`}
             >
-              <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-emerald-100">
-                <span className="h-2 w-2 rounded-full bg-emerald-300" /> Live data
+              <p
+                className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] ${
+                  tutorialOpen ? 'text-amber-100' : 'text-emerald-100'
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${tutorialOpen ? 'bg-amber-300' : 'bg-emerald-300'}`}
+                />{' '}
+                {tutorialOpen ? 'Tutorial examples' : 'Live data · Auto 2 min'}
               </p>
               <p className="text-xs font-black">
-                {ledgerLoading
-                  ? 'Refreshing…'
-                  : `Synced ${formatLoadedAt(
-                      ledgerLoadedAt,
-                      initialLedger?.context.timezone || bootstrap.branch.timezone,
-                    )}`}
+                {tutorialOpen
+                  ? 'Browser only · nothing posted'
+                  : ledgerLoading
+                    ? 'Refreshing…'
+                    : `Synced ${formatLoadedAt(
+                        ledgerLoadedAt,
+                        initialLedger?.context.timezone || bootstrap.branch.timezone,
+                      )}`}
               </p>
             </div>
             <button
@@ -1761,29 +1962,29 @@ export default function PosPreviewClient({
       <section data-pos-tour="summaries" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} cash net`}
-          value={formatSignedMoney(ledgerSummary.cashNet)}
+          value={formatSignedMoney(displayedLedgerSummary.cashNet)}
           detail="Posted cash tenders"
           icon={Banknote}
           tone="bg-emerald-50 text-emerald-700"
         />
         <SummaryCard
           label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} card net`}
-          value={formatSignedMoney(ledgerSummary.cardNet)}
-          detail={`${ledgerSummary.unreconciledCount} unreconciled tender${ledgerSummary.unreconciledCount === 1 ? '' : 's'}`}
+          value={formatSignedMoney(displayedLedgerSummary.cardNet)}
+          detail={`${displayedLedgerSummary.unreconciledCount} unreconciled tender${displayedLedgerSummary.unreconciledCount === 1 ? '' : 's'}`}
           icon={CreditCard}
           tone="bg-blue-50 text-blue-700"
         />
         <SummaryCard
           label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} bank net`}
-          value={formatSignedMoney(ledgerSummary.bankNet)}
+          value={formatSignedMoney(displayedLedgerSummary.bankNet)}
           detail="Recorded bank tenders"
           icon={Landmark}
           tone="bg-violet-50 text-violet-700"
         />
         <SummaryCard
           label="Net movement"
-          value={formatSignedMoney(ledgerSummary.netMovement)}
-          detail={`${formatMoney(ledgerSummary.moneyIn)} in · ${formatMoney(ledgerSummary.moneyOut)} out`}
+          value={formatSignedMoney(displayedLedgerSummary.netMovement)}
+          detail={`${formatMoney(displayedLedgerSummary.moneyIn)} in · ${formatMoney(displayedLedgerSummary.moneyOut)} out`}
           icon={Coins}
           tone="bg-amber-50 text-amber-700"
         />
@@ -2043,8 +2244,9 @@ export default function PosPreviewClient({
           <PosOperationsPanel
             view={activeView}
             bootstrap={bootstrap}
-            transactions={transactions.filter((transaction): transaction is PosLedgerTransaction =>
-              Boolean(transaction.reference && transaction.entryAgent && transaction.tenders),
+            transactions={displayedTransactions.filter(
+              (transaction): transaction is PosLedgerTransaction =>
+                Boolean(transaction.reference && transaction.entryAgent && transaction.tenders),
             )}
             period={ledgerPeriod}
             date={ledgerDate}
@@ -2069,6 +2271,11 @@ export default function PosPreviewClient({
                   <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-600">
                     {filteredTransactions.length}
                   </span>
+                  {tutorialOpen && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-inset ring-amber-200">
+                      Example data only
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10px] text-slate-500">
                   {ledgerPeriod === 'month'
@@ -2377,7 +2584,7 @@ export default function PosPreviewClient({
               </div>
             )}
 
-            {ledgerError && (
+            {ledgerError && !tutorialOpen && (
               <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-900">
                 <span>{ledgerError}</span>
                 <button
@@ -2390,7 +2597,7 @@ export default function PosPreviewClient({
               </div>
             )}
 
-            {ledgerLoading && (
+            {ledgerLoading && !tutorialOpen && (
               <div className="border-b border-blue-100 bg-blue-50 px-4 py-2 text-[11px] font-semibold text-blue-800">
                 Loading live branch ledger…
               </div>
@@ -2405,8 +2612,8 @@ export default function PosPreviewClient({
                 <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                   <tr className="border-b border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
                     <th className="px-3 py-2">Time / reference</th>
-                    <th className="px-3 py-2">Name / category</th>
                     <th className="px-3 py-2">Supplier</th>
+                    <th className="px-3 py-2">Name / category</th>
                     <th className="px-3 py-2">Method</th>
                     <th className="px-3 py-2 text-right">In</th>
                     <th className="px-3 py-2 text-right">Out</th>
@@ -2451,19 +2658,13 @@ export default function PosPreviewClient({
                       <tr
                         onClick={() => setSelectedTransactionId(transaction.id)}
                         className={`cursor-pointer transition hover:bg-slate-50 ${
-                          selectedTransactionId === transaction.id ? 'bg-red-50/50' : 'bg-white'
+                          selectedTransaction?.id === transaction.id ? 'bg-red-50/50' : 'bg-white'
                         }`}
                       >
                         <td className="px-3 py-2">
                           <p className="text-xs font-black text-slate-900">{transaction.time}</p>
                           <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
                             {transaction.reference || transaction.id}
-                          </p>
-                        </td>
-                        <td className="px-3 py-2">
-                          <p className="text-xs font-bold text-slate-900">{transaction.name}</p>
-                          <p className="mt-0.5 text-[11px] text-slate-500">
-                            {transaction.category}
                           </p>
                         </td>
                         <td className="px-3 py-2">
@@ -2474,6 +2675,12 @@ export default function PosPreviewClient({
                           ) : (
                             <span className="text-xs text-slate-300">—</span>
                           )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <p className="text-xs font-bold text-slate-900">{transaction.name}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {transaction.category}
+                          </p>
                         </td>
                         <td className="px-3 py-2">
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
@@ -2658,11 +2865,15 @@ export default function PosPreviewClient({
                     onClick={() =>
                       selectedTransaction.isLegacy
                         ? toast.info('Imported legacy rows retain their original reference only.')
-                        : window.open(
-                            `/api/pos/transactions/${selectedTransaction.id}/receipt`,
-                            '_blank',
-                            'noopener,noreferrer',
-                          )
+                        : tutorialOpen
+                          ? toast.info('Tutorial example only', {
+                              description: 'No live receipt is created for tutorial transactions.',
+                            })
+                          : window.open(
+                              `/api/pos/transactions/${selectedTransaction.id}/receipt`,
+                              '_blank',
+                              'noopener,noreferrer',
+                            )
                     }
                     className="hidden h-8 rounded-lg border border-slate-200 px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50 sm:block"
                   >
@@ -3470,7 +3681,13 @@ export default function PosPreviewClient({
         <PosGuidedTour
           employeeId={employeeId}
           startIndex={tutorialStartIndex}
-          onExit={() => setTutorialOpen(false)}
+          onExit={() => {
+            setTutorialOpen(false)
+            if (liveLedgerEnabled) {
+              lastAutomaticSyncAtRef.current = Date.now()
+              setLedgerRefresh((current) => current + 1)
+            }
+          }}
         />
       )}
     </div>

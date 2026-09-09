@@ -32,7 +32,7 @@ const DEFINITIONS: TourDefinition[] = [
     chapter: 'Orientation',
     title: 'Welcome to the live POS',
     description:
-      'This guided tour points at the real controls. Nothing can be posted or changed while the tour is running.',
+      'This tour points at the real controls while browser-only example transactions replace the live ledger. Nothing can be posted or changed.',
     target: 'header',
   },
   {
@@ -43,8 +43,9 @@ const DEFINITIONS: TourDefinition[] = [
   },
   {
     chapter: 'Orientation',
-    title: 'Live-data status',
-    description: 'Check the sync time before starting. Refresh if the status looks stale.',
+    title: 'Tutorial-data status',
+    description:
+      'This amber status confirms that the examples exist only in your browser. After the tour, it returns to the live sync time and two-minute auto-sync status.',
     target: 'sync',
   },
   {
@@ -250,7 +251,7 @@ const DEFINITIONS: TourDefinition[] = [
     chapter: 'Ledger',
     title: 'Daily ledger',
     description:
-      'The ledger shows complete transactions, including remittance amounts paid directly to a provider.',
+      'These example rows demonstrate complete transactions, including remittance and supplier entries, without exposing the live ledger during training.',
     target: 'ledger',
   },
   {
