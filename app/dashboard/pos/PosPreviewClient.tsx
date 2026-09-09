@@ -108,6 +108,7 @@ type CategoryPreset = {
   direction: 'IN' | 'OUT' | 'TRANSFER'
   loyalty: boolean
   logoKey?: string | null
+  logoUrl?: string | null
 }
 
 type PreviewTransaction = Omit<
@@ -1024,6 +1025,7 @@ export default function PosPreviewClient({
           direction: service.defaultDirection,
           loyalty: service.loyaltyEligible,
           logoKey: service.logoKey,
+          logoUrl: service.logoUrl,
         })),
         ...category.shortcuts.map((shortcut) => ({
           id: shortcut.key,
@@ -2172,12 +2174,15 @@ export default function PosPreviewClient({
                             >
                               <span>
                                 <span className="flex items-center gap-2">
-                                  {category.logoKey && (
+                                  {(category.logoUrl || category.logoKey) && (
                                     <Image
-                                      src={`/pos/providers/${category.logoKey}.svg`}
+                                      src={
+                                        category.logoUrl || `/pos/providers/${category.logoKey}.svg`
+                                      }
                                       alt=""
                                       width={42}
                                       height={18}
+                                      unoptimized
                                       className="h-3.5 w-auto max-w-12 object-contain"
                                     />
                                   )}
@@ -2617,6 +2622,7 @@ export default function PosPreviewClient({
                     <th className="px-3 py-2">Method</th>
                     <th className="px-3 py-2 text-right">In</th>
                     <th className="px-3 py-2 text-right">Out</th>
+                    <th className="px-3 py-2 text-right">Points</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="w-9 px-2 py-2">
                       <span className="sr-only">Open</span>
@@ -2631,7 +2637,7 @@ export default function PosPreviewClient({
                           filteredTransactions[index - 1].date !== transaction.date) && (
                           <tr>
                             <td
-                              colSpan={8}
+                              colSpan={9}
                               className="border-y-4 border-white bg-slate-100 px-3 py-2"
                             >
                               <div className="flex items-center justify-between gap-3">
@@ -2700,6 +2706,11 @@ export default function PosPreviewClient({
                         <td className="px-3 py-2 text-right text-xs font-black text-rose-700">
                           {transaction.amount < 0 ? formatMoney(transaction.amount) : '—'}
                         </td>
+                        <td className="px-3 py-2 text-right text-xs font-black text-violet-700">
+                          {transaction.points === 0
+                            ? '—'
+                            : `${transaction.points > 0 ? '+' : ''}${transaction.points}`}
+                        </td>
                         <td className="px-3 py-2">
                           <span
                             className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${statusTone(transaction.status)}`}
@@ -2754,6 +2765,9 @@ export default function PosPreviewClient({
                       </p>
                       <p className="mt-1 text-[10px] font-semibold text-slate-400">
                         {transaction.method}
+                        {transaction.points !== 0
+                          ? ` · ${transaction.points > 0 ? '+' : ''}${transaction.points} pts`
+                          : ''}
                       </p>
                     </div>
                   </button>
@@ -3357,15 +3371,21 @@ export default function PosPreviewClient({
                           {supplierConfirmed ? 'Supplier confirmed' : 'Possible supplier match'}
                         </p>
                         <p className="truncate text-xs font-black text-slate-950">
-                          {supplierMatch && 'logoKey' in supplierMatch && supplierMatch.logoKey && (
-                            <Image
-                              src={`/pos/suppliers/${supplierMatch.logoKey}.svg`}
-                              alt=""
-                              width={68}
-                              height={22}
-                              className="mr-2 inline h-5 w-auto rounded bg-white object-contain"
-                            />
-                          )}
+                          {supplierMatch &&
+                            'logoKey' in supplierMatch &&
+                            (supplierMatch.logoUrl || supplierMatch.logoKey) && (
+                              <Image
+                                src={
+                                  supplierMatch.logoUrl ||
+                                  `/pos/suppliers/${supplierMatch.logoKey}.svg`
+                                }
+                                alt=""
+                                width={68}
+                                height={22}
+                                unoptimized
+                                className="mr-2 inline h-5 w-auto rounded bg-white object-contain"
+                              />
+                            )}
                           {supplierMatch?.name || 'No configured supplier found'}
                         </p>
                         {supplierMatch && (
@@ -3634,8 +3654,8 @@ export default function PosPreviewClient({
                   Choose a POS tutorial chapter
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  The full tour has 52 safe, non-posting steps. Use arrow keys or the buttons to
-                  move backward and forward.
+                  The full tour has 52 safe, non-posting steps. Use the buttons, arrow keys, or N
+                  for next and P for previous.
                 </p>
               </div>
               <button

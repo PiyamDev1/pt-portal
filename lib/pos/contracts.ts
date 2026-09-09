@@ -156,6 +156,7 @@ export type PosCatalogueItem = {
   pricingOptions: Array<{ id: string; label: string; price: number }>
   categoryKey: string
   logoKey: string | null
+  logoUrl: string | null
 }
 
 export type PosCategory = {
@@ -197,6 +198,7 @@ export type PosSupplier = {
   isActive: boolean
   settlementMode: 'DEPOSIT_ACCOUNT' | 'PAY_ON_DEMAND'
   logoKey: string | null
+  logoUrl: string | null
   isSystem: boolean
 }
 

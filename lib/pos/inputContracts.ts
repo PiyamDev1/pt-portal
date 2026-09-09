@@ -252,9 +252,7 @@ export const posConfigurationMutationSchema = z.discriminatedUnion('action', [
       classification: z.enum(['SERVICE', 'EXPENSE']).default('SERVICE'),
       direction: z.enum(['IN', 'OUT']),
       displayOrder: z.number().int().min(0).max(10_000),
-      logoKey: z.enum(['ria', 'moneygram', 'western-union', 'dex', 'intercity']).optional(),
-      loyaltyEligible: z.boolean().default(false),
-      pointsPerGbp: z.number().finite().min(0).max(10_000).default(0),
+      logoKey: configurationKey.nullable().optional(),
       allowedPaymentMethods: z
         .array(z.enum(['CASH', 'CARD', 'BANK']))
         .min(1)
@@ -275,7 +273,7 @@ export const posConfigurationMutationSchema = z.discriminatedUnion('action', [
       sourceArea: z.string().trim().min(1).max(80).optional(),
       sourceReference: z.string().trim().min(1).max(200).optional(),
       settlementMode: z.enum(['DEPOSIT_ACCOUNT', 'PAY_ON_DEMAND']).default('DEPOSIT_ACCOUNT'),
-      logoKey: z.enum(['polani-travel']).optional(),
+      logoKey: configurationKey.nullable().optional(),
       ...configurationBase,
     })
     .strict(),

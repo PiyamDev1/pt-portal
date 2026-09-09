@@ -63,7 +63,8 @@ const DEFINITIONS: TourDefinition[] = [
   {
     chapter: 'Till status and opening',
     title: 'Till totals',
-    description: 'Cash, card, bank and net movement update from posted ledger tenders.',
+    description:
+      'Cash, card, bank and net movement update from posted ledger tenders. Tutorial amounts are examples only.',
     target: 'summaries',
   },
   {
@@ -111,7 +112,7 @@ const DEFINITIONS: TourDefinition[] = [
     chapter: 'Loyalty scanner',
     title: 'Loyalty on remittance',
     description:
-      'Remittance points use the complete remittance amount and the configured points-per-GBP rate.',
+      'The mock ledger includes example points, such as +150 on the Ria row. Live rates come from the Loyalty module and use the complete eligible amount.',
     target: 'loyalty',
   },
   {
@@ -251,7 +252,7 @@ const DEFINITIONS: TourDefinition[] = [
     chapter: 'Ledger',
     title: 'Daily ledger',
     description:
-      'These example rows demonstrate complete transactions, including remittance and supplier entries, without exposing the live ledger during training.',
+      'These example rows demonstrate complete transactions without exposing the live ledger. The Points column shows awards such as +25 and +150; a dash means no points were awarded.',
     target: 'ledger',
   },
   {
@@ -288,7 +289,7 @@ const DEFINITIONS: TourDefinition[] = [
     chapter: 'Ledger',
     title: 'Select a row',
     description:
-      'Select a ledger row to inspect its tenders, source links, refunds and audit trail.',
+      'Select a ledger row to inspect its tenders, source links, refunds, loyalty points and audit trail.',
     target: 'ledger-rows',
   },
   {
@@ -423,8 +424,8 @@ export default function PosGuidedTour({
       skipMissingElement: false,
       showProgress: true,
       progressText: '{{current}} of {{total}}',
-      nextBtnText: 'Next →',
-      prevBtnText: '← Previous',
+      nextBtnText: 'Next → (N)',
+      prevBtnText: '← Previous (P)',
       doneBtnText: 'Finish',
       popoverClass: 'pos-guided-tour',
       overlayColor: '#0f172a',
@@ -443,8 +444,32 @@ export default function PosGuidedTour({
         exitRef.current()
       },
     })
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+      const target = event.target as HTMLElement | null
+      if (
+        target?.isContentEditable ||
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'SELECT' ||
+        target?.tagName === 'TEXTAREA'
+      ) {
+        return
+      }
+      if (event.key.toLowerCase() === 'n' && tour.getActiveIndex() !== DEFINITIONS.length - 1) {
+        event.preventDefault()
+        event.stopPropagation()
+        tour.moveNext()
+      }
+      if (event.key.toLowerCase() === 'p' && (tour.getActiveIndex() || 0) > 0) {
+        event.preventDefault()
+        event.stopPropagation()
+        tour.movePrevious()
+      }
+    }
+    document.addEventListener('keydown', handleShortcut, true)
     tour.drive(Math.min(Math.max(startIndex, 0), DEFINITIONS.length - 1))
     return () => {
+      document.removeEventListener('keydown', handleShortcut, true)
       if (tour.isActive()) tour.destroy()
     }
   }, [employeeId, startIndex])

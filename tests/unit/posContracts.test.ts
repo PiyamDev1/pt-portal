@@ -7,6 +7,7 @@ import {
   posRefundSchema,
   posReconciliationSchema,
 } from '@/lib/pos/inputContracts'
+import { posLogoUrl } from '@/lib/pos/logos'
 
 function session(role: string): StaffSession {
   return {
@@ -22,6 +23,12 @@ function session(role: string): StaffSession {
 }
 
 describe('POS mutation contracts', () => {
+  it('resolves approved provider logos for services and supplier profiles', () => {
+    expect(posLogoUrl('ria', 'service')).toBe('/pos/providers/ria.svg')
+    expect(posLogoUrl('ria', 'supplier')).toBe('/pos/providers/ria.svg')
+    expect(posLogoUrl('polani-travel', 'supplier')).toBe('/pos/suppliers/polani-travel.svg')
+  })
+
   it('accepts bounded split tenders and a typed tracked-service source', () => {
     const result = posPostTransactionSchema.safeParse({
       shiftId: '10000000-0000-4000-8000-000000000001',
@@ -101,6 +108,22 @@ describe('POS mutation contracts', () => {
         allowedPaymentMethods: ['CASH', 'CARD', 'BANK'],
       }).success,
     ).toBe(true)
+  })
+
+  it('accepts optimized custom logo keys without requiring POS-owned loyalty settings', () => {
+    const result = posConfigurationMutationSchema.safeParse({
+      action: 'UPSERT_SERVICE',
+      key: 'ria',
+      categoryKey: 'remittance',
+      label: 'Ria',
+      direction: 'IN',
+      displayOrder: 10,
+      logoKey: 'custom-10000000-0000-4000-8000-000000000001',
+      allowedPaymentMethods: ['CASH', 'CARD', 'BANK'],
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).not.toHaveProperty('loyaltyEligible')
   })
 
   it('requires an original for linked refunds and evidence for general refunds', () => {

@@ -155,8 +155,9 @@ describe('POS frontend preview', () => {
     expect(screen.getAllByText('Tutorial customer').length).toBeGreaterThan(0)
     expect(screen.getByText('Tutorial examples')).toBeTruthy()
     expect(screen.getByText('Browser only · nothing posted')).toBeTruthy()
-    fireEvent.click(await screen.findByRole('button', { name: 'Next →' }))
-    expect(await screen.findByRole('button', { name: '← Previous' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'n' })
+    expect(await screen.findByText(`2 of ${POS_TOUR_STEP_COUNT}`)).toBeTruthy()
+    expect(await screen.findByRole('button', { name: '← Previous (P)' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(window.localStorage.getItem(posTourStorageKey('preview'))).toBe('true')
 

@@ -4,7 +4,9 @@ import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireAccountingAccess } from '@/lib/accounting/access'
 import { POS_PRIVATE_RESPONSE, posErrorResponse, posIdempotencyKey } from '@/lib/pos/http'
 import { posConfigurationMutationSchema } from '@/lib/pos/inputContracts'
-import { runPosMutation } from '@/lib/pos/server'
+import { posLogoUrl } from '@/lib/pos/logos'
+import { POS_CONFIGURATION_CAPABILITY_VERSION } from '@/lib/pos/schemaCapability'
+import { getPosSchemaStatus, runPosMutation } from '@/lib/pos/server'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
@@ -19,12 +21,12 @@ export async function GET() {
   const access = await requireAccountingAccess()
   if (!access.authorized) return access.response
   const service = getServiceSupabaseClient()
-  const [categories, services, suppliers, assignments] = await Promise.all([
+  const [categories, services, suppliers, assignments, capability] = await Promise.all([
     service.from('pos_categories').select('*').order('display_order'),
     service
       .from('pos_catalogue_items')
       .select(
-        'id,item_key,category_id,label,option_label,classification,default_direction,allowed_payment_methods,source_required,customer_required,note_required,price_required,loyalty_eligible,points_per_gbp,logo_key,display_order,is_active,is_system_action,is_quick_entry',
+        'id,item_key,category_id,label,option_label,classification,default_direction,allowed_payment_methods,tracked_source_type,source_required,customer_required,note_required,price_required,logo_key,display_order,is_active,is_system_action,is_quick_entry',
       )
       .order('display_order'),
     service
@@ -34,20 +36,25 @@ export async function GET() {
       )
       .order('created_at'),
     service.from('pos_category_suppliers').select('*'),
+    getPosSchemaStatus(),
   ])
   const failure = [categories, services, suppliers, assignments].find((result) => result.error)
   if (failure?.error) return posErrorResponse(failure.error)
   return apiOk(
     {
       categories: categories.data || [],
-      services: (services.data || []).filter(
-        (item) => !item.is_system_action && item.is_quick_entry,
-      ),
+      services: (services.data || [])
+        .filter((item) => !item.is_system_action && item.is_quick_entry)
+        .map((item) => ({ ...item, logo_url: posLogoUrl(item.logo_key, 'service') })),
       suppliers: (suppliers.data || []).map((supplier) => ({
         ...supplier,
         name: relatedName(supplier.supplier_vendors),
+        logo_url: posLogoUrl(supplier.logo_key, 'supplier'),
       })),
       assignments: assignments.data || [],
+      capabilityVersion: capability.version,
+      configurationReady:
+        capability.ready && capability.version >= POS_CONFIGURATION_CAPABILITY_VERSION,
     },
     POS_PRIVATE_RESPONSE,
   )
@@ -72,8 +79,17 @@ export async function POST(request: Request) {
   if (!data || error)
     return apiError(error || 'Invalid POS configuration.', 400, {}, POS_PRIVATE_RESPONSE)
   try {
+    const capability = await getPosSchemaStatus()
+    if (!capability.ready || capability.version < POS_CONFIGURATION_CAPABILITY_VERSION) {
+      return apiError(
+        'The POS configuration workspace database upgrade is not installed yet.',
+        503,
+        { requiredCapabilityVersion: POS_CONFIGURATION_CAPABILITY_VERSION },
+        POS_PRIVATE_RESPONSE,
+      )
+    }
     return apiOk(
-      await runPosMutation('pos_manage_configuration_v3', access.employee.id, idempotencyKey, data),
+      await runPosMutation('pos_manage_configuration_v4', access.employee.id, idempotencyKey, data),
       { status: 201, ...POS_PRIVATE_RESPONSE },
     )
   } catch (mutationError) {

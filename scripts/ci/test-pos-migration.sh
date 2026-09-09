@@ -9,11 +9,13 @@ pos_fixture="tests/integration/fixtures/pos_prerequisites.sql"
 pos_migration="supabase/migrations/20260908214024_pos_module_complete.sql"
 catalogue_migration="supabase/migrations/20260909102606_pos_catalogue_configuration.sql"
 routing_migration="supabase/migrations/20260909131509_pos_supplier_deposits_and_remittance_routing.sql"
+configuration_migration="supabase/migrations/20260909152819_pos_configuration_workspace.sql"
 assertions="tests/integration/pos_module.sql"
 rollback_migration="$(mktemp)"
 rollback_catalogue_migration="$(mktemp)"
 rollback_routing_migration="$(mktemp)"
-trap 'rm -f "$rollback_migration" "$rollback_catalogue_migration" "$rollback_routing_migration"' EXIT
+rollback_configuration_migration="$(mktemp)"
+trap 'rm -f "$rollback_migration" "$rollback_catalogue_migration" "$rollback_routing_migration" "$rollback_configuration_migration"' EXIT
 
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$customer_fixture"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$customer_foundation"
@@ -25,11 +27,13 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$pos_fixture"
 sed '/^begin;$/d;/^commit;$/d' "$pos_migration" > "$rollback_migration"
 sed '/^begin;$/d;/^commit;$/d' "$catalogue_migration" > "$rollback_catalogue_migration"
 sed '/^begin;$/d;/^commit;$/d' "$routing_migration" > "$rollback_routing_migration"
+sed '/^begin;$/d;/^commit;$/d' "$configuration_migration" > "$rollback_configuration_migration"
 psql "$database_url" -v ON_ERROR_STOP=1 <<SQL
 begin;
 \i $rollback_migration
 \i $rollback_catalogue_migration
 \i $rollback_routing_migration
+\i $rollback_configuration_migration
 rollback;
 SQL
 
@@ -41,6 +45,7 @@ fi
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$pos_migration"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$catalogue_migration"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$routing_migration"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$configuration_migration"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$assertions"
 
 echo "POS module migration integration checks passed."

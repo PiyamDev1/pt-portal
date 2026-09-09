@@ -1,6 +1,6 @@
 # POS Daily Transaction Module Plan
 
-**Status:** Accounting foundation deployed; catalogue/configuration and supplier-routing iterations implemented and pending manual capability deployment
+**Status:** Accounting foundation deployed; catalogue, supplier-routing, and configuration-workspace iterations implemented and pending manual capability deployment
 **Module:** Point of Sale (POS) / branch daily transactions
 **Proposed route:** `/dashboard/pos`
 
@@ -68,11 +68,12 @@ a negative amount records a noted deposit correction/refund. The separate moveme
 staff-facing Supplier Balances workspace are removed. Supplier configuration, assignments, deposit
 history, and reporting live under Accounting.
 
-Configuration also controls labels, display order, activation, icons/logo keys, loyalty eligibility and
-rate, allowed payment methods, and customer/note/price/source-reference requirements. Stable keys and
-integrated source types are protected. Referenced records are deactivated instead of deleted, and changes
-affect future transactions only. Every posted transaction snapshots category, service, and supplier labels,
-and every configuration mutation is strict, idempotent, database-authorized, and audited.
+Configuration also controls labels, display order, activation, icons/logo keys, allowed payment methods,
+and customer/note/price/source-reference requirements. Loyalty eligibility and earning rates belong only
+to the Loyalty module, so POS Configuration cannot change them. Stable keys and integrated source types
+are protected. Referenced records are deactivated instead of deleted, and changes affect future
+transactions only. Every posted transaction snapshots category, service, and supplier labels, and every
+configuration mutation is strict, idempotent, database-authorized, and audited.
 
 ### Approved guided-operation and supplier-routing iteration — 9 September 2026
 
@@ -90,6 +91,17 @@ default directly to the selected provider. Split keeps cash with us and applies 
 to its non-cash parts. A visible selector is authoritative; double-clicking Card, Bank, or Split toggles it
 as a shortcut. Provider-direct tenders stay visible in the ledger but are excluded from our account and
 reconciliation totals. The full remittance amount still earns configured loyalty points.
+
+### Configuration workspace iteration — 9 September 2026
+
+Capability `2026090903` reorganizes Accounting POS Configuration into Overview, Categories, Services,
+Suppliers, and Assignments tabs. It adds duplicate health checks plus database uniqueness enforcement,
+allows approved built-in logos or protected custom uploads, and automatically rotates, resizes, and
+compresses uploaded PNG/JPEG/WebP assets into bounded WebP files. POS Configuration exposes no loyalty
+controls and preserves existing loyalty policy when a service is edited.
+
+The guided tour uses browser-only ledger examples with visible point awards and explanations. In addition
+to the arrow controls, `N` advances and `P` goes back without triggering the normal POS page shortcuts.
 
 ## 1. Product Boundary
 

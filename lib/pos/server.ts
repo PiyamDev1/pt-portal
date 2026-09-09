@@ -21,6 +21,7 @@ import {
   normalizePosSchemaStatus,
   POS_CAPABILITY_VERSION,
 } from '@/lib/pos/schemaCapability'
+import { posLogoUrl } from '@/lib/pos/logos'
 
 type Related<T> = T | T[] | null
 
@@ -103,6 +104,7 @@ function mapCatalogue(row: Record<string, unknown>): PosCatalogueItem {
     pricingOptions: [],
     categoryKey: String(row.group_key),
     logoKey: row.logo_key ? String(row.logo_key) : null,
+    logoUrl: posLogoUrl(row.logo_key ? String(row.logo_key) : null, 'service'),
   }
 }
 
@@ -294,6 +296,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
       isActive: true,
       settlementMode: row.settlement_mode as PosSupplier['settlementMode'],
       logoKey: row.logo_key,
+      logoUrl: posLogoUrl(row.logo_key, 'supplier'),
       isSystem: Boolean(row.is_system),
     }
   })
@@ -442,6 +445,7 @@ export async function runPosMutation(
     | 'pos_post_transaction_v3'
     | 'pos_manage_configuration_v2'
     | 'pos_manage_configuration_v3'
+    | 'pos_manage_configuration_v4'
     | 'pos_record_refund_v1'
     | 'pos_configure_supplier_v1'
     | 'pos_correct_expense_v1'

@@ -5,7 +5,7 @@ begin
   if (public.pos_schema_status() ->> 'ready')::boolean is not true then
     raise exception 'POS capability is not ready';
   end if;
-  if (public.pos_schema_status() ->> 'version')::bigint <> 2026090902 then
+  if (public.pos_schema_status() ->> 'version')::bigint <> 2026090903 then
     raise exception 'Unexpected POS capability version';
   end if;
   if not (select relrowsecurity and relforcerowsecurity from pg_class where oid = 'public.pos_transactions'::regclass) then
@@ -20,6 +20,11 @@ begin
     or has_function_privilege('service_role', 'public.pos_post_transaction_v2(uuid,text,jsonb)', 'EXECUTE')
     or has_function_privilege('authenticated', 'public.pos_post_transaction_v3(uuid,text,jsonb)', 'EXECUTE') then
     raise exception 'POS mutation execute grants are incorrect';
+  end if;
+  if not has_function_privilege('service_role', 'public.pos_manage_configuration_v4(uuid,text,jsonb)', 'EXECUTE')
+    or has_function_privilege('service_role', 'public.pos_manage_configuration_v3(uuid,text,jsonb)', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.pos_manage_configuration_v4(uuid,text,jsonb)', 'EXECUTE') then
+    raise exception 'POS configuration execute grants are incorrect';
   end if;
   if (select count(*) from public.pos_categories where is_active) <> 6 then
     raise exception 'POS must expose six active top-level categories';
@@ -81,7 +86,7 @@ begin
   shift_id_value := (response_value ->> 'shiftId')::uuid;
 
   begin
-    perform public.pos_manage_configuration_v3(manager, 'pos-test-other-method-0001', jsonb_build_object(
+    perform public.pos_manage_configuration_v4(manager, 'pos-test-other-method-0001', jsonb_build_object(
       'action', 'UPSERT_SERVICE', 'key', 'document-assistance',
       'categoryKey', 'document-assistance', 'label', 'Document Assistance',
       'direction', 'IN', 'displayOrder', 10,
@@ -90,6 +95,50 @@ begin
     raise exception 'OTHER was enabled for a quick-entry service';
   exception when sqlstate '22023' then null;
   end;
+
+  perform public.pos_manage_configuration_v4(manager, 'pos-test-config-owned-loyalty-0001', jsonb_build_object(
+    'action', 'UPSERT_SERVICE', 'key', 'cargo-delivery',
+    'categoryKey', 'cargo', 'label', 'Cargo / Delivery', 'classification', 'SERVICE',
+    'direction', 'IN', 'displayOrder', 10,
+    'logoKey', 'custom-11111111-1111-4111-8111-111111111111',
+    'loyaltyEligible', false, 'pointsPerGbp', 0,
+    'allowedPaymentMethods', jsonb_build_array('CASH', 'CARD', 'BANK'),
+    'customerRequired', false, 'noteRequired', false, 'priceRequired', false,
+    'sourceRequired', false, 'isActive', true
+  ));
+  if not exists (
+    select 1 from public.pos_catalogue_items
+    where item_key='cargo-delivery' and loyalty_eligible and points_per_gbp=1
+      and logo_key='custom-11111111-1111-4111-8111-111111111111'
+  ) then
+    raise exception 'POS configuration changed Loyalty-owned settings or rejected a custom logo';
+  end if;
+
+  begin
+    perform public.pos_manage_configuration_v4(manager, 'pos-test-duplicate-service-0001', jsonb_build_object(
+      'action', 'UPSERT_SERVICE', 'key', 'cargo-delivery-duplicate',
+      'categoryKey', 'cargo', 'label', 'Cargo / Delivery', 'classification', 'SERVICE',
+      'direction', 'IN', 'displayOrder', 20,
+      'allowedPaymentMethods', jsonb_build_array('CASH'), 'isActive', true
+    ));
+    raise exception 'Duplicate active service label was accepted';
+  exception when unique_violation then null;
+  end;
+
+  response_value := public.pos_manage_configuration_v4(manager, 'pos-test-supplier-retry-0001', jsonb_build_object(
+    'action', 'UPSERT_SUPPLIER', 'name', 'POS Retry Supplier',
+    'aliases', jsonb_build_array('POS Retry Alias'), 'settlementMode', 'PAY_ON_DEMAND',
+    'isActive', true
+  ));
+  response_value := public.pos_manage_configuration_v4(manager, 'pos-test-supplier-retry-0001', jsonb_build_object(
+    'action', 'UPSERT_SUPPLIER', 'name', 'POS Retry Supplier',
+    'aliases', jsonb_build_array('POS Retry Alias'), 'settlementMode', 'PAY_ON_DEMAND',
+    'isActive', true
+  ));
+  if coalesce((response_value ->> 'idempotentReplay')::boolean, false) is not true
+    or (select count(*) from public.supplier_vendors where name = 'POS Retry Supplier') <> 1 then
+    raise exception 'Duplicate-safe supplier creation did not preserve idempotent retry behavior';
+  end if;
 
   response_value := public.pos_post_transaction_v3(agent, 'pos-test-remittance-0001', jsonb_build_object(
     'shiftId', shift_id_value, 'categoryKey', 'remittance', 'catalogueKey', 'ria-remittance',
