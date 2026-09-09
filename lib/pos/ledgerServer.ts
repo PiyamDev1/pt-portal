@@ -87,6 +87,8 @@ type PosRefundRow = {
   pos_transactions: Related<{
     reference_number: string
     customer_name: string
+    category_label_snapshot: string
+    service_label_snapshot: string
     catalogue: Related<{ label: string; option_label: string | null }>
   }>
 }
@@ -106,6 +108,9 @@ type PosTransactionRow = {
   loyalty_points_awarded: number
   supplier_vendor_id: string | null
   supplier_movement_type: string | null
+  category_label_snapshot: string
+  service_label_snapshot: string
+  supplier_name_snapshot: string | null
   note: string | null
   created_by: string
   till_id: string
@@ -291,11 +296,14 @@ function mapPosTransaction(
     time: formatTime(row.occurred_at, timezone),
     occurredAt: row.occurred_at,
     name: row.customer_name,
-    category: [catalogue?.label || 'Uncategorised', catalogue?.option_label]
+    category: [
+      row.category_label_snapshot || catalogue?.label || 'Uncategorised',
+      row.service_label_snapshot,
+    ]
       .filter(Boolean)
       .join(' · '),
     categoryKey: catalogue?.item_key,
-    option: catalogue?.option_label || null,
+    option: row.service_label_snapshot || catalogue?.option_label || null,
     method: displayMethod(tenders),
     amount: signed,
     totalAmount,
@@ -308,7 +316,7 @@ function mapPosTransaction(
     pointsReversed: refunds.reduce((sum, refund) => sum + refund.pointsReversed, 0),
     status,
     note: row.note || '',
-    supplier: supplier?.name,
+    supplier: row.supplier_name_snapshot || supplier?.name,
     supplierId: row.supplier_vendor_id,
     supplierMovementType: row.supplier_movement_type,
     entryAgent: employee?.full_name || 'Staff member',
@@ -354,7 +362,12 @@ function mapPosRefund(
     category:
       row.refund_kind === 'GENERAL'
         ? `General refund · ${String(evidence.service || 'Unknown service')}`
-        : `Refund · ${[catalogue?.label, catalogue?.option_label].filter(Boolean).join(' · ')}`,
+        : `Refund · ${[
+            original?.category_label_snapshot || catalogue?.label,
+            original?.service_label_snapshot || catalogue?.option_label,
+          ]
+            .filter(Boolean)
+            .join(' · ')}`,
     categoryKey: 'general-refund',
     method: displayMethod(tenders),
     amount: -amount,
@@ -498,7 +511,8 @@ async function loadPosLedgerRows(
       `
       id,reference_number,business_date,occurred_at,transaction_kind,direction,outgoing_type,
       total_amount,amount_paid,customer_name,loyalty_mobile_user_id,loyalty_points_awarded,
-      supplier_vendor_id,supplier_movement_type,note,created_by,till_id,shift_id,legacy_source,
+      supplier_vendor_id,supplier_movement_type,category_label_snapshot,service_label_snapshot,
+      supplier_name_snapshot,note,created_by,till_id,shift_id,legacy_source,
       catalogue:pos_catalogue_items!inner(item_key,label,option_label),
       employee:employees!pos_transactions_created_by_fkey(id,full_name),
       till:pos_tills!pos_transactions_till_id_fkey(name),
@@ -542,7 +556,7 @@ async function loadPosLedgerRows(
       pos_refund_tenders(id,payment_method,amount,external_reference,reconciliation_status,
         pos_reconciliation_events(status,external_reference,created_at,id)),
       pos_tills!pos_refunds_till_id_fkey(name),employees!pos_refunds_created_by_fkey(id,full_name),
-      pos_transactions(reference_number,customer_name,catalogue:pos_catalogue_items(label,option_label))
+      pos_transactions(reference_number,customer_name,category_label_snapshot,service_label_snapshot,catalogue:pos_catalogue_items(label,option_label))
     `,
     )
     .eq('location_id', context.locationId)

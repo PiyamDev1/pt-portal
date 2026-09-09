@@ -69,7 +69,7 @@ export async function GET(
       `Till: ${till?.name || 'Till'}`,
       `Agent: ${employee?.full_name || 'Staff member'}`,
       `Customer: ${transaction.customer_name || 'Walk-in'}`,
-      `Service: ${catalogue?.label || 'Service'}${catalogue?.option_label ? ` - ${catalogue.option_label}` : ''}`,
+      `Service: ${transaction.category_label_snapshot || catalogue?.label || 'Service'}${transaction.service_label_snapshot ? ` - ${transaction.service_label_snapshot}` : catalogue?.option_label ? ` - ${catalogue.option_label}` : ''}`,
       `Total: ${money(transaction.total_amount)}`,
       `Paid: ${money(transaction.amount_paid)}`,
       ...tenders.map((tender) => `${tender.payment_method}: ${money(tender.amount)}`),

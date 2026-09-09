@@ -24,7 +24,9 @@ describe('POS mutation contracts', () => {
   it('accepts bounded split tenders and a typed tracked-service source', () => {
     const result = posPostTransactionSchema.safeParse({
       shiftId: '10000000-0000-4000-8000-000000000001',
-      catalogueKey: 'ticket-package',
+      categoryKey: 'ticketing-packages',
+      catalogueKey: 'ticketing',
+      entryMode: 'CUSTOMER_PAYMENT',
       direction: 'IN',
       totalAmount: 100,
       customerName: 'Customer',

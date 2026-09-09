@@ -8,7 +8,7 @@ describe('POS frontend preview', () => {
   it('shows operational categories, supplier sorting, and immutable transaction actions', () => {
     render(<PosPreviewClient branchName="Bradford" />)
 
-    const nadraMenu = screen.getByLabelText('NADRA Applications and certificates')
+    const nadraMenu = screen.getByLabelText('Applications Identity, passport and visa applications')
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByLabelText('NICOP / CNIC')).toBeNull()
 
@@ -26,13 +26,14 @@ describe('POS frontend preview', () => {
     expect(nadraMenu.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('heading', { name: 'NICOP / CNIC' })).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText('PK Passport Application payment'))
-    expect(nadraMenu.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByLabelText('NICOP / CNIC')).toBeNull()
-    expect(screen.getByLabelText('GB Passport Application payment')).toBeTruthy()
-    expect(screen.getByLabelText('Visa Application payment')).toBeTruthy()
-    expect(screen.getByLabelText('Ticket & Package Tracked booking')).toBeTruthy()
-    expect(screen.getByLabelText('Remittance Fee · loyalty eligible')).toBeTruthy()
+    expect(screen.getByLabelText('PK Passport')).toBeTruthy()
+    expect(screen.getByLabelText('GB Passport')).toBeTruthy()
+    expect(screen.getByLabelText('Visa')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('Remittance Choose an approved provider'))
+    expect(screen.getByLabelText('Ria')).toBeTruthy()
+    expect(screen.getByLabelText('MoneyGram')).toBeTruthy()
+    expect(screen.queryByLabelText('Extra coins Drawer ↔ reserve')).toBeNull()
 
     expect((screen.getByLabelText('Sort ledger') as HTMLSelectElement).value).toBe('Supplier')
 
@@ -42,22 +43,21 @@ describe('POS frontend preview', () => {
     expect(screen.queryByLabelText('Edit transaction amount')).toBeNull()
   })
 
-  it('previews supplier confirmation and extra-coin transfer states', () => {
+  it('keeps supplier payments separate and extra coins inside cash management', () => {
     render(<PosPreviewClient branchName="Bradford" />)
 
     expect(screen.getByRole('heading', { name: 'Daily transactions' })).toBeTruthy()
     expect(screen.getByText('Bradford')).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText('Supplier payment Match a supplier'))
+    fireEvent.click(screen.getByRole('button', { name: 'Pay supplier' }))
     expect(screen.getByText('Possible supplier match')).toBeTruthy()
     expect(screen.getAllByText('British Airways').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Use this supplier' }))
     expect(screen.getByText('Supplier confirmed')).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText('Extra coins Drawer ↔ reserve'))
-    expect(screen.getByText('Internal transfer')).toBeTruthy()
-    expect(screen.getByText('Extra-coin reserve')).toBeTruthy()
+    fireEvent.click(screen.getByTitle('Cash management'))
+    expect(screen.getByText('POS database upgrade pending')).toBeTruthy()
   })
 
   it('switches between dated daily and separated monthly ledger views', () => {

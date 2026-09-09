@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return apiError(error || 'Invalid transaction.', 400, {}, POS_PRIVATE_RESPONSE)
   try {
     const result = await runPosMutation(
-      'pos_post_transaction_v1',
+      'pos_post_transaction_v2',
       access.employee.id,
       idempotencyKey,
       data,

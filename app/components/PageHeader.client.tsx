@@ -103,6 +103,11 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
         label: 'Commission review',
         icon: BadgePoundSterling,
       },
+      {
+        href: '/dashboard/accounting/pos-configuration',
+        label: 'POS configuration',
+        icon: Settings,
+      },
     ],
   },
   {

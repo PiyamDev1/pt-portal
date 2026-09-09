@@ -1,6 +1,6 @@
 # POS Daily Transaction Module Plan
 
-**Status:** Implemented and deployed to production
+**Status:** Accounting foundation deployed; approved catalogue/configuration iteration implemented and pending capability deployment
 **Module:** Point of Sale (POS) / branch daily transactions
 **Proposed route:** `/dashboard/pos`
 
@@ -29,6 +29,50 @@ module is built.
 - Production deployment applied the two reviewed pending Ticketing migrations followed by the POS
   migration on 9 September 2026. Local and remote migration histories are aligned, and a post-deployment
   dry run reports no pending migrations.
+
+### Approved catalogue simplification iteration — 9 September 2026
+
+The deployed accounting, till, refund, supplier-balance, import, idempotency, and audit foundation stays
+unchanged. Capability `2026090901` adds the approved beginner-facing catalogue and Accounting-managed
+configuration. Until its imperative migration is installed, the application keeps POS writes locked
+behind the capability gate.
+
+The interface separates three concepts:
+
+- **What the transaction relates to:** one configured category and one active service/subservice.
+- **What is happening:** customer payment, supplier payment, expense, donation, or refund.
+- **Where exceptions happen:** Refunds & Corrections and Cash Management remain controlled workspaces.
+
+The server-configured quick-entry rail has exactly six top-level categories:
+
+1. **Applications:** NICOP/CNIC, POC, FRC, CRC, POA, PK Passport, GB Passport, and Visa.
+2. **Ticketing & Packages:** Ticketing and Package.
+3. **Remittance:** Ria, MoneyGram, Western Union, DEX, and Intercity.
+4. **Cargo:** Cargo/Delivery initially, with Accounting able to add subservices.
+5. **Document Assistance:** the single replacement for Document Help and Printing/Copying.
+6. **Other:** General expense, Donation, Other income, and a Refund shortcut.
+
+Selecting a category with one active service selects that service immediately. Supplier Payment, Extra
+Coins, and Refunds are not category tiles. A prominent `Pay supplier` action starts the explicit flow
+category → assigned supplier → movement type → amount → payment method → reference/note. Extra Coins
+exists only in Cash Management. The Refund shortcut only opens Refunds & Corrections and cannot post.
+
+For Remittance, the selected provider is the service and is mandatory. The five approved providers are
+seeded as both services and suppliers and use controlled local logo assets. POS records the complete
+remittance amount and awards loyalty on that full amount at the configured points-per-GBP rate. The
+provider supplier is stored for reporting but a customer receipt does not change its supplier balance.
+
+Supplier payments are initially enabled for Ticketing & Packages, Remittance, and Cargo. PostgreSQL
+enforces the category-to-supplier assignment before posting. Deposits/payments, use balance, and supplier
+refunds remain supported. POS keeps operational balances and history; supplier setup, aliases, status,
+category assignments, and defaults move to `/dashboard/accounting/pos-configuration` for Accounts staff
+and portal administrators.
+
+Configuration also controls labels, display order, activation, icons/logo keys, loyalty eligibility and
+rate, allowed payment methods, and customer/note/price/source-reference requirements. Stable keys and
+integrated source types are protected. Referenced records are deactivated instead of deleted, and changes
+affect future transactions only. Every posted transaction snapshots category, service, and supplier labels,
+and every configuration mutation is strict, idempotent, database-authorized, and audited.
 
 ## 1. Product Boundary
 
@@ -83,14 +127,14 @@ Use the existing dashboard shell and responsive conventions. The sketches are an
 reference, not a requirement to reproduce the fixed colours or dimensions literally.
 
 ```text
-| POS navigation |                 main workspace                  | quick categories |
+| POS navigation |                 main workspace                  | six categories   |
 | Ledger         | Till/session status and cash balance               | Untracked        |
 | Closeout       | Cash / card / bank summary                         | Tracked services |
 | Reports        | Filters and searchable daily transactions         | Refunds &        |
-| Settings       | Expandable transaction details and refunds         | corrections      |
-|                | Quick-entry composer                                | Cash management  |
-|                |                                                   | Supplier payments|
-|                |                                                   | Expenses         |
+| Reports        | Expandable transaction details and refunds         | Applications     |
+|                | Quick-entry composer                                | Ticketing/Package|
+|                |                                                   | Remit/Cargo/Docs |
+|                |                    [Pay supplier]                  | Other            |
 ```
 
 ### Header and balance summary
@@ -184,12 +228,14 @@ Recommended default flow:
 ```text
 [Scan loyalty card] [Continue without card]
 
-[Service/category preset]
+[Category] [Service/subservice]
 
 Name:         [________________]
 
 Amount:       £________
-Payment:      [Cash] [Card] [Bank] [Split]    (negative amount = money out)
+Action:       Customer payment / Pay supplier / Expense / Donation
+Amount:       Â£________ (always entered as a positive amount)
+Payment:      [Cash] [Card] [Bank] [Split]
 
 [Save transaction]       [Refunds & corrections]
 [Cash management]
@@ -268,7 +314,7 @@ option should define:
 Loyalty eligibility defaults to false and is controlled by the server-side catalogue. Agents must not
 be able to award points by changing a client-side flag.
 
-### Initial quick-entry catalogue
+### Initial quick-entry catalogue (superseded by capability 2026090901)
 
 The first branch-facing category list should use the operational names staff already recognise:
 
@@ -305,7 +351,7 @@ them.
 
 The initial eligible catalogue may include services such as:
 
-- Remittance service fees.
+- Complete remittance customer amounts for the selected approved provider.
 - Cargo or delivery fees.
 - Courier, photocopying, printing, or document assistance.
 - Other approved services that are not tracked in a dedicated module.
@@ -326,9 +372,9 @@ If POS loyalty is implemented, the loyalty lifecycle should gain an explicit POS
 POS-service namespace. POS must use a server-side loyalty operation rather than writing directly to the
 points ledger.
 
-### Cash management category
+### Cash management workspace
 
-The quick-entry categories should also contain `Cash management` with separate actions for:
+Cash Management is an operational workspace, not a quick-entry category. It contains separate actions for:
 
 - `Move extra coins to reserve` — coins leave the drawer and enter the separately stored coin reserve.
 - `Return extra coins to drawer` — coins leave the reserve and return to the drawer.
@@ -337,19 +383,18 @@ The quick-entry categories should also contain `Cash management` with separate a
 Extra coins are not a sale, expense, refund, customer payment, loyalty event, or accounting profit/loss
 entry. They are an internal transfer between two physical cash locations.
 
-### Supplier payments category
+### Pay supplier action
 
-The quick-entry categories should contain `Supplier payments` with an LMS-backed supplier selector and
-three simple actions:
+One prominent `Pay supplier` action replaces the Supplier Payment category. It first asks for an enabled
+category, filters the supplier list to database assignments for that category, and then offers three
+plain-language movements:
 
 - `Pay/deposit to supplier` — pay cash, card, or bank funds and increase the supplier balance we hold.
 - `Use supplier balance` — reduce the balance when the supplier provides the service or goods.
 - `Supplier refund` — record money or credit returned by the supplier.
 
-For normal cash entry, the agent may first choose a category, type a name, and enter an amount. If the
-amount is money out, POS asks for one of three outgoing types: `Refund`, `Expense`, or `Supplier
-payment`. For a supplier payment, it suggests matching configured suppliers. The agent confirms the
-supplier or continues as an expense/refund. There must be no uncategorized outgoing type.
+Negative-amount inference is removed. General expense and Donation are explicit money-out services;
+Other income is explicitly money in; refunds always enter their controlled workflow.
 
 LMS is the source of truth for confirmed supplier names/details; POS stores the LMS supplier ID/reference
 and must not create a duplicate supplier profile. The first version should track one simple `balance held
@@ -430,16 +475,13 @@ Existing supplier names from Ticketing, Packages, and other modules can be used 
 They do not all need to be consolidated before POS launches. A configured supplier can have a display
 name, alternate names, and an optional source area/reference.
 
-For an outgoing POS entry:
+For a supplier payment:
 
-1. The agent chooses a category such as Ticketing, types the name, and enters a negative amount.
-2. POS treats the negative amount as `OUT` and asks for `Refund`, `Expense`, or `Supplier payment`.
-3. If `Supplier payment` is selected, POS searches configured supplier names and known module names for
-   matches and asks the agent to confirm the supplier.
-4. If confirmed, POS files the entry under the selected LMS supplier record and updates the simple
-   supplier balance, while retaining the selected source category such as Ticketing or Packages. If the
-   supplier cannot be matched, the agent must choose `Expense` or `Refund`, or ask an authorized user to
-   add the supplier to the configured list.
+1. The agent chooses Ticketing & Packages, Remittance, Cargo, or another configuration-enabled category.
+2. POS shows only suppliers actively assigned to that category.
+3. The agent chooses deposit/payment, use balance, or supplier refund, then enters amount, payment method,
+   reference, and note.
+4. PostgreSQL rejects an inactive or unassigned supplier even if a client attempts to bypass the list.
 
 Matching must suggest rather than silently decide. If there are multiple matches, show the choices. An
 outgoing entry cannot be posted without one of the three outgoing types, and a supplier payment cannot be
@@ -475,7 +517,7 @@ branch-scoped and in the till currency for the first version.
 Refunds should be available from every eligible posted transaction, regardless of whether the original
 payment was cash, card, or bank. The preferred path begins from the original POS transaction.
 
-The quick-entry categories should contain a `Refunds & corrections` category with:
+The `Refund` shortcut under Other opens the `Refunds & corrections` workspace with:
 
 - `Refund original transaction` as the normal linked refund action.
 - `General refund (unlinked)` for a refund where the original transaction was not recorded in POS,
@@ -612,6 +654,9 @@ pos_tills
 pos_shifts
 pos_cash_reserves
 pos_cash_movements
+pos_categories
+  â””â”€â”€ pos_catalogue_items (services/subservices)
+pos_category_suppliers (assignments and optional defaults)
 LMS supplier register/file (configured)
 LMS supplier balance entries (simple)
 pos_transactions
@@ -627,6 +672,7 @@ pos_transactions
 - `location_id`, `till_id`, optional `shift_id`.
 - Server-derived `business_date` and UTC `occurred_at`.
 - `transaction_kind`, required `outgoing_type` for money-out entries, and category references.
+- Direct category and service references plus immutable category, service, and supplier label snapshots.
 - Amount and currency with fixed precision.
 - Customer/member snapshot and optional canonical customer references.
 - `created_by`, `created_at`, and immutable audit metadata.
@@ -733,7 +779,8 @@ The POS left rail should be POS navigation, not a duplicate dashboard module men
 - Reports.
 - Unreconciled card/bank items.
 
-The right rail should be labelled `Quick entry categories`. Main categories should remain square tiles.
+The right rail is returned by the POS bootstrap API and labelled `Quick entry categories`. It contains
+the six configured top-level categories and one separate prominent `Pay supplier` action. Main categories should remain square tiles.
 A tile with service variants should expand and collapse a compact subcategory list directly beneath it;
 for example, the `NADRA` tile reveals separate colour-coded rows for `NICOP/CNIC`, `POC`, `FRC`, `CRC`,
 and `POA`. Opening another expandable category or selecting a different main category should close the
@@ -817,6 +864,16 @@ The following additions would make the first release easier and safer to operate
 - Add controlled corrections, shift handover, and deposits/withdrawals.
 - Add exports and admin-managed catalogue options after usage confirms the need.
 
+### Phase 4: Catalogue simplification and Accounting configuration
+
+- Replace the legacy flat/hardcoded category rail with the six-category server hierarchy.
+- Seed the five remittance providers as services, approved suppliers, and controlled local logo keys.
+- Add the assignment-enforced Pay supplier flow and remove duplicate supplier/refund/coin tiles.
+- Add Accounting configuration for categories, services, suppliers, assignments, ordering, activation,
+  requirements, payment methods, and loyalty policy.
+- Store category/service/supplier label snapshots and preserve superseded catalogue rows for history.
+- Deliver capability `2026090901` as a new imperative migration without rewriting the deployed foundation.
+
 ## 17. Acceptance Criteria For The First Build
 
 - A new agent can record a basic cash service in five interactions or fewer after opening the POS.
@@ -855,6 +912,19 @@ The following additions would make the first release easier and safer to operate
 - A desktop user can resize the ledger vertically, retain that choice after reload, adjust the handle by
   keyboard, and restore the default height by double-clicking or using the reset key.
 - Every refund, correction, loyalty reversal, and closeout approval is auditable.
+- A first-time user can identify the correct category without understanding accounting terminology.
+- A category with one active service selects that service automatically.
+- Every Remittance entry requires Ria, MoneyGram, Western Union, DEX, or Intercity and awards configured
+  points on the complete remittance amount without changing the provider's supplier balance.
+- Pay supplier lists only active suppliers assigned to the selected category, and PostgreSQL enforces the
+  same assignment.
+- Donation always posts money out and Other income always posts money in; typed negative amounts do not
+  select an accounting action.
+- The Other refund shortcut cannot bypass the controlled refund API.
+- Extra Coins never appears in the category grid and remains a drawer/reserve transfer only.
+- Renaming or deactivating configuration does not alter historical transaction labels.
+- Accounts users and portal administrators can configure POS; ordinary staff cannot.
+- Existing transactions, refunds, supplier balances, shifts, imports, and audit records remain compatible.
 
 ## 18. Decisions To Make Together
 
@@ -891,9 +961,11 @@ client-side suggestions:
 1. Physical tills and staff shifts are modeled from V1. Every existing branch receives one shared
    `Main till`, and more tills can be added without changing the transaction model.
 2. Each till is GBP-only. Multi-currency remains out of scope.
-3. The server catalogue is the source of truth. Remittance service fees, cargo/delivery, document help,
-   and printing/copying earn one point per whole GBP; tracked Ticketing, Packages, Applications, NADRA,
-   passport, and visa services never earn POS points.
+3. The server catalogue is the source of truth. The delivered foundation initially rewarded remittance
+   service fees, cargo/delivery, document help, and printing/copying. Capability `2026090901` supersedes
+   that catalogue: the complete remittance amount, Cargo, and Document Assistance use their configured
+   points-per-GBP rate; tracked Ticketing, Packages, Applications, NADRA, passport, and visa services
+   never earn POS points.
 4. Eligible points are awarded immediately after an atomic posted transaction. A retry uses the same
    source and cannot award twice.
 5. Partial refunds reverse points proportionally using cumulative floor calculation; the final refund
@@ -916,6 +988,14 @@ client-side suggestions:
     clearly labelled retry queue. The queue is never described as server-confirmed until replay succeeds.
 12. Coin reserve transfers require denomination counts. Drawer and reserve are separate expected balances,
     while intentional transfers net to zero across the two physical cash locations.
+13. The approved second iteration uses six top-level categories and explicit plain-language actions.
+    Supplier Payment, Refunds, and Extra Coins are removed from the category grid.
+14. Remittance records and rewards the full customer transaction amount. Its selected provider is linked
+    for reporting only; customer receipts do not create supplier-balance movements.
+15. Supplier configuration and assignments belong to Accounting. POS retains operational balance/history,
+    while PostgreSQL enforces category assignments for the single Pay supplier action.
+16. Category, service, and supplier display labels are snapshotted on posting so future configuration
+    changes never rewrite the historical ledger.
 
 ### Delivered application surface
 
@@ -924,5 +1004,5 @@ client-side suggestions:
   `/transactions/[transactionId]/receipt`.
 - Workspace sections: Daily transactions, Open till, Closeout, Cash management, Supplier balances,
   Refunds & corrections, Reports, Unreconciled, and manager-only Import history.
-- Operational fallback: if capability `2026090801` is absent, the old branch-scoped ledger stays readable
+- Operational fallback: if capability `2026090901` is absent, the old branch-scoped ledger stays readable
   and all new writes remain unavailable.

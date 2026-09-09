@@ -98,8 +98,11 @@ function mapCatalogue(row: Record<string, unknown>): PosCatalogueItem {
     allowedPaymentMethods: (row.allowed_payment_methods ||
       []) as PosCatalogueItem['allowedPaymentMethods'],
     noteRequired: Boolean(row.note_required),
+    priceRequired: Boolean(row.price_required),
     shortcut: row.shortcut ? String(row.shortcut) : null,
     pricingOptions: [],
+    categoryKey: String(row.group_key),
+    logoKey: row.logo_key ? String(row.logo_key) : null,
   }
 }
 
@@ -112,6 +115,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     capabilityVersion: status.version,
     branch: { id: context.locationId, name: context.branchName, timezone: context.timezone },
     catalogue: [],
+    categories: [],
     tills: [],
     activeShift: null,
     balances: { openingFloat: 0, drawer: 0, reserve: 0 },
@@ -126,6 +130,8 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
   const service = getServiceSupabaseClient()
   const [
     catalogueResult,
+    categoriesResult,
+    assignmentsResult,
     pricingResult,
     tillsResult,
     shiftsResult,
@@ -137,10 +143,21 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     service
       .from('pos_catalogue_items')
       .select(
-        'id,item_key,group_key,label,option_label,classification,default_direction,allowed_directions,tracked_source_type,source_required,customer_required,loyalty_eligible,points_per_gbp,allowed_payment_methods,note_required,shortcut',
+        'id,item_key,group_key,label,option_label,classification,default_direction,allowed_directions,tracked_source_type,source_required,customer_required,loyalty_eligible,points_per_gbp,allowed_payment_methods,note_required,price_required,shortcut,logo_key,is_system_action,is_quick_entry',
       )
       .eq('is_active', true)
+      .eq('is_system_action', false)
+      .eq('is_quick_entry', true)
       .order('display_order'),
+    service
+      .from('pos_categories')
+      .select('id,category_key,label,description,icon_key,display_order,supplier_payments_enabled')
+      .eq('is_active', true)
+      .order('display_order'),
+    service
+      .from('pos_category_suppliers')
+      .select('category_id,supplier_vendor_id,is_default')
+      .eq('is_active', true),
     service
       .from('service_pricing')
       .select('id,category,section,service_name,service_option,sale_price')
@@ -191,6 +208,8 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
 
   const failed = [
     catalogueResult,
+    categoriesResult,
+    assignmentsResult,
     pricingResult,
     tillsResult,
     shiftsResult,
@@ -263,6 +282,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
       sourceArea: row.source_area,
       sourceReference: row.source_reference,
       balance: supplierBalances.get(row.supplier_vendor_id) || 0,
+      isActive: true,
     }
   })
   const closeouts: PosCloseout[] = (closeoutsResult.data || []).map((row) => {
@@ -288,33 +308,55 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     }
   })
 
+  const catalogue = (catalogueResult.data || []).map((row) => {
+    const item = mapCatalogue(row)
+    const needles = [item.label, item.optionLabel]
+      .filter(Boolean)
+      .flatMap((value) =>
+        String(value)
+          .toLowerCase()
+          .split(/\s*\/\s*|\s+/),
+      )
+      .filter((value) => value.length >= 3 && !['passport', 'service'].includes(value))
+    item.pricingOptions = (pricingResult.data || [])
+      .filter((price) => {
+        const haystack = [price.category, price.section, price.service_name].join(' ').toLowerCase()
+        return needles.some((needle) => haystack.includes(needle))
+      })
+      .map((price) => ({
+        id: price.id,
+        label: [price.service_name, price.service_option].filter(Boolean).join(' · '),
+        price: numeric(price.sale_price),
+      }))
+    return item
+  })
+
   return {
     ...empty,
     schemaReady: true,
     capabilityVersion: status.version,
-    catalogue: (catalogueResult.data || []).map((row) => {
-      const item = mapCatalogue(row)
-      const needles = [item.label, item.optionLabel]
-        .filter(Boolean)
-        .flatMap((value) =>
-          String(value)
-            .toLowerCase()
-            .split(/\s*\/\s*|\s+/),
-        )
-        .filter((value) => value.length >= 3 && !['passport', 'service'].includes(value))
-      item.pricingOptions = (pricingResult.data || [])
-        .filter((price) => {
-          const haystack = [price.category, price.section, price.service_name]
-            .join(' ')
-            .toLowerCase()
-          return needles.some((needle) => haystack.includes(needle))
-        })
-        .map((price) => ({
-          id: price.id,
-          label: [price.service_name, price.service_option].filter(Boolean).join(' · '),
-          price: numeric(price.sale_price),
-        }))
-      return item
+    catalogue,
+    categories: (categoriesResult.data || []).map((category) => {
+      const assignments = (assignmentsResult.data || []).filter(
+        (assignment) => assignment.category_id === category.id,
+      )
+      return {
+        id: category.id,
+        key: category.category_key,
+        label: category.label,
+        description: category.description,
+        iconKey: category.icon_key,
+        displayOrder: category.display_order,
+        supplierPaymentsEnabled: category.supplier_payments_enabled,
+        services: catalogue.filter((item) => item.categoryKey === category.category_key),
+        shortcuts:
+          category.category_key === 'other'
+            ? [{ key: 'refund', label: 'Refund', target: 'REFUNDS_CORRECTIONS' as const }]
+            : [],
+        supplierIds: assignments.map((assignment) => assignment.supplier_vendor_id),
+        defaultSupplierId:
+          assignments.find((assignment) => assignment.is_default)?.supplier_vendor_id || null,
+      }
     }),
     tills,
     activeShift,
@@ -337,6 +379,10 @@ function publicPosError(error: SupabaseError): PosServerError {
     POS_IDEMPOTENCY_CONFLICT: 'This retry key was already used for different details.',
     POS_DUPLICATE_WARNING: 'A similar transaction was posted recently.',
     POS_SOURCE_LINK_REQUIRED: 'This tracked service requires its source record.',
+    POS_CATEGORY_REQUIRED: 'Choose an active POS category.',
+    POS_SERVICE_REQUIRED: 'Choose an active service for this category.',
+    POS_REMITTANCE_PROVIDER_REQUIRED: 'Choose a remittance provider.',
+    POS_SUPPLIER_CATEGORY_FORBIDDEN: 'This supplier is not assigned to the selected category.',
     POS_SHADOW_DEBT_FORBIDDEN: 'Link the remaining balance to LMS or the tracked service.',
     POS_INSUFFICIENT_DRAWER: 'The expected drawer cash is insufficient.',
     POS_INSUFFICIENT_RESERVE: 'The expected coin reserve is insufficient.',
@@ -368,6 +414,8 @@ export async function runPosMutation(
     | 'pos_close_shift_v1'
     | 'pos_approve_closeout_v1'
     | 'pos_post_transaction_v1'
+    | 'pos_post_transaction_v2'
+    | 'pos_manage_configuration_v2'
     | 'pos_record_refund_v1'
     | 'pos_configure_supplier_v1'
     | 'pos_correct_expense_v1'
@@ -490,7 +538,7 @@ export async function loadPosReceipt(access: StaffSession, transactionId: string
   const { data, error } = await getServiceSupabaseClient()
     .from('pos_transactions')
     .select(
-      'id,reference_number,business_date,occurred_at,customer_name,total_amount,amount_paid,balance_remaining,direction,note,status,loyalty_points_awarded,pos_catalogue_items(label,option_label),pos_tills(name),employees!pos_transactions_created_by_fkey(full_name),pos_transaction_tenders(payment_method,amount,external_reference,reconciliation_status),pos_transaction_source_links(source_type,namespace,record_id,display_reference)',
+      'id,reference_number,business_date,occurred_at,customer_name,total_amount,amount_paid,balance_remaining,direction,note,status,loyalty_points_awarded,category_label_snapshot,service_label_snapshot,supplier_name_snapshot,pos_catalogue_items(label,option_label),pos_tills(name),employees!pos_transactions_created_by_fkey(full_name),pos_transaction_tenders(payment_method,amount,external_reference,reconciliation_status),pos_transaction_source_links(source_type,namespace,record_id,display_reference)',
     )
     .eq('id', transactionId)
     .eq('location_id', context.locationId)

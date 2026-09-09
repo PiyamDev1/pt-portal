@@ -23,6 +23,17 @@ create table public.employees (
   is_active boolean not null default true
 );
 
+create table public.departments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null
+);
+
+create table public.employee_departments (
+  employee_id uuid not null references public.employees(id),
+  department_id uuid not null references public.departments(id),
+  primary key (employee_id, department_id)
+);
+
 create table public.supplier_vendors (
   id uuid primary key default gen_random_uuid(),
   name text not null,

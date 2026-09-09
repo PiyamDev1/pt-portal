@@ -49,6 +49,12 @@ export const posPostTransactionSchema = z
       .string()
       .trim()
       .regex(/^[a-z][a-z0-9_-]{1,63}$/),
+    categoryKey: z
+      .string()
+      .trim()
+      .regex(/^[a-z][a-z0-9_-]{1,63}$/)
+      .optional(),
+    entryMode: z.enum(['CUSTOMER_PAYMENT', 'SUPPLIER_PAYMENT']).default('CUSTOMER_PAYMENT'),
     direction: z.enum(['IN', 'OUT']),
     outgoingType: z.enum(['REFUND', 'EXPENSE', 'SUPPLIER_PAYMENT']).optional(),
     totalAmount: money,
@@ -188,6 +194,72 @@ export const posSupplierSchema = z
     ...verificationFields,
   })
   .strict()
+
+const configurationKey = z
+  .string()
+  .trim()
+  .regex(/^[a-z][a-z0-9_-]{1,63}$/)
+const configurationBase = {
+  isActive: z.boolean().default(true),
+}
+
+export const posConfigurationMutationSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('UPSERT_CATEGORY'),
+      key: configurationKey,
+      label: z.string().trim().min(1).max(100),
+      description: z.string().trim().min(1).max(240).optional(),
+      iconKey: configurationKey.default('sparkles'),
+      displayOrder: z.number().int().min(0).max(10_000),
+      supplierPaymentsEnabled: z.boolean().default(false),
+      ...configurationBase,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('UPSERT_SERVICE'),
+      key: configurationKey,
+      categoryKey: configurationKey,
+      label: z.string().trim().min(1).max(100),
+      classification: z.enum(['SERVICE', 'EXPENSE']).default('SERVICE'),
+      direction: z.enum(['IN', 'OUT']),
+      displayOrder: z.number().int().min(0).max(10_000),
+      logoKey: z.enum(['ria', 'moneygram', 'western-union', 'dex', 'intercity']).optional(),
+      loyaltyEligible: z.boolean().default(false),
+      pointsPerGbp: z.number().finite().min(0).max(10_000).default(0),
+      allowedPaymentMethods: z
+        .array(z.enum(['CASH', 'CARD', 'BANK', 'OTHER']))
+        .min(1)
+        .max(4),
+      customerRequired: z.boolean().default(false),
+      noteRequired: z.boolean().default(false),
+      priceRequired: z.boolean().default(false),
+      sourceRequired: z.boolean().default(false),
+      ...configurationBase,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('UPSERT_SUPPLIER'),
+      supplierId: z.string().uuid().optional(),
+      name: z.string().trim().min(2).max(160),
+      aliases: z.array(z.string().trim().min(1).max(160)).max(20).default([]),
+      sourceArea: z.string().trim().min(1).max(80).optional(),
+      sourceReference: z.string().trim().min(1).max(200).optional(),
+      ...configurationBase,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('SET_ASSIGNMENT'),
+      categoryKey: configurationKey,
+      supplierId: z.string().uuid(),
+      isDefault: z.boolean().default(false),
+      ...configurationBase,
+    })
+    .strict(),
+])
 
 export const posCorrectionSchema = z
   .object({

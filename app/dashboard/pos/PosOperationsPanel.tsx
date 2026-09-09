@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import {
   BarChart3,
@@ -178,12 +179,6 @@ export default function PosOperationsPanel(props: Props) {
   const [coinCount, setCoinCount] = useState('0')
   const [supplierLedger, setSupplierLedger] = useState<PosSupplierLedgerPayload | null>(null)
   const [supplierSearch, setSupplierSearch] = useState('')
-  const [supplierName, setSupplierName] = useState('')
-  const [supplierAliases, setSupplierAliases] = useState('')
-  const [supplierSourceArea, setSupplierSourceArea] = useState('')
-  const [supplierSourceReference, setSupplierSourceReference] = useState('')
-  const [supplierOpeningBalance, setSupplierOpeningBalance] = useState('0.00')
-  const [supplierOpeningNote, setSupplierOpeningNote] = useState('')
   const [report, setReport] = useState<PosReportPayload | null>(null)
   const [refundKind, setRefundKind] = useState<'LINKED' | 'GENERAL'>('LINKED')
   const [refundAmount, setRefundAmount] = useState('0.00')
@@ -278,7 +273,7 @@ export default function PosOperationsPanel(props: Props) {
         <p className="font-black">POS database upgrade pending</p>
         <p className="mt-1 text-xs">
           Live operations will unlock after capability version{' '}
-          {bootstrap.capabilityVersion || 2026090801} is deployed.
+          {bootstrap.capabilityVersion || 2026090901} is deployed.
         </p>
       </section>
     )
@@ -575,83 +570,17 @@ export default function PosOperationsPanel(props: Props) {
             className="h-9 rounded-xl border px-3 text-xs"
           />
         </div>
-        {bootstrap.permissions.canManage && (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <h3 className="text-xs font-black">Configure supplier</h3>
-            <p className="mt-1 text-[10px] text-slate-500">
-              Opening balances require a note and fresh manager verification.
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Supplier name" value={supplierName} onChange={setSupplierName} />
-              <Field
-                label="Alternate names"
-                value={supplierAliases}
-                onChange={setSupplierAliases}
-                placeholder="Comma separated"
-              />
-              <Field
-                label="Source area"
-                value={supplierSourceArea}
-                onChange={setSupplierSourceArea}
-                placeholder="Ticketing, LMS, Packages"
-              />
-              <Field
-                label="Source reference"
-                value={supplierSourceReference}
-                onChange={setSupplierSourceReference}
-              />
-              <Field
-                label="Opening balance"
-                value={supplierOpeningBalance}
-                onChange={setSupplierOpeningBalance}
-                type="number"
-              />
-              <Field
-                label="Opening note"
-                value={supplierOpeningNote}
-                onChange={setSupplierOpeningNote}
-              />
-              <Field label="Manager 2FA" value={verificationCode} onChange={setVerificationCode} />
-              <div className="flex items-end">
-                <ActionButton
-                  disabled={
-                    busy ||
-                    supplierName.trim().length < 2 ||
-                    (Number(supplierOpeningBalance) > 0 &&
-                      (supplierOpeningNote.trim().length < 10 || !verificationCode))
-                  }
-                  onClick={() =>
-                    void run(async () => {
-                      await postMutation('/api/pos/suppliers', {
-                        name: supplierName,
-                        alternateNames: supplierAliases
-                          .split(',')
-                          .map((alias) => alias.trim())
-                          .filter(Boolean),
-                        ...(supplierSourceArea ? { sourceArea: supplierSourceArea } : {}),
-                        ...(supplierSourceReference
-                          ? { sourceReference: supplierSourceReference }
-                          : {}),
-                        openingBalance: Number(supplierOpeningBalance),
-                        ...(supplierOpeningNote ? { openingNote: supplierOpeningNote } : {}),
-                        ...(verificationCode
-                          ? { verificationCode, verificationMethod: 'auto' }
-                          : {}),
-                      })
-                      setSupplierName('')
-                      setSupplierAliases('')
-                      setSupplierSourceReference('')
-                      setSupplierOpeningBalance('0.00')
-                      setSupplierOpeningNote('')
-                    }, 'Supplier configured')
-                  }
-                >
-                  Configure supplier
-                </ActionButton>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] text-slate-600">
+            Supplier setup and category assignments are managed by Accounts.
+          </p>
+          <Link
+            href="/dashboard/accounting/pos-configuration"
+            className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white"
+          >
+            POS configuration
+          </Link>
+        </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           {filteredSuppliers.map((supplier) => (
             <article key={supplier.id} className="rounded-xl bg-slate-50 p-3">

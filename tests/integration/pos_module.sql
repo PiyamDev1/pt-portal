@@ -5,7 +5,7 @@ begin
   if (public.pos_schema_status() ->> 'ready')::boolean is not true then
     raise exception 'POS capability is not ready';
   end if;
-  if (public.pos_schema_status() ->> 'version')::bigint <> 2026090801 then
+  if (public.pos_schema_status() ->> 'version')::bigint <> 2026090901 then
     raise exception 'Unexpected POS capability version';
   end if;
   if not (select relrowsecurity and relforcerowsecurity from pg_class where oid = 'public.pos_transactions'::regclass) then
@@ -15,9 +15,23 @@ begin
     or has_table_privilege('service_role', 'public.pos_transactions', 'INSERT') then
     raise exception 'POS table grants expose a forbidden direct path';
   end if;
-  if not has_function_privilege('service_role', 'public.pos_post_transaction_v1(uuid,text,jsonb)', 'EXECUTE')
-    or has_function_privilege('authenticated', 'public.pos_post_transaction_v1(uuid,text,jsonb)', 'EXECUTE') then
+  if not has_function_privilege('service_role', 'public.pos_post_transaction_v2(uuid,text,jsonb)', 'EXECUTE')
+    or has_function_privilege('service_role', 'public.pos_post_transaction_v1(uuid,text,jsonb)', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.pos_post_transaction_v2(uuid,text,jsonb)', 'EXECUTE') then
     raise exception 'POS mutation execute grants are incorrect';
+  end if;
+  if (select count(*) from public.pos_categories where is_active) <> 6 then
+    raise exception 'POS must expose six active top-level categories';
+  end if;
+  if exists (select 1 from public.pos_catalogue_items where item_key in ('supplier-payment','general-refund') and is_quick_entry) then
+    raise exception 'Superseded quick-entry options remain visible';
+  end if;
+  if (select count(*) from public.pos_catalogue_items where group_key='remittance' and is_active and not is_system_action) <> 5 then
+    raise exception 'Five remittance providers are required';
+  end if;
+  if not exists (select 1 from public.pos_catalogue_items where item_key='donation' and default_direction='OUT' and classification='EXPENSE')
+    or not exists (select 1 from public.pos_catalogue_items where item_key='other-income' and default_direction='IN') then
+    raise exception 'Plain-language Other actions have incorrect money direction';
   end if;
 end
 $$;
@@ -47,6 +61,31 @@ begin
   ));
   shift_id_value := (response_value ->> 'shiftId')::uuid;
 
+  response_value := public.pos_post_transaction_v2(agent, 'pos-test-remittance-0001', jsonb_build_object(
+    'shiftId', shift_id_value, 'categoryKey', 'remittance', 'catalogueKey', 'ria-remittance',
+    'entryMode', 'CUSTOMER_PAYMENT', 'direction', 'IN', 'totalAmount', 75,
+    'customerName', 'Remittance customer', 'loyaltyCode', 'PYM-2345-6789-A',
+    'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 75))
+  ));
+  if (response_value ->> 'loyaltyPointsAwarded')::integer <> 75 then
+    raise exception 'Remittance did not award points on the complete amount';
+  end if;
+  if exists (
+    select 1 from public.pos_supplier_balance_entries entry
+    where entry.transaction_id=(response_value->>'transactionId')::uuid
+  ) then
+    raise exception 'Customer remittance receipt changed a supplier balance';
+  end if;
+  if not exists (
+    select 1 from public.pos_transactions tx
+    where tx.id=(response_value->>'transactionId')::uuid
+      and tx.reporting_supplier_vendor_id is not null
+      and tx.category_label_snapshot='Remittance'
+      and tx.service_label_snapshot='Ria'
+  ) then
+    raise exception 'Remittance provider or historical snapshots were not recorded';
+  end if;
+
   begin
     perform public.pos_post_transaction_v1(agent, 'pos-test-source-0001', jsonb_build_object(
       'shiftId', shift_id_value, 'catalogueKey', 'nicop-cnic', 'direction', 'IN',
@@ -60,7 +99,7 @@ begin
   end;
 
   response_value := public.pos_post_transaction_v1(agent, 'pos-test-sale-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'document-help', 'direction', 'IN',
+    'shiftId', shift_id_value, 'catalogueKey', 'document-assistance', 'direction', 'IN',
     'totalAmount', 25, 'customerName', 'Loyalty customer', 'loyaltyCode', 'PYM-2345-6789-A',
     'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 25))
   ));
@@ -70,7 +109,7 @@ begin
   end if;
 
   response_value := public.pos_post_transaction_v1(agent, 'pos-test-sale-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'document-help', 'direction', 'IN',
+    'shiftId', shift_id_value, 'catalogueKey', 'document-assistance', 'direction', 'IN',
     'totalAmount', 25, 'customerName', 'Loyalty customer', 'loyaltyCode', 'PYM-2345-6789-A',
     'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 25))
   ));
@@ -81,7 +120,7 @@ begin
 
   begin
     perform public.pos_post_transaction_v1(agent, 'pos-test-refund-bypass-0001', jsonb_build_object(
-      'shiftId', shift_id_value, 'catalogueKey', 'ticket-package', 'direction', 'OUT',
+      'shiftId', shift_id_value, 'catalogueKey', 'ticketing', 'direction', 'OUT',
       'outgoingType', 'REFUND', 'totalAmount', 10, 'customerName', 'Refund bypass',
       'source', jsonb_build_object('type', 'TICKETING', 'recordId', 'ticket-refund-1'),
       'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 10))
@@ -93,7 +132,7 @@ begin
   end;
 
   response_value := public.pos_post_transaction_v1(agent, 'pos-test-split-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'document-help', 'direction', 'IN',
+    'shiftId', shift_id_value, 'catalogueKey', 'document-assistance', 'direction', 'IN',
     'totalAmount', 100, 'customerName', 'Split customer',
     'tenders', jsonb_build_array(
       jsonb_build_object('method', 'CASH', 'amount', 40),
@@ -120,14 +159,14 @@ begin
   supplier_id_value := (response_value ->> 'supplierId')::uuid;
 
   perform public.pos_post_transaction_v1(agent, 'pos-test-supplier-deposit-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'supplier-payment', 'direction', 'OUT',
+    'shiftId', shift_id_value, 'catalogueKey', 'ticketing-packages-supplier-payment', 'direction', 'OUT',
     'outgoingType', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
     'supplierMovementType', 'DEPOSIT', 'totalAmount', 100, 'customerName', 'Integration Supplier',
     'note', 'Supplier cash deposit',
     'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 100))
   ));
   perform public.pos_post_transaction_v1(agent, 'pos-test-supplier-use-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'supplier-payment', 'direction', 'OUT',
+    'shiftId', shift_id_value, 'catalogueKey', 'ticketing-packages-supplier-payment', 'direction', 'OUT',
     'outgoingType', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
     'supplierMovementType', 'USE_BALANCE', 'totalAmount', 40, 'customerName', 'Integration Supplier',
     'note', 'Supplier balance used', 'tenders', '[]'::jsonb
@@ -159,7 +198,7 @@ begin
   end if;
 
   response_value := public.pos_post_transaction_v1(manager, 'pos-test-expense-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'expense', 'direction', 'OUT',
+    'shiftId', shift_id_value, 'catalogueKey', 'general-expense', 'direction', 'OUT',
     'outgoingType', 'EXPENSE', 'totalAmount', 10, 'customerName', 'Stationery',
     'note', 'Integration office supplies',
     'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 10))
@@ -188,7 +227,7 @@ begin
 
   perform public.pos_import_legacy_row_v1(manager, 'pos-test-import-0001', jsonb_build_object(
     'legacySource', 'excel-test', 'legacyRowKey', 'row-1', 'businessDate', '2026-09-01',
-    'catalogueKey', 'document-help', 'customerName', 'Historical customer', 'direction', 'IN',
+    'catalogueKey', 'document-assistance', 'customerName', 'Historical customer', 'direction', 'IN',
     'amount', 12, 'paymentMethod', 'CASH', 'note', 'Original historical row',
     'originalReference', 'EXCEL-1', 'freshFactorMethod', 'totp'
   ));
@@ -215,7 +254,7 @@ begin
 
   begin
     perform public.pos_post_transaction_v1(agent, 'pos-test-closed-0001', jsonb_build_object(
-      'shiftId', shift_id_value, 'catalogueKey', 'document-help', 'direction', 'IN',
+      'shiftId', shift_id_value, 'catalogueKey', 'document-assistance', 'direction', 'IN',
       'totalAmount', 1, 'customerName', 'Closed shift',
       'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 1))
     ));

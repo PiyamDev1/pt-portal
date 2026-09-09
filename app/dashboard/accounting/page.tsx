@@ -1,5 +1,11 @@
 import Link from 'next/link'
-import { ArrowRight, BadgePoundSterling, ChartNoAxesColumnIncreasing, FileText } from 'lucide-react'
+import {
+  ArrowRight,
+  BadgePoundSterling,
+  ChartNoAxesColumnIncreasing,
+  FileText,
+  Settings2,
+} from 'lucide-react'
 
 export const metadata = {
   title: 'Accounting - PT Portal',
@@ -40,6 +46,22 @@ export default function AccountingPage() {
               <h3 className="font-black text-slate-900">Applications</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Monthly totals by application and category
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-700" />
+          </Link>
+
+          <Link
+            href="/dashboard/accounting/pos-configuration"
+            className="group flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <Settings2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-black text-slate-900">POS configuration</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Categories, services, suppliers and assignments
               </p>
             </div>
             <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-700" />

@@ -148,8 +148,25 @@ export type PosCatalogueItem = {
   pointsPerGbp: number
   allowedPaymentMethods: PosPaymentMethod[]
   noteRequired: boolean
+  priceRequired: boolean
   shortcut: string | null
   pricingOptions: Array<{ id: string; label: string; price: number }>
+  categoryKey: string
+  logoKey: string | null
+}
+
+export type PosCategory = {
+  id: string
+  key: string
+  label: string
+  description: string | null
+  iconKey: string
+  displayOrder: number
+  supplierPaymentsEnabled: boolean
+  services: PosCatalogueItem[]
+  shortcuts: Array<{ key: string; label: string; target: 'REFUNDS_CORRECTIONS' }>
+  supplierIds: string[]
+  defaultSupplierId: string | null
 }
 
 export type PosTill = { id: string; code: string; name: string; currency: 'GBP' }
@@ -174,6 +191,7 @@ export type PosSupplier = {
   sourceArea: string | null
   sourceReference: string | null
   balance: number
+  isActive: boolean
 }
 
 export type PosSupplierBalanceEntry = {
@@ -234,6 +252,7 @@ export type PosBootstrapPayload = {
   capabilityVersion: number
   branch: { id: string; name: string; timezone: string }
   catalogue: PosCatalogueItem[]
+  categories: PosCategory[]
   tills: PosTill[]
   activeShift: PosShift | null
   balances: PosBalances

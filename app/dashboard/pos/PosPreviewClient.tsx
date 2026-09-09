@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import {
   Fragment,
   useCallback,
@@ -59,7 +60,7 @@ import type {
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 
 type IconComponent = ComponentType<{ className?: string }>
-type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split'
+type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Other' | 'Split'
 type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
 type LedgerPeriod = 'day' | 'month'
 
@@ -74,12 +75,14 @@ const SCAN_ARM_TIMEOUT_MS = 30_000
 
 type CategoryPreset = {
   id: string
+  categoryKey?: string
   label: string
   caption: string
   icon: IconComponent
   tone: string
   direction: 'IN' | 'OUT' | 'TRANSFER'
   loyalty: boolean
+  logoKey?: string | null
 }
 
 type PreviewTransaction = Omit<
@@ -190,6 +193,7 @@ const CATEGORIES: CategoryPreset[] = [
   },
   {
     id: 'cargo-delivery',
+    categoryKey: 'cargo',
     label: 'Cargo / delivery',
     caption: 'Loyalty eligible',
     icon: Plane,
@@ -251,6 +255,121 @@ const CATEGORIES: CategoryPreset[] = [
     direction: 'TRANSFER',
     loyalty: false,
   },
+  {
+    id: 'ticketing',
+    categoryKey: 'ticketing-packages',
+    label: 'Ticketing',
+    caption: 'Tracked booking',
+    icon: Plane,
+    tone: 'border-purple-200 bg-purple-50 text-purple-800',
+    direction: 'IN',
+    loyalty: false,
+  },
+  {
+    id: 'package',
+    categoryKey: 'ticketing-packages',
+    label: 'Package',
+    caption: 'Tracked package',
+    icon: Plane,
+    tone: 'border-purple-200 bg-purple-50 text-purple-800',
+    direction: 'IN',
+    loyalty: false,
+  },
+  {
+    id: 'ria-remittance',
+    categoryKey: 'remittance',
+    label: 'Ria',
+    caption: 'Full amount earns points',
+    icon: Landmark,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    direction: 'IN',
+    loyalty: true,
+    logoKey: 'ria',
+  },
+  {
+    id: 'moneygram-remittance',
+    categoryKey: 'remittance',
+    label: 'MoneyGram',
+    caption: 'Full amount earns points',
+    icon: Landmark,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    direction: 'IN',
+    loyalty: true,
+    logoKey: 'moneygram',
+  },
+  {
+    id: 'western-union-remittance',
+    categoryKey: 'remittance',
+    label: 'Western Union',
+    caption: 'Full amount earns points',
+    icon: Landmark,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    direction: 'IN',
+    loyalty: true,
+    logoKey: 'western-union',
+  },
+  {
+    id: 'dex-remittance',
+    categoryKey: 'remittance',
+    label: 'DEX',
+    caption: 'Full amount earns points',
+    icon: Landmark,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    direction: 'IN',
+    loyalty: true,
+    logoKey: 'dex',
+  },
+  {
+    id: 'intercity-remittance',
+    categoryKey: 'remittance',
+    label: 'Intercity',
+    caption: 'Full amount earns points',
+    icon: Landmark,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    direction: 'IN',
+    loyalty: true,
+    logoKey: 'intercity',
+  },
+  {
+    id: 'document-assistance',
+    categoryKey: 'document-assistance',
+    label: 'Document Assistance',
+    caption: 'Printing, copying and help',
+    icon: FileText,
+    tone: 'border-lime-200 bg-lime-50 text-lime-800',
+    direction: 'IN',
+    loyalty: true,
+  },
+  {
+    id: 'general-expense',
+    categoryKey: 'other',
+    label: 'General expense',
+    caption: 'Money out',
+    icon: ReceiptText,
+    tone: 'border-orange-200 bg-orange-50 text-orange-900',
+    direction: 'OUT',
+    loyalty: false,
+  },
+  {
+    id: 'donation',
+    categoryKey: 'other',
+    label: 'Donation',
+    caption: 'Money out',
+    icon: ReceiptText,
+    tone: 'border-rose-200 bg-rose-50 text-rose-900',
+    direction: 'OUT',
+    loyalty: false,
+  },
+  {
+    id: 'other-income',
+    categoryKey: 'other',
+    label: 'Other income',
+    caption: 'Money in',
+    icon: Sparkles,
+    tone: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    direction: 'IN',
+    loyalty: false,
+  },
 ]
 
 const CATEGORY_MENU: Array<
@@ -258,25 +377,53 @@ const CATEGORY_MENU: Array<
   | { id: string; categoryId: string }
 > = [
   {
-    id: 'nadra-services',
-    label: 'NADRA',
-    caption: 'Applications and certificates',
+    id: 'applications',
+    label: 'Applications',
+    caption: 'Identity, passport and visa applications',
     icon: FileText,
-    children: ['nicop-cnic', 'poc', 'frc', 'crc', 'poa'],
+    children: ['nicop-cnic', 'poc', 'frc', 'crc', 'poa', 'pk-passport', 'gb-passport', 'visa'],
   },
-  { id: 'pk-passport-menu', categoryId: 'pk-passport' },
-  { id: 'gb-passport-menu', categoryId: 'gb-passport' },
-  { id: 'visa-menu', categoryId: 'visa' },
-  { id: 'ticket-package-menu', categoryId: 'ticket-package' },
-  { id: 'remittance-menu', categoryId: 'remittance' },
-  { id: 'document-help-menu', categoryId: 'document-help' },
-  { id: 'cargo-menu', categoryId: 'cargo-delivery' },
-  { id: 'printing-menu', categoryId: 'printing-copying' },
-  { id: 'other-menu', categoryId: 'other-service' },
-  { id: 'supplier-menu', categoryId: 'supplier' },
-  { id: 'expense-menu', categoryId: 'expense' },
-  { id: 'refund-menu', categoryId: 'refund' },
-  { id: 'extra-coins-menu', categoryId: 'extra-coins' },
+  {
+    id: 'ticketing-packages',
+    label: 'Ticketing & Packages',
+    caption: 'Tickets and travel packages',
+    icon: Plane,
+    children: ['ticketing', 'package'],
+  },
+  {
+    id: 'remittance',
+    label: 'Remittance',
+    caption: 'Choose an approved provider',
+    icon: Landmark,
+    children: [
+      'ria-remittance',
+      'moneygram-remittance',
+      'western-union-remittance',
+      'dex-remittance',
+      'intercity-remittance',
+    ],
+  },
+  {
+    id: 'cargo',
+    label: 'Cargo',
+    caption: 'Cargo and delivery services',
+    icon: Plane,
+    children: ['cargo-delivery'],
+  },
+  {
+    id: 'document-assistance',
+    label: 'Document Assistance',
+    caption: 'Printing, copying and document help',
+    icon: FileText,
+    children: ['document-assistance'],
+  },
+  {
+    id: 'other',
+    label: 'Other',
+    caption: 'Expenses, donations, income and refunds',
+    icon: Sparkles,
+    children: ['general-expense', 'donation', 'other-income', 'refund'],
+  },
 ]
 
 const TRANSACTIONS: PreviewTransaction[] = [
@@ -611,6 +758,7 @@ export default function PosPreviewClient({
         timezone: initialLedger?.context.timezone || 'Europe/London',
       },
       catalogue: [],
+      categories: [],
       tills: [],
       activeShift: null,
       balances: { openingFloat: 0, drawer: 0, reserve: 0 },
@@ -657,7 +805,11 @@ export default function PosPreviewClient({
   const [selectedTransactionId, setSelectedTransactionId] = useState(
     (initialLedger?.items || TRANSACTIONS)[0]?.id || '',
   )
-  const [categoryId, setCategoryId] = useState('document-help')
+  const [categoryId, setCategoryId] = useState('document-assistance')
+  const [entryMode, setEntryMode] = useState<'CUSTOMER_PAYMENT' | 'SUPPLIER_PAYMENT'>(
+    'CUSTOMER_PAYMENT',
+  )
+  const [selectedTopCategoryKey, setSelectedTopCategoryKey] = useState('document-assistance')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('25.00')
   const [amountPaid, setAmountPaid] = useState('20.00')
@@ -685,20 +837,68 @@ export default function PosPreviewClient({
   const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
   const todayDate = initialLedger?.context.date || DEMO_TODAY
 
-  const selectedCategory = CATEGORIES.find((item) => item.id === categoryId) || CATEGORIES[0]
-  const catalogueKey =
-    categoryId === 'remittance'
-      ? 'remittance-fee'
-      : categoryId === 'supplier'
-        ? 'supplier-payment'
-        : categoryId === 'refund'
-          ? 'general-refund'
-          : categoryId
+  const iconByKey: Record<string, IconComponent> = {
+    'file-text': FileText,
+    plane: Plane,
+    landmark: Landmark,
+    package: Plane,
+    files: FileText,
+    shapes: Sparkles,
+  }
+  const availableCategories: CategoryPreset[] = bootstrap.categories.length
+    ? bootstrap.categories.flatMap((category) => [
+        ...category.services.map((service) => ({
+          id: service.key,
+          categoryKey: category.key,
+          label: service.optionLabel || service.label,
+          caption:
+            service.logoKey ||
+            (service.defaultDirection === 'OUT'
+              ? 'Money out'
+              : service.loyaltyEligible
+                ? `${service.pointsPerGbp} point per GBP`
+                : category.description || 'Money in'),
+          icon: iconByKey[category.iconKey] || Sparkles,
+          tone: 'border-sky-200 bg-sky-50 text-sky-800',
+          direction: service.defaultDirection,
+          loyalty: service.loyaltyEligible,
+          logoKey: service.logoKey,
+        })),
+        ...category.shortcuts.map((shortcut) => ({
+          id: shortcut.key,
+          categoryKey: category.key,
+          label: shortcut.label,
+          caption: 'Open controlled workflow',
+          icon: RotateCcw,
+          tone: 'border-rose-200 bg-rose-50 text-rose-800',
+          direction: 'OUT' as const,
+          loyalty: false,
+        })),
+      ])
+    : CATEGORIES
+  const categoryMenu = bootstrap.categories.length
+    ? bootstrap.categories.map((category) => ({
+        id: category.key,
+        label: category.label,
+        caption: category.description || 'Configured services',
+        icon: iconByKey[category.iconKey] || Sparkles,
+        children: [
+          ...category.services.map((service) => service.key),
+          ...category.shortcuts.map((shortcut) => shortcut.key),
+        ],
+      }))
+    : CATEGORY_MENU
+  const selectedCategory =
+    availableCategories.find((item) => item.id === categoryId) ||
+    availableCategories[0] ||
+    CATEGORIES[0]
+  const catalogueKey = categoryId === 'refund' ? 'general-refund' : categoryId
   const liveCatalogueItem = bootstrap.catalogue.find((item) => item.key === catalogueKey) || null
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
   const numericAmountPaid = Number.parseFloat(amountPaid.replace(/,/g, '')) || 0
   const isTransfer = selectedCategory.direction === 'TRANSFER'
-  const isOutgoing = !isTransfer && (numericAmount < 0 || selectedCategory.direction === 'OUT')
+  const isSupplierPayment = entryMode === 'SUPPLIER_PAYMENT'
+  const isOutgoing = !isTransfer && (isSupplierPayment || selectedCategory.direction === 'OUT')
   const remainingBalance = Math.max(Math.abs(numericAmount) - Math.abs(numericAmountPaid), 0)
   const changeDue = Math.max(Math.abs(numericAmountPaid) - Math.abs(numericAmount), 0)
   const matchingPricingOptions = (liveCatalogueItem?.pricingOptions || []).filter(
@@ -706,9 +906,16 @@ export default function PosPreviewClient({
   )
 
   const supplierMatches = useMemo(() => {
-    if (!isOutgoing || outgoingType !== 'Supplier payment') return null
+    if (!isSupplierPayment) return null
     const needle = name.trim().toLowerCase()
-    const suppliers = bootstrap.schemaReady ? bootstrap.suppliers : SUPPLIERS
+    const selectedTopCategory = bootstrap.categories.find(
+      (category) => category.key === selectedTopCategoryKey,
+    )
+    const suppliers = bootstrap.schemaReady
+      ? bootstrap.suppliers.filter((supplier) =>
+          selectedTopCategory?.supplierIds.includes(supplier.id),
+        )
+      : SUPPLIERS
     if (!needle) return suppliers.slice(0, 8)
     return suppliers
       .filter(
@@ -719,15 +926,26 @@ export default function PosPreviewClient({
             supplier.alternateNames.some((alias) => alias.toLowerCase().includes(needle))),
       )
       .slice(0, 8)
-  }, [bootstrap.schemaReady, bootstrap.suppliers, isOutgoing, name, outgoingType])
+  }, [
+    bootstrap.categories,
+    bootstrap.schemaReady,
+    bootstrap.suppliers,
+    isSupplierPayment,
+    name,
+    selectedTopCategoryKey,
+  ])
 
   const supplierMatch = useMemo(() => {
     if (!supplierMatches?.length) return null
+    const configuredDefault = bootstrap.categories.find(
+      (category) => category.key === selectedTopCategoryKey,
+    )?.defaultSupplierId
     return (
       supplierMatches.find((supplier) => 'id' in supplier && supplier.id === selectedSupplierId) ||
+      supplierMatches.find((supplier) => 'id' in supplier && supplier.id === configuredDefault) ||
       supplierMatches[0]
     )
-  }, [selectedSupplierId, supplierMatches])
+  }, [bootstrap.categories, selectedSupplierId, selectedTopCategoryKey, supplierMatches])
 
   const filteredTransactions = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -956,7 +1174,7 @@ export default function PosPreviewClient({
         window.localStorage.getItem(POS_DRAFT_STORAGE_KEY) || 'null',
       ) as Record<string, string> | null
       if (savedDraft) {
-        setCategoryId(savedDraft.categoryId || 'document-help')
+        setCategoryId(savedDraft.categoryId || 'document-assistance')
         setName(savedDraft.name || '')
         setAmount(savedDraft.amount || '25.00')
         setAmountPaid(savedDraft.amountPaid || '25.00')
@@ -1047,6 +1265,8 @@ export default function PosPreviewClient({
     return {
       shiftId: bootstrap.activeShift?.id,
       catalogueKey,
+      categoryKey: selectedCategory.categoryKey || selectedTopCategoryKey,
+      entryMode,
       direction: directionIsOut ? 'OUT' : 'IN',
       ...(directionIsOut
         ? {
@@ -1073,7 +1293,7 @@ export default function PosPreviewClient({
         ? { pricingId: selectedPricingId || matchingPricingOptions[0].id }
         : {}),
       pricingConfirmed: manualPriceConfirmed,
-      ...(outgoingType === 'Supplier payment' && supplierMatch && 'id' in supplierMatch
+      ...(isSupplierPayment && supplierMatch && 'id' in supplierMatch
         ? { supplierId: supplierMatch.id, supplierMovementType }
         : {}),
       ...(member && liveCatalogueItem?.loyaltyEligible ? { loyaltyCode: member.customerCode } : {}),
@@ -1128,11 +1348,7 @@ export default function PosPreviewClient({
       toast.info('Use the controlled linked or general refund form.')
       return
     }
-    if (isOutgoing && !outgoingType) {
-      toast.error('Choose the outgoing type first')
-      return
-    }
-    if (outgoingType === 'Supplier payment' && !supplierConfirmed) {
+    if (isSupplierPayment && !supplierConfirmed) {
       toast.error('Confirm the supplier first')
       return
     }
@@ -1141,7 +1357,7 @@ export default function PosPreviewClient({
       return
     }
     if (
-      liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
+      liveCatalogueItem?.priceRequired &&
       !selectedPricingId &&
       matchingPricingOptions.length !== 1 &&
       !manualPriceConfirmed
@@ -1261,6 +1477,8 @@ export default function PosPreviewClient({
 
   function chooseCategory(category: CategoryPreset, categoryGroupId?: string) {
     setCategoryId(category.id)
+    setSelectedTopCategoryKey(category.categoryKey || categoryGroupId || 'other')
+    setEntryMode('CUSTOMER_PAYMENT')
     setExpandedCategoryGroups(categoryGroupId ? [categoryGroupId] : [])
     setSupplierConfirmed(false)
     setSelectedSupplierId('')
@@ -1269,29 +1487,18 @@ export default function PosPreviewClient({
     setScanOpen(false)
     setScanValue('')
 
-    if (category.id === 'supplier') {
-      setName('British Airways')
-      setAmount('-300.00')
-      setAmountPaid('0.00')
-      setPaymentMethod('Cash')
-      setOutgoingType('Supplier payment')
-      setSupplierMovementType('DEPOSIT')
-      return
-    }
-    if (category.id === 'expense') {
-      setName('Office supplies')
-      setAmount('-18.40')
-      setAmountPaid('0.00')
+    if (category.id === 'general-expense' || category.id === 'donation') {
+      setName(category.id === 'donation' ? 'Donation' : 'Office supplies')
+      setAmount(category.id === 'donation' ? '10.00' : '18.40')
+      setAmountPaid(category.id === 'donation' ? '10.00' : '18.40')
       setPaymentMethod('Cash')
       setOutgoingType('Expense')
       return
     }
     if (category.id === 'refund') {
-      setName('Aisha Khan')
-      setAmount('-45.00')
-      setAmountPaid('0.00')
-      setPaymentMethod('Card')
-      setOutgoingType('Refund')
+      setActiveView('Refunds & corrections')
+      setOutgoingType(null)
+      toast.info('Refunds must begin from the original transaction whenever possible.')
       return
     }
     if (category.id === 'extra-coins') {
@@ -1305,11 +1512,35 @@ export default function PosPreviewClient({
 
     setName('')
     const nextAmount =
-      category.id === 'ticket-package' ? '420.00' : isNadraCategory(category.id) ? '50.00' : '25.00'
+      category.id === 'ticketing' || category.id === 'package'
+        ? '420.00'
+        : isNadraCategory(category.id)
+          ? '50.00'
+          : '25.00'
     setAmount(nextAmount)
     setAmountPaid(nextAmount)
-    setPaymentMethod(category.id === 'ticket-package' ? 'Card' : 'Cash')
+    setPaymentMethod(category.id === 'ticketing' || category.id === 'package' ? 'Card' : 'Cash')
     setOutgoingType(null)
+  }
+
+  function startSupplierPayment() {
+    const firstCategory = bootstrap.categories.find(
+      (category) => category.supplierPaymentsEnabled,
+    ) || {
+      key: 'ticketing-packages',
+      services: [{ key: 'ticketing' }],
+    }
+    setEntryMode('SUPPLIER_PAYMENT')
+    setSelectedTopCategoryKey(firstCategory.key)
+    setCategoryId(firstCategory.services[0]?.key || 'ticketing')
+    setExpandedCategoryGroups([])
+    setName('')
+    setAmount('100.00')
+    setAmountPaid('100.00')
+    setOutgoingType('Supplier payment')
+    setSupplierMovementType('DEPOSIT')
+    setSupplierConfirmed(false)
+    setSelectedSupplierId('')
   }
 
   function toggleCategoryGroup(groupId: string) {
@@ -1503,122 +1734,180 @@ export default function PosPreviewClient({
             </div>
             <ChevronDown className="h-4 w-4 text-slate-400 xl:hidden" />
           </div>
+          <button
+            type="button"
+            onClick={startSupplierPayment}
+            className={`mb-2 flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-black transition ${
+              isSupplierPayment
+                ? 'border-amber-700 bg-amber-700 text-white'
+                : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            Pay supplier
+          </button>
+          {isSupplierPayment && (
+            <label className="mb-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+              Supplier category
+              <select
+                value={selectedTopCategoryKey}
+                onChange={(event) => {
+                  const category = bootstrap.categories.find(
+                    (item) => item.key === event.target.value,
+                  )
+                  if (!category) return
+                  setSelectedTopCategoryKey(category.key)
+                  setCategoryId(category.services[0]?.key || '')
+                  setSelectedSupplierId('')
+                  setSupplierConfirmed(false)
+                }}
+                className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs normal-case text-slate-800"
+              >
+                {bootstrap.categories
+                  .filter((category) => category.supplierPaymentsEnabled)
+                  .map((category) => (
+                    <option key={category.key} value={category.key}>
+                      {category.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
           <div className="grid max-h-[31rem] grid-cols-2 gap-1.5 overflow-y-auto pr-1">
-            {CATEGORY_MENU.map((menuItem) => {
-              if ('children' in menuItem) {
-                const Icon = menuItem.icon
-                const expanded = expandedCategoryGroups.includes(menuItem.id)
-                const childSelected = menuItem.children.includes(categoryId)
+            {!isSupplierPayment &&
+              categoryMenu.map((menuItem) => {
+                if ('children' in menuItem) {
+                  const Icon = menuItem.icon
+                  const expanded = expandedCategoryGroups.includes(menuItem.id)
+                  const childSelected = menuItem.children.includes(categoryId)
+
+                  return (
+                    <div
+                      key={menuItem.id}
+                      className={`grid gap-1.5 ${expanded ? 'col-span-2 grid-cols-2' : ''}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const onlyChild =
+                            menuItem.children.length === 1
+                              ? availableCategories.find((item) => item.id === menuItem.children[0])
+                              : null
+                          if (onlyChild) chooseCategory(onlyChild)
+                          else toggleCategoryGroup(menuItem.id)
+                        }}
+                        aria-label={`${menuItem.label} ${menuItem.caption}`}
+                        aria-expanded={expanded}
+                        aria-controls={`${menuItem.id}-subcategories`}
+                        className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                          expanded || childSelected
+                            ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
+                            : 'border-sky-200 bg-sky-50 text-sky-800'
+                        }`}
+                      >
+                        <span className="flex w-full items-start justify-between">
+                          <Icon className="h-4 w-4" />
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                          />
+                        </span>
+                        <span>
+                          <span className="block text-[11px] font-black leading-tight">
+                            {menuItem.label}
+                          </span>
+                          <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-65">
+                            {menuItem.caption}
+                          </span>
+                        </span>
+                      </button>
+
+                      {expanded && (
+                        <div
+                          id={`${menuItem.id}-subcategories`}
+                          className="col-span-2 space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2"
+                        >
+                          {menuItem.children.map((childId) => {
+                            const category = availableCategories.find((item) => item.id === childId)
+                            if (!category) return null
+                            const selected = category.id === categoryId
+
+                            return (
+                              <button
+                                key={category.id}
+                                type="button"
+                                onClick={() => chooseCategory(category, menuItem.id)}
+                                aria-label={category.label}
+                                aria-pressed={selected}
+                                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-[11px] font-black shadow-sm transition hover:translate-x-0.5 ${
+                                  selected
+                                    ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white'
+                                    : category.tone
+                                }`}
+                              >
+                                <span>
+                                  <span className="flex items-center gap-2">
+                                    {category.logoKey && (
+                                      <Image
+                                        src={`/pos/providers/${category.logoKey}.svg`}
+                                        alt=""
+                                        width={42}
+                                        height={18}
+                                        className="h-4 w-auto max-w-12 object-contain"
+                                      />
+                                    )}
+                                    <span className="block">{category.label}</span>
+                                  </span>
+                                  <span
+                                    className={`mt-0.5 block text-[9px] font-medium ${selected ? 'text-red-100' : 'opacity-65'}`}
+                                  >
+                                    {category.caption}
+                                  </span>
+                                </span>
+                                {selected && <Check className="h-3.5 w-3.5" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                const category = availableCategories.find((item) => item.id === menuItem.categoryId)
+                if (!category) return null
+                const Icon = category.icon
+                const selected = category.id === categoryId
 
                 return (
-                  <div
+                  <button
                     key={menuItem.id}
-                    className={`grid gap-1.5 ${expanded ? 'col-span-2 grid-cols-2' : ''}`}
+                    type="button"
+                    onClick={() => chooseCategory(category)}
+                    aria-label={`${category.label} ${category.caption}`}
+                    aria-pressed={selected}
+                    className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      selected
+                        ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white shadow-sm'
+                        : `${category.tone} hover:border-slate-300`
+                    }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => toggleCategoryGroup(menuItem.id)}
-                      aria-label={`${menuItem.label} ${menuItem.caption}`}
-                      aria-expanded={expanded}
-                      aria-controls={`${menuItem.id}-subcategories`}
-                      className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
-                        expanded || childSelected
-                          ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
-                          : 'border-sky-200 bg-sky-50 text-sky-800'
-                      }`}
-                    >
-                      <span className="flex w-full items-start justify-between">
-                        <Icon className="h-4 w-4" />
-                        <ChevronDown
-                          className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-                        />
+                    <span className="flex w-full items-start justify-between">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                    </span>
+                    <span>
+                      <span className="block text-[11px] font-black leading-tight">
+                        {category.label}
                       </span>
-                      <span>
-                        <span className="block text-[11px] font-black leading-tight">
-                          {menuItem.label}
-                        </span>
-                        <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-65">
-                          {menuItem.caption}
-                        </span>
-                      </span>
-                    </button>
-
-                    {expanded && (
-                      <div
-                        id={`${menuItem.id}-subcategories`}
-                        className="col-span-2 space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2"
+                      <span
+                        className={`mt-0.5 block text-[9px] leading-tight ${selected ? 'text-red-100' : 'opacity-65'}`}
                       >
-                        {menuItem.children.map((childId) => {
-                          const category = CATEGORIES.find((item) => item.id === childId)
-                          if (!category) return null
-                          const selected = category.id === categoryId
-
-                          return (
-                            <button
-                              key={category.id}
-                              type="button"
-                              onClick={() => chooseCategory(category, menuItem.id)}
-                              aria-label={category.label}
-                              aria-pressed={selected}
-                              className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-[11px] font-black shadow-sm transition hover:translate-x-0.5 ${
-                                selected
-                                  ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white'
-                                  : category.tone
-                              }`}
-                            >
-                              <span>
-                                <span className="block">{category.label}</span>
-                                <span
-                                  className={`mt-0.5 block text-[9px] font-medium ${selected ? 'text-red-100' : 'opacity-65'}`}
-                                >
-                                  {category.caption}
-                                </span>
-                              </span>
-                              {selected && <Check className="h-3.5 w-3.5" />}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
+                        {category.caption}
+                      </span>
+                    </span>
+                  </button>
                 )
-              }
-
-              const category = CATEGORIES.find((item) => item.id === menuItem.categoryId)
-              if (!category) return null
-              const Icon = category.icon
-              const selected = category.id === categoryId
-
-              return (
-                <button
-                  key={menuItem.id}
-                  type="button"
-                  onClick={() => chooseCategory(category)}
-                  aria-label={`${category.label} ${category.caption}`}
-                  aria-pressed={selected}
-                  className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
-                    selected
-                      ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white shadow-sm'
-                      : `${category.tone} hover:border-slate-300`
-                  }`}
-                >
-                  <span className="flex w-full items-start justify-between">
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
-                  </span>
-                  <span>
-                    <span className="block text-[11px] font-black leading-tight">
-                      {category.label}
-                    </span>
-                    <span
-                      className={`mt-0.5 block text-[9px] leading-tight ${selected ? 'text-red-100' : 'opacity-65'}`}
-                    >
-                      {category.caption}
-                    </span>
-                  </span>
-                </button>
-              )
-            })}
+              })}
           </div>
         </aside>
 
@@ -2564,26 +2853,25 @@ export default function PosPreviewClient({
                 </div>
               )}
 
-              {liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
-                matchingPricingOptions.length > 1 && (
-                  <label className="block">
-                    <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
-                      Confirm pricing option
-                    </span>
-                    <select
-                      value={selectedPricingId}
-                      onChange={(event) => setSelectedPricingId(event.target.value)}
-                      className="h-9 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-900"
-                    >
-                      <option value="">Choose the matching option</option>
-                      {matchingPricingOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label} · {formatMoney(option.price)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+              {liveCatalogueItem?.priceRequired && matchingPricingOptions.length > 1 && (
+                <label className="block">
+                  <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                    Confirm pricing option
+                  </span>
+                  <select
+                    value={selectedPricingId}
+                    onChange={(event) => setSelectedPricingId(event.target.value)}
+                    className="h-9 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-900"
+                  >
+                    <option value="">Choose the matching option</option>
+                    {matchingPricingOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label} · {formatMoney(option.price)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               {liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
                 matchingPricingOptions.length === 0 && (
@@ -2599,35 +2887,7 @@ export default function PosPreviewClient({
                   </label>
                 )}
 
-              {isOutgoing && (
-                <div>
-                  <p className="mb-1 text-[9px] font-black uppercase tracking-wide text-slate-500">
-                    What type of outgoing is this?
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['Refund', 'Expense', 'Supplier payment'] as OutgoingType[]).map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => {
-                          setOutgoingType(type)
-                          setSupplierConfirmed(false)
-                          setSelectedSupplierId('')
-                        }}
-                        className={`rounded-xl border px-2 py-3 text-[11px] font-black transition sm:text-xs ${
-                          outgoingType === type
-                            ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d] ring-1 ring-[#8b1e2d]'
-                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {outgoingType === 'Supplier payment' && (
+              {isSupplierPayment && (
                 <div
                   className={`rounded-2xl border p-4 ${
                     supplierConfirmed
@@ -2663,7 +2923,7 @@ export default function PosPreviewClient({
                             <select
                               value={
                                 selectedSupplierId ||
-                                ('id' in supplierMatches[0] ? supplierMatches[0].id : '')
+                                (supplierMatch && 'id' in supplierMatch ? supplierMatch.id : '')
                               }
                               onChange={(event) => {
                                 setSelectedSupplierId(event.target.value)
@@ -2744,32 +3004,42 @@ export default function PosPreviewClient({
                   <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
                     Payment method
                   </p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['Cash', 'Card', 'Bank', 'Split'] as PaymentMethod[]).map((method) => {
-                      const Icon =
-                        method === 'Cash'
-                          ? Banknote
-                          : method === 'Card'
-                            ? CreditCard
-                            : method === 'Bank'
-                              ? Landmark
-                              : WalletCards
-                      return (
-                        <button
-                          key={method}
-                          type="button"
-                          onClick={() => setPaymentMethod(method)}
-                          className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] font-black transition ${
-                            paymentMethod === method
-                              ? 'border-slate-950 bg-slate-950 text-white'
-                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" />
-                          {method}
-                        </button>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {(['Cash', 'Card', 'Bank', 'Other', 'Split'] as PaymentMethod[])
+                      .filter(
+                        (method) =>
+                          isSupplierPayment ||
+                          !liveCatalogueItem ||
+                          method === 'Split' ||
+                          liveCatalogueItem.allowedPaymentMethods.includes(
+                            method.toUpperCase() as 'CASH' | 'CARD' | 'BANK' | 'OTHER',
+                          ),
                       )
-                    })}
+                      .map((method) => {
+                        const Icon =
+                          method === 'Cash'
+                            ? Banknote
+                            : method === 'Card'
+                              ? CreditCard
+                              : method === 'Bank' || method === 'Other'
+                                ? Landmark
+                                : WalletCards
+                        return (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setPaymentMethod(method)}
+                            className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] font-black transition ${
+                              paymentMethod === method
+                                ? 'border-slate-950 bg-slate-950 text-white'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {method}
+                          </button>
+                        )
+                      })}
                   </div>
                   {paymentMethod === 'Split' && (
                     <div className="mt-2 grid grid-cols-3 gap-2">
@@ -2802,7 +3072,9 @@ export default function PosPreviewClient({
                       </label>
                     </div>
                   )}
-                  {(paymentMethod === 'Card' || paymentMethod === 'Bank') && (
+                  {(paymentMethod === 'Card' ||
+                    paymentMethod === 'Bank' ||
+                    paymentMethod === 'Other') && (
                     <input
                       value={externalReference}
                       onChange={(event) => setExternalReference(event.target.value)}

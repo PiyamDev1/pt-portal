@@ -2,7 +2,7 @@
 
 The POS surface is private staff infrastructure. Every route derives the employee and branch from the
 active staff session, returns non-cacheable data, and keeps all new write operations unavailable until
-database capability `2026090801` is installed. Mutation routes use strict bounded JSON, rate limits,
+database capability `2026090901` is installed. Mutation routes use strict bounded JSON, rate limits,
 server-generated accounting effects, and retry-safe idempotency keys where applicable.
 
 ### GET `/api/pos/bootstrap`
@@ -11,7 +11,8 @@ server-generated accounting effects, and retry-safe idempotency keys where appli
 
 **Input:** No body or query parameters.
 
-**Success:** `200` with branch/till context, the server catalogue and pricing options, active shift,
+**Success:** `200` with branch/till context, the hierarchical category/service catalogue, supplier
+assignments, pricing options, active shift,
 expected drawer/reserve balances, configured suppliers, staff options, closeouts, permissions, and the
 POS schema capability state. Before migration, the payload is read-only and `schemaReady` is false.
 
@@ -35,9 +36,9 @@ Before the POS capability is available, it returns the legacy branch ledger as r
 
 **Access:** Any active branch employee with POS posting access.
 
-**Input:** A strict transaction containing active shift UUID, catalogue key, positive total, explicit
-direction, customer snapshot, up to four tenders, and optional typed source, pricing confirmation,
-configured supplier movement, loyalty code, or LMS payment mapping. Requires `Idempotency-Key`.
+**Input:** A strict transaction containing active shift UUID, category and service keys, explicit action,
+positive total and direction, customer snapshot, up to four tenders, and optional typed source, pricing
+confirmation, assigned supplier movement, loyalty code, or LMS payment mapping. Requires `Idempotency-Key`.
 
 **Success:** `201` for a new atomic post or `200` for an idempotent replay, with POS reference, totals,
 remaining source-owned balance, loyalty award, and supplier balance where relevant.
@@ -101,18 +102,28 @@ derived running balances.
 
 **Errors:** `400` for an invalid UUID; `401`/`403` for access failure; `500` for a private load failure.
 
-### POST `/api/pos/suppliers`
+### GET `/api/accounting/pos-configuration`
 
-**Access:** Managers only; a positive opening balance additionally requires fresh second-factor
-verification and an audit note.
+**Access:** Accounts/Accounting department staff and portal administrators only.
 
-**Input:** Strict supplier name, optional alternate names and source area/reference, non-negative opening
-balance, and conditional opening note/2FA. Requires `Idempotency-Key`.
+**Input:** No body or query parameters.
 
-**Success:** `201` with the configured supplier identity and recorded opening balance.
+**Success:** Returns active and inactive categories, services, suppliers, and assignments for management.
 
-**Errors:** `400` for invalid details; `401`/`403` for access or verification failure; `409` for a retry
-conflict; `503` when POS is unavailable; `429` for rate limiting.
+**Errors:** `401`/`403` for access failure; `500` for a private configuration load failure.
+
+### POST `/api/accounting/pos-configuration`
+
+**Access:** Accounts/Accounting department staff and portal administrators only.
+
+**Input:** One strict idempotent category, service, supplier, or category-assignment mutation. Requires
+`Idempotency-Key`.
+
+**Success:** Returns the audited configuration entity and action. Stable keys are not renamed, and
+referenced rows are deactivated.
+
+**Errors:** `400` for invalid configuration; `401`/`403` for access failure; `409` for an idempotency
+conflict; `503` when the capability is unavailable; `429` for rate limiting.
 
 ### POST `/api/pos/corrections`
 
