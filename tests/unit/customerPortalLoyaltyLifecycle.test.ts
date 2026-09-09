@@ -21,7 +21,28 @@ describe('customer loyalty lifecycle', () => {
     ).toBe('service.v1:visa:01a04af2-5437-74c2-8d42-2f815c7204d5')
     expect(customerLoyaltyActivationMilestone('package')).toBe('fully_paid')
     expect(normalizeCustomerLoyaltyCode(' pym-7k4m-9q2d-h ')).toBe('PYM-7K4M-9Q2D-H')
+    expect(
+      normalizeCustomerLoyaltyCode(
+        JSON.stringify({
+          type: 'piyam.customer',
+          version: 1,
+          customerCode: 'pym-7k4m-9q2d-h',
+          issuer: 'Piyam Travel',
+        }),
+      ),
+    ).toBe('PYM-7K4M-9Q2D-H')
     expect(() => normalizeCustomerLoyaltyCode('PYM-0000-0000-0')).toThrow()
+    expect(() =>
+      normalizeCustomerLoyaltyCode(
+        JSON.stringify({ type: 'piyam.staff', version: 1, customerCode: 'PYM-7K4M-9Q2D-H' }),
+      ),
+    ).toThrow()
+    expect(() =>
+      normalizeCustomerLoyaltyCode(
+        JSON.stringify({ type: 'piyam.customer', version: 2, customerCode: 'PYM-7K4M-9Q2D-H' }),
+      ),
+    ).toThrow()
+    expect(() => normalizeCustomerLoyaltyCode('{not-json')).toThrow()
   })
 
   it('activates only when the source-specific paid milestone is satisfied', () => {

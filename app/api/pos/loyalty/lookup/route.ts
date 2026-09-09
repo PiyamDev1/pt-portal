@@ -9,7 +9,7 @@ import { z } from 'zod'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const lookupSchema = z.object({ code: z.string().trim().min(1).max(100) }).strict()
+const lookupSchema = z.object({ code: z.string().trim().min(1).max(512) }).strict()
 
 export async function POST(request: Request) {
   const access = await requireStaffSession()

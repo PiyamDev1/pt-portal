@@ -52,7 +52,30 @@ export function customerLoyaltySourceReference(source: CustomerLoyaltySource) {
 }
 
 export function normalizeCustomerLoyaltyCode(customerCode: string) {
-  const normalized = customerCode.trim().toUpperCase()
+  let candidate = customerCode.trim()
+
+  if (candidate.startsWith('{')) {
+    let payload: unknown
+    try {
+      payload = JSON.parse(candidate)
+    } catch {
+      throw new Error('A valid customer code is required.')
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('A valid customer code is required.')
+    }
+    const qrPayload = payload as Record<string, unknown>
+    if (
+      qrPayload.type !== 'piyam.customer' ||
+      qrPayload.version !== 1 ||
+      typeof qrPayload.customerCode !== 'string'
+    ) {
+      throw new Error('A valid customer code is required.')
+    }
+    candidate = qrPayload.customerCode
+  }
+
+  const normalized = candidate.trim().toUpperCase()
   if (!CUSTOMER_CODE_PATTERN.test(normalized)) throw new Error('A valid customer code is required.')
   return normalized
 }

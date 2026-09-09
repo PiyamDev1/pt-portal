@@ -7,6 +7,7 @@ import type {
   LoyaltyMember,
   LoyaltyMemberPayload,
 } from './contracts'
+import { LOYALTY_PROGRAM_POLICY } from './program'
 
 type Related<T> = T | T[] | null
 
@@ -69,15 +70,11 @@ export async function loadLoyaltyDashboard(
     memberQuery = memberQuery.ilike('search_text', `%${literalSearch}%`)
   }
 
-  const [overviewResult, memberResult, tierResult] = await Promise.all([
+  const [overviewResult, memberResult] = await Promise.all([
     service.from('customer_loyalty_staff_overview').select('*').single(),
     memberQuery,
-    service
-      .from('loyalty_tiers')
-      .select('tier_name,min_points_threshold,earning_multiplier')
-      .order('min_points_threshold', { ascending: true }),
   ])
-  if (overviewResult.error || memberResult.error || tierResult.error) {
+  if (overviewResult.error || memberResult.error) {
     throw new Error('Unable to load loyalty data.')
   }
   const overview = overviewResult.data
@@ -90,14 +87,15 @@ export async function loadLoyaltyDashboard(
       entriesLast30Days: numberValue(overview.entries_last_30_days),
     },
     members: (memberResult.data || []).map(mapMember),
-    tiers: (tierResult.data || []).map((tier) => ({
-      name: tier.tier_name,
-      minimumPoints: numberValue(tier.min_points_threshold),
-      multiplier: numberValue(tier.earning_multiplier),
+    tiers: LOYALTY_PROGRAM_POLICY.ranks.map((tier) => ({
+      name: tier.name,
+      minimumPoints: tier.minimumPoints,
+      multiplier: 1,
     })),
     totalMembers: memberResult.count || 0,
     canAdjust,
     loadedAt: new Date().toISOString(),
+    program: LOYALTY_PROGRAM_POLICY,
   }
 }
 
@@ -119,7 +117,9 @@ export async function loadLoyaltyMember(memberId: string): Promise<LoyaltyMember
       .limit(200),
     service
       .from('customer_loyalty_staff_adjustments')
-      .select('award_id,employees!customer_loyalty_staff_adjustments_actor_employee_id_fkey(full_name)')
+      .select(
+        'award_id,employees!customer_loyalty_staff_adjustments_actor_employee_id_fkey(full_name)',
+      )
       .eq('mobile_user_id', memberId),
   ])
   if (memberResult.error || awardResult.error || adjustmentResult.error) {
@@ -161,7 +161,8 @@ export async function adjustLoyaltyPoints(input: {
   })
   if (error) {
     const message = error.message.toLowerCase()
-    if (message.includes('negative')) throw new Error('The adjustment would make the balance negative.')
+    if (message.includes('negative'))
+      throw new Error('The adjustment would make the balance negative.')
     if (message.includes('not found')) throw new Error('Loyalty member not found.')
     if (message.includes('not active')) throw new Error('Only active members can be adjusted.')
     throw new Error('Unable to save the points adjustment.')

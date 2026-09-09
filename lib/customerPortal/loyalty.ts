@@ -3,6 +3,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { LOYALTY_PROGRAM_POLICY } from '@/lib/loyalty/program'
 import { CustomerIntegrationError } from './http'
 
 type LoyaltySource = 'ticket' | 'service' | 'package' | 'adjustment'
@@ -112,11 +113,7 @@ export async function customerLoyaltySummary(input: {
 }) {
   const mobileUserId = await customerMobileUser(input)
   const service = getServiceSupabaseClient()
-  const [
-    { data: awards, error },
-    { data: balance, error: balanceError },
-    { data: tiers },
-  ] = await Promise.all([
+  const [{ data: awards, error }, { data: balance, error: balanceError }] = await Promise.all([
     service
       .from('customer_loyalty_awards')
       .select('id,source_type,description,points,state,created_at')
@@ -128,10 +125,6 @@ export async function customerLoyaltySummary(input: {
       .select('available_points,pending_points')
       .eq('id', mobileUserId)
       .single(),
-    service
-      .from('loyalty_tiers')
-      .select('tier_name,min_points_threshold')
-      .order('min_points_threshold', { ascending: false }),
   ])
   if (error || balanceError)
     throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)
@@ -147,9 +140,9 @@ export async function customerLoyaltySummary(input: {
   // aggregated by Postgres across the complete immutable award stream.
   const pendingPoints = Number(balance.pending_points || 0)
   const availablePoints = Number(balance.available_points || 0)
-  const tier = (tiers ?? []).find(
-    (candidate) => availablePoints >= Number(candidate.min_points_threshold),
-  )?.tier_name
+  const tier = [...LOYALTY_PROGRAM_POLICY.ranks]
+    .reverse()
+    .find((candidate) => availablePoints >= candidate.minimumPoints)?.name
   return {
     customerCode: input.customerCode,
     tier: String(tier || 'Member').slice(0, 80),
@@ -157,6 +150,7 @@ export async function customerLoyaltySummary(input: {
     availablePoints: Math.max(0, availablePoints),
     redemptionEnabled: false as const,
     expiryEnabled: false as const,
+    program: LOYALTY_PROGRAM_POLICY,
     entries,
     updatedAt: new Date().toISOString(),
   }

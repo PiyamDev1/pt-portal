@@ -1,12 +1,18 @@
 import { z } from 'zod'
+import type { LoyaltyProgramPolicy } from './program'
 
 export const loyaltySearchSchema = z.string().trim().max(100).default('')
 
 export const loyaltyAdjustmentSchema = z
   .object({
-    points: z.number().int().min(-100_000).max(100_000).refine((value) => value !== 0, {
-      message: 'Enter a non-zero points adjustment.',
-    }),
+    points: z
+      .number()
+      .int()
+      .min(-100_000)
+      .max(100_000)
+      .refine((value) => value !== 0, {
+        message: 'Enter a non-zero points adjustment.',
+      }),
     reason: z.string().trim().min(5).max(300),
     idempotencyKey: z.string().uuid(),
   })
@@ -59,6 +65,7 @@ export type LoyaltyDashboardPayload = {
   totalMembers: number
   canAdjust: boolean
   loadedAt: string
+  program: LoyaltyProgramPolicy
 }
 
 export type LoyaltyMemberPayload = {
