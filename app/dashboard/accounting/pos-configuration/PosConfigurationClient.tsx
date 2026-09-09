@@ -45,6 +45,7 @@ type ServiceRow = {
   item_key: string
   category_id: string
   label: string
+  option_label: string | null
   classification: 'SERVICE' | 'EXPENSE'
   default_direction: 'IN' | 'OUT'
   allowed_payment_methods: PaymentMethod[]
@@ -136,6 +137,10 @@ function slugify(value: string) {
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+function serviceDisplayLabel(service: Pick<ServiceRow, 'label' | 'option_label'>) {
+  return service.option_label || service.label
 }
 
 function formatBytes(bytes: number) {
@@ -417,8 +422,9 @@ export default function PosConfigurationClient() {
     }
     const serviceLabels = new Set<string>()
     for (const service of data.services.filter((row) => row.is_active)) {
-      const key = `${service.category_id}:${normalized(service.label)}`
-      if (serviceLabels.has(key)) issues.push(`Duplicate active service: ${service.label}`)
+      const label = serviceDisplayLabel(service)
+      const key = `${service.category_id}:${normalized(label)}`
+      if (serviceLabels.has(key)) issues.push(`Duplicate active service: ${label}`)
       serviceLabels.add(key)
     }
     const supplierNames = new Set<string>()
@@ -488,7 +494,7 @@ export default function PosConfigurationClient() {
         (normalized(row.item_key) === normalized(key) ||
           (row.is_active &&
             row.category_id === categoryId &&
-            normalized(row.label) === normalized(label))),
+            normalized(serviceDisplayLabel(row)) === normalized(label))),
     )
   }
 
@@ -524,7 +530,8 @@ export default function PosConfigurationClient() {
   async function saveService(service: ServiceRow) {
     const category = data!.categories.find((row) => row.id === service.category_id)
     if (!category) return
-    if (hasDuplicateService(service.item_key, service.label, service.category_id, service.id)) {
+    const label = serviceDisplayLabel(service)
+    if (hasDuplicateService(service.item_key, label, service.category_id, service.id)) {
       toast.error('Service keys and active labels within a category must be unique.')
       return
     }
@@ -532,7 +539,7 @@ export default function PosConfigurationClient() {
       action: 'UPSERT_SERVICE',
       key: service.item_key,
       categoryKey: category.category_key,
-      label: service.label,
+      label,
       classification: service.classification,
       direction: service.default_direction,
       displayOrder: service.display_order,
@@ -1015,9 +1022,12 @@ export default function PosConfigurationClient() {
                     <label className="text-xs font-bold text-slate-600">
                       Label
                       <input
-                        value={service.label}
+                        value={serviceDisplayLabel(service)}
                         onChange={(event) =>
-                          updateService(service.id, { label: event.target.value })
+                          updateService(service.id, {
+                            label: event.target.value,
+                            option_label: event.target.value,
+                          })
                         }
                         className={FIELD_CLASS}
                       />
@@ -1125,7 +1135,7 @@ export default function PosConfigurationClient() {
                   </div>
                   <LogoEditor
                     kind="service"
-                    label={service.label}
+                    label={serviceDisplayLabel(service)}
                     logoKey={service.logo_key}
                     logoUrl={service.logo_url}
                     disabled={!data.configurationReady || busy !== ''}

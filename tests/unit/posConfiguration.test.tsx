@@ -22,6 +22,7 @@ const configuration = {
       item_key: 'ria',
       category_id: 'category-1',
       label: 'Ria',
+      option_label: 'Ria',
       classification: 'SERVICE',
       default_direction: 'IN',
       allowed_payment_methods: ['CASH', 'CARD', 'BANK'],

@@ -39,7 +39,7 @@ create unique index if not exists pos_categories_active_label_uq
   on public.pos_categories (lower(btrim(label)))
   where is_active;
 create unique index if not exists pos_catalogue_items_active_category_label_uq
-  on public.pos_catalogue_items (category_id, lower(btrim(label)))
+  on public.pos_catalogue_items (category_id, lower(btrim(coalesce(option_label, label))))
   where is_active and is_quick_entry and not is_system_action;
 
 create or replace function public.pos_manage_configuration_v4(
@@ -116,7 +116,7 @@ begin
         and item.is_active
         and item.is_quick_entry
         and not item.is_system_action
-        and lower(btrim(item.label)) = lower(btrim(p_request ->> 'label'))
+        and lower(btrim(coalesce(item.option_label, item.label))) = lower(btrim(p_request ->> 'label'))
     ) then
       raise exception 'An active service in this category already uses this label'
         using errcode = '23505', hint = 'POS_DUPLICATE_SERVICE';
