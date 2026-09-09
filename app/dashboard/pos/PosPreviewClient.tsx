@@ -30,6 +30,7 @@ import {
   CreditCard,
   FileText,
   Filter,
+  HelpCircle,
   Landmark,
   LayoutDashboard,
   Pencil,
@@ -71,7 +72,56 @@ const MAX_LEDGER_HEIGHT = 720
 const LEDGER_HEIGHT_STORAGE_KEY = 'pt-portal:pos-preview:ledger-height'
 const POS_DRAFT_STORAGE_KEY = 'pt-portal:pos:draft:v1'
 const POS_RETRY_STORAGE_KEY = 'pt-portal:pos:retry:v1'
+const POS_TUTORIAL_STORAGE_KEY = 'pt-portal:pos:tutorial-dismissed:v1'
 const SCAN_ARM_TIMEOUT_MS = 30_000
+
+const CATEGORY_GROUP_TONES: Record<string, string> = {
+  applications: 'border-sky-200 bg-sky-50 text-sky-800',
+  'ticketing-packages': 'border-violet-200 bg-violet-50 text-violet-800',
+  remittance: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  cargo: 'border-amber-200 bg-amber-50 text-amber-900',
+  'document-assistance': 'border-indigo-200 bg-indigo-50 text-indigo-800',
+  other: 'border-rose-200 bg-rose-50 text-rose-800',
+}
+
+const SUBCATEGORY_TONES = [
+  'border-sky-200 bg-sky-50 text-sky-800',
+  'border-violet-200 bg-violet-50 text-violet-800',
+  'border-emerald-200 bg-emerald-50 text-emerald-800',
+  'border-amber-200 bg-amber-50 text-amber-900',
+  'border-cyan-200 bg-cyan-50 text-cyan-800',
+  'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800',
+  'border-lime-200 bg-lime-50 text-lime-800',
+  'border-orange-200 bg-orange-50 text-orange-900',
+]
+
+const POS_TUTORIAL_STEPS = [
+  {
+    title: 'Choose what the transaction is for',
+    description:
+      'Start with one of the six coloured categories, then choose a service from the compact list. A category with one service selects it automatically.',
+  },
+  {
+    title: 'Scan only when you are ready',
+    description:
+      'The customer-facing scanner stays disarmed. Select Scan loyalty card to allow one scan for 30 seconds; it disarms after the scan or timeout.',
+  },
+  {
+    title: 'Complete the Quick Transaction',
+    description:
+      'Enter the customer or payee, amount, note and payment method. The money-in or money-out badge confirms the effect before you post.',
+  },
+  {
+    title: 'Pay a supplier safely',
+    description:
+      'Select Pay supplier, then choose the supplier category, matching supplier and action inside Quick Transaction. Only assigned suppliers are offered.',
+  },
+  {
+    title: 'Use the ledger for follow-up work',
+    description:
+      'Search or filter the ledger, open a transaction for its receipt or refund, and use the left workspace menu for cash management and corrections.',
+  },
+] as const
 
 type CategoryPreset = {
   id: string
@@ -281,7 +331,7 @@ const CATEGORIES: CategoryPreset[] = [
     label: 'Ria',
     caption: 'Full amount earns points',
     icon: Landmark,
-    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    tone: 'border-sky-200 bg-sky-50 text-sky-800',
     direction: 'IN',
     loyalty: true,
     logoKey: 'ria',
@@ -292,7 +342,7 @@ const CATEGORIES: CategoryPreset[] = [
     label: 'MoneyGram',
     caption: 'Full amount earns points',
     icon: Landmark,
-    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    tone: 'border-rose-200 bg-rose-50 text-rose-800',
     direction: 'IN',
     loyalty: true,
     logoKey: 'moneygram',
@@ -303,7 +353,7 @@ const CATEGORIES: CategoryPreset[] = [
     label: 'Western Union',
     caption: 'Full amount earns points',
     icon: Landmark,
-    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    tone: 'border-amber-200 bg-amber-50 text-amber-900',
     direction: 'IN',
     loyalty: true,
     logoKey: 'western-union',
@@ -314,7 +364,7 @@ const CATEGORIES: CategoryPreset[] = [
     label: 'DEX',
     caption: 'Full amount earns points',
     icon: Landmark,
-    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    tone: 'border-cyan-200 bg-cyan-50 text-cyan-800',
     direction: 'IN',
     loyalty: true,
     logoKey: 'dex',
@@ -325,7 +375,7 @@ const CATEGORIES: CategoryPreset[] = [
     label: 'Intercity',
     caption: 'Full amount earns points',
     icon: Landmark,
-    tone: 'border-teal-200 bg-teal-50 text-teal-800',
+    tone: 'border-violet-200 bg-violet-50 text-violet-800',
     direction: 'IN',
     loyalty: true,
     logoKey: 'intercity',
@@ -834,6 +884,9 @@ export default function PosPreviewClient({
   const [posting, setPosting] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialStep, setTutorialStep] = useState(0)
+  const [hideTutorialNextTime, setHideTutorialNextTime] = useState(false)
   const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
   const todayDate = initialLedger?.context.date || DEMO_TODAY
 
@@ -847,19 +900,20 @@ export default function PosPreviewClient({
   }
   const availableCategories: CategoryPreset[] = bootstrap.categories.length
     ? bootstrap.categories.flatMap((category) => [
-        ...category.services.map((service) => ({
+        ...category.services.map((service, serviceIndex) => ({
           id: service.key,
           categoryKey: category.key,
           label: service.optionLabel || service.label,
           caption:
-            service.logoKey ||
-            (service.defaultDirection === 'OUT'
-              ? 'Money out'
-              : service.loyaltyEligible
-                ? `${service.pointsPerGbp} point per GBP`
-                : category.description || 'Money in'),
+            category.key === 'remittance'
+              ? ''
+              : service.defaultDirection === 'OUT'
+                ? 'Money out'
+                : service.loyaltyEligible
+                  ? `${service.pointsPerGbp} point per GBP`
+                  : category.description || 'Money in',
           icon: iconByKey[category.iconKey] || Sparkles,
-          tone: 'border-sky-200 bg-sky-50 text-sky-800',
+          tone: SUBCATEGORY_TONES[serviceIndex % SUBCATEGORY_TONES.length],
           direction: service.defaultDirection,
           loyalty: service.loyaltyEligible,
           logoKey: service.logoKey,
@@ -888,6 +942,23 @@ export default function PosPreviewClient({
         ],
       }))
     : CATEGORY_MENU
+  const supplierPaymentCategories = bootstrap.categories.length
+    ? bootstrap.categories
+        .filter((category) => category.supplierPaymentsEnabled)
+        .map((category) => ({
+          key: category.key,
+          label: category.label,
+          firstServiceKey: category.services[0]?.key || '',
+        }))
+    : [
+        {
+          key: 'ticketing-packages',
+          label: 'Ticketing & Packages',
+          firstServiceKey: 'ticketing',
+        },
+        { key: 'remittance', label: 'Remittance', firstServiceKey: 'ria-remittance' },
+        { key: 'cargo', label: 'Cargo', firstServiceKey: 'cargo-delivery' },
+      ]
   const selectedCategory =
     availableCategories.find((item) => item.id === categoryId) ||
     availableCategories[0] ||
@@ -1151,6 +1222,12 @@ export default function PosPreviewClient({
     const frame = window.requestAnimationFrame(() => {
       setLedgerHeight(Math.min(Math.max(savedHeight, MIN_LEDGER_HEIGHT), MAX_LEDGER_HEIGHT))
     })
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  useEffect(() => {
+    if (window.localStorage.getItem(POS_TUTORIAL_STORAGE_KEY) === 'true') return
+    const frame = window.requestAnimationFrame(() => setTutorialOpen(true))
     return () => window.cancelAnimationFrame(frame)
   }, [])
 
@@ -1524,15 +1601,13 @@ export default function PosPreviewClient({
   }
 
   function startSupplierPayment() {
-    const firstCategory = bootstrap.categories.find(
-      (category) => category.supplierPaymentsEnabled,
-    ) || {
+    const firstCategory = supplierPaymentCategories[0] || {
       key: 'ticketing-packages',
-      services: [{ key: 'ticketing' }],
+      firstServiceKey: 'ticketing',
     }
     setEntryMode('SUPPLIER_PAYMENT')
     setSelectedTopCategoryKey(firstCategory.key)
-    setCategoryId(firstCategory.services[0]?.key || 'ticketing')
+    setCategoryId(firstCategory.firstServiceKey || 'ticketing')
     setExpandedCategoryGroups([])
     setName('')
     setAmount('100.00')
@@ -1541,6 +1616,12 @@ export default function PosPreviewClient({
     setSupplierMovementType('DEPOSIT')
     setSupplierConfirmed(false)
     setSelectedSupplierId('')
+  }
+
+  function closeTutorial() {
+    if (hideTutorialNextTime) window.localStorage.setItem(POS_TUTORIAL_STORAGE_KEY, 'true')
+    setTutorialOpen(false)
+    setTutorialStep(0)
   }
 
   function toggleCategoryGroup(groupId: string) {
@@ -1615,7 +1696,7 @@ export default function PosPreviewClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:flex">
             <div className="rounded-xl bg-black/15 px-3 py-2 ring-1 ring-white/15">
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-red-100">
                 Branch
@@ -1635,6 +1716,19 @@ export default function PosPreviewClient({
                     )}`}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTutorialStep(0)
+                setHideTutorialNextTime(false)
+                setTutorialOpen(true)
+              }}
+              aria-label="Open POS tutorial"
+              title="Open the step-by-step POS tutorial"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-red-50 ring-1 ring-white/20 transition hover:bg-white/20"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </section>
@@ -1724,7 +1818,7 @@ export default function PosPreviewClient({
           </nav>
         </aside>
 
-        <aside className="order-2 rounded-[1.15rem] border border-slate-200 bg-white p-2.5 shadow-sm xl:order-3">
+        <aside className="order-2 flex min-h-0 flex-col self-stretch overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white p-2.5 shadow-sm xl:order-3 xl:mb-7">
           <div className="flex items-center justify-between px-1 pb-2">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
@@ -1737,6 +1831,7 @@ export default function PosPreviewClient({
           <button
             type="button"
             onClick={startSupplierPayment}
+            title="Record a payment, balance use or refund for an assigned supplier"
             className={`mb-2 flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-black transition ${
               isSupplierPayment
                 ? 'border-amber-700 bg-amber-700 text-white'
@@ -1746,168 +1841,147 @@ export default function PosPreviewClient({
             <Building2 className="h-4 w-4" />
             Pay supplier
           </button>
-          {isSupplierPayment && (
-            <label className="mb-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
-              Supplier category
-              <select
-                value={selectedTopCategoryKey}
-                onChange={(event) => {
-                  const category = bootstrap.categories.find(
-                    (item) => item.key === event.target.value,
-                  )
-                  if (!category) return
-                  setSelectedTopCategoryKey(category.key)
-                  setCategoryId(category.services[0]?.key || '')
-                  setSelectedSupplierId('')
-                  setSupplierConfirmed(false)
-                }}
-                className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs normal-case text-slate-800"
-              >
-                {bootstrap.categories
-                  .filter((category) => category.supplierPaymentsEnabled)
-                  .map((category) => (
-                    <option key={category.key} value={category.key}>
-                      {category.label}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          )}
-          <div className="grid max-h-[31rem] grid-cols-2 gap-1.5 overflow-y-auto pr-1">
-            {!isSupplierPayment &&
-              categoryMenu.map((menuItem) => {
-                if ('children' in menuItem) {
-                  const Icon = menuItem.icon
-                  const expanded = expandedCategoryGroups.includes(menuItem.id)
-                  const childSelected = menuItem.children.includes(categoryId)
+          <div className="grid min-h-0 max-h-[31rem] flex-1 auto-rows-min grid-cols-2 gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
+            {categoryMenu.map((menuItem) => {
+              if ('children' in menuItem) {
+                const Icon = menuItem.icon
+                const expanded = expandedCategoryGroups.includes(menuItem.id)
+                const childSelected = menuItem.children.includes(categoryId)
 
-                  return (
-                    <div
-                      key={menuItem.id}
-                      className={`grid gap-1.5 ${expanded ? 'col-span-2 grid-cols-2' : ''}`}
+                return (
+                  <Fragment key={menuItem.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const onlyChild =
+                          menuItem.children.length === 1
+                            ? availableCategories.find((item) => item.id === menuItem.children[0])
+                            : null
+                        if (onlyChild) chooseCategory(onlyChild)
+                        else toggleCategoryGroup(menuItem.id)
+                      }}
+                      aria-label={`${menuItem.label} ${menuItem.caption}`}
+                      aria-expanded={expanded}
+                      aria-controls={`${menuItem.id}-subcategories`}
+                      title={menuItem.caption}
+                      className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                        expanded || childSelected
+                          ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
+                          : CATEGORY_GROUP_TONES[menuItem.id] ||
+                            'border-sky-200 bg-sky-50 text-sky-800'
+                      }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const onlyChild =
-                            menuItem.children.length === 1
-                              ? availableCategories.find((item) => item.id === menuItem.children[0])
-                              : null
-                          if (onlyChild) chooseCategory(onlyChild)
-                          else toggleCategoryGroup(menuItem.id)
-                        }}
-                        aria-label={`${menuItem.label} ${menuItem.caption}`}
-                        aria-expanded={expanded}
-                        aria-controls={`${menuItem.id}-subcategories`}
-                        className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
-                          expanded || childSelected
-                            ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
-                            : 'border-sky-200 bg-sky-50 text-sky-800'
-                        }`}
+                      <span className="flex w-full items-start justify-between">
+                        <Icon className="h-4 w-4" />
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                        />
+                      </span>
+                      <span>
+                        <span className="block text-[11px] font-black leading-tight">
+                          {menuItem.label}
+                        </span>
+                        <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-65">
+                          {menuItem.caption}
+                        </span>
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div
+                        id={`${menuItem.id}-subcategories`}
+                        className="col-span-2 space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-1.5"
                       >
-                        <span className="flex w-full items-start justify-between">
-                          <Icon className="h-4 w-4" />
-                          <ChevronDown
-                            className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-                          />
-                        </span>
-                        <span>
-                          <span className="block text-[11px] font-black leading-tight">
-                            {menuItem.label}
-                          </span>
-                          <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-65">
-                            {menuItem.caption}
-                          </span>
-                        </span>
-                      </button>
+                        {menuItem.children.map((childId) => {
+                          const category = availableCategories.find((item) => item.id === childId)
+                          if (!category) return null
+                          const selected = category.id === categoryId
 
-                      {expanded && (
-                        <div
-                          id={`${menuItem.id}-subcategories`}
-                          className="col-span-2 space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2"
-                        >
-                          {menuItem.children.map((childId) => {
-                            const category = availableCategories.find((item) => item.id === childId)
-                            if (!category) return null
-                            const selected = category.id === categoryId
-
-                            return (
-                              <button
-                                key={category.id}
-                                type="button"
-                                onClick={() => chooseCategory(category, menuItem.id)}
-                                aria-label={category.label}
-                                aria-pressed={selected}
-                                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-[11px] font-black shadow-sm transition hover:translate-x-0.5 ${
-                                  selected
-                                    ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white'
-                                    : category.tone
-                                }`}
-                              >
-                                <span>
-                                  <span className="flex items-center gap-2">
-                                    {category.logoKey && (
-                                      <Image
-                                        src={`/pos/providers/${category.logoKey}.svg`}
-                                        alt=""
-                                        width={42}
-                                        height={18}
-                                        className="h-4 w-auto max-w-12 object-contain"
-                                      />
-                                    )}
-                                    <span className="block">{category.label}</span>
-                                  </span>
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => chooseCategory(category, menuItem.id)}
+                              aria-label={category.label}
+                              aria-pressed={selected}
+                              title={
+                                menuItem.id === 'remittance'
+                                  ? `Select ${category.label} as the remittance provider`
+                                  : category.caption || `Select ${category.label}`
+                              }
+                              className={`flex min-h-8 w-full items-center justify-between rounded-lg border px-2 py-1.5 text-left text-[11px] font-black shadow-sm transition hover:translate-x-0.5 ${
+                                selected
+                                  ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white'
+                                  : category.tone
+                              }`}
+                            >
+                              <span>
+                                <span className="flex items-center gap-2">
+                                  {category.logoKey && (
+                                    <Image
+                                      src={`/pos/providers/${category.logoKey}.svg`}
+                                      alt=""
+                                      width={42}
+                                      height={18}
+                                      className="h-3.5 w-auto max-w-12 object-contain"
+                                    />
+                                  )}
+                                  <span className="block">{category.label}</span>
+                                </span>
+                                {menuItem.id !== 'remittance' && category.caption && (
                                   <span
-                                    className={`mt-0.5 block text-[9px] font-medium ${selected ? 'text-red-100' : 'opacity-65'}`}
+                                    className={`block text-[9px] font-medium leading-tight ${selected ? 'text-red-100' : 'opacity-65'}`}
                                   >
                                     {category.caption}
                                   </span>
-                                </span>
-                                {selected && <Check className="h-3.5 w-3.5" />}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )
-                }
-
-                const category = availableCategories.find((item) => item.id === menuItem.categoryId)
-                if (!category) return null
-                const Icon = category.icon
-                const selected = category.id === categoryId
-
-                return (
-                  <button
-                    key={menuItem.id}
-                    type="button"
-                    onClick={() => chooseCategory(category)}
-                    aria-label={`${category.label} ${category.caption}`}
-                    aria-pressed={selected}
-                    className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
-                      selected
-                        ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white shadow-sm'
-                        : `${category.tone} hover:border-slate-300`
-                    }`}
-                  >
-                    <span className="flex w-full items-start justify-between">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
-                    </span>
-                    <span>
-                      <span className="block text-[11px] font-black leading-tight">
-                        {category.label}
-                      </span>
-                      <span
-                        className={`mt-0.5 block text-[9px] leading-tight ${selected ? 'text-red-100' : 'opacity-65'}`}
-                      >
-                        {category.caption}
-                      </span>
-                    </span>
-                  </button>
+                                )}
+                              </span>
+                              {selected && <Check className="h-3.5 w-3.5" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </Fragment>
                 )
-              })}
+              }
+
+              const category = availableCategories.find((item) => item.id === menuItem.categoryId)
+              if (!category) return null
+              const Icon = category.icon
+              const selected = category.id === categoryId
+
+              return (
+                <button
+                  key={menuItem.id}
+                  type="button"
+                  onClick={() => chooseCategory(category)}
+                  aria-label={`${category.label} ${category.caption}`}
+                  aria-pressed={selected}
+                  title={category.caption || `Select ${category.label}`}
+                  className={`flex aspect-square w-full flex-col justify-between rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    selected
+                      ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white shadow-sm'
+                      : `${category.tone} hover:border-slate-300`
+                  }`}
+                >
+                  <span className="flex w-full items-start justify-between">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </span>
+                  <span>
+                    <span className="block text-[11px] font-black leading-tight">
+                      {category.label}
+                    </span>
+                    <span
+                      className={`mt-0.5 block text-[9px] leading-tight ${selected ? 'text-red-100' : 'opacity-65'}`}
+                    >
+                      {category.caption}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </aside>
 
@@ -2449,16 +2523,16 @@ export default function PosPreviewClient({
             </div>
 
             {filteredTransactions.length === 0 && (
-              <div className="px-6 py-12 text-center">
-                <Search className="mx-auto h-8 w-8 text-slate-300" />
-                <p className="mt-3 text-sm font-black text-slate-800">No matching transactions</p>
+              <div className="flex items-center justify-center gap-3 px-4 py-3 text-center">
+                <Search className="h-5 w-5 shrink-0 text-slate-300" />
+                <p className="text-xs font-black text-slate-800">No matching transactions</p>
                 <button
                   type="button"
                   onClick={() => {
                     setSearch('')
                     setActiveFilter('All')
                   }}
-                  className="mt-2 text-xs font-bold text-[#8b1e2d]"
+                  className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-bold text-[#8b1e2d]"
                 >
                   Clear search and filters
                 </button>
@@ -2889,58 +2963,108 @@ export default function PosPreviewClient({
 
               {isSupplierPayment && (
                 <div
-                  className={`rounded-2xl border p-4 ${
+                  className={`rounded-xl border p-2.5 ${
                     supplierConfirmed
                       ? 'border-emerald-200 bg-emerald-50'
                       : 'border-amber-200 bg-amber-50'
                   }`}
                 >
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                    <div className="flex items-start gap-3">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_minmax(10rem,0.8fr)]">
+                    <label className="block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Supplier category
+                      <select
+                        aria-label="Supplier category"
+                        title="Choose the type of work this supplier payment relates to"
+                        value={selectedTopCategoryKey}
+                        onChange={(event) => {
+                          const category = supplierPaymentCategories.find(
+                            (item) => item.key === event.target.value,
+                          )
+                          if (!category) return
+                          setSelectedTopCategoryKey(category.key)
+                          setCategoryId(category.firstServiceKey)
+                          setSelectedSupplierId('')
+                          setSupplierConfirmed(false)
+                        }}
+                        className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
+                      >
+                        {supplierPaymentCategories.map((category) => (
+                          <option key={category.key} value={category.key}>
+                            {category.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Matching supplier
+                      {bootstrap.schemaReady && supplierMatches?.length ? (
+                        <select
+                          aria-label="Matching supplier"
+                          title="Only suppliers assigned to the selected category are listed"
+                          value={
+                            selectedSupplierId ||
+                            (supplierMatch && 'id' in supplierMatch ? supplierMatch.id : '')
+                          }
+                          onChange={(event) => {
+                            setSelectedSupplierId(event.target.value)
+                            setSupplierConfirmed(false)
+                          }}
+                          className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
+                        >
+                          {supplierMatches.map((supplier) =>
+                            'id' in supplier ? (
+                              <option key={supplier.id} value={supplier.id}>
+                                {supplier.name} · {formatMoney(supplier.balance)}
+                              </option>
+                            ) : null,
+                          )}
+                        </select>
+                      ) : (
+                        <span className="mt-1 flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800">
+                          {supplierMatch?.name || 'None assigned'}
+                        </span>
+                      )}
+                    </label>
+                    <label className="block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Supplier action
+                      <select
+                        aria-label="Supplier action"
+                        title="Choose whether money is paid, balance is used, or credit is received"
+                        value={supplierMovementType}
+                        onChange={(event) => {
+                          setSupplierMovementType(event.target.value as typeof supplierMovementType)
+                          setSupplierConfirmed(false)
+                        }}
+                        className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
+                      >
+                        <option value="DEPOSIT">Pay / deposit funds</option>
+                        <option value="USE_BALANCE">Use supplier balance</option>
+                        <option value="REFUND">Supplier refund / credit</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-2 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                           supplierConfirmed
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-amber-100 text-amber-800'
                         }`}
                       >
                         {supplierConfirmed ? (
-                          <Check className="h-5 w-5" />
+                          <Check className="h-4 w-4" />
                         ) : (
-                          <Building2 className="h-5 w-5" />
+                          <Building2 className="h-4 w-4" />
                         )}
                       </span>
-                      <div>
-                        <p className="text-xs font-black text-slate-900">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-black text-slate-900">
                           {supplierConfirmed ? 'Supplier confirmed' : 'Possible supplier match'}
                         </p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
+                        <p className="truncate text-xs font-black text-slate-950">
                           {supplierMatch?.name || 'No configured supplier found'}
                         </p>
-                        {bootstrap.schemaReady && supplierMatches && supplierMatches.length > 1 && (
-                          <label className="mt-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
-                            Matching suppliers
-                            <select
-                              value={
-                                selectedSupplierId ||
-                                (supplierMatch && 'id' in supplierMatch ? supplierMatch.id : '')
-                              }
-                              onChange={(event) => {
-                                setSelectedSupplierId(event.target.value)
-                                setSupplierConfirmed(false)
-                              }}
-                              className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
-                            >
-                              {supplierMatches.map((supplier) =>
-                                'id' in supplier ? (
-                                  <option key={supplier.id} value={supplier.id}>
-                                    {supplier.name} · {formatMoney(supplier.balance)}
-                                  </option>
-                                ) : null,
-                              )}
-                            </select>
-                          </label>
-                        )}
                         {supplierMatch && (
                           <p className="mt-1 text-[11px] text-slate-600">
                             {'sourceArea' in supplierMatch
@@ -2949,30 +3073,14 @@ export default function PosPreviewClient({
                             · balance {formatMoney(supplierMatch.balance)}
                           </p>
                         )}
-                        <label className="mt-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
-                          Supplier action
-                          <select
-                            value={supplierMovementType}
-                            onChange={(event) => {
-                              setSupplierMovementType(
-                                event.target.value as typeof supplierMovementType,
-                              )
-                              setSupplierConfirmed(false)
-                            }}
-                            className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
-                          >
-                            <option value="DEPOSIT">Pay / deposit funds</option>
-                            <option value="USE_BALANCE">Use supplier balance</option>
-                            <option value="REFUND">Supplier refund / credit</option>
-                          </select>
-                        </label>
                       </div>
                     </div>
                     {supplierMatch && !supplierConfirmed && (
                       <button
                         type="button"
                         onClick={() => setSupplierConfirmed(true)}
-                        className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white"
+                        title="Confirm this supplier before posting"
+                        className="h-8 rounded-lg bg-slate-950 px-3 text-[11px] font-black text-white"
                       >
                         Use this supplier
                       </button>
@@ -3142,6 +3250,88 @@ export default function PosPreviewClient({
           </div>
         </main>
       </div>
+
+      {tutorialOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pos-tutorial-title"
+        >
+          <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-[#6f1727] to-slate-900 px-5 py-4 text-white">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-100">
+                  POS tutorial · Step {tutorialStep + 1} of {POS_TUTORIAL_STEPS.length}
+                </p>
+                <h2 id="pos-tutorial-title" className="mt-1 text-lg font-black">
+                  {POS_TUTORIAL_STEPS[tutorialStep].title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeTutorial}
+                aria-label="Close POS tutorial"
+                title="Close; the tutorial will return next time unless you tick the option below"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 transition hover:bg-white/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="flex gap-1.5" aria-label="Tutorial progress">
+                {POS_TUTORIAL_STEPS.map((step, index) => (
+                  <span
+                    key={step.title}
+                    className={`h-1.5 flex-1 rounded-full ${
+                      index <= tutorialStep ? 'bg-[#8b1e2d]' : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className="text-sm leading-6 text-slate-600">
+                {POS_TUTORIAL_STEPS[tutorialStep].description}
+              </p>
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={hideTutorialNextTime}
+                  onChange={(event) => setHideTutorialNextTime(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[#8b1e2d]"
+                />
+                Do not show this tutorial automatically again
+              </label>
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep((current) => Math.max(current - 1, 0))}
+                  disabled={tutorialStep === 0}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black text-slate-700 disabled:opacity-35"
+                >
+                  Back
+                </button>
+                {tutorialStep < POS_TUTORIAL_STEPS.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setTutorialStep((current) => current + 1)}
+                    className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white"
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={closeTutorial}
+                    className="rounded-xl bg-[#8b1e2d] px-4 py-2 text-xs font-black text-white"
+                  >
+                    Finish tutorial
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

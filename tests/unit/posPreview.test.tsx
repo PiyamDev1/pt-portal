@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
 
 describe('POS frontend preview', () => {
-  beforeEach(() => window.localStorage.clear())
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.localStorage.setItem('pt-portal:pos:tutorial-dismissed:v1', 'true')
+  })
 
   it('shows operational categories, supplier sorting, and immutable transaction actions', () => {
     render(<PosPreviewClient branchName="Bradford" />)
@@ -31,8 +34,12 @@ describe('POS frontend preview', () => {
     expect(screen.getByLabelText('Visa')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('Remittance Choose an approved provider'))
-    expect(screen.getByLabelText('Ria')).toBeTruthy()
-    expect(screen.getByLabelText('MoneyGram')).toBeTruthy()
+    const ria = screen.getByLabelText('Ria')
+    const moneyGram = screen.getByLabelText('MoneyGram')
+    expect(ria).toBeTruthy()
+    expect(moneyGram).toBeTruthy()
+    expect(ria.className).not.toBe(moneyGram.className)
+    expect(screen.queryByText('Full amount earns points')).toBeNull()
     expect(screen.queryByLabelText('Extra coins Drawer ↔ reserve')).toBeNull()
 
     expect((screen.getByLabelText('Sort ledger') as HTMLSelectElement).value).toBe('Supplier')
@@ -52,6 +59,10 @@ describe('POS frontend preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pay supplier' }))
     expect(screen.getByText('Possible supplier match')).toBeTruthy()
     expect(screen.getAllByText('British Airways').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Supplier category')).toBeTruthy()
+    expect(
+      screen.getByLabelText('Applications Identity, passport and visa applications'),
+    ).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Use this supplier' }))
     expect(screen.getByText('Supplier confirmed')).toBeTruthy()
@@ -101,5 +112,33 @@ describe('POS frontend preview', () => {
     fireEvent.blur(screen.getByLabelText('Search transactions'))
     fireEvent.keyDown(window, { key: 'n' })
     expect(document.activeElement).toBe(screen.getByPlaceholderText('Walk-in or type a name'))
+  })
+
+  it('keeps a right-hand category in its grid column while opening a compact service list', () => {
+    render(<PosPreviewClient branchName="Bradford" />)
+
+    const ticketing = screen.getByLabelText('Ticketing & Packages Tickets and travel packages')
+    fireEvent.click(ticketing)
+
+    expect(ticketing.className).not.toContain('col-span-2')
+    expect(document.getElementById('ticketing-packages-subcategories')?.className).toContain(
+      'col-span-2',
+    )
+    expect(screen.getByLabelText('Ticketing').className).toContain('py-1.5')
+  })
+
+  it('shows the first-access tutorial until the user ticks the hide option', async () => {
+    window.localStorage.removeItem('pt-portal:pos:tutorial-dismissed:v1')
+    render(<PosPreviewClient branchName="Bradford" />)
+
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('Choose what the transaction is for')).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Do not show this tutorial automatically again' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Close POS tutorial' }))
+
+    expect(window.localStorage.getItem('pt-portal:pos:tutorial-dismissed:v1')).toBe('true')
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

@@ -20,6 +20,8 @@ import { getPosSchemaStatus, loadPosEmployeeContext } from '@/lib/pos/server'
 import { hasPosSchemaCapability } from '@/lib/pos/schemaCapability'
 
 const POS_LEDGER_LIMIT = 500
+export const POS_TRANSACTION_SUPPLIER_RELATION =
+  'supplier:supplier_vendors!pos_transactions_supplier_vendor_id_fkey(name)'
 type Related<T> = T | T[] | null
 
 type EmployeeLocationRow = {
@@ -516,7 +518,7 @@ async function loadPosLedgerRows(
       catalogue:pos_catalogue_items!inner(item_key,label,option_label),
       employee:employees!pos_transactions_created_by_fkey(id,full_name),
       till:pos_tills!pos_transactions_till_id_fkey(name),
-      supplier:supplier_vendors(name),
+      ${POS_TRANSACTION_SUPPLIER_RELATION},
       pos_transaction_tenders(id,payment_method,amount,external_reference,reconciliation_status,
         pos_reconciliation_events(status,external_reference,created_at,id)),
       pos_transaction_source_links(id,source_type,source_namespace,source_record_id,display_reference),

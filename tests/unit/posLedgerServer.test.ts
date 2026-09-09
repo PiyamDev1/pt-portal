@@ -6,7 +6,12 @@ const { getServiceSupabaseClient } = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/serviceSupabase', () => ({ getServiceSupabaseClient }))
 
-import { isIsoDate, loadPosLedger, posLedgerPeriodBounds } from '@/lib/pos/ledgerServer'
+import {
+  isIsoDate,
+  loadPosLedger,
+  POS_TRANSACTION_SUPPLIER_RELATION,
+  posLedgerPeriodBounds,
+} from '@/lib/pos/ledgerServer'
 
 describe('POS live ledger server', () => {
   beforeEach(() => {
@@ -24,6 +29,12 @@ describe('POS live ledger server', () => {
       startDate: '2024-02-01',
       endDate: '2024-02-29',
     })
+  })
+
+  it('disambiguates the transaction supplier join after the reporting supplier FK was added', () => {
+    expect(POS_TRANSACTION_SUPPLIER_RELATION).toBe(
+      'supplier:supplier_vendors!pos_transactions_supplier_vendor_id_fkey(name)',
+    )
   })
 
   it('loads only branch employee rows and derives live tender totals', async () => {
