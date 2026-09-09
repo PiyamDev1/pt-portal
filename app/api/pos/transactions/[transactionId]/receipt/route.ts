@@ -72,7 +72,12 @@ export async function GET(
       `Service: ${transaction.category_label_snapshot || catalogue?.label || 'Service'}${transaction.service_label_snapshot ? ` - ${transaction.service_label_snapshot}` : catalogue?.option_label ? ` - ${catalogue.option_label}` : ''}`,
       `Total: ${money(transaction.total_amount)}`,
       `Paid: ${money(transaction.amount_paid)}`,
-      ...tenders.map((tender) => `${tender.payment_method}: ${money(tender.amount)}`),
+      ...tenders.map(
+        (tender) =>
+          `${tender.payment_method}: ${money(tender.amount)}${
+            tender.destination === 'SUPPLIER_DIRECT' ? ' (paid directly to provider)' : ''
+          }`,
+      ),
       transaction.note ? `Note: ${transaction.note}` : '',
       ...sources.map(
         (source) => `Source: ${source.source_type} ${source.display_reference || source.record_id}`,

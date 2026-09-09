@@ -30,7 +30,7 @@ export async function GET() {
     service
       .from('pos_supplier_profiles')
       .select(
-        'supplier_vendor_id,alternate_names,source_area,source_reference,is_active,supplier_vendors(name)',
+        'supplier_vendor_id,alternate_names,source_area,source_reference,settlement_mode,logo_key,is_system,is_active,supplier_vendors(name)',
       )
       .order('created_at'),
     service.from('pos_category_suppliers').select('*'),
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     return apiError(error || 'Invalid POS configuration.', 400, {}, POS_PRIVATE_RESPONSE)
   try {
     return apiOk(
-      await runPosMutation('pos_manage_configuration_v2', access.employee.id, idempotencyKey, data),
+      await runPosMutation('pos_manage_configuration_v3', access.employee.id, idempotencyKey, data),
       { status: 201, ...POS_PRIVATE_RESPONSE },
     )
   } catch (mutationError) {

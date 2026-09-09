@@ -136,6 +136,7 @@ export default async function PosPreviewPage() {
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
           <PosPreviewClient
             branchName={location?.name || initialLedger.context.branchName}
+            employeeId={user.id}
             initialLedger={initialLedger}
             initialBootstrap={initialBootstrap || undefined}
             initialLoadError={initialLoadError}

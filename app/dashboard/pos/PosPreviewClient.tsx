@@ -59,9 +59,11 @@ import type {
   PosMutationResult,
 } from '@/lib/pos/contracts'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
+import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
 
 type IconComponent = ComponentType<{ className?: string }>
-type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Other' | 'Split'
+type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split'
+type TenderDestination = 'OUR_ACCOUNT' | 'SUPPLIER_DIRECT'
 type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
 type LedgerPeriod = 'day' | 'month'
 
@@ -72,7 +74,6 @@ const MAX_LEDGER_HEIGHT = 720
 const LEDGER_HEIGHT_STORAGE_KEY = 'pt-portal:pos-preview:ledger-height'
 const POS_DRAFT_STORAGE_KEY = 'pt-portal:pos:draft:v1'
 const POS_RETRY_STORAGE_KEY = 'pt-portal:pos:retry:v1'
-const POS_TUTORIAL_STORAGE_KEY = 'pt-portal:pos:tutorial-dismissed:v1'
 const SCAN_ARM_TIMEOUT_MS = 30_000
 
 const CATEGORY_GROUP_TONES: Record<string, string> = {
@@ -94,34 +95,6 @@ const SUBCATEGORY_TONES = [
   'border-lime-200 bg-lime-50 text-lime-800',
   'border-orange-200 bg-orange-50 text-orange-900',
 ]
-
-const POS_TUTORIAL_STEPS = [
-  {
-    title: 'Choose what the transaction is for',
-    description:
-      'Start with one of the six coloured categories, then choose a service from the compact list. A category with one service selects it automatically.',
-  },
-  {
-    title: 'Scan only when you are ready',
-    description:
-      'The customer-facing scanner stays disarmed. Select Scan loyalty card to allow one scan for 30 seconds; it disarms after the scan or timeout.',
-  },
-  {
-    title: 'Complete the Quick Transaction',
-    description:
-      'Enter the customer or payee, amount, note and payment method. The money-in or money-out badge confirms the effect before you post.',
-  },
-  {
-    title: 'Pay a supplier safely',
-    description:
-      'Select Pay supplier, then choose the supplier category, matching supplier and action inside Quick Transaction. Only assigned suppliers are offered.',
-  },
-  {
-    title: 'Use the ledger for follow-up work',
-    description:
-      'Search or filter the ledger, open a transaction for its receipt or refund, and use the left workspace menu for cash management and corrections.',
-  },
-] as const
 
 type CategoryPreset = {
   id: string
@@ -661,7 +634,6 @@ const NAV_ITEMS: Array<{ label: PosWorkspaceView; icon: IconComponent; managerOn
   { label: 'Open till', icon: Store },
   { label: 'Closeout', icon: ShieldCheck },
   { label: 'Cash management', icon: Coins },
-  { label: 'Supplier balances', icon: Building2 },
   { label: 'Refunds & corrections', icon: RotateCcw },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Unreconciled', icon: RefreshCcw },
@@ -780,11 +752,13 @@ function SummaryCard({
 
 export default function PosPreviewClient({
   branchName,
+  employeeId = 'preview',
   initialLedger,
   initialBootstrap,
   initialLoadError = null,
 }: {
   branchName: string
+  employeeId?: string
   initialLedger?: PosLedgerPayload
   initialBootstrap?: PosBootstrapPayload
   initialLoadError?: string | null
@@ -813,6 +787,7 @@ export default function PosPreviewClient({
       activeShift: null,
       balances: { openingFloat: 0, drawer: 0, reserve: 0 },
       suppliers: [],
+      supplierSources: [],
       employees: [],
       closeouts: [],
       permissions: {
@@ -875,9 +850,8 @@ export default function PosPreviewClient({
   const [outgoingType, setOutgoingType] = useState<OutgoingType | null>(null)
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
-  const [supplierMovementType, setSupplierMovementType] = useState<
-    'DEPOSIT' | 'USE_BALANCE' | 'REFUND'
-  >('DEPOSIT')
+  const [supplierSourceName, setSupplierSourceName] = useState('')
+  const [nonCashDestination, setNonCashDestination] = useState<TenderDestination>('OUR_ACCOUNT')
   const [scanOpen, setScanOpen] = useState(false)
   const [scanValue, setScanValue] = useState('')
   const [member, setMember] = useState<PosLoyaltyMember | null>(null)
@@ -885,8 +859,8 @@ export default function PosPreviewClient({
   const [retryCount, setRetryCount] = useState(0)
   const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
   const [tutorialOpen, setTutorialOpen] = useState(false)
-  const [tutorialStep, setTutorialStep] = useState(0)
-  const [hideTutorialNextTime, setHideTutorialNextTime] = useState(false)
+  const [tutorialStartIndex, setTutorialStartIndex] = useState(0)
+  const [tutorialMenuOpen, setTutorialMenuOpen] = useState(false)
   const [ledgerHeight, setLedgerHeight] = useState(DEFAULT_LEDGER_HEIGHT)
   const todayDate = initialLedger?.context.date || DEMO_TODAY
 
@@ -969,7 +943,12 @@ export default function PosPreviewClient({
   const numericAmountPaid = Number.parseFloat(amountPaid.replace(/,/g, '')) || 0
   const isTransfer = selectedCategory.direction === 'TRANSFER'
   const isSupplierPayment = entryMode === 'SUPPLIER_PAYMENT'
-  const isOutgoing = !isTransfer && (isSupplierPayment || selectedCategory.direction === 'OUT')
+  const isRemittance = selectedTopCategoryKey === 'remittance' && !isSupplierPayment
+  const isSupplierCorrection = isSupplierPayment && numericAmount < 0
+  const isOutgoing =
+    !isTransfer &&
+    !isSupplierCorrection &&
+    (isSupplierPayment || selectedCategory.direction === 'OUT')
   const remainingBalance = Math.max(Math.abs(numericAmount) - Math.abs(numericAmountPaid), 0)
   const changeDue = Math.max(Math.abs(numericAmountPaid) - Math.abs(numericAmount), 0)
   const matchingPricingOptions = (liveCatalogueItem?.pricingOptions || []).filter(
@@ -1017,6 +996,13 @@ export default function PosPreviewClient({
       supplierMatches[0]
     )
   }, [bootstrap.categories, selectedSupplierId, selectedTopCategoryKey, supplierMatches])
+  const supplierSettlementMode =
+    supplierMatch && 'settlementMode' in supplierMatch
+      ? supplierMatch.settlementMode
+      : 'DEPOSIT_ACCOUNT'
+  const supplierSourceSuggestions = bootstrap.supplierSources.filter(
+    (source) => source.categoryKey === selectedTopCategoryKey,
+  )
 
   const filteredTransactions = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -1064,11 +1050,12 @@ export default function PosPreviewClient({
 
   const monthlySummary = useMemo(() => {
     const moneyIn = filteredTransactions.reduce(
-      (total, transaction) => total + Math.max(transaction.amount, 0),
+      (total, transaction) => total + Math.max(transaction.accountImpact ?? transaction.amount, 0),
       0,
     )
     const moneyOut = filteredTransactions.reduce(
-      (total, transaction) => total + Math.abs(Math.min(transaction.amount, 0)),
+      (total, transaction) =>
+        total + Math.abs(Math.min(transaction.accountImpact ?? transaction.amount, 0)),
       0,
     )
 
@@ -1226,10 +1213,10 @@ export default function PosPreviewClient({
   }, [])
 
   useEffect(() => {
-    if (window.localStorage.getItem(POS_TUTORIAL_STORAGE_KEY) === 'true') return
+    if (window.localStorage.getItem(posTourStorageKey(employeeId)) === 'true') return
     const frame = window.requestAnimationFrame(() => setTutorialOpen(true))
     return () => window.cancelAnimationFrame(frame)
-  }, [])
+  }, [employeeId])
 
   useEffect(() => {
     if (!scanOpen) return
@@ -1255,7 +1242,11 @@ export default function PosPreviewClient({
         setName(savedDraft.name || '')
         setAmount(savedDraft.amount || '25.00')
         setAmountPaid(savedDraft.amountPaid || '25.00')
-        setPaymentMethod((savedDraft.paymentMethod as PaymentMethod) || 'Cash')
+        setPaymentMethod(
+          ['Cash', 'Card', 'Bank', 'Split'].includes(savedDraft.paymentMethod)
+            ? (savedDraft.paymentMethod as PaymentMethod)
+            : 'Cash',
+        )
         setTransactionNote(savedDraft.transactionNote || '')
         setSourceRecordId(savedDraft.sourceRecordId || '')
         setExternalReference(savedDraft.externalReference || '')
@@ -1313,27 +1304,32 @@ export default function PosPreviewClient({
 
   function buildTransactionPayload(confirmDuplicate = false) {
     const absoluteAmount = Math.abs(numericAmount)
-    const supplierBalanceOnly =
-      outgoingType === 'Supplier payment' && supplierMovementType === 'USE_BALANCE'
-    const supplierRefund = outgoingType === 'Supplier payment' && supplierMovementType === 'REFUND'
-    const directionIsOut = isOutgoing && !supplierRefund
-    const paidAmount = supplierBalanceOnly
-      ? 0
-      : directionIsOut || supplierRefund
-        ? absoluteAmount
-        : Math.abs(numericAmountPaid)
-    const tenders = supplierBalanceOnly
-      ? []
-      : paymentMethod === 'Split'
+    const directionIsOut = isOutgoing
+    const paidAmount = isSupplierPayment ? absoluteAmount : Math.abs(numericAmountPaid)
+    const destinationFor = (method: 'CASH' | 'CARD' | 'BANK') =>
+      method === 'CASH' || !isRemittance ? 'OUR_ACCOUNT' : nonCashDestination
+    const tenders =
+      paymentMethod === 'Split'
         ? [
-            { method: 'CASH', amount: Number(splitCash) },
-            { method: 'CARD', amount: Number(splitCard) },
-            { method: 'BANK', amount: Number(splitBank) },
+            { method: 'CASH', amount: Number(splitCash), destination: destinationFor('CASH') },
+            {
+              method: 'CARD',
+              amount: Number(splitCard),
+              destination: destinationFor('CARD'),
+              ...(externalReference ? { externalReference, reconciliationStatus: 'RECORDED' } : {}),
+            },
+            {
+              method: 'BANK',
+              amount: Number(splitBank),
+              destination: destinationFor('BANK'),
+              ...(externalReference ? { externalReference, reconciliationStatus: 'RECORDED' } : {}),
+            },
           ].filter((tender) => tender.amount > 0)
         : [
             {
               method: paymentMethod.toUpperCase(),
               amount: paidAmount,
+              destination: destinationFor(paymentMethod.toUpperCase() as 'CASH' | 'CARD' | 'BANK'),
               ...(paymentMethod !== 'Cash' && externalReference
                 ? { externalReference, reconciliationStatus: 'RECORDED' }
                 : {}),
@@ -1353,7 +1349,7 @@ export default function PosPreviewClient({
                 : outgoingType?.toUpperCase(),
           }
         : {}),
-      totalAmount: absoluteAmount,
+      totalAmount: isSupplierPayment ? numericAmount : absoluteAmount,
       customerName: name.trim() || 'Walk-in',
       ...(transactionNote.trim() ? { note: transactionNote.trim() } : {}),
       tenders,
@@ -1371,7 +1367,12 @@ export default function PosPreviewClient({
         : {}),
       pricingConfirmed: manualPriceConfirmed,
       ...(isSupplierPayment && supplierMatch && 'id' in supplierMatch
-        ? { supplierId: supplierMatch.id, supplierMovementType }
+        ? {
+            supplierId: supplierMatch.id,
+            ...(supplierSettlementMode === 'PAY_ON_DEMAND' && supplierSourceName.trim()
+              ? { supplierSourceName: supplierSourceName.trim() }
+              : {}),
+          }
         : {}),
       ...(member && liveCatalogueItem?.loyaltyEligible ? { loyaltyCode: member.customerCode } : {}),
       confirmDuplicate,
@@ -1429,6 +1430,20 @@ export default function PosPreviewClient({
       toast.error('Confirm the supplier first')
       return
     }
+    if (
+      isSupplierPayment &&
+      supplierMatch &&
+      'settlementMode' in supplierMatch &&
+      supplierMatch.settlementMode === 'PAY_ON_DEMAND' &&
+      supplierSourceName.trim().length < 2
+    ) {
+      toast.error('Enter the ticketing supplier source first')
+      return
+    }
+    if (isSupplierCorrection && transactionNote.trim().length < 3) {
+      toast.error('Add a note explaining the supplier deposit correction')
+      return
+    }
     if (liveCatalogueItem?.sourceRequired && !sourceRecordId.trim()) {
       toast.error('Enter the tracked service reference first.')
       return
@@ -1455,6 +1470,7 @@ export default function PosPreviewClient({
       setName('')
       setTransactionNote('')
       setSourceRecordId('')
+      setSupplierSourceName('')
       setExternalReference('')
       setMember(null)
       toast.success(`Transaction ${result.reference || ''} posted`, {
@@ -1559,10 +1575,16 @@ export default function PosPreviewClient({
     setExpandedCategoryGroups(categoryGroupId ? [categoryGroupId] : [])
     setSupplierConfirmed(false)
     setSelectedSupplierId('')
+    setSupplierSourceName('')
     setSelectedPricingId('')
     setManualPriceConfirmed(false)
     setScanOpen(false)
     setScanValue('')
+    setNonCashDestination(
+      (category.categoryKey || categoryGroupId) === 'remittance'
+        ? 'SUPPLIER_DIRECT'
+        : 'OUR_ACCOUNT',
+    )
 
     if (category.id === 'general-expense' || category.id === 'donation') {
       setName(category.id === 'donation' ? 'Donation' : 'Office supplies')
@@ -1613,15 +1635,10 @@ export default function PosPreviewClient({
     setAmount('100.00')
     setAmountPaid('100.00')
     setOutgoingType('Supplier payment')
-    setSupplierMovementType('DEPOSIT')
     setSupplierConfirmed(false)
     setSelectedSupplierId('')
-  }
-
-  function closeTutorial() {
-    if (hideTutorialNextTime) window.localStorage.setItem(POS_TUTORIAL_STORAGE_KEY, 'true')
-    setTutorialOpen(false)
-    setTutorialStep(0)
+    setSupplierSourceName('')
+    setNonCashDestination('OUR_ACCOUNT')
   }
 
   function toggleCategoryGroup(groupId: string) {
@@ -1663,7 +1680,10 @@ export default function PosPreviewClient({
 
   return (
     <div className="space-y-3 pb-6">
-      <section className="relative overflow-hidden rounded-[1.35rem] bg-gradient-to-br from-[#351017] via-[#7f1d2d] to-slate-900 px-4 py-3 text-white shadow-xl shadow-red-950/15 sm:px-5">
+      <section
+        data-pos-tour="header"
+        className="relative overflow-hidden rounded-[1.35rem] bg-gradient-to-br from-[#351017] via-[#7f1d2d] to-slate-900 px-4 py-3 text-white shadow-xl shadow-red-950/15 sm:px-5"
+      >
         <div className="pointer-events-none absolute -right-20 -top-28 h-64 w-64 rounded-full bg-amber-300/20 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 left-1/3 h-32 w-64 rounded-full bg-red-300/10 blur-3xl" />
         <div className="relative flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
@@ -1697,13 +1717,19 @@ export default function PosPreviewClient({
           </div>
 
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:flex">
-            <div className="rounded-xl bg-black/15 px-3 py-2 ring-1 ring-white/15">
+            <div
+              data-pos-tour="branch"
+              className="rounded-xl bg-black/15 px-3 py-2 ring-1 ring-white/15"
+            >
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-red-100">
                 Branch
               </p>
               <p className="text-xs font-black">{branchName}</p>
             </div>
-            <div className="rounded-xl bg-emerald-400/15 px-3 py-2 ring-1 ring-emerald-200/25">
+            <div
+              data-pos-tour="sync"
+              className="rounded-xl bg-emerald-400/15 px-3 py-2 ring-1 ring-emerald-200/25"
+            >
               <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-emerald-100">
                 <span className="h-2 w-2 rounded-full bg-emerald-300" /> Live data
               </p>
@@ -1719,10 +1745,9 @@ export default function PosPreviewClient({
             <button
               type="button"
               onClick={() => {
-                setTutorialStep(0)
-                setHideTutorialNextTime(false)
-                setTutorialOpen(true)
+                setTutorialMenuOpen(true)
               }}
+              data-pos-tour="tutorial-button"
               aria-label="Open POS tutorial"
               title="Open the step-by-step POS tutorial"
               className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-red-50 ring-1 ring-white/20 transition hover:bg-white/20"
@@ -1733,7 +1758,7 @@ export default function PosPreviewClient({
         </div>
       </section>
 
-      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <section data-pos-tour="summaries" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} cash net`}
           value={formatSignedMoney(ledgerSummary.cashNet)}
@@ -1781,7 +1806,10 @@ export default function PosPreviewClient({
       </label>
 
       <div className="grid items-start gap-3 xl:grid-cols-[4rem_minmax(0,1fr)_15rem]">
-        <aside className="group/posnav order-1 z-20 hidden w-16 overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm transition-[width,box-shadow] duration-200 hover:w-52 hover:shadow-xl focus-within:w-52 xl:block">
+        <aside
+          data-pos-tour="workspace-nav"
+          className="group/posnav order-1 z-20 hidden w-16 overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm transition-[width,box-shadow] duration-200 hover:w-52 hover:shadow-xl focus-within:w-52 xl:block"
+        >
           <div className="flex h-12 items-center border-b border-slate-200 bg-slate-950 px-4 text-white">
             <PosRegisterIcon className="h-5 w-5 shrink-0" />
             <div className="ml-3 whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/posnav:opacity-100 group-focus-within/posnav:opacity-100">
@@ -1799,6 +1827,25 @@ export default function PosPreviewClient({
                   <button
                     key={item.label}
                     type="button"
+                    data-pos-tour={
+                      item.label === 'Daily transactions'
+                        ? 'nav-daily-transactions'
+                        : item.label === 'Open till'
+                          ? 'nav-open-till'
+                          : item.label === 'Closeout'
+                            ? 'nav-closeout'
+                            : item.label === 'Cash management'
+                              ? 'nav-cash-management'
+                              : item.label === 'Refunds & corrections'
+                                ? 'nav-refunds-corrections'
+                                : item.label === 'Reports'
+                                  ? 'nav-reports'
+                                  : item.label === 'Unreconciled'
+                                    ? 'nav-unreconciled'
+                                    : item.label === 'Import history'
+                                      ? 'nav-import-history'
+                                      : undefined
+                    }
                     onClick={() => setActiveView(item.label)}
                     title={item.label}
                     className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
@@ -1818,7 +1865,10 @@ export default function PosPreviewClient({
           </nav>
         </aside>
 
-        <aside className="order-2 flex min-h-0 flex-col self-stretch overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white p-2.5 shadow-sm xl:order-3 xl:mb-7">
+        <aside
+          data-pos-tour="categories"
+          className="order-2 flex min-h-0 flex-col self-stretch overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white p-2.5 shadow-sm xl:order-3 xl:mb-7"
+        >
           <div className="flex items-center justify-between px-1 pb-2">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
@@ -1830,8 +1880,9 @@ export default function PosPreviewClient({
           </div>
           <button
             type="button"
+            data-pos-tour="pay-supplier"
             onClick={startSupplierPayment}
-            title="Record a payment, balance use or refund for an assigned supplier"
+            title="Record a supplier deposit or a negative deposit correction"
             className={`mb-2 flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-black transition ${
               isSupplierPayment
                 ? 'border-amber-700 bg-amber-700 text-white'
@@ -1841,7 +1892,10 @@ export default function PosPreviewClient({
             <Building2 className="h-4 w-4" />
             Pay supplier
           </button>
-          <div className="grid min-h-0 max-h-[31rem] flex-1 auto-rows-min grid-cols-2 gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
+          <div
+            data-pos-tour="category-grid"
+            className="grid min-h-0 max-h-[31rem] flex-1 auto-rows-min grid-cols-2 gap-1.5 overflow-y-auto pr-1 xl:max-h-none"
+          >
             {categoryMenu.map((menuItem) => {
               if ('children' in menuItem) {
                 const Icon = menuItem.icon
@@ -1998,7 +2052,10 @@ export default function PosPreviewClient({
             onSelectedTransaction={setSelectedTransactionId}
             onRefresh={refreshWorkspace}
           />
-          <section className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm">
+          <section
+            data-pos-tour="ledger"
+            className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm"
+          >
             <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -2021,7 +2078,10 @@ export default function PosPreviewClient({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <div className="flex h-9 rounded-xl border border-slate-200 bg-white p-1">
+                <div
+                  data-pos-tour="ledger-period"
+                  className="flex h-9 rounded-xl border border-slate-200 bg-white p-1"
+                >
                   {(['day', 'month'] as LedgerPeriod[]).map((period) => (
                     <button
                       key={period}
@@ -2092,7 +2152,7 @@ export default function PosPreviewClient({
                 >
                   Today
                 </button>
-                <label className="relative min-w-0 flex-1 lg:w-56">
+                <label data-pos-tour="ledger-search" className="relative min-w-0 flex-1 lg:w-56">
                   <span className="sr-only">Search transactions</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
@@ -2121,6 +2181,7 @@ export default function PosPreviewClient({
                 </select>
                 <button
                   type="button"
+                  data-pos-tour="ledger-filters"
                   onClick={() => setFiltersOpen((current) => !current)}
                   aria-expanded={filtersOpen}
                   className={`flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
@@ -2335,7 +2396,11 @@ export default function PosPreviewClient({
               </div>
             )}
 
-            <div className="hidden overflow-auto md:block" style={{ height: ledgerHeight }}>
+            <div
+              data-pos-tour="ledger-rows"
+              className="hidden overflow-auto md:block"
+              style={{ height: ledgerHeight }}
+            >
               <table className="w-full min-w-[780px] border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                   <tr className="border-b border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
@@ -2491,6 +2556,7 @@ export default function PosPreviewClient({
 
             <div
               role="separator"
+              data-pos-tour="ledger-resize"
               aria-label="Resize ledger"
               aria-orientation="horizontal"
               aria-valuemin={MIN_LEDGER_HEIGHT}
@@ -2541,7 +2607,10 @@ export default function PosPreviewClient({
           </section>
 
           {selectedTransaction && (
-            <section className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm">
+            <section
+              data-pos-tour="transaction-details"
+              className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <div className="flex min-w-0 items-center gap-3">
                   <div>
@@ -2617,6 +2686,7 @@ export default function PosPreviewClient({
                   {(selectedTransaction.tenders || []).map((tender) => (
                     <p key={tender.id || `${tender.method}:${tender.amount}`}>
                       {tender.method} {formatMoney(tender.amount)} · {tender.reconciliationStatus}
+                      {tender.destination === 'SUPPLIER_DIRECT' ? ' · Provider direct' : ''}
                     </p>
                   ))}
                 </div>
@@ -2651,8 +2721,14 @@ export default function PosPreviewClient({
             </section>
           )}
 
-          <section className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-[0_20px_55px_-38px_rgba(15,23,42,0.55)]">
-            <div className="flex flex-col gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-950 to-slate-800 px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between">
+          <section
+            data-pos-tour="quick-entry"
+            className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-[0_20px_55px_-38px_rgba(15,23,42,0.55)]"
+          >
+            <div
+              data-pos-tour="quick-header"
+              className="flex flex-col gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-950 to-slate-800 px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between"
+            >
               <div>
                 <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                   Quick transaction
@@ -2677,7 +2753,10 @@ export default function PosPreviewClient({
 
             <div className="space-y-2 p-2.5">
               {!isTransfer && (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2">
+                <div
+                  data-pos-tour="loyalty"
+                  className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2"
+                >
                   {member ? (
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
@@ -2806,13 +2885,13 @@ export default function PosPreviewClient({
               ) : null}
 
               <div
-                className={`grid gap-2 ${!isOutgoing && !isTransfer ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
+                className={`grid gap-2 ${!isOutgoing && !isTransfer && !isSupplierPayment ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
               >
-                <label>
+                <label data-pos-tour="customer-name">
                   <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                     {isTransfer
                       ? 'Movement note'
-                      : isOutgoing
+                      : isSupplierPayment || isOutgoing
                         ? 'Name / payee'
                         : 'Customer or name'}
                   </span>
@@ -2828,7 +2907,7 @@ export default function PosPreviewClient({
                     className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
                   />
                 </label>
-                <label>
+                <label data-pos-tour="amount">
                   <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                     {!isOutgoing && !isTransfer ? 'Total price' : 'Amount'}
                   </span>
@@ -2848,8 +2927,8 @@ export default function PosPreviewClient({
                     />
                   </span>
                 </label>
-                {!isOutgoing && !isTransfer && (
-                  <label>
+                {!isOutgoing && !isTransfer && !isSupplierPayment && (
+                  <label data-pos-tour="amount-paid">
                     <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                       Amount paid now
                     </span>
@@ -2884,7 +2963,7 @@ export default function PosPreviewClient({
                       />
                     </label>
                   )}
-                  <label>
+                  <label data-pos-tour="note">
                     <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
                       Note {liveCatalogueItem?.noteRequired ? '(required)' : '(optional)'}
                     </span>
@@ -2898,7 +2977,7 @@ export default function PosPreviewClient({
                 </div>
               )}
 
-              {!isOutgoing && !isTransfer && (
+              {!isOutgoing && !isTransfer && !isSupplierPayment && (
                 <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
                   <span
                     className={`rounded-full px-2.5 py-1 ${
@@ -2969,7 +3048,7 @@ export default function PosPreviewClient({
                       : 'border-amber-200 bg-amber-50'
                   }`}
                 >
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_minmax(10rem,0.8fr)]">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     <label className="block text-[9px] font-black uppercase tracking-wide text-slate-500">
                       Supplier category
                       <select
@@ -3008,13 +3087,14 @@ export default function PosPreviewClient({
                           onChange={(event) => {
                             setSelectedSupplierId(event.target.value)
                             setSupplierConfirmed(false)
+                            setSupplierSourceName('')
                           }}
                           className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
                         >
                           {supplierMatches.map((supplier) =>
                             'id' in supplier ? (
                               <option key={supplier.id} value={supplier.id}>
-                                {supplier.name} · {formatMoney(supplier.balance)}
+                                {supplier.name}
                               </option>
                             ) : null,
                           )}
@@ -3025,24 +3105,27 @@ export default function PosPreviewClient({
                         </span>
                       )}
                     </label>
-                    <label className="block text-[9px] font-black uppercase tracking-wide text-slate-500">
-                      Supplier action
-                      <select
-                        aria-label="Supplier action"
-                        title="Choose whether money is paid, balance is used, or credit is received"
-                        value={supplierMovementType}
+                  </div>
+                  {supplierSettlementMode === 'PAY_ON_DEMAND' && (
+                    <label className="mt-2 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Ticketing source
+                      <input
+                        value={supplierSourceName}
                         onChange={(event) => {
-                          setSupplierMovementType(event.target.value as typeof supplierMovementType)
+                          setSupplierSourceName(event.target.value)
                           setSupplierConfirmed(false)
                         }}
+                        list="pos-supplier-source-history"
+                        placeholder="Enter or choose a previous source"
                         className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[11px] normal-case text-slate-800"
-                      >
-                        <option value="DEPOSIT">Pay / deposit funds</option>
-                        <option value="USE_BALANCE">Use supplier balance</option>
-                        <option value="REFUND">Supplier refund / credit</option>
-                      </select>
+                      />
+                      <datalist id="pos-supplier-source-history">
+                        {supplierSourceSuggestions.map((source) => (
+                          <option key={source.name} value={source.name} />
+                        ))}
+                      </datalist>
                     </label>
-                  </div>
+                  )}
                   <div className="mt-2 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                     <div className="flex min-w-0 items-center gap-2">
                       <span
@@ -3063,6 +3146,15 @@ export default function PosPreviewClient({
                           {supplierConfirmed ? 'Supplier confirmed' : 'Possible supplier match'}
                         </p>
                         <p className="truncate text-xs font-black text-slate-950">
+                          {supplierMatch && 'logoKey' in supplierMatch && supplierMatch.logoKey && (
+                            <Image
+                              src={`/pos/suppliers/${supplierMatch.logoKey}.svg`}
+                              alt=""
+                              width={68}
+                              height={22}
+                              className="mr-2 inline h-5 w-auto rounded bg-white object-contain"
+                            />
+                          )}
                           {supplierMatch?.name || 'No configured supplier found'}
                         </p>
                         {supplierMatch && (
@@ -3070,7 +3162,10 @@ export default function PosPreviewClient({
                             {'sourceArea' in supplierMatch
                               ? supplierMatch.sourceArea || 'LMS supplier'
                               : supplierMatch.area}{' '}
-                            · balance {formatMoney(supplierMatch.balance)}
+                            ·{' '}
+                            {supplierSettlementMode === 'PAY_ON_DEMAND'
+                              ? 'paid on demand · no balance account'
+                              : 'positive deposit · negative correction'}
                           </p>
                         )}
                       </div>
@@ -3112,15 +3207,18 @@ export default function PosPreviewClient({
                   <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
                     Payment method
                   </p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                    {(['Cash', 'Card', 'Bank', 'Other', 'Split'] as PaymentMethod[])
+                  <div
+                    className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                    data-pos-tour="payment-methods"
+                  >
+                    {(['Cash', 'Card', 'Bank', 'Split'] as PaymentMethod[])
                       .filter(
                         (method) =>
                           isSupplierPayment ||
                           !liveCatalogueItem ||
                           method === 'Split' ||
                           liveCatalogueItem.allowedPaymentMethods.includes(
-                            method.toUpperCase() as 'CASH' | 'CARD' | 'BANK' | 'OTHER',
+                            method.toUpperCase() as 'CASH' | 'CARD' | 'BANK',
                           ),
                       )
                       .map((method) => {
@@ -3129,7 +3227,7 @@ export default function PosPreviewClient({
                             ? Banknote
                             : method === 'Card'
                               ? CreditCard
-                              : method === 'Bank' || method === 'Other'
+                              : method === 'Bank'
                                 ? Landmark
                                 : WalletCards
                         return (
@@ -3137,6 +3235,18 @@ export default function PosPreviewClient({
                             key={method}
                             type="button"
                             onClick={() => setPaymentMethod(method)}
+                            onDoubleClick={() => {
+                              if (isRemittance && method !== 'Cash') {
+                                setNonCashDestination((current) =>
+                                  current === 'SUPPLIER_DIRECT' ? 'OUR_ACCOUNT' : 'SUPPLIER_DIRECT',
+                                )
+                              }
+                            }}
+                            title={
+                              isRemittance && method !== 'Cash'
+                                ? 'Double-click to switch provider direct / our account'
+                                : `Use ${method}`
+                            }
                             className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] font-black transition ${
                               paymentMethod === method
                                 ? 'border-slate-950 bg-slate-950 text-white'
@@ -3180,9 +3290,43 @@ export default function PosPreviewClient({
                       </label>
                     </div>
                   )}
+                  {isRemittance && paymentMethod !== 'Cash' && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-2">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-emerald-800">
+                        Non-cash destination
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setNonCashDestination('SUPPLIER_DIRECT')}
+                        aria-pressed={nonCashDestination === 'SUPPLIER_DIRECT'}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-black ${
+                          nonCashDestination === 'SUPPLIER_DIRECT'
+                            ? 'bg-emerald-700 text-white'
+                            : 'bg-white text-emerald-800 ring-1 ring-emerald-200'
+                        }`}
+                      >
+                        Direct to {selectedCategory.label} · default
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNonCashDestination('OUR_ACCOUNT')}
+                        aria-pressed={nonCashDestination === 'OUR_ACCOUNT'}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-black ${
+                          nonCashDestination === 'OUR_ACCOUNT'
+                            ? 'bg-slate-950 text-white'
+                            : 'bg-white text-slate-700 ring-1 ring-slate-200'
+                        }`}
+                      >
+                        Our account
+                      </button>
+                      <span className="text-[10px] text-emerald-700">
+                        Double-click Card, Bank or Split to toggle.
+                      </span>
+                    </div>
+                  )}
                   {(paymentMethod === 'Card' ||
                     paymentMethod === 'Bank' ||
-                    paymentMethod === 'Other') && (
+                    paymentMethod === 'Split') && (
                     <input
                       value={externalReference}
                       onChange={(event) => setExternalReference(event.target.value)}
@@ -3193,7 +3337,10 @@ export default function PosPreviewClient({
                 </div>
               )}
 
-              <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-2 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                data-pos-tour="post-summary"
+                className="flex flex-col gap-2 rounded-xl bg-slate-50 p-2 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="flex items-center gap-2 text-xs text-slate-600">
                   {isTransfer ? (
                     <Coins className="h-4 w-4 text-amber-600" />
@@ -3209,14 +3356,22 @@ export default function PosPreviewClient({
                           isOutgoing ? numericAmount : numericAmountPaid,
                         )}`}
                   </span>
+                  {isRemittance && paymentMethod !== 'Cash' && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-800">
+                      {nonCashDestination === 'SUPPLIER_DIRECT'
+                        ? `Direct to ${selectedCategory.label}`
+                        : 'Our account'}
+                    </span>
+                  )}
                   {liveCatalogueItem?.loyaltyEligible && member && !isOutgoing && (
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">
-                      +{Math.floor(Math.abs(numericAmountPaid))} pts
+                      +{Math.floor(Math.abs(numericAmount) * liveCatalogueItem.pointsPerGbp)} pts
                     </span>
                   )}
                 </div>
                 <button
                   type="button"
+                  data-pos-tour="post-button"
                   onClick={() => void submitTransaction()}
                   disabled={posting || (bootstrap.schemaReady && !bootstrap.activeShift)}
                   className="flex min-h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#7f1d2d] to-[#a52338] px-4 py-2 text-xs font-black text-white shadow-md shadow-red-950/15 transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
@@ -3251,86 +3406,72 @@ export default function PosPreviewClient({
         </main>
       </div>
 
-      {tutorialOpen && (
+      {tutorialMenuOpen && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="pos-tutorial-title"
+          aria-labelledby="pos-tutorial-menu-title"
         >
-          <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-[#6f1727] to-slate-900 px-5 py-4 text-white">
+          <section className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-100">
-                  POS tutorial · Step {tutorialStep + 1} of {POS_TUTORIAL_STEPS.length}
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b1e2d]">
+                  Interactive help
                 </p>
-                <h2 id="pos-tutorial-title" className="mt-1 text-lg font-black">
-                  {POS_TUTORIAL_STEPS[tutorialStep].title}
+                <h2 id="pos-tutorial-menu-title" className="mt-1 text-lg font-black">
+                  Choose a POS tutorial chapter
                 </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  The full tour has 52 safe, non-posting steps. Use arrow keys or the buttons to
+                  move backward and forward.
+                </p>
               </div>
               <button
                 type="button"
-                onClick={closeTutorial}
-                aria-label="Close POS tutorial"
-                title="Close; the tutorial will return next time unless you tick the option below"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 transition hover:bg-white/20"
+                onClick={() => setTutorialMenuOpen(false)}
+                aria-label="Close tutorial chapters"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-4 p-5">
-              <div className="flex gap-1.5" aria-label="Tutorial progress">
-                {POS_TUTORIAL_STEPS.map((step, index) => (
-                  <span
-                    key={step.title}
-                    className={`h-1.5 flex-1 rounded-full ${
-                      index <= tutorialStep ? 'bg-[#8b1e2d]' : 'bg-slate-200'
-                    }`}
-                  />
-                ))}
-              </div>
-              <p className="text-sm leading-6 text-slate-600">
-                {POS_TUTORIAL_STEPS[tutorialStep].description}
-              </p>
-              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={hideTutorialNextTime}
-                  onChange={(event) => setHideTutorialNextTime(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[#8b1e2d]"
-                />
-                Do not show this tutorial automatically again
-              </label>
-              <div className="flex items-center justify-between gap-3">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {POS_TOUR_CHAPTERS.map((chapter) => (
                 <button
+                  key={chapter.label}
                   type="button"
-                  onClick={() => setTutorialStep((current) => Math.max(current - 1, 0))}
-                  disabled={tutorialStep === 0}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black text-slate-700 disabled:opacity-35"
+                  onClick={() => {
+                    setTutorialStartIndex(chapter.start)
+                    setTutorialMenuOpen(false)
+                    setTutorialOpen(true)
+                  }}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-left text-xs font-black text-slate-700 transition hover:border-[#8b1e2d] hover:bg-red-50 hover:text-[#8b1e2d]"
                 >
-                  Back
+                  {chapter.label}
                 </button>
-                {tutorialStep < POS_TUTORIAL_STEPS.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setTutorialStep((current) => current + 1)}
-                    className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white"
-                  >
-                    Next
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={closeTutorial}
-                    className="rounded-xl bg-[#8b1e2d] px-4 py-2 text-xs font-black text-white"
-                  >
-                    Finish tutorial
-                  </button>
-                )}
-              </div>
+              ))}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTutorialStartIndex(0)
+                setTutorialMenuOpen(false)
+                setTutorialOpen(true)
+              }}
+              className="mt-4 w-full rounded-xl bg-[#8b1e2d] px-4 py-2.5 text-xs font-black text-white"
+            >
+              Start the full 52-step tour
+            </button>
           </section>
         </div>
+      )}
+      {tutorialOpen && (
+        <PosGuidedTour
+          employeeId={employeeId}
+          startIndex={tutorialStartIndex}
+          onExit={() => setTutorialOpen(false)}
+        />
       )}
     </div>
   )

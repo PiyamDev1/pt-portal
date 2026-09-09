@@ -120,6 +120,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     activeShift: null,
     balances: { openingFloat: 0, drawer: 0, reserve: 0 },
     suppliers: [],
+    supplierSources: [],
     employees: [],
     closeouts: [],
     permissions,
@@ -136,6 +137,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     tillsResult,
     shiftsResult,
     supplierResult,
+    supplierSourcesResult,
     supplierEntriesResult,
     employeesResult,
     closeoutsResult,
@@ -181,10 +183,16 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     service
       .from('pos_supplier_profiles')
       .select(
-        'supplier_vendor_id,alternate_names,source_area,source_reference,supplier_vendors(name)',
+        'supplier_vendor_id,alternate_names,source_area,source_reference,settlement_mode,logo_key,is_system,supplier_vendors(name)',
       )
       .eq('is_active', true)
       .order('created_at'),
+    service
+      .from('pos_supplier_source_history')
+      .select('source_name,use_count,pos_categories!inner(category_key)')
+      .eq('location_id', context.locationId)
+      .order('last_used_at', { ascending: false })
+      .limit(100),
     service
       .from('pos_supplier_balance_entries')
       .select('supplier_vendor_id,balance_delta')
@@ -215,6 +223,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     shiftsResult,
     supplierResult,
     supplierEntriesResult,
+    supplierSourcesResult,
     employeesResult,
     closeoutsResult,
   ].find((result) => result.error)
@@ -283,6 +292,9 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
       sourceReference: row.source_reference,
       balance: supplierBalances.get(row.supplier_vendor_id) || 0,
       isActive: true,
+      settlementMode: row.settlement_mode as PosSupplier['settlementMode'],
+      logoKey: row.logo_key,
+      isSystem: Boolean(row.is_system),
     }
   })
   const closeouts: PosCloseout[] = (closeoutsResult.data || []).map((row) => {
@@ -362,6 +374,12 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     activeShift,
     balances,
     suppliers,
+    supplierSources: (supplierSourcesResult.data || []).map((row) => ({
+      categoryKey:
+        first(row.pos_categories as Related<{ category_key: string }>)?.category_key || '',
+      name: row.source_name,
+      useCount: Number(row.use_count) || 0,
+    })),
     employees: (employeesResult.data || []).map((row) => ({
       id: row.id,
       name: row.full_name?.trim() || 'Staff member',
@@ -387,6 +405,12 @@ function publicPosError(error: SupabaseError): PosServerError {
     POS_INSUFFICIENT_DRAWER: 'The expected drawer cash is insufficient.',
     POS_INSUFFICIENT_RESERVE: 'The expected coin reserve is insufficient.',
     POS_INSUFFICIENT_SUPPLIER_BALANCE: 'The supplier balance is insufficient.',
+    POS_SUPPLIER_CORRECTION_NOTE_REQUIRED: 'Add a note explaining the supplier deposit correction.',
+    POS_PAY_ON_DEMAND_CORRECTION_FORBIDDEN:
+      'Pay-on-demand supplier corrections must be handled in Accounting.',
+    POS_SUPPLIER_SOURCE_REQUIRED: 'Enter the ticketing supplier source.',
+    POS_TENDER_DESTINATION_INVALID:
+      'Only remittance card or bank payments can be paid directly to a provider.',
     POS_REFUND_EXCEEDS_REMAINING: 'The refund exceeds the remaining refundable amount.',
     POS_REFUND_WORKFLOW_REQUIRED:
       'Use Refunds & corrections so the original payment and approval evidence are retained.',
@@ -415,7 +439,9 @@ export async function runPosMutation(
     | 'pos_approve_closeout_v1'
     | 'pos_post_transaction_v1'
     | 'pos_post_transaction_v2'
+    | 'pos_post_transaction_v3'
     | 'pos_manage_configuration_v2'
+    | 'pos_manage_configuration_v3'
     | 'pos_record_refund_v1'
     | 'pos_configure_supplier_v1'
     | 'pos_correct_expense_v1'

@@ -1,11 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
+import PosGuidedTour, {
+  POS_TOUR_STEP_COUNT,
+  posTourStorageKey,
+} from '@/app/dashboard/pos/PosGuidedTour'
 
 describe('POS frontend preview', () => {
   beforeEach(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('pt-portal:pos:tutorial-dismissed:v1', 'true')
+    window.localStorage.setItem(posTourStorageKey('preview'), 'true')
   })
 
   it('shows operational categories, supplier sorting, and immutable transaction actions', () => {
@@ -127,18 +131,47 @@ describe('POS frontend preview', () => {
     expect(screen.getByLabelText('Ticketing').className).toContain('py-1.5')
   })
 
-  it('shows the first-access tutorial until the user ticks the hide option', async () => {
-    window.localStorage.removeItem('pt-portal:pos:tutorial-dismissed:v1')
+  it('runs a 52-step first-access tour and only persists dismissal on the final step', async () => {
+    window.localStorage.removeItem(posTourStorageKey('preview'))
     render(<PosPreviewClient branchName="Bradford" />)
 
     expect(await screen.findByRole('dialog')).toBeTruthy()
-    expect(screen.getByText('Choose what the transaction is for')).toBeTruthy()
+    expect(screen.getByText(/Welcome to the live POS/)).toBeTruthy()
+    expect(screen.getByText(`1 of ${POS_TOUR_STEP_COUNT}`)).toBeTruthy()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(window.localStorage.getItem(posTourStorageKey('preview'))).toBeNull()
+
+    cleanup()
+    window.localStorage.setItem(posTourStorageKey('preview'), 'true')
+    render(<PosPreviewClient branchName="Bradford" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open POS tutorial' }))
+    expect(screen.getByText('Choose a POS tutorial chapter')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Start the full 52-step tour' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next →' }))
+    expect(await screen.findByRole('button', { name: '← Previous' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(window.localStorage.getItem(posTourStorageKey('preview'))).toBe('true')
+
+    cleanup()
+    window.localStorage.removeItem(posTourStorageKey('preview'))
+    render(
+      <>
+        <div data-pos-tour="nav-import-history" />
+        <PosGuidedTour
+          employeeId="preview"
+          startIndex={POS_TOUR_STEP_COUNT - 1}
+          onExit={() => {}}
+        />
+      </>,
+    )
+
     fireEvent.click(
       screen.getByRole('checkbox', { name: 'Do not show this tutorial automatically again' }),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Close POS tutorial' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
 
-    expect(window.localStorage.getItem('pt-portal:pos:tutorial-dismissed:v1')).toBe('true')
+    expect(window.localStorage.getItem(posTourStorageKey('preview'))).toBe('true')
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

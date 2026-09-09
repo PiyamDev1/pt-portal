@@ -11,6 +11,7 @@ import {
   loadPosLedger,
   POS_TRANSACTION_SUPPLIER_RELATION,
   posLedgerPeriodBounds,
+  summarizePosLedgerItems,
 } from '@/lib/pos/ledgerServer'
 
 describe('POS live ledger server', () => {
@@ -35,6 +36,55 @@ describe('POS live ledger server', () => {
     expect(POS_TRANSACTION_SUPPLIER_RELATION).toBe(
       'supplier:supplier_vendors!pos_transactions_supplier_vendor_id_fkey(name)',
     )
+  })
+
+  it('keeps provider-direct remittance visible but out of our account totals', () => {
+    const summary = summarizePosLedgerItems([
+      {
+        id: 'tx-1',
+        reference: 'POS-1',
+        date: '2026-09-09',
+        time: '12:00',
+        name: 'Customer',
+        category: 'Remittance · Ria',
+        method: 'Split',
+        amount: 100,
+        accountImpact: 20,
+        cashImpact: 20,
+        points: 100,
+        status: 'Posted',
+        note: '',
+        entryAgent: 'Staff',
+        sourceLinkId: null,
+        tenders: [
+          {
+            method: 'Cash',
+            methodCode: 'CASH',
+            amount: 20,
+            direction: 'IN',
+            destination: 'OUR_ACCOUNT',
+            reconciliationStatus: 'COMPLETED',
+            cashImpact: 20,
+          },
+          {
+            method: 'Card',
+            methodCode: 'CARD',
+            amount: 80,
+            direction: 'IN',
+            destination: 'SUPPLIER_DIRECT',
+            reconciliationStatus: 'RECORDED',
+            cashImpact: 0,
+          },
+        ],
+      },
+    ])
+    expect(summary).toMatchObject({
+      moneyIn: 20,
+      netMovement: 20,
+      cashNet: 20,
+      cardNet: 0,
+      unreconciledCount: 0,
+    })
   })
 
   it('loads only branch employee rows and derives live tender totals', async () => {

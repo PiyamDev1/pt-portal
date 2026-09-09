@@ -23,7 +23,7 @@ type ServiceRow = {
   label: string
   classification: 'SERVICE' | 'EXPENSE'
   default_direction: 'IN' | 'OUT'
-  allowed_payment_methods: string[]
+  allowed_payment_methods: Array<'CASH' | 'CARD' | 'BANK'>
   source_required: boolean
   customer_required: boolean
   note_required: boolean
@@ -40,6 +40,9 @@ type SupplierRow = {
   alternate_names: string[]
   source_area: string | null
   source_reference: string | null
+  settlement_mode: 'DEPOSIT_ACCOUNT' | 'PAY_ON_DEMAND'
+  logo_key: 'polani-travel' | null
+  is_system: boolean
   is_active: boolean
   supplier_vendors: { name: string } | Array<{ name: string }>
 }
@@ -63,7 +66,12 @@ function supplierName(row: SupplierRow) {
 export default function PosConfigurationClient() {
   const [data, setData] = useState<Configuration | null>(null)
   const [busy, setBusy] = useState('')
-  const [newSupplier, setNewSupplier] = useState({ name: '', aliases: '', sourceArea: '' })
+  const [newSupplier, setNewSupplier] = useState({
+    name: '',
+    aliases: '',
+    sourceArea: '',
+    settlementMode: 'DEPOSIT_ACCOUNT' as 'DEPOSIT_ACCOUNT' | 'PAY_ON_DEMAND',
+  })
   const [newCategory, setNewCategory] = useState({ key: '', label: '' })
   const [newService, setNewService] = useState({
     key: '',
@@ -402,21 +410,27 @@ export default function PosConfigurationClient() {
                     className="mt-1 h-9 w-full rounded-lg border px-3 font-normal"
                   />
                 </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Payment methods
-                  <input
-                    value={service.allowed_payment_methods.join(', ')}
-                    onChange={(event) =>
-                      updateService(service.id, {
-                        allowed_payment_methods: event.target.value
-                          .split(',')
-                          .map((value) => value.trim().toUpperCase())
-                          .filter(Boolean),
-                      })
-                    }
-                    className="mt-1 h-9 w-full rounded-lg border px-3 font-normal"
-                  />
-                </label>
+                <fieldset className="text-xs font-bold text-slate-600">
+                  <legend>Payment methods</legend>
+                  <div className="mt-1 flex h-9 items-center gap-2 rounded-lg border px-2 font-normal">
+                    {(['CASH', 'CARD', 'BANK'] as const).map((method) => (
+                      <label key={method} className="flex items-center gap-1 text-[10px] font-bold">
+                        <input
+                          type="checkbox"
+                          checked={service.allowed_payment_methods.includes(method)}
+                          onChange={(event) => {
+                            const methods = event.target.checked
+                              ? [...new Set([...service.allowed_payment_methods, method])]
+                              : service.allowed_payment_methods.filter((value) => value !== method)
+                            if (methods.length)
+                              updateService(service.id, { allowed_payment_methods: methods })
+                          }}
+                        />
+                        {method[0] + method.slice(1).toLowerCase()}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <label className="text-xs font-bold text-slate-600">
                   Order
                   <input
@@ -510,8 +524,16 @@ export default function PosConfigurationClient() {
                   .map((value) => value.trim())
                   .filter(Boolean),
                 sourceArea: newSupplier.sourceArea || undefined,
+                settlementMode: newSupplier.settlementMode,
                 isActive: true,
-              }).then(() => setNewSupplier({ name: '', aliases: '', sourceArea: '' }))
+              }).then(() =>
+                setNewSupplier({
+                  name: '',
+                  aliases: '',
+                  sourceArea: '',
+                  settlementMode: 'DEPOSIT_ACCOUNT',
+                }),
+              )
             }}
             className="space-y-2 rounded-xl bg-slate-50 p-4"
           >
@@ -523,6 +545,20 @@ export default function PosConfigurationClient() {
               placeholder="Supplier name"
               className="h-9 w-full rounded-lg border px-3 text-sm"
             />
+            <select
+              value={newSupplier.settlementMode}
+              onChange={(event) =>
+                setNewSupplier({
+                  ...newSupplier,
+                  settlementMode: event.target.value as typeof newSupplier.settlementMode,
+                })
+              }
+              aria-label="Supplier settlement mode"
+              className="h-9 w-full rounded-lg border px-3 text-sm"
+            >
+              <option value="DEPOSIT_ACCOUNT">Deposit account</option>
+              <option value="PAY_ON_DEMAND">Pay on demand</option>
+            </select>
             <input
               value={newSupplier.aliases}
               onChange={(event) => setNewSupplier({ ...newSupplier, aliases: event.target.value })}
@@ -610,6 +646,7 @@ export default function PosConfigurationClient() {
                   updateSupplier(supplier.supplier_vendor_id, { name: event.target.value })
                 }
                 aria-label="Supplier name"
+                disabled={supplier.is_system}
                 className="h-8 w-full rounded-lg border px-2 text-xs font-black"
               />
               <input
@@ -626,6 +663,20 @@ export default function PosConfigurationClient() {
                 placeholder="Aliases, comma separated"
                 className="h-8 w-full rounded-lg border px-2 text-xs"
               />
+              <select
+                value={supplier.settlement_mode}
+                onChange={(event) =>
+                  updateSupplier(supplier.supplier_vendor_id, {
+                    settlement_mode: event.target.value as SupplierRow['settlement_mode'],
+                  })
+                }
+                aria-label={`${supplier.name} settlement mode`}
+                disabled={supplier.is_system}
+                className="h-8 w-full rounded-lg border px-2 text-xs"
+              >
+                <option value="DEPOSIT_ACCOUNT">Deposit account</option>
+                <option value="PAY_ON_DEMAND">Pay on demand</option>
+              </select>
               <div className="flex justify-between gap-2">
                 <button
                   type="button"
@@ -646,6 +697,8 @@ export default function PosConfigurationClient() {
                       aliases: supplier.alternate_names,
                       sourceArea: supplier.source_area || undefined,
                       sourceReference: supplier.source_reference || undefined,
+                      settlementMode: supplier.settlement_mode,
+                      logoKey: supplier.logo_key || undefined,
                       isActive: supplier.is_active,
                     })
                   }

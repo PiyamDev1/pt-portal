@@ -1,6 +1,6 @@
 # POS Daily Transaction Module Plan
 
-**Status:** Accounting foundation deployed; approved catalogue/configuration iteration implemented and pending capability deployment
+**Status:** Accounting foundation deployed; catalogue/configuration and supplier-routing iterations implemented and pending manual capability deployment
 **Module:** Point of Sale (POS) / branch daily transactions
 **Proposed route:** `/dashboard/pos`
 
@@ -17,7 +17,7 @@ module is built.
 - `supabase/migrations/20260908214024_pos_module_complete.sql` supplies the normalized append-only POS
   model, indexes, forced RLS, restricted grants, service-only atomic functions, idempotency records,
   audit events, reference generation, loyalty lifecycle integration, supplier balances, and seed catalogue.
-- The application checks POS capability version `2026090801`. Production reported that capability ready
+- The delivered foundation checks POS capability version `2026090801`. Production reported that capability ready
   after the controlled migration rollout on 9 September 2026.
 - Every API derives the authenticated employee and branch server-side, uses strict bounded schemas,
   private/no-store responses, and rate limiting. Manager-only operations require a fresh TOTP or backup
@@ -54,7 +54,7 @@ The server-configured quick-entry rail has exactly six top-level categories:
 
 Selecting a category with one active service selects that service immediately. Supplier Payment, Extra
 Coins, and Refunds are not category tiles. A prominent `Pay supplier` action starts the explicit flow
-category → assigned supplier → movement type → amount → payment method → reference/note. Extra Coins
+category → assigned supplier → signed amount → payment method → reference/note. Extra Coins
 exists only in Cash Management. The Refund shortcut only opens Refunds & Corrections and cannot post.
 
 For Remittance, the selected provider is the service and is mandatory. The five approved providers are
@@ -63,16 +63,33 @@ remittance amount and awards loyalty on that full amount at the configured point
 provider supplier is stored for reporting but a customer receipt does not change its supplier balance.
 
 Supplier payments are initially enabled for Ticketing & Packages, Remittance, and Cargo. PostgreSQL
-enforces the category-to-supplier assignment before posting. Deposits/payments, use balance, and supplier
-refunds remain supported. POS keeps operational balances and history; supplier setup, aliases, status,
-category assignments, and defaults move to `/dashboard/accounting/pos-configuration` for Accounts staff
-and portal administrators.
+enforces the category-to-supplier assignment before posting. A positive amount adds a supplier deposit;
+a negative amount records a noted deposit correction/refund. The separate movement selector and the
+staff-facing Supplier Balances workspace are removed. Supplier configuration, assignments, deposit
+history, and reporting live under Accounting.
 
 Configuration also controls labels, display order, activation, icons/logo keys, loyalty eligibility and
 rate, allowed payment methods, and customer/note/price/source-reference requirements. Stable keys and
 integrated source types are protected. Referenced records are deactivated instead of deleted, and changes
 affect future transactions only. Every posted transaction snapshots category, service, and supplier labels,
 and every configuration mutation is strict, idempotent, database-authorized, and audited.
+
+### Approved guided-operation and supplier-routing iteration — 9 September 2026
+
+Capability `2026090902` adds a 52-step interactive, keyboard-accessible POS tour with a spotlight, arrows,
+progress, previous/next controls, chapter replay, and final-step-only dismissal preference. Active controls
+are disabled while the tour runs, so it cannot open a till, post, refund, or change live data.
+
+Ticketing seeds `Polani Travel` as a deposit-account supplier with a controlled local logo and
+`Other - enter source` as a protected pay-on-demand choice. The latter requires a source name, suggests
+previous normalized sources, snapshots the entered name, and never creates a supplier balance.
+
+`Other` is removed from ordinary quick-entry payment methods; the historical enum remains compatible for
+imports and existing rows. For customer Remittance, cash always reaches our till, while card and bank
+default directly to the selected provider. Split keeps cash with us and applies the selected destination
+to its non-cash parts. A visible selector is authoritative; double-clicking Card, Bank, or Split toggles it
+as a shortcut. Provider-direct tenders stay visible in the ledger but are excluded from our account and
+reconciliation totals. The full remittance amount still earns configured loyalty points.
 
 ## 1. Product Boundary
 
@@ -207,7 +224,7 @@ Provide branch-scoped filters for:
 
 - Business date or date range, with quick options such as today, yesterday, this week, and this month.
 - Category/service, payment method, income/expense direction, outgoing type, and amount range.
-- Supplier and supplier movement type, such as pay/deposit, use balance, refund, or correction.
+- Supplier and signed supplier deposit/correction amount when Pay supplier is active.
 - Till, shift/session, entry agent, source module, and source-linked/unlinked status.
 - Posted, pending, failed, voided, partially refunded, fully refunded, and correction status.
 - Loyalty attached, points awarded, points reversed, and no-loyalty status.
@@ -385,16 +402,16 @@ entry. They are an internal transfer between two physical cash locations.
 
 ### Pay supplier action
 
-One prominent `Pay supplier` action replaces the Supplier Payment category. It first asks for an enabled
-category, filters the supplier list to database assignments for that category, and then offers three
-plain-language movements:
+One prominent `Pay supplier` action replaces the Supplier Payment category. It asks for an enabled
+category, filters the supplier list to database assignments, and accepts a signed amount:
 
-- `Pay/deposit to supplier` — pay cash, card, or bank funds and increase the supplier balance we hold.
-- `Use supplier balance` — reduce the balance when the supplier provides the service or goods.
-- `Supplier refund` — record money or credit returned by the supplier.
+- A positive amount pays/deposits funds and increases a deposit-account supplier balance.
+- A negative amount records funds returned or a deposit correction, reduces that balance, and requires a note.
+- Pay-on-demand suppliers record a positive outgoing payment but never create a balance row.
 
-Negative-amount inference is removed. General expense and Donation are explicit money-out services;
-Other income is explicitly money in; refunds always enter their controlled workflow.
+Signed amounts apply only to this supplier-deposit workflow. General expense and Donation remain explicit
+money-out services; Other income remains explicitly money in; customer refunds always enter their
+controlled workflow.
 
 LMS is the source of truth for confirmed supplier names/details; POS stores the LMS supplier ID/reference
 and must not create a duplicate supplier profile. The first version should track one simple `balance held
@@ -420,17 +437,18 @@ Card:               £60
 Cash drawer impact: +£40
 ```
 
-Initial payment methods may include cash, card, bank transfer, and other approved methods.
+Primary quick-entry methods are Cash, Card, Bank, and Split. `OTHER` remains only as a historical/import
+compatibility value and cannot be enabled for a quick-entry service by the current configuration API.
 
-For non-cash methods, POS records the branch’s stated payment method. It does not claim that a bank or
-card payment was externally settled unless an integration later confirms it. An external reference and
-reconciliation state should be available where useful.
+For non-cash methods, POS records the stated method, destination, optional external reference, and
+reconciliation state. Remittance Card/Bank defaults to `SUPPLIER_DIRECT`; Cash is always `OUR_ACCOUNT`.
+The visible destination control supports touch and keyboard, with double-click as an optional shortcut.
 
 Keep these concepts separate:
 
 - Transaction/service amount.
-- Money direction: `IN` or `OUT`. For quick entry, a negative typed value may be accepted as shorthand
-  for `OUT`, but the server stores direction separately from the positive amount.
+- Money direction: `IN` or `OUT`. Ordinary customer/expense actions derive it from the selected service;
+  only the supplier-deposit flow accepts a negative signed value, which the server stores as a correction.
 - Amount tendered.
 - Change given.
 - Payment-method split.
@@ -467,9 +485,8 @@ An untyped record ID alone is insufficient to prevent accidental cross-module li
 
 ## 8. Supplier Payments And Balances
 
-Supplier balances are a small running balance, not an LMS loan or a full accounts-payable system. The
-first version should add a small configured supplier register/file in LMS for the standard suppliers the
-business wants to track.
+Tracked supplier deposits form a small running balance, not an LMS loan or a full accounts-payable system.
+They are managed and reported in Accounting rather than exposed as a separate staff POS workspace.
 
 Existing supplier names from Ticketing, Packages, and other modules can be used as matching suggestions.
 They do not all need to be consolidated before POS launches. A configured supplier can have a display
@@ -479,24 +496,24 @@ For a supplier payment:
 
 1. The agent chooses Ticketing & Packages, Remittance, Cargo, or another configuration-enabled category.
 2. POS shows only suppliers actively assigned to that category.
-3. The agent chooses deposit/payment, use balance, or supplier refund, then enters amount, payment method,
-   reference, and note.
+3. The agent enters a positive deposit/payment or a negative noted correction/refund, then selects the
+   payment method and optional reference.
 4. PostgreSQL rejects an inactive or unassigned supplier even if a client attempts to bypass the list.
 
 Matching must suggest rather than silently decide. If there are multiple matches, show the choices. An
 outgoing entry cannot be posted without one of the three outgoing types, and a supplier payment cannot be
 filed to an unknown supplier.
 
-Name matching can begin with simple normalized names and configured alternate names, using the selected
-category as a hint. Complex fuzzy matching is not required for the first version.
+Name matching uses normalized names and configured alternate names, with the selected category as a hard
+filter. `Other - enter source` additionally suggests prior branch/category sources and atomically upserts
+new normalized source names without creating a full supplier account.
 
 The balance is calculated from simple entries:
 
 ```text
 supplier balance = opening balance
                  + pay/deposit to supplier
-                 - use supplier balance
-                 - supplier refund
+                 - negative deposit correction/refund
 ```
 
 For each confirmed supplier entry, record the LMS supplier reference, branch, movement type, amount,
@@ -504,9 +521,8 @@ payment method when money moves, note/reference, actor, timestamp, and idempoten
 deposit must write the POS cash movement and supplier balance entry together: if one fails, neither is
 completed.
 
-The supplier detail view should show the current balance and a simple running list of deposits, uses, and
-refunds. Paying/depositing cash reduces the drawer immediately; using the supplier balance does not
-reduce the drawer again.
+Accounting reporting shows the current deposit balance and append-only deposits/corrections. Paying cash
+reduces the drawer immediately; pay-on-demand sources have no balance view or balance movements.
 
 Supplier refunds should identify whether money returned to the drawer, money returned by bank, or only a
 credit was received. Exceptional corrections require a reason and an audit event. Keep balances
@@ -659,6 +675,7 @@ pos_categories
 pos_category_suppliers (assignments and optional defaults)
 LMS supplier register/file (configured)
 LMS supplier balance entries (simple)
+pos_supplier_source_history (pay-on-demand source suggestions)
 pos_transactions
   ├── pos_transaction_tenders
   ├── pos_transaction_source_links
@@ -673,6 +690,7 @@ pos_transactions
 - Server-derived `business_date` and UTC `occurred_at`.
 - `transaction_kind`, required `outgoing_type` for money-out entries, and category references.
 - Direct category and service references plus immutable category, service, and supplier label snapshots.
+- Optional pay-on-demand supplier source snapshot.
 - Amount and currency with fixed precision.
 - Customer/member snapshot and optional canonical customer references.
 - `created_by`, `created_at`, and immutable audit metadata.
@@ -685,6 +703,7 @@ pos_transactions
 - Payment method.
 - Amount and currency.
 - External reference and reconciliation state, where applicable.
+- Destination: `OUR_ACCOUNT` or, for Remittance Card/Bank only, `SUPPLIER_DIRECT`.
 - Derived cash-impact flag; the client must not decide this.
 
 ### Cash movement fields
@@ -701,7 +720,7 @@ pos_transactions
 
 - LMS supplier ID/reference, display name, alternate names, and optional source area/reference.
 - Branch scope for the simple balance.
-- Movement type: opening balance, pay/deposit, use balance, supplier refund, or correction.
+- Movement type: opening balance, pay/deposit, or negative deposit correction/refund.
 - Amount, currency, payment method when money moves, supplier reference, note, actor, and timestamps.
 - Idempotency reference and immutable audit metadata.
 
@@ -743,7 +762,7 @@ Reports should provide:
 - Unreconciled bank/card items.
 - Closeout over/short amounts.
 - Extra-coin reserve opening balance, movements, current balance, physical count, and variance.
-- Supplier deposits, balance used, supplier refunds, and current balance by supplier.
+- Supplier deposits, negative corrections/refunds, and current deposit balance by tracked supplier.
 
 If historical Excel rows need importing, provide a dry-run/import path with column mapping, duplicate
 detection, a legacy source marker, and read-only preservation of the original date and note. Imported
@@ -775,9 +794,9 @@ The POS left rail should be POS navigation, not a duplicate dashboard module men
 - Open till/shift.
 - Closeout.
 - Refunds/corrections.
-- Supplier balances.
 - Reports.
 - Unreconciled card/bank items.
+- Manager-only import history.
 
 The right rail is returned by the POS bootstrap API and labelled `Quick entry categories`. It contains
 the six configured top-level categories and one separate prominent `Pay supplier` action. Main categories should remain square tiles.
@@ -874,6 +893,19 @@ The following additions would make the first release easier and safer to operate
 - Store category/service/supplier label snapshots and preserve superseded catalogue rows for history.
 - Deliver capability `2026090901` as a new imperative migration without rewriting the deployed foundation.
 
+### Phase 5: Guided operation, supplier deposits, and remittance routing
+
+- Replace the introductory modal with a safe 52-step Driver.js tour, chapter replay, spotlight arrows,
+  keyboard navigation, progress, and final-step-only dismissal.
+- Remove the supplier movement selector and derive deposit versus correction from a positive/negative amount.
+- Remove Supplier Balances from staff POS while retaining append-only deposit history for Accounting.
+- Seed Polani Travel and the protected pay-on-demand Other ticketing source with controlled local assets.
+- Store normalized prior source names without creating one-off supplier balance accounts.
+- Add per-tender destination and default Remittance Card/Bank to provider direct, while Cash stays ours.
+- Exclude provider-direct tenders from our account/reconciliation totals without reducing the transaction or
+  loyalty amount.
+- Deliver capability `2026090902` through the imperative migration workflow after `2026090901`.
+
 ## 17. Acceptance Criteria For The First Build
 
 - A new agent can record a basic cash service in five interactions or fewer after opening the POS.
@@ -896,8 +928,9 @@ The following additions would make the first release easier and safer to operate
   separately from intentional reserve transfers.
 - A £100 cash supplier deposit reduces the drawer by £100 and increases that supplier's balance by £100
   in one atomic operation.
-- Using £40 of supplier balance reduces the supplier balance by £40 without reducing the drawer again.
-- Supplier balances are searchable by supplier and show a clear running balance.
+- Entering a -£40 supplier correction reduces the tracked deposit balance by £40, records money returned,
+  and requires a note.
+- Supplier balances are not shown as a staff POS workspace; Accounting can report deposit history.
 - A Ticketing or Package money-out entry suggests matching suppliers by name and requires confirmation
   before it is filed to the supplier record.
 - Supplier selection uses an LMS supplier record, and POS stores its reference without duplicating supplier
@@ -925,6 +958,15 @@ The following additions would make the first release easier and safer to operate
 - Renaming or deactivating configuration does not alter historical transaction labels.
 - Accounts users and portal administrators can configure POS; ordinary staff cannot.
 - Existing transactions, refunds, supplier balances, shifts, imports, and audit records remain compatible.
+- The interactive tutorial contains 52 spotlighted steps, supports previous/next arrows and keyboard use,
+  cannot trigger mutations, offers chapter replay, and only saves dismissal from its final step.
+- Polani Travel is offered as a Ticketing deposit-account supplier with a local logo.
+- Other ticketing source requires a source name, suggests previous normalized names, and creates no balance row.
+- Remittance Card/Bank defaults provider-direct, Cash cannot be provider-direct, and the visible destination
+  control can also be toggled by double-clicking Card, Bank, or Split.
+- Provider-direct tenders remain visible in ledger detail but are excluded from our account and
+  reconciliation totals; loyalty still uses the full remittance amount.
+- Commission and profit are not calculated by POS.
 
 ## 18. Decisions To Make Together
 
@@ -976,9 +1018,9 @@ client-side suggestions:
    and closeout approvals use manager controls. General refunds always require evidence, approval reason,
    and fresh 2FA, and never invent a loyalty reversal without an original award.
 7. The counter who closes a till cannot approve that closeout. A different authorized manager must do so.
-8. POS stores a simple per-branch balance held with each LMS-backed supplier. Supplier deposit, use of
-   balance, refund, opening, and correction entries are append-only. Supplier names and aliases are
-   configured by managers and matched explicitly before posting.
+8. POS stores a simple per-branch deposit balance for configured deposit-account suppliers. Positive
+   deposits and negative corrections are append-only. Pay-on-demand sources create no balance entries.
+   Supplier names and aliases are configured in Accounting and matched explicitly before posting.
 9. Historical rows use a dry-run-first CSV path (Excel can export the source sheet as CSV), stable source
    and row keys for duplicate detection, original dates/references, a legacy marker, no drawer movement,
    and no new loyalty awards.
@@ -996,13 +1038,22 @@ client-side suggestions:
     while PostgreSQL enforces category assignments for the single Pay supplier action.
 16. Category, service, and supplier display labels are snapshotted on posting so future configuration
     changes never rewrite the historical ledger.
+17. Capability `2026090902` derives supplier movement from the signed amount, removes the staff-facing
+    balance workspace, seeds Polani Travel and protected Other ticketing suppliers, and retains prior
+    pay-on-demand source names without creating supplier accounts.
+18. Remittance non-cash tender destinations are explicit. Provider-direct Card/Bank is the default and is
+    excluded from our account/reconciliation totals, while Cash always remains ours and loyalty uses the
+    complete remittance amount.
+19. A versioned 52-step guided tour is non-mutating, keyboard accessible, replayable by chapter, and only
+    persists “do not show automatically” from the final step.
+20. POS does not calculate commission or profit; the owning service/accounting modules remain authoritative.
 
 ### Delivered application surface
 
 - Authenticated routes: `/api/pos/bootstrap`, `/ledger`, `/transactions`, `/refunds`, `/shifts`,
   `/cash-movements`, `/suppliers`, `/reconciliation`, `/reports`, `/loyalty/lookup`, `/import`, and
   `/transactions/[transactionId]/receipt`.
-- Workspace sections: Daily transactions, Open till, Closeout, Cash management, Supplier balances,
-  Refunds & corrections, Reports, Unreconciled, and manager-only Import history.
-- Operational fallback: if capability `2026090901` is absent, the old branch-scoped ledger stays readable
+- Workspace sections: Daily transactions, Open till, Closeout, Cash management, Refunds & corrections,
+  Reports, Unreconciled, and manager-only Import history.
+- Operational fallback: if capability `2026090902` is absent, the old branch-scoped ledger stays readable
   and all new writes remain unavailable.

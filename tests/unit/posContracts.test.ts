@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { StaffSession } from '@/lib/auth/staffSession'
 import { posPermissions } from '@/lib/pos/access'
 import {
+  posConfigurationMutationSchema,
   posPostTransactionSchema,
   posRefundSchema,
   posReconciliationSchema,
@@ -51,6 +52,55 @@ describe('POS mutation contracts', () => {
         actorEmployeeId: 'caller-controlled',
       }).success,
     ).toBe(false)
+  })
+
+  it('accepts noted negative supplier corrections and remittance tender destinations', () => {
+    expect(
+      posPostTransactionSchema.safeParse({
+        shiftId: '10000000-0000-4000-8000-000000000001',
+        categoryKey: 'ticketing-packages',
+        catalogueKey: 'ticketing',
+        entryMode: 'SUPPLIER_PAYMENT',
+        direction: 'IN',
+        totalAmount: -40,
+        customerName: 'Polani Travel',
+        supplierId: '20000000-0000-4000-8000-000000000001',
+        note: 'Supplier returned part of the deposit',
+        tenders: [{ method: 'BANK', amount: 40, destination: 'OUR_ACCOUNT' }],
+      }).success,
+    ).toBe(true)
+    expect(
+      posPostTransactionSchema.safeParse({
+        shiftId: '10000000-0000-4000-8000-000000000001',
+        categoryKey: 'ticketing-packages',
+        catalogueKey: 'ticketing',
+        entryMode: 'SUPPLIER_PAYMENT',
+        direction: 'IN',
+        totalAmount: -40,
+        customerName: 'Polani Travel',
+        supplierId: '20000000-0000-4000-8000-000000000001',
+        tenders: [{ method: 'BANK', amount: 40 }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it('keeps Other out of configurable quick-entry payment methods', () => {
+    const service = {
+      action: 'UPSERT_SERVICE',
+      key: 'document-assistance',
+      categoryKey: 'document-assistance',
+      label: 'Document Assistance',
+      direction: 'IN',
+      displayOrder: 10,
+      allowedPaymentMethods: ['CASH', 'OTHER'],
+    }
+    expect(posConfigurationMutationSchema.safeParse(service).success).toBe(false)
+    expect(
+      posConfigurationMutationSchema.safeParse({
+        ...service,
+        allowedPaymentMethods: ['CASH', 'CARD', 'BANK'],
+      }).success,
+    ).toBe(true)
   })
 
   it('requires an original for linked refunds and evidence for general refunds', () => {

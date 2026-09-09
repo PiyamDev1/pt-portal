@@ -47,6 +47,7 @@ export async function loadPosReport(
   const unreconciled: PosReportPayload['unreconciled'] = []
 
   for (const item of items) {
+    const accountImpact = item.accountImpact ?? item.amount
     const categoryKey = item.categoryKey || 'uncategorised'
     const categoryValue = category.get(categoryKey) || {
       label: item.category,
@@ -54,9 +55,9 @@ export async function loadPosReport(
       moneyOut: 0,
       net: 0,
     }
-    categoryValue.moneyIn += Math.max(item.amount, 0)
-    categoryValue.moneyOut += Math.abs(Math.min(item.amount, 0))
-    categoryValue.net += item.amount
+    categoryValue.moneyIn += Math.max(accountImpact, 0)
+    categoryValue.moneyOut += Math.abs(Math.min(accountImpact, 0))
+    categoryValue.net += accountImpact
     category.set(categoryKey, categoryValue)
 
     const agentKey = item.entryAgentId || item.entryAgent
@@ -66,13 +67,14 @@ export async function loadPosReport(
       moneyOut: 0,
       net: 0,
     }
-    agentValue.moneyIn += Math.max(item.amount, 0)
-    agentValue.moneyOut += Math.abs(Math.min(item.amount, 0))
-    agentValue.net += item.amount
+    agentValue.moneyIn += Math.max(accountImpact, 0)
+    agentValue.moneyOut += Math.abs(Math.min(accountImpact, 0))
+    agentValue.net += accountImpact
     agent.set(agentKey, agentValue)
 
     for (const tender of item.tenders) {
       if (!tender.methodCode) continue
+      if (tender.destination === 'SUPPLIER_DIRECT') continue
       const signed = tender.direction === 'OUT' ? -tender.amount : tender.amount
       addAggregate(methods, tender.methodCode, signed)
       if (!['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus) && tender.id) {

@@ -5,7 +5,7 @@ begin
   if (public.pos_schema_status() ->> 'ready')::boolean is not true then
     raise exception 'POS capability is not ready';
   end if;
-  if (public.pos_schema_status() ->> 'version')::bigint <> 2026090901 then
+  if (public.pos_schema_status() ->> 'version')::bigint <> 2026090902 then
     raise exception 'Unexpected POS capability version';
   end if;
   if not (select relrowsecurity and relforcerowsecurity from pg_class where oid = 'public.pos_transactions'::regclass) then
@@ -15,9 +15,10 @@ begin
     or has_table_privilege('service_role', 'public.pos_transactions', 'INSERT') then
     raise exception 'POS table grants expose a forbidden direct path';
   end if;
-  if not has_function_privilege('service_role', 'public.pos_post_transaction_v2(uuid,text,jsonb)', 'EXECUTE')
+  if not has_function_privilege('service_role', 'public.pos_post_transaction_v3(uuid,text,jsonb)', 'EXECUTE')
     or has_function_privilege('service_role', 'public.pos_post_transaction_v1(uuid,text,jsonb)', 'EXECUTE')
-    or has_function_privilege('authenticated', 'public.pos_post_transaction_v2(uuid,text,jsonb)', 'EXECUTE') then
+    or has_function_privilege('service_role', 'public.pos_post_transaction_v2(uuid,text,jsonb)', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.pos_post_transaction_v3(uuid,text,jsonb)', 'EXECUTE') then
     raise exception 'POS mutation execute grants are incorrect';
   end if;
   if (select count(*) from public.pos_categories where is_active) <> 6 then
@@ -32,6 +33,24 @@ begin
   if not exists (select 1 from public.pos_catalogue_items where item_key='donation' and default_direction='OUT' and classification='EXPENSE')
     or not exists (select 1 from public.pos_catalogue_items where item_key='other-income' and default_direction='IN') then
     raise exception 'Plain-language Other actions have incorrect money direction';
+  end if;
+  if not exists (
+    select 1 from public.pos_supplier_profiles profile
+    join public.supplier_vendors supplier on supplier.id=profile.supplier_vendor_id
+    where supplier.name='Polani Travel' and profile.logo_key='polani-travel'
+      and profile.settlement_mode='DEPOSIT_ACCOUNT'
+  ) or not exists (
+    select 1 from public.pos_supplier_profiles profile
+    join public.supplier_vendors supplier on supplier.id=profile.supplier_vendor_id
+    where supplier.name='Other - enter source' and profile.settlement_mode='PAY_ON_DEMAND'
+  ) then
+    raise exception 'Ticketing supplier seeds are incomplete';
+  end if;
+  if exists (
+    select 1 from public.pos_catalogue_items
+    where is_quick_entry and 'OTHER'=any(allowed_payment_methods)
+  ) then
+    raise exception 'OTHER remains exposed as a primary payment method';
   end if;
 end
 $$;
@@ -61,11 +80,22 @@ begin
   ));
   shift_id_value := (response_value ->> 'shiftId')::uuid;
 
-  response_value := public.pos_post_transaction_v2(agent, 'pos-test-remittance-0001', jsonb_build_object(
+  begin
+    perform public.pos_manage_configuration_v3(manager, 'pos-test-other-method-0001', jsonb_build_object(
+      'action', 'UPSERT_SERVICE', 'key', 'document-assistance',
+      'categoryKey', 'document-assistance', 'label', 'Document Assistance',
+      'direction', 'IN', 'displayOrder', 10,
+      'allowedPaymentMethods', jsonb_build_array('CASH', 'OTHER')
+    ));
+    raise exception 'OTHER was enabled for a quick-entry service';
+  exception when sqlstate '22023' then null;
+  end;
+
+  response_value := public.pos_post_transaction_v3(agent, 'pos-test-remittance-0001', jsonb_build_object(
     'shiftId', shift_id_value, 'categoryKey', 'remittance', 'catalogueKey', 'ria-remittance',
     'entryMode', 'CUSTOMER_PAYMENT', 'direction', 'IN', 'totalAmount', 75,
     'customerName', 'Remittance customer', 'loyaltyCode', 'PYM-2345-6789-A',
-    'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 75))
+    'tenders', jsonb_build_array(jsonb_build_object('method', 'BANK', 'amount', 75))
   ));
   if (response_value ->> 'loyaltyPointsAwarded')::integer <> 75 then
     raise exception 'Remittance did not award points on the complete amount';
@@ -84,6 +114,13 @@ begin
       and tx.service_label_snapshot='Ria'
   ) then
     raise exception 'Remittance provider or historical snapshots were not recorded';
+  end if;
+  if not exists (
+    select 1 from public.pos_transaction_tenders tender
+    where tender.transaction_id=(response_value->>'transactionId')::uuid
+      and tender.destination='SUPPLIER_DIRECT'
+  ) then
+    raise exception 'Remittance bank tender did not default to provider direct';
   end if;
 
   begin
@@ -158,22 +195,58 @@ begin
   ));
   supplier_id_value := (response_value ->> 'supplierId')::uuid;
 
-  perform public.pos_post_transaction_v1(agent, 'pos-test-supplier-deposit-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'ticketing-packages-supplier-payment', 'direction', 'OUT',
-    'outgoingType', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
-    'supplierMovementType', 'DEPOSIT', 'totalAmount', 100, 'customerName', 'Integration Supplier',
+  insert into public.pos_category_suppliers(category_id,supplier_vendor_id,is_default,is_active)
+  select category.id,supplier_id_value,false,true from public.pos_categories category
+  where category.category_key='ticketing-packages'
+  on conflict(category_id,supplier_vendor_id) do update set is_active=true;
+
+  perform public.pos_post_transaction_v3(agent, 'pos-test-supplier-deposit-0001', jsonb_build_object(
+    'shiftId', shift_id_value, 'categoryKey', 'ticketing-packages', 'catalogueKey', 'ticketing',
+    'entryMode', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
+    'totalAmount', 100, 'customerName', 'Integration Supplier',
     'note', 'Supplier cash deposit',
     'tenders', jsonb_build_array(jsonb_build_object('method', 'CASH', 'amount', 100))
   ));
-  perform public.pos_post_transaction_v1(agent, 'pos-test-supplier-use-0001', jsonb_build_object(
-    'shiftId', shift_id_value, 'catalogueKey', 'ticketing-packages-supplier-payment', 'direction', 'OUT',
-    'outgoingType', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
-    'supplierMovementType', 'USE_BALANCE', 'totalAmount', 40, 'customerName', 'Integration Supplier',
-    'note', 'Supplier balance used', 'tenders', '[]'::jsonb
+  perform public.pos_post_transaction_v3(agent, 'pos-test-supplier-correction-0001', jsonb_build_object(
+    'shiftId', shift_id_value, 'categoryKey', 'ticketing-packages', 'catalogueKey', 'ticketing',
+    'entryMode', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
+    'totalAmount', -40, 'customerName', 'Integration Supplier',
+    'note', 'Supplier returned part of deposit',
+    'tenders', jsonb_build_array(jsonb_build_object('method', 'BANK', 'amount', 40))
   ));
   if (select sum(balance_delta) from public.pos_supplier_balance_entries
       where supplier_vendor_id = supplier_id_value) <> 110 then
     raise exception 'Supplier running balance is incorrect';
+  end if;
+  if not exists (
+    select 1 from public.pos_supplier_balance_entries
+    where supplier_vendor_id=supplier_id_value and movement_type='CORRECTION' and balance_delta=-40
+  ) then
+    raise exception 'Negative supplier amount was not derived as a correction';
+  end if;
+
+  select supplier.id into supplier_id_value from public.supplier_vendors supplier
+  where supplier.name='Other - enter source';
+  response_value := public.pos_post_transaction_v3(agent, 'pos-test-demand-supplier-0001', jsonb_build_object(
+    'shiftId', shift_id_value, 'categoryKey', 'ticketing-packages', 'catalogueKey', 'ticketing',
+    'entryMode', 'SUPPLIER_PAYMENT', 'supplierId', supplier_id_value,
+    'supplierSourceName', 'Demand Travel', 'totalAmount', 30, 'customerName', 'Demand Travel',
+    'note', 'Demand ticket supplier payment',
+    'tenders', jsonb_build_array(jsonb_build_object('method', 'BANK', 'amount', 30))
+  ));
+  if exists (
+    select 1 from public.pos_supplier_balance_entries
+    where transaction_id=(response_value->>'transactionId')::uuid
+  ) or not exists (
+    select 1 from public.pos_supplier_source_history where normalized_name='demand travel'
+  ) or not exists (
+    select 1 from public.pos_transactions
+    where id=(response_value->>'transactionId')::uuid
+      and supplier_name_snapshot='Demand Travel'
+      and supplier_source_name_snapshot='Demand Travel'
+      and search_text ilike '%Demand Travel%'
+  ) then
+    raise exception 'Pay-on-demand supplier source was not stored without a balance';
   end if;
 
   perform public.pos_record_cash_movement_v1(agent, 'pos-test-reserve-0001', jsonb_build_object(

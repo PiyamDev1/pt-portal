@@ -61,6 +61,7 @@ type PosTenderRow = {
   id: string
   payment_method: PosPaymentMethod
   amount: number | string
+  destination?: 'OUR_ACCOUNT' | 'SUPPLIER_DIRECT'
   external_reference: string | null
   reconciliation_status: PosReconciliationStatus
   pos_reconciliation_events: ReconciliationEventRow[] | null
@@ -221,6 +222,7 @@ function mapTender(tender: PosTenderRow, direction: 'IN' | 'OUT'): PosLedgerTend
     direction,
     reconciliationStatus: latest?.status || tender.reconciliation_status,
     externalReference: latest?.external_reference || tender.external_reference,
+    destination: tender.destination,
     cashImpact: tender.payment_method === 'CASH' ? amount * (direction === 'OUT' ? -1 : 1) : 0,
   }
 }
@@ -267,7 +269,9 @@ function mapPosTransaction(
   const amountPaid = numberValue(row.amount_paid)
   const corrected = Boolean(row.pos_corrections?.length)
   const hasPendingTender = tenders.some(
-    (tender) => !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus),
+    (tender) =>
+      tender.destination !== 'SUPPLIER_DIRECT' &&
+      !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus),
   )
   const status = corrected
     ? 'Corrected'
@@ -308,6 +312,12 @@ function mapPosTransaction(
     option: row.service_label_snapshot || catalogue?.option_label || null,
     method: displayMethod(tenders),
     amount: signed,
+    accountImpact: tenders
+      .filter((tender) => tender.destination !== 'SUPPLIER_DIRECT')
+      .reduce(
+        (sum, tender) => sum + (tender.direction === 'OUT' ? -tender.amount : tender.amount),
+        0,
+      ),
     totalAmount,
     amountPaid,
     balanceRemaining: Math.max(totalAmount - amountPaid, 0),
@@ -426,9 +436,10 @@ export function summarizePosLedgerItems(items: PosLedgerTransaction[]): PosLedge
     activeDays: new Set(items.map((item) => item.date)).size,
   }
   for (const item of items) {
-    summary.moneyIn += Math.max(item.amount, 0)
-    summary.moneyOut += Math.abs(Math.min(item.amount, 0))
-    summary.netMovement += item.amount
+    const accountImpact = item.accountImpact ?? item.amount
+    summary.moneyIn += Math.max(accountImpact, 0)
+    summary.moneyOut += Math.abs(Math.min(accountImpact, 0))
+    summary.netMovement += accountImpact
     summary.cashNet += item.cashImpact || 0
     summary.cashIn = (summary.cashIn || 0) + Math.max(item.cashImpact || 0, 0)
     summary.cashOut = (summary.cashOut || 0) + Math.abs(Math.min(item.cashImpact || 0, 0))
@@ -438,9 +449,14 @@ export function summarizePosLedgerItems(items: PosLedgerTransaction[]): PosLedge
     }
     for (const tender of item.tenders) {
       const signedAmount = tender.direction === 'OUT' ? -tender.amount : tender.amount
-      if (tender.method === 'Card') summary.cardNet += signedAmount
-      if (tender.method === 'Bank') summary.bankNet += signedAmount
-      if (!['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus))
+      if (tender.destination !== 'SUPPLIER_DIRECT' && tender.method === 'Card')
+        summary.cardNet += signedAmount
+      if (tender.destination !== 'SUPPLIER_DIRECT' && tender.method === 'Bank')
+        summary.bankNet += signedAmount
+      if (
+        tender.destination !== 'SUPPLIER_DIRECT' &&
+        !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus)
+      )
         summary.unreconciledCount += 1
     }
   }
@@ -470,7 +486,11 @@ function passesFilters(item: PosLedgerTransaction, filters: PosLedgerFilters) {
   if (filters.status === 'CORRECTED' && item.status !== 'Corrected') return false
   if (
     filters.status === 'UNRECONCILED' &&
-    !item.tenders.some((tender) => !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus))
+    !item.tenders.some(
+      (tender) =>
+        tender.destination !== 'SUPPLIER_DIRECT' &&
+        !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus),
+    )
   )
     return false
   if (filters.status === 'POSTED' && item.status !== 'Posted') return false
@@ -519,7 +539,7 @@ async function loadPosLedgerRows(
       employee:employees!pos_transactions_created_by_fkey(id,full_name),
       till:pos_tills!pos_transactions_till_id_fkey(name),
       ${POS_TRANSACTION_SUPPLIER_RELATION},
-      pos_transaction_tenders(id,payment_method,amount,external_reference,reconciliation_status,
+      pos_transaction_tenders(id,payment_method,amount,destination,external_reference,reconciliation_status,
         pos_reconciliation_events(status,external_reference,created_at,id)),
       pos_transaction_source_links(id,source_type,source_namespace,source_record_id,display_reference),
       pos_refunds(id,reference_number,amount,status,reason_code,created_at,loyalty_points_reversed),

@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
+import { posTourStorageKey } from '@/app/dashboard/pos/PosGuidedTour'
 import type { PosLedgerPayload } from '@/lib/pos/contracts'
 
 vi.mock('sonner', () => ({
@@ -20,6 +21,7 @@ describe('POS preview interactions', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
     window.localStorage.clear()
+    window.localStorage.setItem(posTourStorageKey('preview'), 'true')
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
       value: vi.fn(),

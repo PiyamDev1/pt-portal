@@ -10,6 +10,16 @@ const money = z
     'Use no more than two decimals',
   )
 
+const signedMoney = z
+  .number()
+  .finite()
+  .refine((value) => value !== 0, 'Amount cannot be zero')
+  .refine((value) => Math.abs(value) <= 10_000_000, 'Amount is too large')
+  .refine(
+    (value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-8,
+    'Use no more than two decimals',
+  )
+
 const nonNegativeMoney = z
   .number()
   .finite()
@@ -24,6 +34,7 @@ export const posTenderSchema = z
   .object({
     method: z.enum(['CASH', 'CARD', 'BANK', 'OTHER']),
     amount: money,
+    destination: z.enum(['OUR_ACCOUNT', 'SUPPLIER_DIRECT']).optional(),
     externalReference: z.string().trim().min(1).max(200).optional(),
     reconciliationStatus: z.enum(['RECORDED', 'PENDING', 'COMPLETED', 'FAILED']).optional(),
   })
@@ -57,7 +68,7 @@ export const posPostTransactionSchema = z
     entryMode: z.enum(['CUSTOMER_PAYMENT', 'SUPPLIER_PAYMENT']).default('CUSTOMER_PAYMENT'),
     direction: z.enum(['IN', 'OUT']),
     outgoingType: z.enum(['REFUND', 'EXPENSE', 'SUPPLIER_PAYMENT']).optional(),
-    totalAmount: money,
+    totalAmount: signedMoney,
     customerName: z.string().trim().min(1).max(160).default('Walk-in'),
     customerPhone: z.string().trim().min(3).max(40).optional(),
     note: z.string().trim().min(3).max(2000).optional(),
@@ -66,7 +77,7 @@ export const posPostTransactionSchema = z
     pricingId: z.string().uuid().optional(),
     pricingConfirmed: z.boolean().default(false),
     supplierId: z.string().uuid().optional(),
-    supplierMovementType: z.enum(['DEPOSIT', 'USE_BALANCE', 'REFUND']).optional(),
+    supplierSourceName: z.string().trim().min(2).max(160).optional(),
     loyaltyCode: z
       .string()
       .trim()
@@ -80,6 +91,22 @@ export const posPostTransactionSchema = z
     confirmDuplicate: z.boolean().default(false),
   })
   .strict()
+  .superRefine((value, context) => {
+    if (value.entryMode === 'CUSTOMER_PAYMENT' && value.totalAmount <= 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['totalAmount'],
+        message: 'Customer transaction amount must be positive',
+      })
+    }
+    if (value.entryMode === 'SUPPLIER_PAYMENT' && value.totalAmount < 0 && !value.note) {
+      context.addIssue({
+        code: 'custom',
+        path: ['note'],
+        message: 'Add a note for a supplier deposit correction',
+      })
+    }
+  })
 
 const verificationFields = {
   verificationCode: z.string().trim().min(1).max(100).optional(),
@@ -229,9 +256,9 @@ export const posConfigurationMutationSchema = z.discriminatedUnion('action', [
       loyaltyEligible: z.boolean().default(false),
       pointsPerGbp: z.number().finite().min(0).max(10_000).default(0),
       allowedPaymentMethods: z
-        .array(z.enum(['CASH', 'CARD', 'BANK', 'OTHER']))
+        .array(z.enum(['CASH', 'CARD', 'BANK']))
         .min(1)
-        .max(4),
+        .max(3),
       customerRequired: z.boolean().default(false),
       noteRequired: z.boolean().default(false),
       priceRequired: z.boolean().default(false),
@@ -247,6 +274,8 @@ export const posConfigurationMutationSchema = z.discriminatedUnion('action', [
       aliases: z.array(z.string().trim().min(1).max(160)).max(20).default([]),
       sourceArea: z.string().trim().min(1).max(80).optional(),
       sourceReference: z.string().trim().min(1).max(200).optional(),
+      settlementMode: z.enum(['DEPOSIT_ACCOUNT', 'PAY_ON_DEMAND']).default('DEPOSIT_ACCOUNT'),
+      logoKey: z.enum(['polani-travel']).optional(),
       ...configurationBase,
     })
     .strict(),

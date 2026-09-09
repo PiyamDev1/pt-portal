@@ -652,3 +652,57 @@ html[data-device-layout='mobile'] .applications-activity-row {
   align-items: flex-start;
   padding: 0.75rem !important;
 }
+.driver-popover.pos-guided-tour {
+  border: 1px solid rgb(226 232 240);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px -24px rgb(15 23 42 / 0.65);
+  font-family: inherit;
+  max-width: 360px;
+}
+
+.driver-popover.pos-guided-tour .driver-popover-title {
+  color: #7f1d2d;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.driver-popover.pos-guided-tour .driver-popover-description {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.driver-popover.pos-guided-tour .driver-popover-next-btn,
+.driver-popover.pos-guided-tour .driver-popover-prev-btn {
+  border: 0;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 7px 10px;
+  text-shadow: none;
+}
+
+.driver-popover.pos-guided-tour .driver-popover-next-btn {
+  background: #7f1d2d;
+  color: white;
+}
+
+.pos-tour-dismiss {
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+}
+
+.pos-tour-dismiss input {
+  accent-color: #7f1d2d;
+  margin-top: 2px;
+}

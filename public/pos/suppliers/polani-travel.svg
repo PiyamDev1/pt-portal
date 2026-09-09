@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 72" role="img" aria-labelledby="title desc">
+  <title id="title">Polani Travel</title>
+  <desc id="desc">Polani Travel supplier wordmark</desc>
+  <rect width="240" height="72" rx="14" fill="#fff7ed"/>
+  <path d="M26 49c13-2 23-12 27-26 6 13 16 22 31 25-14 5-27 5-39 1-7 4-13 4-19 0Z" fill="#b91c1c"/>
+  <path d="M44 45c6-9 9-18 9-27 5 11 12 20 23 27-12-3-23-3-32 0Z" fill="#f59e0b"/>
+  <text x="92" y="34" fill="#7f1d1d" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="800" letter-spacing="1">POLANI</text>
+  <text x="94" y="51" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" letter-spacing="4">TRAVEL</text>
+</svg>

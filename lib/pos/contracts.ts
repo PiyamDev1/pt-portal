@@ -4,6 +4,7 @@ export type PosPaymentMethod = 'CASH' | 'CARD' | 'BANK' | 'OTHER'
 export type PosLedgerPaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split' | 'Other'
 export type PosReconciliationStatus = 'RECORDED' | 'PENDING' | 'COMPLETED' | 'FAILED'
 export type PosOutgoingType = 'REFUND' | 'EXPENSE' | 'SUPPLIER_PAYMENT'
+export type PosTenderDestination = 'OUR_ACCOUNT' | 'SUPPLIER_DIRECT'
 
 export type PosLedgerTender = {
   id?: string
@@ -14,6 +15,7 @@ export type PosLedgerTender = {
   reconciliationStatus: PosReconciliationStatus | 'CLEARED' | 'OWED_TO_US' | 'UNPAID_DEBT_IN'
   externalReference?: string | null
   cashImpact?: number
+  destination?: PosTenderDestination
 }
 
 export type PosSourceLink = {
@@ -54,6 +56,7 @@ export type PosLedgerTransaction = {
   option?: string | null
   method: PosLedgerPaymentMethod
   amount: number
+  accountImpact?: number
   totalAmount?: number
   amountPaid?: number
   balanceRemaining?: number
@@ -192,6 +195,9 @@ export type PosSupplier = {
   sourceReference: string | null
   balance: number
   isActive: boolean
+  settlementMode: 'DEPOSIT_ACCOUNT' | 'PAY_ON_DEMAND'
+  logoKey: string | null
+  isSystem: boolean
 }
 
 export type PosSupplierBalanceEntry = {
@@ -257,6 +263,7 @@ export type PosBootstrapPayload = {
   activeShift: PosShift | null
   balances: PosBalances
   suppliers: PosSupplier[]
+  supplierSources: Array<{ categoryKey: string; name: string; useCount: number }>
   employees: Array<{ id: string; name: string }>
   closeouts: PosCloseout[]
   permissions: {

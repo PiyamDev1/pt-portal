@@ -1,10 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import {
   BarChart3,
-  Building2,
   CheckCircle2,
   Coins,
   FileUp,
@@ -22,7 +20,6 @@ import type {
   PosLegacyImportPreview,
   PosMutationResult,
   PosReportPayload,
-  PosSupplierLedgerPayload,
 } from '@/lib/pos/contracts'
 
 export type PosWorkspaceView =
@@ -30,7 +27,6 @@ export type PosWorkspaceView =
   | 'Open till'
   | 'Closeout'
   | 'Cash management'
-  | 'Supplier balances'
   | 'Refunds & corrections'
   | 'Reports'
   | 'Unreconciled'
@@ -177,8 +173,6 @@ export default function PosOperationsPanel(props: Props) {
   const [cashAmount, setCashAmount] = useState('0.00')
   const [coinValue, setCoinValue] = useState<(typeof DENOMINATIONS)[number]>(100)
   const [coinCount, setCoinCount] = useState('0')
-  const [supplierLedger, setSupplierLedger] = useState<PosSupplierLedgerPayload | null>(null)
-  const [supplierSearch, setSupplierSearch] = useState('')
   const [report, setReport] = useState<PosReportPayload | null>(null)
   const [refundKind, setRefundKind] = useState<'LINKED' | 'GENERAL'>('LINKED')
   const [refundAmount, setRefundAmount] = useState('0.00')
@@ -194,39 +188,12 @@ export default function PosOperationsPanel(props: Props) {
       transactions.find((transaction) => transaction.id === props.selectedTransactionId) || null,
     [props.selectedTransactionId, transactions],
   )
-  const filteredSuppliers = (supplierLedger?.suppliers || bootstrap.suppliers).filter((supplier) =>
-    [supplier.name, ...supplier.alternateNames]
-      .join(' ')
-      .toLowerCase()
-      .includes(supplierSearch.toLowerCase()),
-  )
 
   useEffect(() => {
     setSelectedTill((current) => current || bootstrap.tills[0]?.id || '')
     setCountedDrawer(bootstrap.balances.drawer.toFixed(2))
     setCountedReserve(bootstrap.balances.reserve.toFixed(2))
   }, [bootstrap.balances.drawer, bootstrap.balances.reserve, bootstrap.tills])
-
-  useEffect(() => {
-    if (view !== 'Supplier balances') return
-    const controller = new AbortController()
-    void fetch('/api/pos/suppliers', {
-      cache: 'no-store',
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = (await response.json()) as ApiResponse<PosSupplierLedgerPayload>
-        if (!response.ok || 'error' in payload)
-          throw new Error('error' in payload ? payload.error : 'Unable to load suppliers.')
-        setSupplierLedger(payload)
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        toast.error(error instanceof Error ? error.message : 'Unable to load suppliers.')
-      })
-    return () => controller.abort()
-  }, [view, bootstrap.loadedAt])
 
   useEffect(() => {
     if (view !== 'Reports' && view !== 'Unreconciled') return
@@ -273,7 +240,7 @@ export default function PosOperationsPanel(props: Props) {
         <p className="font-black">POS database upgrade pending</p>
         <p className="mt-1 text-xs">
           Live operations will unlock after capability version{' '}
-          {bootstrap.capabilityVersion || 2026090901} is deployed.
+          {bootstrap.capabilityVersion || 2026090902} is deployed.
         </p>
       </section>
     )
@@ -551,77 +518,6 @@ export default function PosOperationsPanel(props: Props) {
           >
             Record movement
           </ActionButton>
-        </div>
-      </section>
-    )
-  }
-
-  if (view === 'Supplier balances') {
-    return (
-      <section className="rounded-[1.15rem] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-sm font-black">
-            <Building2 className="h-4 w-4" /> Supplier balances
-          </h2>
-          <input
-            value={supplierSearch}
-            onChange={(event) => setSupplierSearch(event.target.value)}
-            placeholder="Search supplier"
-            className="h-9 rounded-xl border px-3 text-xs"
-          />
-        </div>
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[11px] text-slate-600">
-            Supplier setup and category assignments are managed by Accounts.
-          </p>
-          <Link
-            href="/dashboard/accounting/pos-configuration"
-            className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white"
-          >
-            POS configuration
-          </Link>
-        </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          {filteredSuppliers.map((supplier) => (
-            <article key={supplier.id} className="rounded-xl bg-slate-50 p-3">
-              <p className="text-xs font-black">{supplier.name}</p>
-              <p className="mt-1 text-lg font-black text-[#8b1e2d]">{money(supplier.balance)}</p>
-              <p className="text-[10px] text-slate-500">
-                {supplier.sourceArea || 'LMS supplier'} ·{' '}
-                {supplier.sourceReference || 'linked record'}
-              </p>
-            </article>
-          ))}
-        </div>
-        <div className="mt-4 overflow-auto">
-          <table className="w-full min-w-[680px] text-left text-xs">
-            <thead>
-              <tr className="border-b text-[10px] uppercase text-slate-400">
-                <th className="p-2">Date</th>
-                <th className="p-2">Supplier</th>
-                <th className="p-2">Movement</th>
-                <th className="p-2 text-right">Change</th>
-                <th className="p-2 text-right">Balance</th>
-                <th className="p-2">Reference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(supplierLedger?.entries || []).map((entry) => (
-                <tr key={entry.id} className="border-b">
-                  <td className="p-2">{new Date(entry.createdAt).toLocaleString('en-GB')}</td>
-                  <td className="p-2 font-bold">{entry.supplierName}</td>
-                  <td className="p-2">{entry.movementType.replace(/_/g, ' ')}</td>
-                  <td
-                    className={`p-2 text-right font-black ${entry.balanceDelta < 0 ? 'text-rose-700' : 'text-emerald-700'}`}
-                  >
-                    {money(entry.balanceDelta)}
-                  </td>
-                  <td className="p-2 text-right font-black">{money(entry.runningBalance)}</td>
-                  <td className="p-2">{entry.reference || entry.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </section>
     )
