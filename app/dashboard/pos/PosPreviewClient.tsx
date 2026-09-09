@@ -517,7 +517,7 @@ function formatLedgerMonth(date: string) {
   }).format(new Date(`${date.slice(0, 7)}-01T12:00:00Z`))
 }
 
-function formatLoadedAt(value: string | null) {
+function formatLoadedAt(value: string | null, timezone: string) {
   if (!value) return 'Not loaded'
   const date = new Date(value)
   if (Number.isNaN(date.valueOf())) return 'Not loaded'
@@ -525,6 +525,7 @@ function formatLoadedAt(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    timeZone: timezone,
   }).format(date)
 }
 
@@ -1395,7 +1396,12 @@ export default function PosPreviewClient({
                 <span className="h-2 w-2 rounded-full bg-emerald-300" /> Live data
               </p>
               <p className="text-xs font-black">
-                {ledgerLoading ? 'Refreshing…' : `Synced ${formatLoadedAt(ledgerLoadedAt)}`}
+                {ledgerLoading
+                  ? 'Refreshing…'
+                  : `Synced ${formatLoadedAt(
+                      ledgerLoadedAt,
+                      initialLedger?.context.timezone || bootstrap.branch.timezone,
+                    )}`}
               </p>
             </div>
           </div>

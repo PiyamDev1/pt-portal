@@ -155,7 +155,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
     service
       .from('pos_shifts')
       .select(
-        'id,till_id,business_date,status,opening_float,opened_at,pos_tills(name),employees!pos_shifts_opened_by_fkey(full_name)',
+        'id,till_id,business_date,status,opening_float,opened_at,pos_tills!pos_shifts_till_id_fkey(name),employees!pos_shifts_opened_by_fkey(full_name)',
       )
       .eq('location_id', context.locationId)
       .eq('status', 'OPEN')
