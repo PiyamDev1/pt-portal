@@ -3,7 +3,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
-import { LOYALTY_PROGRAM_POLICY } from '@/lib/loyalty/program'
+import { loadLoyaltyProgramConfiguration } from '@/lib/loyalty/programServer'
 import { CustomerIntegrationError } from './http'
 
 type LoyaltySource = 'ticket' | 'service' | 'package' | 'adjustment'
@@ -59,6 +59,7 @@ async function customerMobileUser(input: {
       .from('mobile_users')
       .select('id,email,external_customer_subject,customer_code')
       .ilike('email', escapedEmail)
+      .eq('customer_lifecycle_status', 'active')
       .maybeSingle(),
   ])
   if (codeLookup.error || emailLookup.error) {
@@ -106,6 +107,30 @@ async function customerMobileUser(input: {
   return created.id as string
 }
 
+export async function deactivateCustomerLoyaltyAccount(input: {
+  customerSubject: string
+  customerCode: string
+}) {
+  const { data, error } = await getServiceSupabaseClient()
+    .from('mobile_users')
+    .update({
+      customer_lifecycle_status: 'inactive',
+      external_customer_subject: null,
+    })
+    .eq('external_customer_subject', input.customerSubject)
+    .eq('customer_code', input.customerCode)
+    .select('id')
+    .maybeSingle()
+  if (error) {
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'The loyalty account could not be closed.',
+      503,
+    )
+  }
+  return { loyaltyAccountDeactivated: Boolean(data) }
+}
+
 export async function customerLoyaltySummary(input: {
   customerSubject: string
   customerCode: string
@@ -113,19 +138,21 @@ export async function customerLoyaltySummary(input: {
 }) {
   const mobileUserId = await customerMobileUser(input)
   const service = getServiceSupabaseClient()
-  const [{ data: awards, error }, { data: balance, error: balanceError }] = await Promise.all([
-    service
-      .from('customer_loyalty_awards')
-      .select('id,source_type,description,points,state,created_at')
-      .eq('mobile_user_id', mobileUserId)
-      .order('created_at', { ascending: false })
-      .limit(200),
-    service
-      .from('customer_loyalty_staff_member_summary')
-      .select('available_points,pending_points')
-      .eq('id', mobileUserId)
-      .single(),
-  ])
+  const [{ data: awards, error }, { data: balance, error: balanceError }, configuration] =
+    await Promise.all([
+      service
+        .from('customer_loyalty_awards')
+        .select('id,source_type,description,points,state,created_at,activated_at')
+        .eq('mobile_user_id', mobileUserId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      service
+        .from('customer_loyalty_staff_member_summary')
+        .select('available_points,pending_points')
+        .eq('id', mobileUserId)
+        .single(),
+      loadLoyaltyProgramConfiguration(),
+    ])
   if (error || balanceError)
     throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)
   const entries = (awards ?? []).map((award) => ({
@@ -140,7 +167,26 @@ export async function customerLoyaltySummary(input: {
   // aggregated by Postgres across the complete immutable award stream.
   const pendingPoints = Number(balance.pending_points || 0)
   const availablePoints = Number(balance.available_points || 0)
-  const tier = [...LOYALTY_PROGRAM_POLICY.ranks]
+  const expiringLots = (awards ?? [])
+    .filter((award) => award.state === 'available' && Number(award.points) > 0)
+    .map((award) => {
+      const activatedAt = new Date(award.activated_at || award.created_at)
+      const expiresAt = new Date(activatedAt)
+      expiresAt.setUTCMonth(expiresAt.getUTCMonth() + configuration.program.pointValidityMonths)
+      return { points: Number(award.points), expiresAt }
+    })
+    .filter((lot) => lot.expiresAt.getTime() > Date.now())
+    .sort((left, right) => left.expiresAt.getTime() - right.expiresAt.getTime())
+  const nextExpiryAt = expiringLots[0]?.expiresAt ?? null
+  const expiringPoints = nextExpiryAt
+    ? expiringLots
+        .filter(
+          (lot) =>
+            lot.expiresAt.toISOString().slice(0, 10) === nextExpiryAt.toISOString().slice(0, 10),
+        )
+        .reduce((total, lot) => total + lot.points, 0)
+    : 0
+  const tier = [...configuration.program.ranks]
     .reverse()
     .find((candidate) => availablePoints >= candidate.minimumPoints)?.name
   return {
@@ -148,9 +194,11 @@ export async function customerLoyaltySummary(input: {
     tier: String(tier || 'Member').slice(0, 80),
     pendingPoints: Math.max(0, pendingPoints),
     availablePoints: Math.max(0, availablePoints),
+    expiringPoints: Math.max(0, expiringPoints),
+    nextExpiryAt: nextExpiryAt?.toISOString() ?? null,
     redemptionEnabled: false as const,
     expiryEnabled: false as const,
-    program: LOYALTY_PROGRAM_POLICY,
+    program: configuration.program,
     entries,
     updatedAt: new Date().toISOString(),
   }

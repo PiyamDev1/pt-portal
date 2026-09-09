@@ -45,6 +45,11 @@ interface ApplicationRecord {
   visa_types?: { name?: string | null } | Array<{ name?: string | null }> | null
 }
 
+interface CustomerStatusHistoryRow {
+  new_status?: string | null
+  changed_at?: string | null
+}
+
 export function normalizeCustomerLookup(value: string) {
   return value
     .normalize('NFKD')
@@ -110,9 +115,38 @@ function stageNextStep(stage: ReturnType<typeof customerStage>) {
   }[stage]
 }
 
-function publicSummary(candidate: ApplicationCandidate, publicId: string) {
+function publicSummary(
+  candidate: ApplicationCandidate,
+  publicId: string,
+  statusHistory: CustomerStatusHistoryRow[] = [],
+) {
   const stage = customerStage(candidate.status)
-  const updated = new Date(candidate.createdAt).toISOString()
+  const timeline = statusHistory
+    .filter((entry) => entry.new_status && entry.changed_at)
+    .map((entry) => {
+      const eventStage = customerStage(entry.new_status!)
+      return {
+        stage: eventStage,
+        label: stageLabel(eventStage),
+        occurredAt: new Date(entry.changed_at!).toISOString(),
+        detail:
+          eventStage === 'action_required'
+            ? 'Piyam Travel needs information or action before this can continue.'
+            : null,
+      }
+    })
+  if (!timeline.length) {
+    timeline.push({
+      stage,
+      label: stageLabel(stage),
+      occurredAt: new Date(candidate.createdAt).toISOString(),
+      detail:
+        stage === 'action_required'
+          ? 'Piyam Travel needs information or action before this can continue.'
+          : null,
+    })
+  }
+  const updated = timeline.at(-1)!.occurredAt
   const reference = candidate.reference.trim()
   return {
     applicationId: publicId,
@@ -121,20 +155,39 @@ function publicSummary(candidate: ApplicationCandidate, publicId: string) {
     stage,
     statusLabel: stageLabel(stage),
     lastUpdatedAt: updated,
-    timeline: [
-      {
-        stage,
-        label: stageLabel(stage),
-        occurredAt: updated,
-        detail:
-          stage === 'action_required'
-            ? 'Piyam Travel needs information or action before this can continue.'
-            : null,
-      },
-    ],
+    timeline,
     nextStep: stageNextStep(stage),
     saved: false,
   }
+}
+
+async function customerStatusHistory(
+  service: SupabaseClient,
+  candidate: ApplicationCandidate,
+): Promise<CustomerStatusHistoryRow[]> {
+  let query
+  if (candidate.source === 'nadra') {
+    query = service
+      .from('nadra_status_history')
+      .select('new_status,changed_at')
+      .eq('nadra_service_id', candidate.internalId)
+      .eq('entry_type', 'status')
+  } else if (candidate.source === 'pak_passport') {
+    query = service
+      .from('pakistani_passport_status_history')
+      .select('new_status,changed_at')
+      .eq('passport_application_id', candidate.internalId)
+  } else if (candidate.source === 'gb_passport') {
+    query = service
+      .from('british_passport_status_history')
+      .select('new_status,changed_at')
+      .eq('passport_id', candidate.internalId)
+  } else {
+    return []
+  }
+  const { data, error } = await query.order('changed_at', { ascending: true })
+  if (error) return []
+  return (data ?? []) as CustomerStatusHistoryRow[]
 }
 
 function safeReferenceCandidates(input: string) {
@@ -320,10 +373,11 @@ export async function lookupCustomerApplication(trackingNumber: string, surname:
   const alias = await getOrCreateResourceAlias('application', candidate.internalId, {
     source: candidate.source,
   })
+  const statusHistory = await customerStatusHistory(service, candidate)
   return {
     candidate,
     publicId: alias.publicId,
-    summary: publicSummary(candidate, alias.publicId),
+    summary: publicSummary(candidate, alias.publicId, statusHistory),
   }
 }
 
@@ -415,10 +469,11 @@ export async function customerApplicationFromPublicId(publicId: string) {
     throw new CustomerIntegrationError('not_found', 'Application not found.', 404)
   }
   const candidate = await applicationByInternalId(source, alias.internalId)
+  const statusHistory = await customerStatusHistory(getServiceSupabaseClient(), candidate)
   return {
     candidate,
     publicId,
-    summary: publicSummary(candidate, publicId),
+    summary: publicSummary(candidate, publicId, statusHistory),
     contactEmail: candidate.applicant.email?.trim() ?? null,
   }
 }

@@ -475,42 +475,59 @@ export async function runPosMutation(
 }
 
 export async function lookupPosLoyaltyMember(rawCode: string) {
-  const customerCode = normalizeCustomerLoyaltyCode(rawCode)
+  let customerCode: string
+  try {
+    customerCode = normalizeCustomerLoyaltyCode(rawCode)
+  } catch {
+    throw new PosServerError('Scan a valid Piyam loyalty QR code.', 400, 'POS_LOYALTY_CODE_INVALID')
+  }
   const service = getServiceSupabaseClient()
-  const { data, error } = await service
+  const { data: member, error: memberError } = await service
     .from('mobile_users')
-    .select(
-      'id,customer_code,email,phone_number,customer_lifecycle_status,mobile_users_profile_link(applicants(first_name,last_name))',
-    )
+    .select('id,customer_code,email')
     .eq('customer_code', customerCode)
     .eq('customer_lifecycle_status', 'active')
     .maybeSingle()
-  if (error) throw error
-  if (!data)
+  if (memberError) {
+    console.error('POS loyalty lookup failed', {
+      code: memberError.code,
+      request: 'member',
+    })
+    throw new PosServerError(
+      'Loyalty lookup is temporarily unavailable.',
+      503,
+      'POS_LOYALTY_LOOKUP_UNAVAILABLE',
+    )
+  }
+  if (!member)
     throw new PosServerError('Active loyalty member not found.', 404, 'POS_LOYALTY_NOT_FOUND')
-  const profileLink = first(
-    data.mobile_users_profile_link as Related<{
-      applicants: Related<{ first_name: string | null; last_name: string | null }>
-    }>,
-  )
-  const applicant = first(profileLink?.applicants || null)
-  const name =
-    [applicant?.first_name, applicant?.last_name].filter(Boolean).join(' ') || 'Loyalty member'
-  const { data: awards, error: awardError } = await service
+
+  const { data: awards, error: awardsError } = await service
     .from('customer_loyalty_awards')
     .select('points,state')
-    .eq('mobile_user_id', data.id)
-  if (awardError) throw awardError
-  const availablePoints = (awards || [])
-    .filter((award) => award.state === 'available')
-    .reduce((sum, award) => sum + numeric(award.points), 0)
+    .eq('mobile_user_id', member.id)
+  if (awardsError) {
+    console.error('POS loyalty lookup failed', {
+      code: awardsError.code,
+      request: 'balance',
+    })
+    throw new PosServerError(
+      'Loyalty lookup is temporarily unavailable.',
+      503,
+      'POS_LOYALTY_LOOKUP_UNAVAILABLE',
+    )
+  }
+  const availablePoints = (awards || []).reduce(
+    (total, award) => (award.state === 'available' ? total + numeric(award.points) : total),
+    0,
+  )
   return {
-    id: data.id,
+    id: member.id,
     customerCode,
     maskedCode: `${customerCode.slice(0, 8)}••••${customerCode.slice(-2)}`,
-    name,
-    maskedEmail: data.email
-      ? data.email.replace(/^(.{1,2}).*(@.*)$/, '$1•••$2')
+    name: 'Loyalty member',
+    maskedEmail: member.email
+      ? member.email.replace(/^(.{1,2}).*(@.*)$/, '$1•••$2')
       : 'Email not recorded',
     availablePoints,
   }

@@ -25,6 +25,7 @@ import type {
   LoyaltyMember,
   LoyaltyMemberPayload,
 } from '@/lib/loyalty/contracts'
+import { LoyaltyProgramManager } from './LoyaltyProgramManager'
 
 type Props = {
   initialData: LoyaltyDashboardPayload | null
@@ -221,7 +222,7 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
             </div>
             <div className="flex gap-2 text-xs font-bold">
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700">
-                Earning active
+                Counter earning ready
               </span>
               <span className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700">
                 Rewards staged
@@ -332,6 +333,9 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
                 </article>
               ))}
             </div>
+            {canAdjust ? (
+              <LoyaltyProgramManager program={dashboard.program} campaigns={dashboard.campaigns} />
+            ) : null}
           </div>
         </section>
       ) : null}

@@ -445,7 +445,7 @@ export async function createCustomerAppointment(input: {
       customer_subject: input.customerSubject ?? null,
       tags: ['customer-portal'],
     })
-    .select('id,customer_public_reference')
+    .select('id,customer_public_reference,customer_guest_code')
     .single()
   if (bookingError || !booking) {
     throw new CustomerIntegrationError(
@@ -492,7 +492,7 @@ export async function createCustomerAppointment(input: {
     to: input.contactEmail,
     subject: 'Your appointment is confirmed',
     kind: 'confirmation',
-    template: `${serviceRow.confirmation_template?.trim() || defaultTemplate('confirmation')}\n\nManage your appointment securely: ${manageUrl}`,
+    template: `${serviceRow.confirmation_template?.trim() || defaultTemplate('confirmation')}\n\nYour guest code: ${booking.customer_guest_code}\nManage your appointment securely: ${manageUrl}`,
     customerName: input.contactName,
     serviceName: serviceRow.name,
     startTimeISO: slot.starts_at,
@@ -504,6 +504,107 @@ export async function createCustomerAppointment(input: {
     appointment: await bookingSummary(booking.id),
     managementGrant,
   }
+}
+
+export async function syncCustomerAppointments(input: {
+  customerSubject: string
+  verifiedEmail: string
+  knownGrantReferences: string[]
+}) {
+  const service = getServiceSupabaseClient()
+  const escapedEmail = input.verifiedEmail
+    .trim()
+    .toLocaleLowerCase('en-GB')
+    .replace(/[\\%_]/g, '\\$&')
+  const { data: matches, error } = await service
+    .from('bookings')
+    .select('id,customer_subject')
+    .ilike('customer_email', escapedEmail)
+    .order('start_time', { ascending: false })
+    .limit(100)
+  if (error)
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Appointments could not be matched.',
+      503,
+    )
+
+  const appointments = []
+  for (const match of matches ?? []) {
+    if (match.customer_subject && match.customer_subject !== input.customerSubject) continue
+    let newlyLinked = false
+    if (!match.customer_subject) {
+      const { data: linked } = await service
+        .from('bookings')
+        .update({ customer_subject: input.customerSubject })
+        .eq('id', match.id)
+        .is('customer_subject', null)
+        .select('id')
+        .maybeSingle()
+      if (!linked) continue
+      newlyLinked = true
+    }
+    const alias = await getOrCreateResourceAlias('appointment', match.id)
+    const grant =
+      newlyLinked || !input.knownGrantReferences.includes(alias.publicId)
+        ? await createCustomerAccessGrant({
+            resourceType: 'appointment',
+            internalId: match.id,
+            publicId: alias.publicId,
+            customerSubject: input.customerSubject,
+            scopes: ['read', 'manage'],
+            ttlSeconds: 365 * 24 * 60 * 60,
+            metadata: { source: 'verified_email_match' },
+          })
+        : null
+    appointments.push({
+      appointment: await bookingSummary(match.id),
+      managementGrant: grant,
+    })
+  }
+  return { appointments }
+}
+
+export async function claimCustomerAppointmentByGuestCode(input: {
+  customerSubject: string
+  guestCode: string
+}) {
+  const service = getServiceSupabaseClient()
+  const code = input.guestCode.trim().toUpperCase()
+  const { data: booking, error } = await service
+    .from('bookings')
+    .select('id,customer_subject')
+    .eq('customer_guest_code', code)
+    .maybeSingle()
+  if (
+    error ||
+    !booking ||
+    (booking.customer_subject && booking.customer_subject !== input.customerSubject)
+  ) {
+    throw new CustomerIntegrationError('not_found', 'The guest code could not be matched.', 404)
+  }
+  if (!booking.customer_subject) {
+    const { data: linked } = await service
+      .from('bookings')
+      .update({ customer_subject: input.customerSubject })
+      .eq('id', booking.id)
+      .is('customer_subject', null)
+      .select('id')
+      .maybeSingle()
+    if (!linked)
+      throw new CustomerIntegrationError('conflict', 'The appointment was linked elsewhere.', 409)
+  }
+  const alias = await getOrCreateResourceAlias('appointment', booking.id)
+  const grant = await createCustomerAccessGrant({
+    resourceType: 'appointment',
+    internalId: booking.id,
+    publicId: alias.publicId,
+    customerSubject: input.customerSubject,
+    scopes: ['read', 'manage'],
+    ttlSeconds: 365 * 24 * 60 * 60,
+    metadata: { source: 'guest_code' },
+  })
+  return { appointment: await bookingSummary(booking.id), managementGrant: grant }
 }
 
 export async function customerAppointmentByReference(publicReference: string, grantToken: string) {

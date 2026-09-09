@@ -1,7 +1,62 @@
-export type LoyaltyProgramPolicy = typeof LOYALTY_PROGRAM_POLICY
+export type LoyaltyProgramPolicy = {
+  name: string
+  programYearStartsOn: string
+  pointValidityMonths: number
+  voucherValidityMonths: number
+  earningRules: Array<{
+    key: string
+    label: string
+    points: number
+    unit: string
+    isActive?: boolean
+  }>
+  voucherRewards: Array<{
+    points: number
+    valuePence: number
+    validityMonths?: number
+    isActive?: boolean
+  }>
+  bonusEventOptions: Array<{
+    key: string
+    label: string
+    suggestedAward: string
+    description: string
+    defaultCustomerCap: number
+  }>
+  ranks: Array<{
+    name: string
+    minimumPoints: number
+    maximumPoints: number | null
+    maintenancePoints: number
+  }>
+  rankReview: {
+    reviewMonths: number
+    demotionSteps: number
+    retainedBalanceLossNumerator: number
+    retainedBalanceLossDenominator: number
+    currentReviewPeriodPointsProtected: boolean
+  }
+  redemptionRules: {
+    oneVoucherPerTransaction: boolean
+    noCashValue: boolean
+    noChangeOrRefundOnUnusedValue: boolean
+    pointsDeductedWhenVoucherIssued: boolean
+    expiredVouchersDoNotRestorePoints: boolean
+  }
+  exclusions: readonly string[]
+  operationalNotes: readonly string[]
+  rollout: {
+    earningActive: boolean
+    expiryActive: boolean
+    voucherIssuanceActive: boolean
+    voucherRedemptionActive: boolean
+    rankReviewActive: boolean
+  }
+}
 
 export const LOYALTY_PROGRAM_POLICY = {
   name: 'Piyam Loyalty Program',
+  programYearStartsOn: '01 Jan',
   pointValidityMonths: 12,
   voucherValidityMonths: 6,
   earningRules: [
@@ -129,4 +184,4 @@ export const LOYALTY_PROGRAM_POLICY = {
     voucherRedemptionActive: false,
     rankReviewActive: false,
   },
-} as const
+} as const satisfies LoyaltyProgramPolicy

@@ -6,7 +6,7 @@ import {
   CreateBookingRequest,
   CreateBookingResponse,
 } from '@/app/types/bookings'
-import { sendBookingEmail } from '@/lib/bookingEmail'
+import { defaultTemplate, sendBookingEmail } from '@/lib/bookingEmail'
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
 import {
   defaultReminderSettings,
@@ -878,7 +878,7 @@ export async function POST(request: NextRequest) {
       to: customer_email,
       subject: deriveBookingEmailSubject({ kind: 'confirmation' }),
       kind: 'confirmation',
-      template: service.confirmation_template,
+      template: `${service.confirmation_template?.trim() || defaultTemplate('confirmation')}\n\nYour customer portal guest code: ${newBooking.customer_guest_code}`,
       customerName: customer_name,
       serviceName: service.name,
       startTimeISO: start_time,

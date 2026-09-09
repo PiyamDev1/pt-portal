@@ -7,7 +7,7 @@ import type {
   LoyaltyMember,
   LoyaltyMemberPayload,
 } from './contracts'
-import { LOYALTY_PROGRAM_POLICY } from './program'
+import { loadLoyaltyProgramConfiguration } from './programServer'
 
 type Related<T> = T | T[] | null
 
@@ -70,9 +70,10 @@ export async function loadLoyaltyDashboard(
     memberQuery = memberQuery.ilike('search_text', `%${literalSearch}%`)
   }
 
-  const [overviewResult, memberResult] = await Promise.all([
+  const [overviewResult, memberResult, programConfiguration] = await Promise.all([
     service.from('customer_loyalty_staff_overview').select('*').single(),
     memberQuery,
+    loadLoyaltyProgramConfiguration(),
   ])
   if (overviewResult.error || memberResult.error) {
     throw new Error('Unable to load loyalty data.')
@@ -87,7 +88,7 @@ export async function loadLoyaltyDashboard(
       entriesLast30Days: numberValue(overview.entries_last_30_days),
     },
     members: (memberResult.data || []).map(mapMember),
-    tiers: LOYALTY_PROGRAM_POLICY.ranks.map((tier) => ({
+    tiers: programConfiguration.program.ranks.map((tier) => ({
       name: tier.name,
       minimumPoints: tier.minimumPoints,
       multiplier: 1,
@@ -95,8 +96,26 @@ export async function loadLoyaltyDashboard(
     totalMembers: memberResult.count || 0,
     canAdjust,
     loadedAt: new Date().toISOString(),
-    program: LOYALTY_PROGRAM_POLICY,
+    program: programConfiguration.program,
+    campaigns: programConfiguration.campaigns,
   }
+}
+
+export async function manageLoyaltyProgram(input: {
+  actorEmployeeId: string
+  action: string
+  request: Record<string, unknown>
+}) {
+  const { data, error } = await getServiceSupabaseClient().rpc(
+    'customer_loyalty_manage_program_v1',
+    {
+      p_actor_employee_id: input.actorEmployeeId,
+      p_action: input.action,
+      p_request: input.request,
+    },
+  )
+  if (error) throw new Error('Unable to save the loyalty program change.')
+  return data
 }
 
 export async function loadLoyaltyMember(memberId: string): Promise<LoyaltyMemberPayload | null> {
