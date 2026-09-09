@@ -26,6 +26,7 @@ export type DashboardModule = {
     | 'file-text'
     | 'fingerprint'
     | 'graduation'
+    | 'gift'
     | 'heart'
     | 'package-travel'
     | 'plane'
@@ -136,6 +137,18 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     iconTone: 'from-amber-400 via-orange-600 to-[#8b1e2d] text-white shadow-orange-900/25',
     tileTone: 'from-amber-50 via-white to-red-100',
     iconKey: 'pos-register',
+  },
+  {
+    id: 'loyalty',
+    title: 'Loyalty',
+    desc: 'Customer points, balances and earning history',
+    href: '/dashboard/loyalty',
+    group: 'operations',
+    allowedRoles: ['Admin', 'Master Admin', 'Super Admin'],
+    accent: 'from-[#6f1422] to-[#a32234] text-white',
+    iconTone: 'from-[#6f1422] via-[#8b1e2d] to-[#c43b42] text-white shadow-red-950/25',
+    tileTone: 'from-red-50 via-white to-rose-100',
+    iconKey: 'gift',
   },
   {
     id: 'gb-passport',

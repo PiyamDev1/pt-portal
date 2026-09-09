@@ -112,7 +112,11 @@ export async function customerLoyaltySummary(input: {
 }) {
   const mobileUserId = await customerMobileUser(input)
   const service = getServiceSupabaseClient()
-  const [{ data: awards, error }, { data: tiers }] = await Promise.all([
+  const [
+    { data: awards, error },
+    { data: balance, error: balanceError },
+    { data: tiers },
+  ] = await Promise.all([
     service
       .from('customer_loyalty_awards')
       .select('id,source_type,description,points,state,created_at')
@@ -120,11 +124,16 @@ export async function customerLoyaltySummary(input: {
       .order('created_at', { ascending: false })
       .limit(200),
     service
+      .from('customer_loyalty_staff_member_summary')
+      .select('available_points,pending_points')
+      .eq('id', mobileUserId)
+      .single(),
+    service
       .from('loyalty_tiers')
       .select('tier_name,min_points_threshold')
       .order('min_points_threshold', { ascending: false }),
   ])
-  if (error)
+  if (error || balanceError)
     throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)
   const entries = (awards ?? []).map((award) => ({
     entryId: customerLoyaltyEntryId(award.id),
@@ -134,12 +143,10 @@ export async function customerLoyaltySummary(input: {
     state: award.state as 'pending' | 'available' | 'reversed',
     sourceType: award.source_type as LoyaltySource,
   }))
-  const pendingPoints = entries
-    .filter((entry) => entry.state === 'pending')
-    .reduce((sum, entry) => sum + entry.points, 0)
-  const availablePoints = entries
-    .filter((entry) => entry.state === 'available')
-    .reduce((sum, entry) => sum + entry.points, 0)
+  // The history is deliberately capped for payload size, but balances are
+  // aggregated by Postgres across the complete immutable award stream.
+  const pendingPoints = Number(balance.pending_points || 0)
+  const availablePoints = Number(balance.available_points || 0)
   const tier = (tiers ?? []).find(
     (candidate) => availablePoints >= Number(candidate.min_points_threshold),
   )?.tier_name
