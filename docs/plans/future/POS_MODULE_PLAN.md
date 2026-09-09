@@ -1,6 +1,6 @@
 # POS Daily Transaction Module Plan
 
-**Status:** Implementation complete in application code — controlled production migration pending
+**Status:** Implemented and deployed to production
 **Module:** Point of Sale (POS) / branch daily transactions
 **Proposed route:** `/dashboard/pos`
 
@@ -17,8 +17,8 @@ module is built.
 - `supabase/migrations/20260908214024_pos_module_complete.sql` supplies the normalized append-only POS
   model, indexes, forced RLS, restricted grants, service-only atomic functions, idempotency records,
   audit events, reference generation, loyalty lifecycle integration, supplier balances, and seed catalogue.
-- The application checks POS capability version `2026090801`. Until that capability is installed it keeps
-  the existing legacy ledger available read-only and visibly disables money writes.
+- The application checks POS capability version `2026090801`. Production reported that capability ready
+  after the controlled migration rollout on 9 September 2026.
 - Every API derives the authenticated employee and branch server-side, uses strict bounded schemas,
   private/no-store responses, and rate limiting. Manager-only operations require a fresh TOTP or backup
   code where specified.
@@ -26,9 +26,9 @@ module is built.
   back cleanly, installs it, and exercises split cash impact, retry idempotency, source enforcement,
   supplier deposits/use, reserve transfers, refunds and proportional points reversal, immutable rows,
   corrections, imports, and independent closeout approval.
-- Production deployment is deliberately pending because Supabase migration history also contains two
-  older unapplied Ticketing migrations. Apply all three together only after reviewing that deployment
-  scope; application code is safe to deploy first because of the capability gate.
+- Production deployment applied the two reviewed pending Ticketing migrations followed by the POS
+  migration on 9 September 2026. Local and remote migration histories are aligned, and a post-deployment
+  dry run reports no pending migrations.
 
 ## 1. Product Boundary
 
