@@ -49,6 +49,8 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
         'welcome_bonus',
         'referral_bonus',
         'off_peak_bonus',
+        'birthday_gift',
+        'eid_gift',
       ]),
       multiplier: z.number().min(1.01).max(20).nullable(),
       bonusPoints: z.number().int().min(1).max(100_000).nullable(),

@@ -706,3 +706,56 @@ html[data-device-layout='mobile'] .applications-activity-row {
   accent-color: #7f1d2d;
   margin-top: 2px;
 }
+
+@keyframes portal-error-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes portal-error-breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.portal-error-orbit {
+  position: relative;
+  width: 8rem;
+  height: 8rem;
+  display: grid;
+  place-items: center;
+}
+
+.portal-error-orbit__ring {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgb(127 29 45 / 35%);
+  border-radius: 999px;
+  animation: portal-error-orbit 9s linear infinite;
+}
+
+.portal-error-orbit__logo {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: contain;
+  animation: portal-error-breathe 2.2s ease-in-out infinite;
+}
+
+.portal-error-orbit__dot {
+  position: absolute;
+  top: 0.35rem;
+  left: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: #7f1d2d;
+  box-shadow: 0 0 0 0.35rem rgb(127 29 45 / 12%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-error-orbit__ring,
+  .portal-error-orbit__logo {
+    animation: none;
+  }
+}

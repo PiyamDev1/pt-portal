@@ -12,13 +12,22 @@ export function customerLoyaltyEntryId(internalId: string) {
   return `loy_${createHash('sha256').update(internalId).digest('base64url').slice(0, 24)}`
 }
 
-async function customerMobileUser(input: {
+export async function customerMobileUser(input: {
   customerSubject: string
   customerCode: string
   email: string
+  birthdayRewardMonth?: number | null
+  birthdayRewardDay?: number | null
 }) {
   const service = getServiceSupabaseClient()
   const normalizedEmail = input.email.trim().toLocaleLowerCase('en-GB')
+  const birthdayFields =
+    input.birthdayRewardMonth === undefined && input.birthdayRewardDay === undefined
+      ? {}
+      : {
+          birthday_reward_month: input.birthdayRewardMonth ?? null,
+          birthday_reward_day: input.birthdayRewardDay ?? null,
+        }
   const { data: subjectMatch, error: subjectLookupError } = await service
     .from('mobile_users')
     .select('id,email,external_customer_subject,customer_code')
@@ -37,6 +46,7 @@ async function customerMobileUser(input: {
         customer_code: input.customerCode,
         email: normalizedEmail,
         customer_lifecycle_status: 'active',
+        ...birthdayFields,
       })
       .eq('id', subjectMatch.id)
     if (updateError) {
@@ -83,6 +93,7 @@ async function customerMobileUser(input: {
         customer_code: input.customerCode,
         email: normalizedEmail,
         customer_lifecycle_status: 'active',
+        ...birthdayFields,
       })
       .eq('id', existing.id)
     if (error)
@@ -98,6 +109,7 @@ async function customerMobileUser(input: {
       external_customer_subject: input.customerSubject,
       customer_code: input.customerCode,
       customer_lifecycle_status: 'active',
+      ...birthdayFields,
     })
     .select('id')
     .single()
@@ -128,6 +140,12 @@ export async function deactivateCustomerLoyaltyAccount(input: {
       503,
     )
   }
+  if (data) {
+    await getServiceSupabaseClient()
+      .from('customer_loyalty_referral_codes')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('mobile_user_id', data.id)
+  }
   return { loyaltyAccountDeactivated: Boolean(data) }
 }
 
@@ -135,26 +153,48 @@ export async function customerLoyaltySummary(input: {
   customerSubject: string
   customerCode: string
   email: string
+  birthdayRewardMonth?: number | null
+  birthdayRewardDay?: number | null
 }) {
   const mobileUserId = await customerMobileUser(input)
   const service = getServiceSupabaseClient()
-  const [{ data: awards, error }, { data: balance, error: balanceError }, configuration] =
-    await Promise.all([
-      service
-        .from('customer_loyalty_awards')
-        .select('id,source_type,description,points,state,created_at,activated_at')
-        .eq('mobile_user_id', mobileUserId)
-        .order('created_at', { ascending: false })
-        .limit(200),
-      service
-        .from('customer_loyalty_staff_member_summary')
-        .select('available_points,pending_points')
-        .eq('id', mobileUserId)
-        .single(),
-      loadLoyaltyProgramConfiguration(),
-    ])
+  const [
+    { data: awards, error },
+    { data: balance, error: balanceError },
+    { data: vouchers, error: voucherError },
+    { data: referralRows, error: referralError },
+    { data: referralCode, error: referralCodeError },
+    configuration,
+  ] = await Promise.all([
+    service
+      .from('customer_loyalty_awards')
+      .select('id,source_type,description,points,state,created_at,activated_at')
+      .eq('mobile_user_id', mobileUserId)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    service
+      .from('customer_loyalty_staff_member_summary')
+      .select('available_points,pending_points')
+      .eq('id', mobileUserId)
+      .single(),
+    service
+      .from('customer_loyalty_vouchers')
+      .select('id,voucher_code,points_cost,value_pence,status,issued_at,expires_at,redeemed_at')
+      .eq('mobile_user_id', mobileUserId)
+      .order('issued_at', { ascending: false })
+      .limit(100),
+    service
+      .from('customer_loyalty_referrals')
+      .select('status')
+      .eq('referrer_mobile_user_id', mobileUserId),
+    service.rpc('customer_loyalty_ensure_referral_code_v1', {
+      p_mobile_user_id: mobileUserId,
+    }),
+    loadLoyaltyProgramConfiguration(),
+  ])
   if (error || balanceError)
     throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)
+  const rewardsReady = !voucherError && !referralError && !referralCodeError
   const entries = (awards ?? []).map((award) => ({
     entryId: customerLoyaltyEntryId(award.id),
     occurredAt: new Date(award.created_at).toISOString(),
@@ -196,10 +236,127 @@ export async function customerLoyaltySummary(input: {
     availablePoints: Math.max(0, availablePoints),
     expiringPoints: Math.max(0, expiringPoints),
     nextExpiryAt: nextExpiryAt?.toISOString() ?? null,
-    redemptionEnabled: false as const,
-    expiryEnabled: false as const,
+    redemptionEnabled: rewardsReady,
+    expiryEnabled: configuration.program.rollout.expiryActive,
     program: configuration.program,
+    vouchers: rewardsReady
+      ? (vouchers ?? []).map((voucher) => ({
+          voucherId: voucher.id,
+          code: voucher.voucher_code,
+          pointsCost: Number(voucher.points_cost),
+          valuePence: Number(voucher.value_pence),
+          status: voucher.status,
+          issuedAt: new Date(voucher.issued_at).toISOString(),
+          expiresAt: new Date(voucher.expires_at).toISOString(),
+          redeemedAt: voucher.redeemed_at ? new Date(voucher.redeemed_at).toISOString() : null,
+        }))
+      : [],
+    referral: rewardsReady
+      ? {
+          referralCode: String(referralCode),
+          authenticatedReferrals: (referralRows ?? []).filter((row) =>
+            ['authenticated', 'rewarded'].includes(row.status),
+          ).length,
+          rewardedReferrals: (referralRows ?? []).filter((row) => row.status === 'rewarded').length,
+        }
+      : null,
     entries,
     updatedAt: new Date().toISOString(),
+  }
+}
+
+export async function onboardCustomerLoyalty(input: {
+  customerSubject: string
+  customerCode: string
+  email: string
+  birthdayRewardMonth: number | null
+  birthdayRewardDay: number | null
+  referralCode: string | null
+  accountCreatedAt: string
+}) {
+  const mobileUserId = await customerMobileUser(input)
+  let referral = { status: 'not_supplied', bonusAwarded: false }
+  if (input.referralCode) {
+    const accountAge = Date.now() - Date.parse(input.accountCreatedAt)
+    if (!Number.isFinite(accountAge) || accountAge > 7 * 24 * 60 * 60 * 1000) {
+      throw new CustomerIntegrationError(
+        'conflict',
+        'Referral links are for new customer accounts.',
+        409,
+      )
+    }
+    const { data, error } = await getServiceSupabaseClient().rpc(
+      'customer_loyalty_accept_referral_v1',
+      {
+        p_referral_code: input.referralCode,
+        p_referred_mobile_user_id: mobileUserId,
+      },
+    )
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('not found')) {
+        throw new CustomerIntegrationError('not_found', 'Referral link is not valid.', 404)
+      }
+      if (message.includes('themselves') || message.includes('different referrer')) {
+        throw new CustomerIntegrationError('conflict', 'This referral cannot be applied.', 409)
+      }
+      throw new CustomerIntegrationError(
+        'service_unavailable',
+        'Referral could not be applied.',
+        503,
+      )
+    }
+    referral = data as typeof referral
+  }
+  const { data: referralCode, error } = await getServiceSupabaseClient().rpc(
+    'customer_loyalty_ensure_referral_code_v1',
+    { p_mobile_user_id: mobileUserId },
+  )
+  if (error) {
+    throw new CustomerIntegrationError('service_unavailable', 'Referral could not be loaded.', 503)
+  }
+  return { referralCode: String(referralCode), referral }
+}
+
+export async function issueCustomerLoyaltyVoucher(input: {
+  customerSubject: string
+  customerCode: string
+  email: string
+  pointsCost: number
+  idempotencyKey: string
+}) {
+  const mobileUserId = await customerMobileUser(input)
+  const { data, error } = await getServiceSupabaseClient().rpc(
+    'customer_loyalty_issue_voucher_v1',
+    {
+      p_mobile_user_id: mobileUserId,
+      p_points_cost: input.pointsCost,
+      p_idempotency_key: input.idempotencyKey,
+    },
+  )
+  if (error || !data) {
+    const message = error?.message.toLowerCase() ?? ''
+    if (message.includes('insufficient')) {
+      throw new CustomerIntegrationError(
+        'conflict',
+        'You do not have enough available points.',
+        409,
+      )
+    }
+    if (message.includes('unavailable')) {
+      throw new CustomerIntegrationError('not_found', 'That voucher reward is unavailable.', 404)
+    }
+    throw new CustomerIntegrationError('service_unavailable', 'Voucher could not be issued.', 503)
+  }
+  const voucher = data as Record<string, unknown>
+  return {
+    voucherId: String(voucher.id),
+    code: String(voucher.voucher_code),
+    pointsCost: Number(voucher.points_cost),
+    valuePence: Number(voucher.value_pence),
+    status: String(voucher.status),
+    issuedAt: new Date(String(voucher.issued_at)).toISOString(),
+    expiresAt: new Date(String(voucher.expires_at)).toISOString(),
+    redeemedAt: voucher.redeemed_at ? new Date(String(voucher.redeemed_at)).toISOString() : null,
   }
 }

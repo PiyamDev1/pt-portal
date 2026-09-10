@@ -142,6 +142,22 @@ export const LOYALTY_PROGRAM_POLICY = {
       description: 'A branch, service or time-window incentive with a defined campaign budget.',
       defaultCustomerCap: 100,
     },
+    {
+      key: 'birthday_gift',
+      label: 'Birthday gift',
+      suggestedAward: '+100 points',
+      description:
+        'Automatically awarded once during an active birthday campaign to opted-in members.',
+      defaultCustomerCap: 100,
+    },
+    {
+      key: 'eid_gift',
+      label: 'Eid gift',
+      suggestedAward: '+100 points',
+      description:
+        'Automatically awarded once to active members during the configured Eid campaign window.',
+      defaultCustomerCap: 100,
+    },
   ],
   ranks: [
     { name: 'Bronze', minimumPoints: 0, maximumPoints: 1_000, maintenancePoints: 0 },
@@ -180,8 +196,8 @@ export const LOYALTY_PROGRAM_POLICY = {
   rollout: {
     earningActive: true,
     expiryActive: false,
-    voucherIssuanceActive: false,
-    voucherRedemptionActive: false,
+    voucherIssuanceActive: true,
+    voucherRedemptionActive: true,
     rankReviewActive: false,
   },
 } as const satisfies LoyaltyProgramPolicy

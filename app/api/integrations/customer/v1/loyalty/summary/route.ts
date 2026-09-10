@@ -14,6 +14,8 @@ const inputSchema = z
       .string()
       .regex(/^PYM-[23456789A-HJ-NP-Z]{4}-[23456789A-HJ-NP-Z]{4}-[23456789A-HJ-NP-Z]$/),
     email: z.string().email(),
+    birthdayRewardMonth: z.number().int().min(1).max(12).nullable().optional(),
+    birthdayRewardDay: z.number().int().min(1).max(31).nullable().optional(),
   })
   .strict()
 

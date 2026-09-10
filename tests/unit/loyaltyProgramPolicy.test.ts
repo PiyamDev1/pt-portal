@@ -54,20 +54,22 @@ describe('loyalty program policy', () => {
     ])
   })
 
-  it('offers bounded bonus event templates without activating rewards prematurely', () => {
+  it('offers bounded bonus events and enables customer voucher redemption', () => {
     expect(LOYALTY_PROGRAM_POLICY.bonusEventOptions.map((option) => option.key)).toEqual([
       'double_points',
       'fixed_bonus',
       'welcome_bonus',
       'referral_bonus',
       'off_peak_bonus',
+      'birthday_gift',
+      'eid_gift',
     ])
     expect(LOYALTY_PROGRAM_POLICY.operationalNotes.join(' ')).toContain('a non-stacking rule')
     expect(LOYALTY_PROGRAM_POLICY.rollout).toMatchObject({
       earningActive: true,
       expiryActive: false,
-      voucherIssuanceActive: false,
-      voucherRedemptionActive: false,
+      voucherIssuanceActive: true,
+      voucherRedemptionActive: true,
       rankReviewActive: false,
     })
   })

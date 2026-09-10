@@ -6,7 +6,14 @@ import { LOYALTY_PROGRAM_POLICY, type LoyaltyProgramPolicy } from './program'
 export type LoyaltyBonusCampaign = {
   id: string
   name: string
-  eventType: string
+  eventType:
+    | 'double_points'
+    | 'fixed_bonus'
+    | 'welcome_bonus'
+    | 'referral_bonus'
+    | 'off_peak_bonus'
+    | 'birthday_gift'
+    | 'eid_gift'
   multiplier: number | null
   bonusPoints: number | null
   referredCustomerPoints: number | null

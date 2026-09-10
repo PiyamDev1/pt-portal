@@ -65,6 +65,7 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
   const adjustmentKey = useRef<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview')
 
   async function loadDashboard(nextSearch = search) {
     setLoading(true)
@@ -206,7 +207,30 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
         })}
       </section>
 
-      {dashboard?.program ? (
+      <nav
+        aria-label="Loyalty sections"
+        className="flex w-fit rounded-2xl border border-slate-200 bg-white p-1 shadow-sm"
+      >
+        {(['overview', 'settings'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            aria-current={activeTab === tab ? 'page' : undefined}
+            className={`min-h-11 rounded-xl px-4 text-sm font-black capitalize ${
+              activeTab === tab ? 'bg-[#7f1d2d] text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'settings' && dashboard?.program && canAdjust ? (
+        <LoyaltyProgramManager program={dashboard.program} campaigns={dashboard.campaigns} />
+      ) : null}
+
+      {activeTab === 'overview' && dashboard?.program ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -333,133 +357,132 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
                 </article>
               ))}
             </div>
-            {canAdjust ? (
-              <LoyaltyProgramManager program={dashboard.program} campaigns={dashboard.campaigns} />
-            ) : null}
           </div>
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-4 sm:p-5">
-          <form onSubmit={submitSearch} className="flex flex-col gap-3 sm:flex-row">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search loyalty members</span>
-              <Search
-                className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-slate-400"
-                aria-hidden="true"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                maxLength={100}
-                placeholder="Search code, name, email or phone"
-                className="min-h-12 w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-3 text-base outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-              />
-            </label>
-            <button
-              disabled={loading}
-              className="min-h-12 rounded-xl bg-[#7f1d2d] px-5 font-bold text-white hover:bg-[#651724] disabled:opacity-60"
-            >
-              {loading ? 'Searching…' : 'Search'}
-            </button>
-          </form>
-          <p className="mt-3 text-xs text-slate-500">
-            Showing {dashboard?.members.length || 0} of {dashboard?.totalMembers || 0} matching
-            members.
-          </p>
-        </div>
+      {activeTab === 'overview' ? (
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-4 sm:p-5">
+            <form onSubmit={submitSearch} className="flex flex-col gap-3 sm:flex-row">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search loyalty members</span>
+                <Search
+                  className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-slate-400"
+                  aria-hidden="true"
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  maxLength={100}
+                  placeholder="Search code, name, email or phone"
+                  className="min-h-12 w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-3 text-base outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                />
+              </label>
+              <button
+                disabled={loading}
+                className="min-h-12 rounded-xl bg-[#7f1d2d] px-5 font-bold text-white hover:bg-[#651724] disabled:opacity-60"
+              >
+                {loading ? 'Searching…' : 'Search'}
+              </button>
+            </form>
+            <p className="mt-3 text-xs text-slate-500">
+              Showing {dashboard?.members.length || 0} of {dashboard?.totalMembers || 0} matching
+              members.
+            </p>
+          </div>
 
-        <div className="divide-y divide-slate-100 md:hidden">
-          {(dashboard?.members || []).map((member) => (
-            <button
-              key={member.id}
-              type="button"
-              onClick={() => void openMember(member)}
-              className="w-full p-4 text-left transition hover:bg-slate-50"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-black">{member.name}</p>
-                  <p className="mt-1 font-mono text-xs font-bold text-[#7f1d2d]">
-                    {member.customerCode}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">{member.email}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-lg font-black">{points(member.availablePoints)}</p>
-                  <p className="text-xs text-slate-500">available</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2 text-xs font-semibold">
-                <span
-                  className={`rounded-full px-2 py-1 ${member.portalLinked ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}
-                >
-                  {member.portalLinked ? 'Portal linked' : 'Not linked'}
-                </span>
-                {member.pendingPoints ? (
-                  <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">
-                    {points(member.pendingPoints)} pending
-                  </span>
-                ) : null}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[780px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-5 py-3">Customer</th>
-                <th className="px-5 py-3">Portal</th>
-                <th className="px-5 py-3 text-right">Available</th>
-                <th className="px-5 py-3 text-right">Pending</th>
-                <th className="px-5 py-3">Last activity</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {(dashboard?.members || []).map((member) => (
-                <tr
-                  key={member.id}
-                  onClick={() => void openMember(member)}
-                  className="cursor-pointer hover:bg-red-50/40"
-                >
-                  <td className="px-5 py-4">
-                    <p className="font-bold">{member.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {member.customerCode} · {member.email}
+          <div className="divide-y divide-slate-100 md:hidden">
+            {(dashboard?.members || []).map((member) => (
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => void openMember(member)}
+                className="w-full p-4 text-left transition hover:bg-slate-50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-black">{member.name}</p>
+                    <p className="mt-1 font-mono text-xs font-bold text-[#7f1d2d]">
+                      {member.customerCode}
                     </p>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={
-                        member.portalLinked ? 'font-bold text-emerald-700' : 'text-slate-500'
-                      }
-                    >
-                      {member.portalLinked ? 'Linked' : 'Not linked'}
+                    <p className="mt-1 truncate text-xs text-slate-500">{member.email}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-black">{points(member.availablePoints)}</p>
+                    <p className="text-xs text-slate-500">available</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs font-semibold">
+                  <span
+                    className={`rounded-full px-2 py-1 ${member.portalLinked ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}
+                  >
+                    {member.portalLinked ? 'Portal linked' : 'Not linked'}
+                  </span>
+                  {member.pendingPoints ? (
+                    <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">
+                      {points(member.pendingPoints)} pending
                     </span>
-                  </td>
-                  <td className="px-5 py-4 text-right font-black">
-                    {points(member.availablePoints)}
-                  </td>
-                  <td className="px-5 py-4 text-right">{points(member.pendingPoints)}</td>
-                  <td className="px-5 py-4 text-slate-500">
-                    {member.lastActivityAt
-                      ? dateFormat.format(new Date(member.lastActivityAt))
-                      : 'No activity'}
-                  </td>
+                  ) : null}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[780px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Customer</th>
+                  <th className="px-5 py-3">Portal</th>
+                  <th className="px-5 py-3 text-right">Available</th>
+                  <th className="px-5 py-3 text-right">Pending</th>
+                  <th className="px-5 py-3">Last activity</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!dashboard?.members.length ? (
-          <p className="p-8 text-center text-sm text-slate-500">
-            No loyalty members match this search.
-          </p>
-        ) : null}
-      </section>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(dashboard?.members || []).map((member) => (
+                  <tr
+                    key={member.id}
+                    onClick={() => void openMember(member)}
+                    className="cursor-pointer hover:bg-red-50/40"
+                  >
+                    <td className="px-5 py-4">
+                      <p className="font-bold">{member.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {member.customerCode} · {member.email}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={
+                          member.portalLinked ? 'font-bold text-emerald-700' : 'text-slate-500'
+                        }
+                      >
+                        {member.portalLinked ? 'Linked' : 'Not linked'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right font-black">
+                      {points(member.availablePoints)}
+                    </td>
+                    <td className="px-5 py-4 text-right">{points(member.pendingPoints)}</td>
+                    <td className="px-5 py-4 text-slate-500">
+                      {member.lastActivityAt
+                        ? dateFormat.format(new Date(member.lastActivityAt))
+                        : 'No activity'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!dashboard?.members.length ? (
+            <p className="p-8 text-center text-sm text-slate-500">
+              No loyalty members match this search.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {detailLoading ? (
         <div

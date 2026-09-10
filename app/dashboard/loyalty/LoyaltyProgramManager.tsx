@@ -8,7 +8,7 @@ import type { LoyaltyDashboardPayload } from '@/lib/loyalty/contracts'
 type Props = Pick<LoyaltyDashboardPayload, 'program' | 'campaigns'>
 
 const inputClass =
-  'min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#7f1d2d] focus:ring-2 focus:ring-red-100'
+  'min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#7f1d2d] focus:ring-2 focus:ring-red-100'
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium',
@@ -100,8 +100,8 @@ export function LoyaltyProgramManager({
           <h3 className="font-black">Program controls</h3>
           <p className="mt-1 text-xs leading-5 text-slate-600">
             Update earning values and voucher rewards, or define a bounded bonus event. Campaign
-            definitions are saved and audited; automated bonus awarding remains off until the award
-            processor is enabled.
+            definitions are saved and audited. Birthday and Eid campaigns are awarded by the daily
+            processor while their configured window is active.
           </p>
         </div>
       </div>
@@ -142,15 +142,18 @@ export function LoyaltyProgramManager({
                 className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3"
               >
                 <span className="min-w-40 flex-1 text-sm font-bold">{rule.label}</span>
-                <input
-                  aria-label={`${rule.label} points`}
-                  name="points"
-                  type="number"
-                  min="1"
-                  max="100000"
-                  defaultValue={rule.points}
-                  className={`${inputClass} w-24 text-right font-black`}
-                />
+                <label className="w-20 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  Points
+                  <input
+                    aria-label={`${rule.label} points`}
+                    name="points"
+                    type="number"
+                    min="1"
+                    max="100000"
+                    defaultValue={rule.points}
+                    className={`${inputClass} mt-1 w-20 text-right font-black`}
+                  />
+                </label>
                 <label className="flex min-h-11 items-center gap-1 text-xs font-semibold">
                   <input name="isActive" type="checkbox" defaultChecked={rule.isActive !== false} />{' '}
                   Active
@@ -189,19 +192,23 @@ export function LoyaltyProgramManager({
                 <span className="text-sm font-bold">
                   {reward.points.toLocaleString('en-GB')} pts
                 </span>
-                <label className="relative">
-                  <span className="absolute left-2 top-3 text-xs">£</span>
-                  <input
-                    aria-label={`${reward.points} point voucher value`}
-                    name="valuePounds"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    defaultValue={(reward.valuePence / 100).toFixed(2)}
-                    className={`${inputClass} pl-5`}
-                  />
+                <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  Value
+                  <span className="relative mt-1 block">
+                    <span className="absolute left-2 top-3 text-xs">£</span>
+                    <input
+                      aria-label={`${reward.points} point voucher value`}
+                      name="valuePounds"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      defaultValue={(reward.valuePence / 100).toFixed(2)}
+                      className={`${inputClass} w-full pl-5`}
+                    />
+                  </span>
                 </label>
-                <label className="relative">
+                <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  Months
                   <input
                     aria-label={`${reward.points} point voucher validity months`}
                     name="validityMonths"
@@ -209,9 +216,8 @@ export function LoyaltyProgramManager({
                     min="1"
                     max="36"
                     defaultValue={reward.validityMonths ?? 6}
-                    className={inputClass}
+                    className={`${inputClass} mt-1 w-full`}
                   />
-                  <span className="sr-only">months</span>
                 </label>
                 <button
                   aria-label={`Save ${reward.points} point voucher`}
@@ -282,7 +288,7 @@ export function LoyaltyProgramManager({
                 required
                 name="name"
                 defaultValue={editing?.name ?? ''}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -290,13 +296,15 @@ export function LoyaltyProgramManager({
               <select
                 name="eventType"
                 defaultValue={editing?.eventType ?? 'double_points'}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               >
                 <option value="double_points">Double points</option>
                 <option value="fixed_bonus">Fixed bonus</option>
                 <option value="welcome_bonus">Welcome bonus</option>
                 <option value="referral_bonus">Referral bonus</option>
                 <option value="off_peak_bonus">Off-peak bonus</option>
+                <option value="birthday_gift">Birthday gift</option>
+                <option value="eid_gift">Eid gift</option>
               </select>
             </label>
             <label className="text-xs font-bold">
@@ -308,7 +316,7 @@ export function LoyaltyProgramManager({
                 max="20"
                 step="0.01"
                 defaultValue={editing?.multiplier ?? 2}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -318,7 +326,7 @@ export function LoyaltyProgramManager({
                 type="number"
                 min="1"
                 defaultValue={editing?.bonusPoints ?? 50}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -328,7 +336,7 @@ export function LoyaltyProgramManager({
                 type="number"
                 min="1"
                 defaultValue={editing?.referredCustomerPoints ?? 100}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -336,7 +344,7 @@ export function LoyaltyProgramManager({
               <select
                 name="status"
                 defaultValue={editing?.status ?? 'draft'}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               >
                 <option value="draft">Draft</option>
                 <option value="scheduled">Scheduled</option>
@@ -352,7 +360,7 @@ export function LoyaltyProgramManager({
                 name="startsAt"
                 type="datetime-local"
                 defaultValue={localDateTime(editing?.startsAt)}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -362,7 +370,7 @@ export function LoyaltyProgramManager({
                 name="endsAt"
                 type="datetime-local"
                 defaultValue={localDateTime(editing?.endsAt ?? defaultEnd.toISOString())}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -373,7 +381,7 @@ export function LoyaltyProgramManager({
                 type="number"
                 min="1"
                 defaultValue={editing?.perCustomerCap ?? 500}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold">
@@ -384,7 +392,7 @@ export function LoyaltyProgramManager({
                 type="number"
                 min="1"
                 defaultValue={editing?.totalPointsBudget ?? 10000}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
               />
             </label>
             <label className="text-xs font-bold sm:col-span-2">
@@ -392,7 +400,7 @@ export function LoyaltyProgramManager({
               <input
                 name="eligibleServiceKeys"
                 defaultValue={editing?.eligibleServiceKeys.join(', ') ?? ''}
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 w-full ${inputClass}`}
                 placeholder="Leave blank for all eligible services"
               />
             </label>
@@ -402,7 +410,7 @@ export function LoyaltyProgramManager({
                 name="terms"
                 maxLength={1000}
                 defaultValue={editing?.terms ?? ''}
-                className={`mt-1 min-h-24 py-3 ${inputClass}`}
+                className={`mt-1 min-h-24 w-full py-3 ${inputClass}`}
               />
             </label>
             <label className="flex items-center gap-2 text-xs font-bold sm:col-span-2">
