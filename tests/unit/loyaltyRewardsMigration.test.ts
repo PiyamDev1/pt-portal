@@ -10,6 +10,13 @@ const sql = readFileSync(
   ),
   'utf8',
 )
+const cryptoRepairSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260910162157_repair_loyalty_reward_crypto_resolution.sql',
+  ),
+  'utf8',
+)
 
 describe('loyalty rewards migration', () => {
   it('installs atomic, idempotent voucher and referral operations', () => {
@@ -38,5 +45,14 @@ describe('loyalty rewards migration', () => {
     expect(sql).toContain(
       'grant execute on function public.customer_loyalty_run_scheduled_bonus_v1(timestamptz) to service_role',
     )
+  })
+
+  it('repairs pgcrypto resolution without widening the function search path', () => {
+    expect(cryptoRepairSql.match(/^begin;$/gim)).toHaveLength(1)
+    expect(cryptoRepairSql.match(/^commit;$/gim)).toHaveLength(1)
+    expect(cryptoRepairSql).toContain("'extensions.gen_random_bytes(8)'")
+    expect(cryptoRepairSql).toContain("'extensions.gen_random_bytes(10)'")
+    expect(cryptoRepairSql).toContain("notify pgrst, 'reload schema'")
+    expect(cryptoRepairSql).not.toContain('set search_path = extensions')
   })
 })

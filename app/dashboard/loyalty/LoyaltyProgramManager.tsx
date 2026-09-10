@@ -5,7 +5,11 @@ import { FormEvent, useState } from 'react'
 
 import type { LoyaltyDashboardPayload } from '@/lib/loyalty/contracts'
 
-type Props = Pick<LoyaltyDashboardPayload, 'program' | 'campaigns'>
+type CampaignEventType = LoyaltyDashboardPayload['campaigns'][number]['eventType']
+
+type Props = Pick<LoyaltyDashboardPayload, 'program' | 'campaigns'> & {
+  initialEventType?: CampaignEventType | null
+}
 
 const inputClass =
   'min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#7f1d2d] focus:ring-2 focus:ring-red-100'
@@ -21,13 +25,34 @@ function localDateTime(value?: string) {
   return date.toISOString().slice(0, 16)
 }
 
+function defaultBonusPoints(eventType: CampaignEventType) {
+  switch (eventType) {
+    case 'welcome_bonus':
+    case 'birthday_gift':
+    case 'eid_gift':
+      return 100
+    case 'referral_bonus':
+      return 150
+    case 'off_peak_bonus':
+      return 25
+    default:
+      return 50
+  }
+}
+
 export function LoyaltyProgramManager({
   program: initialProgram,
   campaigns: initialCampaigns,
+  initialEventType = null,
 }: Props) {
   const [program, setProgram] = useState(initialProgram)
   const [campaigns, setCampaigns] = useState(initialCampaigns)
-  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null)
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(
+    initialEventType ? 'new' : null,
+  )
+  const [campaignEventType, setCampaignEventType] = useState<CampaignEventType>(
+    initialEventType ?? 'double_points',
+  )
   const [pending, setPending] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +114,9 @@ export function LoyaltyProgramManager({
   }
 
   const editing = campaigns.find((campaign) => campaign.id === editingCampaignId)
+  const selectedTemplate = program.bonusEventOptions.find(
+    (option) => option.key === campaignEventType,
+  )
   const defaultEnd = new Date()
   defaultEnd.setMonth(defaultEnd.getMonth() + 1)
 
@@ -245,7 +273,10 @@ export function LoyaltyProgramManager({
           <h4 className="text-sm font-black">Bonus campaigns</h4>
           <button
             type="button"
-            onClick={() => setEditingCampaignId('new')}
+            onClick={() => {
+              setCampaignEventType('double_points')
+              setEditingCampaignId('new')
+            }}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white"
           >
             <Plus className="size-4" /> New event
@@ -256,7 +287,10 @@ export function LoyaltyProgramManager({
             <button
               key={campaign.id}
               type="button"
-              onClick={() => setEditingCampaignId(campaign.id)}
+              onClick={() => {
+                setCampaignEventType(campaign.eventType)
+                setEditingCampaignId(campaign.id)
+              }}
               className="rounded-xl border border-slate-200 bg-white p-3 text-left"
             >
               <span className="flex items-center justify-between gap-2">
@@ -278,6 +312,7 @@ export function LoyaltyProgramManager({
 
         {editingCampaignId ? (
           <form
+            key={editingCampaignId}
             onSubmit={saveCampaign}
             className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2"
           >
@@ -295,7 +330,8 @@ export function LoyaltyProgramManager({
               Event type
               <select
                 name="eventType"
-                defaultValue={editing?.eventType ?? 'double_points'}
+                value={campaignEventType}
+                onChange={(event) => setCampaignEventType(event.target.value as CampaignEventType)}
                 className={`mt-1 w-full ${inputClass}`}
               >
                 <option value="double_points">Double points</option>
@@ -307,38 +343,46 @@ export function LoyaltyProgramManager({
                 <option value="eid_gift">Eid gift</option>
               </select>
             </label>
-            <label className="text-xs font-bold">
-              Multiplier (double points)
-              <input
-                name="multiplier"
-                type="number"
-                min="1.01"
-                max="20"
-                step="0.01"
-                defaultValue={editing?.multiplier ?? 2}
-                className={`mt-1 w-full ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs font-bold">
-              Bonus points
-              <input
-                name="bonusPoints"
-                type="number"
-                min="1"
-                defaultValue={editing?.bonusPoints ?? 50}
-                className={`mt-1 w-full ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs font-bold">
-              New customer referral points
-              <input
-                name="referredCustomerPoints"
-                type="number"
-                min="1"
-                defaultValue={editing?.referredCustomerPoints ?? 100}
-                className={`mt-1 w-full ${inputClass}`}
-              />
-            </label>
+            {campaignEventType === 'double_points' ? (
+              <label className="text-xs font-bold">
+                Points multiplier
+                <input
+                  required
+                  name="multiplier"
+                  type="number"
+                  min="1.01"
+                  max="20"
+                  step="0.01"
+                  defaultValue={editing?.multiplier ?? 2}
+                  className={`mt-1 w-full ${inputClass}`}
+                />
+              </label>
+            ) : (
+              <label className="text-xs font-bold">
+                Bonus points per customer
+                <input
+                  required
+                  name="bonusPoints"
+                  type="number"
+                  min="1"
+                  defaultValue={editing?.bonusPoints ?? defaultBonusPoints(campaignEventType)}
+                  className={`mt-1 w-full ${inputClass}`}
+                />
+              </label>
+            )}
+            {campaignEventType === 'referral_bonus' ? (
+              <label className="text-xs font-bold">
+                Referred customer points
+                <input
+                  required
+                  name="referredCustomerPoints"
+                  type="number"
+                  min="1"
+                  defaultValue={editing?.referredCustomerPoints ?? 100}
+                  className={`mt-1 w-full ${inputClass}`}
+                />
+              </label>
+            ) : null}
             <label className="text-xs font-bold">
               Status
               <select
@@ -380,7 +424,9 @@ export function LoyaltyProgramManager({
                 name="perCustomerCap"
                 type="number"
                 min="1"
-                defaultValue={editing?.perCustomerCap ?? 500}
+                defaultValue={
+                  editing?.perCustomerCap ?? selectedTemplate?.defaultCustomerCap ?? 500
+                }
                 className={`mt-1 w-full ${inputClass}`}
               />
             </label>

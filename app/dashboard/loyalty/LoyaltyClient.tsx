@@ -66,6 +66,9 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview')
+  const [campaignTemplate, setCampaignTemplate] = useState<
+    LoyaltyDashboardPayload['campaigns'][number]['eventType'] | null
+  >(null)
 
   async function loadDashboard(nextSearch = search) {
     setLoading(true)
@@ -215,7 +218,10 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setCampaignTemplate(null)
+              setActiveTab(tab)
+            }}
             aria-current={activeTab === tab ? 'page' : undefined}
             className={`min-h-11 rounded-xl px-4 text-sm font-black capitalize ${
               activeTab === tab ? 'bg-[#7f1d2d] text-white' : 'text-slate-600 hover:bg-slate-50'
@@ -227,7 +233,12 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
       </nav>
 
       {activeTab === 'settings' && dashboard?.program && canAdjust ? (
-        <LoyaltyProgramManager program={dashboard.program} campaigns={dashboard.campaigns} />
+        <LoyaltyProgramManager
+          key={campaignTemplate ?? 'program-settings'}
+          program={dashboard.program}
+          campaigns={dashboard.campaigns}
+          initialEventType={campaignTemplate}
+        />
       ) : null}
 
       {activeTab === 'overview' && dashboard?.program ? (
@@ -344,9 +355,18 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
               {dashboard.program.bonusEventOptions.map((option) => (
-                <article
+                <button
                   key={option.key}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                  type="button"
+                  disabled={!canAdjust}
+                  onClick={() => {
+                    if (!canAdjust) return
+                    setCampaignTemplate(
+                      option.key as LoyaltyDashboardPayload['campaigns'][number]['eventType'],
+                    )
+                    setActiveTab('settings')
+                  }}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-[#7f1d2d] hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7f1d2d] disabled:cursor-default disabled:hover:border-slate-200 disabled:hover:bg-slate-50"
                 >
                   <p className="text-sm font-black">{option.label}</p>
                   <p className="mt-1 text-sm font-bold text-[#7f1d2d]">{option.suggestedAward}</p>
@@ -354,7 +374,10 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
                   <p className="mt-2 text-[11px] font-semibold text-slate-600">
                     Default cap: {points(option.defaultCustomerCap)} bonus points per customer
                   </p>
-                </article>
+                  <span className="mt-3 inline-flex text-xs font-black text-[#7f1d2d]">
+                    {canAdjust ? 'Configure event' : 'View only'}
+                  </span>
+                </button>
               ))}
             </div>
           </div>

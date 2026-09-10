@@ -194,7 +194,10 @@ export async function customerLoyaltySummary(input: {
   ])
   if (error || balanceError)
     throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)
-  const rewardsReady = !voucherError && !referralError && !referralCodeError
+  // Voucher issuance and referrals are independent capabilities. A referral
+  // setup failure must never hide otherwise healthy voucher rewards.
+  const vouchersReady = !voucherError
+  const referralsReady = !referralError && !referralCodeError
   const entries = (awards ?? []).map((award) => ({
     entryId: customerLoyaltyEntryId(award.id),
     occurredAt: new Date(award.created_at).toISOString(),
@@ -236,10 +239,10 @@ export async function customerLoyaltySummary(input: {
     availablePoints: Math.max(0, availablePoints),
     expiringPoints: Math.max(0, expiringPoints),
     nextExpiryAt: nextExpiryAt?.toISOString() ?? null,
-    redemptionEnabled: rewardsReady,
+    redemptionEnabled: vouchersReady && configuration.program.rollout.voucherIssuanceActive,
     expiryEnabled: configuration.program.rollout.expiryActive,
     program: configuration.program,
-    vouchers: rewardsReady
+    vouchers: vouchersReady
       ? (vouchers ?? []).map((voucher) => ({
           voucherId: voucher.id,
           code: voucher.voucher_code,
@@ -251,7 +254,7 @@ export async function customerLoyaltySummary(input: {
           redeemedAt: voucher.redeemed_at ? new Date(voucher.redeemed_at).toISOString() : null,
         }))
       : [],
-    referral: rewardsReady
+    referral: referralsReady
       ? {
           referralCode: String(referralCode),
           authenticatedReferrals: (referralRows ?? []).filter((row) =>
