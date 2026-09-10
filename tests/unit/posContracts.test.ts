@@ -61,6 +61,29 @@ describe('POS mutation contracts', () => {
     ).toBe(false)
   })
 
+  it('accepts only a validated voucher code field and keeps OTHER tenders server-reserved', () => {
+    const base = {
+      shiftId: '10000000-0000-4000-8000-000000000001',
+      catalogueKey: 'document-assistance',
+      direction: 'IN' as const,
+      totalAmount: 25,
+      customerName: 'Customer',
+      tenders: [{ method: 'CASH' as const, amount: 15 }],
+    }
+    expect(
+      posPostTransactionSchema.safeParse({
+        ...base,
+        voucherCode: 'PYV-0123456789ABCDEF0123',
+      }).success,
+    ).toBe(true)
+    expect(
+      posPostTransactionSchema.safeParse({
+        ...base,
+        tenders: [{ method: 'OTHER', amount: 10 }],
+      }).success,
+    ).toBe(false)
+  })
+
   it('accepts noted negative supplier corrections and remittance tender destinations', () => {
     expect(
       posPostTransactionSchema.safeParse({

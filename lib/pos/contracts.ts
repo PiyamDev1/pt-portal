@@ -1,7 +1,7 @@
 export type PosLedgerPeriod = 'day' | 'month'
 export type PosDirection = 'IN' | 'OUT'
 export type PosPaymentMethod = 'CASH' | 'CARD' | 'BANK' | 'OTHER'
-export type PosLedgerPaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split' | 'Other'
+export type PosLedgerPaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split' | 'Other' | 'Voucher'
 export type PosReconciliationStatus = 'RECORDED' | 'PENDING' | 'COMPLETED' | 'FAILED'
 export type PosOutgoingType = 'REFUND' | 'EXPENSE' | 'SUPPLIER_PAYMENT'
 export type PosTenderDestination = 'OUR_ACCOUNT' | 'SUPPLIER_DIRECT'
@@ -230,6 +230,14 @@ export type PosLoyaltyMember = {
   availablePoints: number
 }
 
+export type PosLoyaltyVoucher = {
+  voucherCode: string
+  maskedCode: string
+  valuePence: number
+  expiresAt: string
+  member: PosLoyaltyMember
+}
+
 export type PosLegacyImportPreview = {
   mode: 'DRY_RUN' | 'COMMIT'
   totalRows: number
@@ -315,6 +323,9 @@ export type PosMutationResult = {
   movementId?: string
   loyaltyPointsAwarded?: number
   loyaltyPointsReversed?: number
+  voucherCode?: string
+  voucherAppliedPence?: number
+  voucherForfeitedPence?: number
   balanceRemaining?: number
   drawerBalance?: number
   reserveBalance?: number

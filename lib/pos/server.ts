@@ -420,6 +420,14 @@ function publicPosError(error: SupabaseError): PosServerError {
     POS_CLOSEOUT_APPROVAL_REQUIRED: 'The previous closeout needs manager approval.',
     POS_PRICING_CONFIRMATION_REQUIRED:
       'Select the matching price option or confirm the manual total.',
+    POS_VOUCHER_CODE_INVALID: 'Scan a valid Piyam loyalty voucher.',
+    POS_VOUCHER_NOT_FOUND: 'Voucher not found.',
+    POS_VOUCHER_EXPIRED: 'This voucher has expired.',
+    POS_VOUCHER_ALREADY_USED: 'This voucher has already been used or cancelled.',
+    POS_VOUCHER_ACCOUNT_INACTIVE: 'The voucher loyalty account is inactive.',
+    POS_VOUCHER_MEMBER_MISMATCH: 'The voucher and loyalty card belong to different accounts.',
+    POS_VOUCHER_NOT_ELIGIBLE: 'Vouchers can only be used for customer sales.',
+    POS_VOUCHER_TENDER_FORBIDDEN: 'Use the voucher scanner to apply a loyalty voucher.',
   }
   const status =
     error.code === 'P0002' ? 404 : error.code === '42501' ? 403 : error.code === '23505' ? 409 : 400
@@ -439,11 +447,11 @@ export async function runPosMutation(
     | 'pos_post_transaction_v1'
     | 'pos_post_transaction_v2'
     | 'pos_post_transaction_v3'
-    | 'pos_post_transaction_v4'
+    | 'pos_post_transaction_v5'
     | 'pos_manage_configuration_v2'
     | 'pos_manage_configuration_v3'
     | 'pos_manage_configuration_v4'
-    | 'pos_record_refund_v1'
+    | 'pos_record_refund_v2'
     | 'pos_configure_supplier_v1'
     | 'pos_correct_expense_v1'
     | 'pos_record_reconciliation_v1'
@@ -526,6 +534,81 @@ export async function lookupPosLoyaltyMember(rawCode: string) {
       ? member.email.replace(/^(.{1,2}).*(@.*)$/, '$1•••$2')
       : 'Email not recorded',
     availablePoints,
+  }
+}
+
+export async function lookupPosLoyaltyVoucher(rawCode: string) {
+  const voucherCode = rawCode.trim().toUpperCase()
+  if (!/^PYV-[A-F0-9]{20}$/.test(voucherCode)) {
+    throw new PosServerError('Scan a valid Piyam loyalty voucher.', 400, 'POS_VOUCHER_CODE_INVALID')
+  }
+  const service = getServiceSupabaseClient()
+  const { data: voucher, error } = await service
+    .from('customer_loyalty_vouchers')
+    .select('voucher_code,value_pence,status,expires_at,mobile_user_id')
+    .eq('voucher_code', voucherCode)
+    .maybeSingle()
+  if (error) {
+    console.error('POS voucher lookup failed', { code: error.code })
+    throw new PosServerError(
+      'Voucher lookup is temporarily unavailable.',
+      503,
+      'POS_VOUCHER_LOOKUP_UNAVAILABLE',
+    )
+  }
+  if (!voucher) throw new PosServerError('Voucher not found.', 404, 'POS_VOUCHER_NOT_FOUND')
+  if (voucher.status !== 'issued') {
+    throw new PosServerError(
+      'This voucher is no longer available.',
+      409,
+      'POS_VOUCHER_ALREADY_USED',
+    )
+  }
+  if (new Date(voucher.expires_at).getTime() <= Date.now()) {
+    throw new PosServerError('This voucher has expired.', 400, 'POS_VOUCHER_EXPIRED')
+  }
+  const { data: member, error: memberError } = await service
+    .from('mobile_users')
+    .select('id,customer_code,email')
+    .eq('id', voucher.mobile_user_id)
+    .eq('customer_lifecycle_status', 'active')
+    .maybeSingle()
+  if (memberError || !member?.customer_code) {
+    throw new PosServerError(
+      'The voucher loyalty account is inactive.',
+      400,
+      'POS_VOUCHER_ACCOUNT_INACTIVE',
+    )
+  }
+  const { data: awards, error: awardsError } = await service
+    .from('customer_loyalty_awards')
+    .select('points,state')
+    .eq('mobile_user_id', member.id)
+  if (awardsError)
+    throw new PosServerError(
+      'Voucher lookup is temporarily unavailable.',
+      503,
+      'POS_VOUCHER_LOOKUP_UNAVAILABLE',
+    )
+  const availablePoints = (awards || []).reduce(
+    (total, award) => (award.state === 'available' ? total + numeric(award.points) : total),
+    0,
+  )
+  return {
+    voucherCode,
+    maskedCode: `${voucherCode.slice(0, 8)}••••${voucherCode.slice(-4)}`,
+    valuePence: Number(voucher.value_pence),
+    expiresAt: voucher.expires_at,
+    member: {
+      id: member.id,
+      customerCode: member.customer_code,
+      maskedCode: `${member.customer_code.slice(0, 8)}••••${member.customer_code.slice(-2)}`,
+      name: 'Loyalty member',
+      maskedEmail: member.email
+        ? member.email.replace(/^(.{1,2}).*(@.*)$/, '$1•••$2')
+        : 'Email not recorded',
+      availablePoints,
+    },
   }
 }
 

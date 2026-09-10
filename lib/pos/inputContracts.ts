@@ -84,6 +84,12 @@ export const posPostTransactionSchema = z
       .toUpperCase()
       .regex(/^PYM-[23456789A-HJ-NP-Z]{4}-[23456789A-HJ-NP-Z]{4}-[23456789A-HJ-NP-Z]$/)
       .optional(),
+    voucherCode: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^PYV-[A-F0-9]{20}$/)
+      .optional(),
     lms: z
       .object({ loanId: z.string().uuid(), paymentMethodId: z.string().uuid() })
       .strict()
@@ -92,6 +98,13 @@ export const posPostTransactionSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.tenders.some((tender) => tender.method === 'OTHER')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['tenders'],
+        message: 'Other tenders are reserved for server-validated vouchers',
+      })
+    }
     if (value.entryMode === 'CUSTOMER_PAYMENT' && value.totalAmount <= 0) {
       context.addIssue({
         code: 'custom',

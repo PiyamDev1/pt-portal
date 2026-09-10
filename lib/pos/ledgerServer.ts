@@ -216,7 +216,11 @@ function mapTender(tender: PosTenderRow, direction: 'IN' | 'OUT'): PosLedgerTend
   const amount = numberValue(tender.amount)
   return {
     id: tender.id,
-    method: methodLabel(tender.payment_method),
+    method:
+      tender.payment_method === 'OTHER' &&
+      /^PYV-[A-F0-9]{20}$/.test(tender.external_reference || '')
+        ? 'Voucher'
+        : methodLabel(tender.payment_method),
     methodCode: tender.payment_method,
     amount,
     direction,

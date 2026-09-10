@@ -171,18 +171,17 @@ describe('POS preview interactions', () => {
     expect(screen.queryByPlaceholderText('Scan now or type loyalty code')).toBeNull()
   })
 
-  it('keeps loyalty scanning and voucher redemption as separate same-row actions', () => {
+  it('keeps loyalty and voucher scanners separate and arms voucher capture explicitly', async () => {
     render(<PosPreviewClient branchName="Test branch" />)
 
     const scan = screen.getByRole('button', { name: /Scan loyalty card/ })
     const voucher = screen.getByRole('button', { name: /Redeem voucher/ })
-    expect(scan.parentElement).toBe(voucher.parentElement)
-    expect(scan.parentElement?.className).toContain('grid-cols-2')
+    expect(scan).toBeTruthy()
+    expect(voucher).toBeTruthy()
 
     fireEvent.click(voucher)
-    expect(toast.info).toHaveBeenCalledWith(
-      'Voucher redemption is not connected to POS settlement yet.',
-      expect.objectContaining({ description: expect.stringContaining('No voucher was changed') }),
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Scan now or type PYV voucher code')).toBeTruthy(),
     )
   })
 
@@ -306,5 +305,21 @@ describe('POS preview interactions', () => {
     const payload = JSON.parse(String(transactionCall?.[1]?.body)) as Record<string, unknown>
     expect(payload.pricingConfirmed).toBe(true)
     expect(payload).not.toHaveProperty('pricingId')
+  })
+
+  it('lets an operator use the post button to reach Open till when no shift is active', () => {
+    render(
+      <PosPreviewClient
+        branchName="Test branch"
+        initialLedger={EMPTY_LEDGER}
+        initialBootstrap={{ ...SOFT_PRICING_BOOTSTRAP, activeShift: null }}
+      />,
+    )
+
+    const button = screen.getByRole('button', { name: 'Open till to post' })
+    expect(button.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(button)
+    expect(screen.getAllByText('Open till').length).toBeGreaterThan(0)
+    expect(toast.error).toHaveBeenCalledWith('Open a till before posting.')
   })
 })

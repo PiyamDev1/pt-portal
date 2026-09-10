@@ -57,6 +57,7 @@ import type {
   PosLedgerTransaction,
   PosBootstrapPayload,
   PosLoyaltyMember,
+  PosLoyaltyVoucher,
   PosMutationResult,
 } from '@/lib/pos/contracts'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
@@ -898,6 +899,7 @@ export default function PosPreviewClient({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const quickEntryInputRef = useRef<HTMLInputElement>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const voucherScanInputRef = useRef<HTMLInputElement>(null)
   const lastAutomaticSyncAtRef = useRef(0)
   const hasLedgerSnapshotRef = useRef(Boolean(initialLedger))
   const loadedLedgerKeyRef = useRef(
@@ -988,6 +990,9 @@ export default function PosPreviewClient({
   const [scanOpen, setScanOpen] = useState(false)
   const [scanValue, setScanValue] = useState('')
   const [member, setMember] = useState<PosLoyaltyMember | null>(null)
+  const [voucherScanOpen, setVoucherScanOpen] = useState(false)
+  const [voucherScanValue, setVoucherScanValue] = useState('')
+  const [voucher, setVoucher] = useState<PosLoyaltyVoucher | null>(null)
   const [posting, setPosting] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [expandedCategoryGroups, setExpandedCategoryGroups] = useState<string[]>([])
@@ -1076,6 +1081,10 @@ export default function PosPreviewClient({
   const liveCatalogueItem = bootstrap.catalogue.find((item) => item.key === catalogueKey) || null
   const numericAmount = Number.parseFloat(amount.replace(/,/g, '')) || 0
   const numericAmountPaid = Number.parseFloat(amountPaid.replace(/,/g, '')) || 0
+  const voucherAppliedPence = voucher
+    ? Math.min(voucher.valuePence, Math.max(Math.round(Math.abs(numericAmount) * 100), 0))
+    : 0
+  const voucherAppliedAmount = voucherAppliedPence / 100
   const isTransfer = selectedCategory.direction === 'TRANSFER'
   const isSupplierPayment = entryMode === 'SUPPLIER_PAYMENT'
   const isRemittance = selectedTopCategoryKey === 'remittance' && !isSupplierPayment
@@ -1084,8 +1093,14 @@ export default function PosPreviewClient({
     !isTransfer &&
     !isSupplierCorrection &&
     (isSupplierPayment || selectedCategory.direction === 'OUT')
-  const remainingBalance = Math.max(Math.abs(numericAmount) - Math.abs(numericAmountPaid), 0)
-  const changeDue = Math.max(Math.abs(numericAmountPaid) - Math.abs(numericAmount), 0)
+  const remainingBalance = Math.max(
+    Math.abs(numericAmount) - Math.abs(numericAmountPaid) - voucherAppliedAmount,
+    0,
+  )
+  const changeDue = Math.max(
+    Math.abs(numericAmountPaid) + voucherAppliedAmount - Math.abs(numericAmount),
+    0,
+  )
   const matchingPricingOptions = (liveCatalogueItem?.pricingOptions || []).filter(
     (option) => Math.abs(option.price - Math.abs(numericAmount)) < 0.005,
   )
@@ -1415,6 +1430,17 @@ export default function PosPreviewClient({
     return () => window.clearTimeout(timeout)
   }, [scanOpen])
 
+  useEffect(() => {
+    if (!voucherScanOpen) return
+    voucherScanInputRef.current?.focus()
+    const timeout = window.setTimeout(() => {
+      setVoucherScanOpen(false)
+      setVoucherScanValue('')
+      toast.info('Voucher scanner disarmed')
+    }, SCAN_ARM_TIMEOUT_MS)
+    return () => window.clearTimeout(timeout)
+  }, [voucherScanOpen])
+
   const draftRestoredRef = useRef(false)
   useEffect(() => {
     try {
@@ -1562,6 +1588,7 @@ export default function PosPreviewClient({
           }
         : {}),
       ...(member && liveCatalogueItem?.loyaltyEligible ? { loyaltyCode: member.customerCode } : {}),
+      ...(voucher ? { voucherCode: voucher.voucherCode } : {}),
       confirmDuplicate,
     }
   }
@@ -1651,10 +1678,13 @@ export default function PosPreviewClient({
       setSupplierSourceName('')
       setExternalReference('')
       setMember(null)
+      setVoucher(null)
       toast.success(`Transaction ${result.reference || ''} posted`, {
-        description: result.loyaltyPointsAwarded
-          ? `${result.loyaltyPointsAwarded} loyalty points awarded.`
-          : 'The branch ledger and till totals were updated.',
+        description: result.voucherAppliedPence
+          ? `${formatMoney(result.voucherAppliedPence / 100)} voucher redeemed${result.voucherForfeitedPence ? `; ${formatMoney(result.voucherForfeitedPence / 100)} unused value forfeited` : ''}.`
+          : result.loyaltyPointsAwarded
+            ? `${result.loyaltyPointsAwarded} loyalty points awarded.`
+            : 'The branch ledger and till totals were updated.',
       })
       await refreshWorkspace()
       quickEntryInputRef.current?.focus()
@@ -1757,6 +1787,9 @@ export default function PosPreviewClient({
     setSelectedPricingId('')
     setScanOpen(false)
     setScanValue('')
+    setVoucherScanOpen(false)
+    setVoucherScanValue('')
+    setVoucher(null)
     setNonCashDestination(
       (category.categoryKey || categoryGroupId) === 'remittance'
         ? 'SUPPLIER_DIRECT'
@@ -1852,6 +1885,41 @@ export default function PosPreviewClient({
       })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Loyalty member not found.')
+    }
+  }
+
+  async function attachVoucher(scannedValue = voucherScanValue) {
+    if (!scannedValue.trim()) {
+      toast.error('Scan or enter a voucher code first')
+      voucherScanInputRef.current?.focus()
+      return
+    }
+    setVoucherScanOpen(false)
+    setVoucherScanValue('')
+    try {
+      const response = await fetch('/api/pos/loyalty/vouchers/lookup', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: scannedValue.trim() }),
+      })
+      const payload = (await response.json()) as ApiResponse<PosLoyaltyVoucher>
+      if (!response.ok || 'error' in payload) {
+        throw new Error('error' in payload ? payload.error : 'Voucher not found.')
+      }
+      if (member && member.id !== payload.member.id) {
+        throw new Error('This voucher belongs to a different loyalty account.')
+      }
+      setVoucher(payload)
+      setMember(payload.member)
+      const applied = Math.min(payload.valuePence / 100, Math.abs(numericAmount))
+      setAmountPaid(Math.max(Math.abs(numericAmount) - applied, 0).toFixed(2))
+      toast.success('Voucher ready for settlement', {
+        description: `${formatMoney(applied)} will be applied when the transaction posts.`,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Voucher not found.')
     }
   }
 
@@ -3055,7 +3123,7 @@ export default function PosPreviewClient({
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div>
                       <button
                         type="button"
                         onClick={() => {
@@ -3076,30 +3144,117 @@ export default function PosPreviewClient({
                           </span>
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toast.info('Voucher redemption is not connected to POS settlement yet.', {
-                            description:
-                              'No voucher was changed. Redemption must be recorded atomically with its transaction.',
-                          })
-                        }
-                        title="Redeem a customer loyalty voucher"
-                        className="flex min-w-0 items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-violet-50 hover:ring-violet-200"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isTransfer && !isOutgoing && !isSupplierPayment && (
+                <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2">
+                  {voucher ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
                           <TicketPercent className="h-4 w-4" />
                         </span>
-                        <span className="min-w-0">
-                          <span className="block text-xs font-black text-slate-900">
-                            Redeem voucher
-                          </span>
-                          <span className="mt-0.5 hidden text-[10px] text-slate-500 sm:block">
-                            Customer reward
-                          </span>
-                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900">
+                            {formatMoney(voucherAppliedAmount)} voucher applied
+                          </p>
+                          <p className="truncate text-[11px] text-slate-500">
+                            {voucher.maskedCode}
+                            {voucher.valuePence > voucherAppliedPence
+                              ? ` · ${formatMoney((voucher.valuePence - voucherAppliedPence) / 100)} unused value will be forfeited`
+                              : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoucher(null)
+                          setAmountPaid(Math.abs(numericAmount).toFixed(2))
+                        }}
+                        className="text-xs font-black text-rose-700"
+                      >
+                        Remove
                       </button>
                     </div>
+                  ) : voucherScanOpen ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+                          Voucher scanner armed for 30 seconds
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVoucherScanOpen(false)
+                            setVoucherScanValue('')
+                          }}
+                          className="text-[11px] font-black text-slate-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <label className="relative min-w-0 flex-1">
+                          <span className="sr-only">Scan or enter voucher code</span>
+                          <TicketPercent className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-500" />
+                          <input
+                            ref={voucherScanInputRef}
+                            autoFocus
+                            value={voucherScanValue}
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder="Scan now or type PYV voucher code"
+                            onChange={(event) => setVoucherScanValue(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                void attachVoucher()
+                              }
+                              if (event.key === 'Escape') {
+                                setVoucherScanOpen(false)
+                                setVoucherScanValue('')
+                              }
+                            }}
+                            className="h-10 w-full rounded-xl border border-violet-300 bg-white pl-9 pr-3 text-xs font-semibold outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-100"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void attachVoucher()}
+                          className="rounded-xl bg-violet-800 px-4 py-2 text-xs font-black text-white"
+                        >
+                          Check voucher
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScanOpen(false)
+                        setScanValue('')
+                        setVoucherScanValue('')
+                        setVoucherScanOpen(true)
+                      }}
+                      title="Redeem a customer loyalty voucher"
+                      className="flex w-full min-w-0 items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left shadow-sm ring-1 ring-violet-200 transition hover:bg-violet-50"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                        <TicketPercent className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-black text-slate-900">
+                          Redeem voucher
+                        </span>
+                        <span className="mt-0.5 block text-[10px] text-slate-500">
+                          Scan a PT APP voucher and apply it to this sale
+                        </span>
+                      </span>
+                    </button>
                   )}
                 </div>
               )}
@@ -3606,12 +3761,22 @@ export default function PosPreviewClient({
                       +{Math.floor(Math.abs(numericAmount) * liveCatalogueItem.pointsPerGbp)} pts
                     </span>
                   )}
+                  {voucherAppliedPence > 0 && (
+                    <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">
+                      Voucher −{formatMoney(voucherAppliedAmount)}
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
                   data-pos-tour="post-button"
                   onClick={() => void submitTransaction()}
-                  disabled={posting || (bootstrap.schemaReady && !bootstrap.activeShift)}
+                  disabled={posting}
+                  title={
+                    bootstrap.schemaReady && !bootstrap.activeShift
+                      ? 'Open a till before posting this transaction'
+                      : 'Post this transaction'
+                  }
                   className="flex min-h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#7f1d2d] to-[#a52338] px-4 py-2 text-xs font-black text-white shadow-md shadow-red-950/15 transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {isTransfer ? <Coins className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}
@@ -3620,7 +3785,9 @@ export default function PosPreviewClient({
                     : isTransfer
                       ? 'Open cash management'
                       : bootstrap.schemaReady
-                        ? 'Post transaction'
+                        ? bootstrap.activeShift
+                          ? 'Post transaction'
+                          : 'Open till to post'
                         : 'POS upgrade pending'}
                 </button>
               </div>

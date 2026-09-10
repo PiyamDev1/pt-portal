@@ -1,4 +1,4 @@
-export const POS_CAPABILITY_VERSION = 2026090904
+export const POS_CAPABILITY_VERSION = 2026091005
 export const POS_CONFIGURATION_CAPABILITY_VERSION = 2026090903
 
 export type PosSchemaStatus = { ready: boolean; version: number }

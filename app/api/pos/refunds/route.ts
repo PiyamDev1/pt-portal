@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   void _method
   try {
     const result = await runPosMutation(
-      'pos_record_refund_v1',
+      'pos_record_refund_v2',
       access.employee.id,
       idempotencyKey,
       {
