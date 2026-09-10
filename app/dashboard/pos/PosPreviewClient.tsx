@@ -43,6 +43,7 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  TicketPercent,
   UserRound,
   WalletCards,
   X,
@@ -3054,29 +3055,51 @@ export default function PosPreviewClient({
                       </p>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScanValue('')
-                        setScanOpen(true)
-                      }}
-                      className="flex w-full items-center justify-between gap-3 text-left"
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#8b1e2d] shadow-sm ring-1 ring-slate-200">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScanValue('')
+                          setScanOpen(true)
+                        }}
+                        className="flex min-w-0 items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-emerald-50 hover:ring-emerald-200"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
                           <ScanBarcode className="h-4 w-4" />
                         </span>
-                        <span>
+                        <span className="min-w-0">
                           <span className="block text-xs font-black text-slate-900">
                             Scan loyalty card
                           </span>
-                          <span className="mt-0.5 block text-[11px] text-slate-500">
-                            Disarmed · click to allow one scan
+                          <span className="mt-0.5 hidden text-[10px] text-slate-500 sm:block">
+                            Allow one scan
                           </span>
                         </span>
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-slate-400" />
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toast.info('Voucher redemption is not connected to POS settlement yet.', {
+                            description:
+                              'No voucher was changed. Redemption must be recorded atomically with its transaction.',
+                          })
+                        }
+                        title="Redeem a customer loyalty voucher"
+                        className="flex min-w-0 items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-violet-50 hover:ring-violet-200"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                          <TicketPercent className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">
+                            Redeem voucher
+                          </span>
+                          <span className="mt-0.5 hidden text-[10px] text-slate-500 sm:block">
+                            Customer reward
+                          </span>
+                        </span>
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

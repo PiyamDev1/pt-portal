@@ -105,7 +105,7 @@ const DEFINITIONS: TourDefinition[] = [
     chapter: 'Loyalty scanner',
     title: 'Allow one scan',
     description:
-      'Select Scan loyalty card to accept one code for 30 seconds. Escape cancels the window.',
+      'Scan loyalty card and Redeem voucher are separate actions on the same row. Card scanning accepts one loyalty code for 30 seconds; Escape cancels the window.',
     target: 'loyalty',
   },
   {

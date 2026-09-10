@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PosPreviewClient from '@/app/dashboard/pos/PosPreviewClient'
 import { posTourStorageKey } from '@/app/dashboard/pos/PosGuidedTour'
@@ -158,6 +159,7 @@ describe('POS preview interactions', () => {
     render(<PosPreviewClient branchName="Test branch" />)
 
     expect(screen.queryByPlaceholderText('Scan now or type loyalty code')).toBeNull()
+    expect(screen.getByRole('button', { name: /Redeem voucher/ })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Scan loyalty card/ }))
 
     const scanInput = screen.getByPlaceholderText('Scan now or type loyalty code')
@@ -167,6 +169,21 @@ describe('POS preview interactions', () => {
 
     await waitFor(() => expect(screen.getByText(/640 points/)).toBeTruthy())
     expect(screen.queryByPlaceholderText('Scan now or type loyalty code')).toBeNull()
+  })
+
+  it('keeps loyalty scanning and voucher redemption as separate same-row actions', () => {
+    render(<PosPreviewClient branchName="Test branch" />)
+
+    const scan = screen.getByRole('button', { name: /Scan loyalty card/ })
+    const voucher = screen.getByRole('button', { name: /Redeem voucher/ })
+    expect(scan.parentElement).toBe(voucher.parentElement)
+    expect(scan.parentElement?.className).toContain('grid-cols-2')
+
+    fireEvent.click(voucher)
+    expect(toast.info).toHaveBeenCalledWith(
+      'Voucher redemption is not connected to POS settlement yet.',
+      expect.objectContaining({ description: expect.stringContaining('No voucher was changed') }),
+    )
   })
 
   it('shows an empty live ledger without falling back to design transactions', () => {
