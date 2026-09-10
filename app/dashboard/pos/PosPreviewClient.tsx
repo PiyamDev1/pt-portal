@@ -3123,7 +3123,7 @@ export default function PosPreviewClient({
                       </p>
                     </div>
                   ) : (
-                    <div>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -3144,12 +3144,35 @@ export default function PosPreviewClient({
                           </span>
                         </span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScanOpen(false)
+                          setScanValue('')
+                          setVoucherScanValue('')
+                          setVoucherScanOpen(true)
+                        }}
+                        title="Redeem a customer loyalty voucher"
+                        className="flex min-w-0 items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left shadow-sm ring-1 ring-violet-200 transition hover:bg-violet-50"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                          <TicketPercent className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">
+                            Redeem voucher
+                          </span>
+                          <span className="mt-0.5 hidden text-[10px] text-slate-500 sm:block">
+                            Customer reward
+                          </span>
+                        </span>
+                      </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {!isTransfer && !isOutgoing && !isSupplierPayment && (
+              {!isTransfer && !isOutgoing && !isSupplierPayment && (voucher || voucherScanOpen) && (
                 <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2">
                   {voucher ? (
                     <div className="flex items-center justify-between gap-3">
@@ -3231,31 +3254,7 @@ export default function PosPreviewClient({
                         </button>
                       </div>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScanOpen(false)
-                        setScanValue('')
-                        setVoucherScanValue('')
-                        setVoucherScanOpen(true)
-                      }}
-                      title="Redeem a customer loyalty voucher"
-                      className="flex w-full min-w-0 items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left shadow-sm ring-1 ring-violet-200 transition hover:bg-violet-50"
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-                        <TicketPercent className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-xs font-black text-slate-900">
-                          Redeem voucher
-                        </span>
-                        <span className="mt-0.5 block text-[10px] text-slate-500">
-                          Scan a PT APP voucher and apply it to this sale
-                        </span>
-                      </span>
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               )}
 

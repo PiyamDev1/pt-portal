@@ -178,6 +178,8 @@ describe('POS preview interactions', () => {
     const voucher = screen.getByRole('button', { name: /Redeem voucher/ })
     expect(scan).toBeTruthy()
     expect(voucher).toBeTruthy()
+    expect(scan.parentElement).toBe(voucher.parentElement)
+    expect(scan.parentElement?.className).toContain('grid-cols-2')
 
     fireEvent.click(voucher)
     await waitFor(() =>
