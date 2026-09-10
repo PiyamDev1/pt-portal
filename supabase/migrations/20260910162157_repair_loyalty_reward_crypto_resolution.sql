@@ -7,12 +7,30 @@ select pg_advisory_xact_lock(hashtextextended('loyalty:reward-crypto-resolution'
 -- their search path or changing their grants.
 do $repair$
 declare
+  function_count integer;
+  function_oid oid;
   function_definition text;
   occurrence_count integer;
 begin
-  select pg_get_functiondef(
-    'public.customer_loyalty_ensure_referral_code_v1(uuid)'::regprocedure
-  ) into function_definition;
+  select count(*)
+  into function_count
+  from pg_proc procedure_row
+  join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+  where namespace_row.nspname = 'public'
+    and procedure_row.proname = 'customer_loyalty_ensure_referral_code_v1'
+    and procedure_row.prokind = 'f';
+  if function_count <> 1 then
+    raise exception 'expected one customer loyalty referral function, found %', function_count
+      using hint = 'Apply the loyalty referrals and vouchers migration to the PT-Portal database first.';
+  end if;
+  select procedure_row.oid
+  into function_oid
+  from pg_proc procedure_row
+  join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+  where namespace_row.nspname = 'public'
+    and procedure_row.proname = 'customer_loyalty_ensure_referral_code_v1'
+    and procedure_row.prokind = 'f';
+  select pg_get_functiondef(function_oid) into function_definition;
   if strpos(function_definition, 'extensions.gen_random_bytes(8)') = 0 then
     occurrence_count := (
       length(function_definition)
@@ -28,9 +46,25 @@ begin
     );
   end if;
 
-  select pg_get_functiondef(
-    'public.customer_loyalty_issue_voucher_v1(uuid,integer,uuid)'::regprocedure
-  ) into function_definition;
+  select count(*)
+  into function_count
+  from pg_proc procedure_row
+  join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+  where namespace_row.nspname = 'public'
+    and procedure_row.proname = 'customer_loyalty_issue_voucher_v1'
+    and procedure_row.prokind = 'f';
+  if function_count <> 1 then
+    raise exception 'expected one customer loyalty voucher function, found %', function_count
+      using hint = 'Apply the loyalty referrals and vouchers migration to the PT-Portal database first.';
+  end if;
+  select procedure_row.oid
+  into function_oid
+  from pg_proc procedure_row
+  join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+  where namespace_row.nspname = 'public'
+    and procedure_row.proname = 'customer_loyalty_issue_voucher_v1'
+    and procedure_row.prokind = 'f';
+  select pg_get_functiondef(function_oid) into function_definition;
   if strpos(function_definition, 'extensions.gen_random_bytes(10)') = 0 then
     occurrence_count := (
       length(function_definition)
