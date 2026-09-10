@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadLoyaltyProgramConfiguration } from '@/lib/loyalty/programServer'
 import { CustomerIntegrationError } from './http'
 import {
   customerLoyaltyActivationMilestone,
@@ -15,6 +16,15 @@ function loyaltyWriteError() {
     'The loyalty update could not be completed.',
     503,
   )
+}
+
+export async function configuredCustomerLoyaltyPoints(ruleKey: string) {
+  const { program } = await loadLoyaltyProgramConfiguration()
+  const rule = program.earningRules.find((candidate) => candidate.key === ruleKey)
+  if (!rule || rule.isActive === false || !Number.isSafeInteger(rule.points) || rule.points <= 0) {
+    throw new CustomerIntegrationError('service_unavailable', 'This loyalty reward is unavailable.', 503)
+  }
+  return rule.points
 }
 
 export async function registerCustomerLoyaltySourceForCode(input: {

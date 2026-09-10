@@ -26,6 +26,7 @@ import type {
   LoyaltyMemberPayload,
 } from '@/lib/loyalty/contracts'
 import { LoyaltyProgramManager } from './LoyaltyProgramManager'
+import { LoyaltyCampaignManager } from './LoyaltyCampaignManager'
 
 type Props = {
   initialData: LoyaltyDashboardPayload | null
@@ -65,7 +66,7 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
   const adjustmentKey = useRef<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'settings'>('overview')
   const [campaignTemplate, setCampaignTemplate] = useState<
     LoyaltyDashboardPayload['campaigns'][number]['eventType'] | null
   >(null)
@@ -212,9 +213,9 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
 
       <nav
         aria-label="Loyalty sections"
-        className="flex w-fit rounded-2xl border border-slate-200 bg-white p-1 shadow-sm"
+        className="grid w-full grid-cols-3 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm sm:flex sm:w-fit"
       >
-        {(['overview', 'settings'] as const).map((tab) => (
+        {(['overview', 'campaigns', 'settings'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -223,7 +224,7 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
               setActiveTab(tab)
             }}
             aria-current={activeTab === tab ? 'page' : undefined}
-            className={`min-h-11 rounded-xl px-4 text-sm font-black capitalize ${
+            className={`min-h-11 min-w-0 rounded-xl px-2 text-xs font-black capitalize sm:px-4 sm:text-sm ${
               activeTab === tab ? 'bg-[#7f1d2d] text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
@@ -233,10 +234,14 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
       </nav>
 
       {activeTab === 'settings' && dashboard?.program && canAdjust ? (
-        <LoyaltyProgramManager
-          key={campaignTemplate ?? 'program-settings'}
-          program={dashboard.program}
+        <LoyaltyProgramManager program={dashboard.program} />
+      ) : null}
+
+      {activeTab === 'campaigns' && dashboard?.program && canAdjust ? (
+        <LoyaltyCampaignManager
+          key={campaignTemplate ?? 'campaign-workspace'}
           campaigns={dashboard.campaigns}
+          campaignOptions={dashboard.campaignOptions}
           initialEventType={campaignTemplate}
         />
       ) : null}
@@ -364,7 +369,7 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
                     setCampaignTemplate(
                       option.key as LoyaltyDashboardPayload['campaigns'][number]['eventType'],
                     )
-                    setActiveTab('settings')
+                    setActiveTab('campaigns')
                   }}
                   className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-[#7f1d2d] hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7f1d2d] disabled:cursor-default disabled:hover:border-slate-200 disabled:hover:bg-slate-50"
                 >

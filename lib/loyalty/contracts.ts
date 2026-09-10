@@ -59,6 +59,14 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
       endsAt: z.string().datetime({ offset: true }),
       eligibleServiceKeys: z.array(z.string().min(1).max(80)).max(50),
       eligibleBranchIds: z.array(z.string().uuid()).max(50),
+      audienceTiers: z
+        .array(z.enum(['Bronze', 'Silver', 'Gold', 'Diamond']))
+        .min(1)
+        .max(4),
+      maxAwardsPerCustomer: z.number().int().min(1).max(1_000),
+      minimumSpendPence: z.number().int().min(0).max(100_000_000),
+      priority: z.number().int().min(1).max(1_000),
+      linkedCampaignId: z.string().uuid().nullable(),
       perCustomerCap: z.number().int().min(1).max(1_000_000),
       totalPointsBudget: z.number().int().min(1).max(100_000_000),
       allowStacking: z.boolean(),
@@ -78,6 +86,36 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
       }
       if (value.eventType === 'referral_bonus' && value.referredCustomerPoints === null) {
         context.addIssue({ code: 'custom', message: 'New-customer points are required.' })
+      }
+      if (value.eventType === 'referral_bonus' && value.audienceTiers.length !== 4) {
+        context.addIssue({
+          code: 'custom',
+          path: ['audienceTiers'],
+          message: 'Referral campaigns must remain available to all ranks.',
+        })
+      }
+      if (
+        ['double_points', 'fixed_bonus', 'welcome_bonus', 'off_peak_bonus'].includes(
+          value.eventType,
+        ) &&
+        ['scheduled', 'active'].includes(value.status)
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['status'],
+          message:
+            'This sale-based campaign must remain a draft until its automatic award connection is enabled.',
+        })
+      }
+      if (
+        value.bonusPoints !== null &&
+        value.bonusPoints * value.maxAwardsPerCustomer > value.perCustomerCap
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['perCustomerCap'],
+          message: 'The customer points cap must cover the configured award count.',
+        })
       }
     }),
 ])
@@ -131,6 +169,10 @@ export type LoyaltyDashboardPayload = {
   loadedAt: string
   program: LoyaltyProgramPolicy
   campaigns: LoyaltyBonusCampaign[]
+  campaignOptions: {
+    services: Array<{ key: string; label: string; category: string }>
+    branches: Array<{ id: string; name: string }>
+  }
 }
 
 export type LoyaltyMemberPayload = {

@@ -14,12 +14,15 @@ import {
   withCustomerIntegrationRoute,
 } from '@/lib/customerPortal/http'
 import { verifyCustomerOtpChallenge } from '@/lib/customerPortal/otp'
+import { configuredCustomerLoyaltyPoints, registerCustomerLoyaltySourceForCode } from '@/lib/customerPortal/loyaltyLifecycleServer'
 
 const inputSchema = z
   .object({
     challengeId: z.string().uuid(),
     otp: z.string().regex(/^\d{6,8}$/),
     customerSubject: z.string().uuid(),
+    customerCode: z.string().min(8).max(40),
+    claimLoyalty: z.boolean().default(false),
   })
   .strict()
 
@@ -48,10 +51,23 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
     ttlSeconds: 365 * 24 * 60 * 60,
     metadata: { source: application.candidate.source },
   })
+  const loyaltyClaim = input.claimLoyalty
+    ? await (async () => {
+        const points = await configuredCustomerLoyaltyPoints('application')
+        const registered = await registerCustomerLoyaltySourceForCode({
+          customerCode: input.customerCode,
+          source: { type: 'service', namespace: application.candidate.source, recordId: verified.internalId },
+          description: `${application.summary.serviceType} application`,
+          points,
+        })
+        return { points, activationMilestone: registered.activationMilestone }
+      })()
+    : null
   const result = {
     application: { ...application.summary, saved: true },
     accountGrant: accountGrant.token,
     grantExpiresAt: accountGrant.expiresAt,
+    loyaltyClaim,
   }
   await recordCustomerPortalAudit({
     requestId: context.requestId,

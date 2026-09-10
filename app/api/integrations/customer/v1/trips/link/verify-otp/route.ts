@@ -14,12 +14,15 @@ import {
 } from '@/lib/customerPortal/http'
 import { verifyCustomerOtpChallenge } from '@/lib/customerPortal/otp'
 import { customerTripSummary } from '@/lib/customerPortal/trips'
+import { configuredCustomerLoyaltyPoints, registerCustomerLoyaltySourceForCode } from '@/lib/customerPortal/loyaltyLifecycleServer'
 
 const inputSchema = z
   .object({
     challengeId: z.string().uuid(),
     otp: z.string().regex(/^\d{6,8}$/),
     customerSubject: z.string().uuid(),
+    customerCode: z.string().min(8).max(40),
+    claimLoyalty: z.boolean().default(false),
   })
   .strict()
 
@@ -53,10 +56,23 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
     scopes,
     grantedAt,
   })
+  const loyaltyClaim = input.claimLoyalty
+    ? await (async () => {
+        const points = await configuredCustomerLoyaltyPoints('package')
+        const registered = await registerCustomerLoyaltySourceForCode({
+          customerCode: input.customerCode,
+          source: { type: 'package', recordId: verified.internalId },
+          description: `${trip.title} package`,
+          points,
+        })
+        return { points, activationMilestone: registered.activationMilestone }
+      })()
+    : null
   const result = {
     trip,
     accountGrant: accountGrant.token,
     grantExpiresAt: accountGrant.expiresAt,
+    loyaltyClaim,
   }
   await recordCustomerPortalAudit({
     requestId: context.requestId,

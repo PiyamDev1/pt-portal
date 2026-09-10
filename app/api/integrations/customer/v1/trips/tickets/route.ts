@@ -11,11 +11,17 @@ import {
   customerIntegrationOk,
   withCustomerIntegrationRoute,
 } from '@/lib/customerPortal/http'
+import {
+  configuredCustomerLoyaltyPoints,
+  registerCustomerLoyaltySourceForCode,
+} from '@/lib/customerPortal/loyaltyLifecycleServer'
 
 const inputSchema = z
   .object({
     pnr: z.string().trim().min(3).max(20),
     lastName: z.string().trim().min(1).max(100),
+    customerCode: z.string().min(8).max(40),
+    claimLoyalty: z.boolean().default(false),
   })
   .strict()
 
@@ -129,5 +135,31 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
     transportSummary: schedule || 'Flight schedule has not been added yet.',
     lastUpdatedAt: booking.updated_at,
   }
-  return customerIntegrationOk({ trip }, context.requestId)
+  let loyaltyClaim: { points: number; activationMilestone: string } | null = null
+  if (input.claimLoyalty) {
+    const { data: transactions, error: transactionError } = await service
+      .from('ticket_transactions')
+      .select('id,passenger_ticket_count')
+      .eq('booking_id', booking.id)
+      .eq('service_type', 'TK')
+      .is('parent_transaction_id', null)
+    if (transactionError || !transactions?.length) {
+      throw new CustomerIntegrationError('service_unavailable', 'Ticket loyalty could not be claimed.', 503)
+    }
+    const perPassengerPoints = await configuredCustomerLoyaltyPoints('ticket')
+    let points = 0
+    for (const transaction of transactions) {
+      const transactionPoints =
+        perPassengerPoints * Math.max(1, Number(transaction.passenger_ticket_count || 1))
+      const registered = await registerCustomerLoyaltySourceForCode({
+        customerCode: input.customerCode,
+        source: { type: 'ticket', recordId: transaction.id },
+        description: `${booking.pnr} flight ticket`,
+        points: transactionPoints,
+      })
+      points += transactionPoints
+      loyaltyClaim = { points, activationMilestone: registered.activationMilestone }
+    }
+  }
+  return customerIntegrationOk({ trip, loyaltyClaim }, context.requestId)
 })
