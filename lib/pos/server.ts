@@ -22,6 +22,7 @@ import {
   POS_CAPABILITY_VERSION,
 } from '@/lib/pos/schemaCapability'
 import { posLogoUrl } from '@/lib/pos/logos'
+import { suggestPosPricing } from '@/lib/pos/pricingMatcher'
 
 type Related<T> = T | T[] | null
 
@@ -325,24 +326,19 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
 
   const catalogue = (catalogueResult.data || []).map((row) => {
     const item = mapCatalogue(row)
-    const needles = [item.label, item.optionLabel]
-      .filter(Boolean)
-      .flatMap((value) =>
-        String(value)
-          .toLowerCase()
-          .split(/\s*\/\s*|\s+/),
-      )
-      .filter((value) => value.length >= 3 && !['passport', 'service'].includes(value))
-    item.pricingOptions = (pricingResult.data || [])
-      .filter((price) => {
-        const haystack = [price.category, price.section, price.service_name].join(' ').toLowerCase()
-        return needles.some((needle) => haystack.includes(needle))
-      })
-      .map((price) => ({
-        id: price.id,
-        label: [price.service_name, price.service_option].filter(Boolean).join(' · '),
-        price: numeric(price.sale_price),
-      }))
+    item.pricingOptions = suggestPosPricing(
+      {
+        key: item.key,
+        groupKey: item.groupKey,
+        label: item.label,
+        optionLabel: item.optionLabel,
+      },
+      pricingResult.data || [],
+    ).map((price) => ({
+      id: price.id,
+      label: [price.service_name, price.service_option].filter(Boolean).join(' · '),
+      price: numeric(price.sale_price),
+    }))
     return item
   })
 

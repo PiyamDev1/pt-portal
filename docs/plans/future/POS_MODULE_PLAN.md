@@ -361,7 +361,9 @@ The catalogue remains configurable, but staff-facing labels should stay stable. 
 ticket, and package categories must retain their source links and remain ineligible for POS loyalty.
 Normal, Executive, Fast, or similar speed labels are pricing options, not POS subcategories. POS should
 match the entered total price to the active pricing row and derive the option when the match is unique.
-If no price or more than one option matches, show a small confirmation choice instead of guessing.
+This is a soft, advisory match: an unmatched price must never block an otherwise valid transaction. If
+more than one option matches, show an optional choice instead of guessing; staff can continue without
+attaching a pricing row.
 
 ### Tracked services: no POS loyalty
 

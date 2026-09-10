@@ -979,7 +979,6 @@ export default function PosPreviewClient({
   const [transactionNote, setTransactionNote] = useState('')
   const [sourceRecordId, setSourceRecordId] = useState('')
   const [selectedPricingId, setSelectedPricingId] = useState('')
-  const [manualPriceConfirmed, setManualPriceConfirmed] = useState(false)
   const [outgoingType, setOutgoingType] = useState<OutgoingType | null>(null)
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
@@ -1549,7 +1548,10 @@ export default function PosPreviewClient({
       ...(selectedPricingId || matchingPricingOptions.length === 1
         ? { pricingId: selectedPricingId || matchingPricingOptions[0].id }
         : {}),
-      pricingConfirmed: manualPriceConfirmed,
+      // Pricing is an advisory matcher. The database field is retained for
+      // compatibility with the deployed POS function, but a missing suggestion
+      // must never prevent an otherwise valid transaction.
+      pricingConfirmed: true,
       ...(isSupplierPayment && supplierMatch && 'id' in supplierMatch
         ? {
             supplierId: supplierMatch.id,
@@ -1630,15 +1632,6 @@ export default function PosPreviewClient({
     }
     if (liveCatalogueItem?.sourceRequired && !sourceRecordId.trim()) {
       toast.error('Enter the tracked service reference first.')
-      return
-    }
-    if (
-      liveCatalogueItem?.priceRequired &&
-      !selectedPricingId &&
-      matchingPricingOptions.length !== 1 &&
-      !manualPriceConfirmed
-    ) {
-      toast.error('Select a matching price option or confirm the manual total.')
       return
     }
     if (liveCatalogueItem?.noteRequired && transactionNote.trim().length < 3) {
@@ -1761,7 +1754,6 @@ export default function PosPreviewClient({
     setSelectedSupplierId('')
     setSupplierSourceName('')
     setSelectedPricingId('')
-    setManualPriceConfirmed(false)
     setScanOpen(false)
     setScanValue('')
     setNonCashDestination(
@@ -3144,7 +3136,6 @@ export default function PosPreviewClient({
                         setAmount(event.target.value)
                         setSupplierConfirmed(false)
                         setSelectedPricingId('')
-                        setManualPriceConfirmed(false)
                       }}
                       inputMode="decimal"
                       aria-label="Transaction amount"
@@ -3231,17 +3222,17 @@ export default function PosPreviewClient({
                 </div>
               )}
 
-              {liveCatalogueItem?.priceRequired && matchingPricingOptions.length > 1 && (
+              {matchingPricingOptions.length > 1 && (
                 <label className="block">
                   <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
-                    Confirm pricing option
+                    Pricing suggestion (optional)
                   </span>
                   <select
                     value={selectedPricingId}
                     onChange={(event) => setSelectedPricingId(event.target.value)}
                     className="h-9 w-full rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-900"
                   >
-                    <option value="">Choose the matching option</option>
+                    <option value="">Continue without attaching an option</option>
                     {matchingPricingOptions.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.label} · {formatMoney(option.price)}
@@ -3251,19 +3242,12 @@ export default function PosPreviewClient({
                 </label>
               )}
 
-              {liveCatalogueItem?.trackedSourceType === 'APPLICATIONS' &&
-                matchingPricingOptions.length === 0 && (
-                  <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[11px] font-semibold text-amber-900">
-                    <input
-                      type="checkbox"
-                      checked={manualPriceConfirmed}
-                      onChange={(event) => setManualPriceConfirmed(event.target.checked)}
-                      className="mt-0.5"
-                    />
-                    No unique active pricing row matches this total. Confirm the manually entered
-                    price.
-                  </label>
-                )}
+              {liveCatalogueItem?.priceRequired && matchingPricingOptions.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold text-slate-600">
+                  No pricing-table suggestion matches this total. The price matcher is advisory, so
+                  you can still post the amount entered above.
+                </div>
+              )}
 
               {isSupplierPayment && (
                 <div

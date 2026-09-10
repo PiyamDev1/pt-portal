@@ -130,9 +130,9 @@ const SERVICE_REQUIREMENTS = [
     hint: 'Staff must explain the transaction in a note.',
   },
   {
-    label: 'Price required',
+    label: 'Show pricing suggestions',
     field: 'price_required',
-    hint: 'Staff must select or confirm the service price.',
+    hint: 'Soft-match this service to the pricing table. A missing match never blocks posting.',
   },
   {
     label: 'Source reference required',
