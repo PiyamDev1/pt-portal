@@ -11,6 +11,14 @@ const sql = readFileSync(
   'utf8',
 )
 
+const repairSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'supabase/migrations/20260910171757_repair_appointment_guest_code_default.sql',
+  ),
+  'utf8',
+)
+
 describe('customer appointment guest-code migration contract', () => {
   it('backfills an opaque unique code for old and new appointments', () => {
     expect(sql).toContain("select 'VISIT-' || upper(")
@@ -21,5 +29,14 @@ describe('customer appointment guest-code migration contract', () => {
 
   it('does not expose the code generator to browser roles', () => {
     expect(sql).toContain('from public, anon, authenticated, service_role')
+  })
+
+  it('repairs inserts without exposing the guest-code generator as an RPC', () => {
+    expect(repairSql).toContain('alter column customer_guest_code set default (')
+    expect(repairSql).toContain("'VISIT-' || upper(substr(replace(gen_random_uuid()::text")
+    expect(repairSql).toContain(
+      'drop function if exists public.generate_customer_appointment_guest_code()',
+    )
+    expect(repairSql).not.toContain('grant execute')
   })
 })
