@@ -238,12 +238,16 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
       </nav>
 
       {activeTab === 'settings' && dashboard?.program && canAdjust ? (
-        <LoyaltyProgramManager program={dashboard.program} campaignOptions={dashboard.campaignOptions} />
+        <LoyaltyProgramManager
+          program={dashboard.program}
+          campaignOptions={dashboard.campaignOptions}
+        />
       ) : null}
 
       {activeTab === 'campaigns' && dashboard?.program && canAdjust ? (
         <LoyaltyCampaignManager
           key={campaignTemplate ?? 'campaign-workspace'}
+          campaignEvents={dashboard.campaignEvents}
           campaigns={dashboard.campaigns}
           campaignOptions={dashboard.campaignOptions}
           initialEventType={campaignTemplate}

@@ -99,6 +99,7 @@ export async function loadLoyaltyDashboard(
     canAdjust,
     loadedAt: new Date().toISOString(),
     program: programConfiguration.program,
+    campaignEvents: programConfiguration.campaignEvents,
     campaigns: programConfiguration.campaigns,
     campaignOptions: programConfiguration.campaignOptions,
   }
@@ -110,7 +111,7 @@ export async function manageLoyaltyProgram(input: {
   request: Record<string, unknown>
 }) {
   const { data, error } = await getServiceSupabaseClient().rpc(
-    'customer_loyalty_manage_program_v4',
+    'customer_loyalty_manage_program_v5',
     {
       p_actor_employee_id: input.actorEmployeeId,
       p_action: input.action,
@@ -125,6 +126,12 @@ export async function manageLoyaltyProgram(input: {
       'a campaign cannot link to itself',
       'linked campaign not found',
       'referral campaigns must remain available to all ranks',
+      'an active campaign event already uses this name',
+      'campaign event not found',
+      'campaign reward rule not found',
+      'this event already has a reward rule with that name',
+      'voucher reward not found',
+      'that event name or reward rule is already in use',
     ]
     const safeMessage = safeCampaignErrors.find((message) => error.message.includes(message))
     throw new Error(safeMessage ?? 'Unable to save the loyalty program change.')

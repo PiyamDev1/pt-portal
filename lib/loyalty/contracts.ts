@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { LoyaltyProgramPolicy } from './program'
-import type { LoyaltyBonusCampaign } from './programServer'
+import type { LoyaltyBonusCampaign, LoyaltyCampaignEvent } from './programServer'
 
 export const loyaltySearchSchema = z.string().trim().max(100).default('')
 
@@ -19,17 +19,25 @@ export const loyaltyAdjustmentSchema = z
   })
   .strict()
 
-export const loyaltyWalkInConsumeSchema = z.object({
-  customerCode: z.string().trim().min(8).max(40),
-  locationId: z.string().uuid(),
-  serviceType: z.enum(['nadra', 'passport']),
-  idempotencyKey: z.string().uuid(),
-  isOverride: z.boolean().default(false),
-  consumeAllowance: z.boolean().default(true),
-  overrideReason: z.string().trim().min(5).max(300).nullable().default(null),
-}).strict().superRefine((value, context) => {
-  if (value.isOverride && !value.overrideReason) context.addIssue({ code: 'custom', path: ['overrideReason'], message: 'An audited override reason is required.' })
-})
+export const loyaltyWalkInConsumeSchema = z
+  .object({
+    customerCode: z.string().trim().min(8).max(40),
+    locationId: z.string().uuid(),
+    serviceType: z.enum(['nadra', 'passport']),
+    idempotencyKey: z.string().uuid(),
+    isOverride: z.boolean().default(false),
+    consumeAllowance: z.boolean().default(true),
+    overrideReason: z.string().trim().min(5).max(300).nullable().default(null),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.isOverride && !value.overrideReason)
+      context.addIssue({
+        code: 'custom',
+        path: ['overrideReason'],
+        message: 'An audited override reason is required.',
+      })
+  })
 
 export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
   z
@@ -61,9 +69,50 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
     }),
   z
     .object({
+      action: z.literal('UPDATE_VOUCHER_POINTS'),
+      currentPointsCost: z.number().int().min(1).max(1_000_000),
+      pointsCost: z.number().int().min(1).max(1_000_000),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('DELETE_VOUCHER_REWARD'),
+      pointsCost: z.number().int().min(1).max(1_000_000),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('CREATE_CAMPAIGN_EVENT'),
+      name: z.string().trim().min(3).max(100),
+      description: z.string().trim().max(500).nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('UPDATE_CAMPAIGN_EVENT'),
+      id: z.string().uuid(),
+      name: z.string().trim().min(3).max(100),
+      description: z.string().trim().max(500).nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('DELETE_CAMPAIGN_EVENT'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('DELETE_BONUS_CAMPAIGN'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
       action: z.literal('UPSERT_BONUS_CAMPAIGN'),
       id: z.string().uuid().optional(),
-      name: z.string().trim().min(3).max(100),
+      eventId: z.string().uuid(),
+      ruleName: z.string().trim().min(2).max(100),
       eventType: z.enum([
         'double_points',
         'fixed_bonus',
@@ -224,11 +273,20 @@ export type LoyaltyDashboardPayload = {
   canAdjust: boolean
   loadedAt: string
   program: LoyaltyProgramPolicy
+  campaignEvents: LoyaltyCampaignEvent[]
   campaigns: LoyaltyBonusCampaign[]
   campaignOptions: {
     services: Array<{ key: string; label: string; category: string }>
     branches: Array<{ id: string; name: string }>
-    walkInWindows: Array<{ id: string; locationId: string; serviceType: 'nadra' | 'passport'; isoWeekday: number; startsAt: string; endsAt: string; isActive: boolean }>
+    walkInWindows: Array<{
+      id: string
+      locationId: string
+      serviceType: 'nadra' | 'passport'
+      isoWeekday: number
+      startsAt: string
+      endsAt: string
+      isActive: boolean
+    }>
   }
 }
 

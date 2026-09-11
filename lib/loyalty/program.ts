@@ -83,7 +83,7 @@ export const LOYALTY_PROGRAM_POLICY = {
     {
       key: 'ticket',
       label: 'Flight ticket',
-      points: 80,
+      points: 60,
       unit: 'issued and paid passenger ticket',
     },
     {
@@ -139,17 +139,17 @@ export const LOYALTY_PROGRAM_POLICY = {
     {
       key: 'welcome_bonus',
       label: 'Welcome bonus',
-      suggestedAward: '+100 points',
+      suggestedAward: '+50 points',
       description: 'Awarded once after a new member completes their first qualifying paid service.',
-      defaultCustomerCap: 100,
+      defaultCustomerCap: 50,
     },
     {
       key: 'referral_bonus',
       label: 'Verified referral',
-      suggestedAward: '+150 / +100 points',
+      suggestedAward: '+100 / +50 points',
       description:
-        '150 points to the referrer and 100 to the new member after the referred member completes a first qualifying purchase.',
-      defaultCustomerCap: 750,
+        '100 points to the referrer and 50 to the new member after the referred member completes a first qualifying purchase.',
+      defaultCustomerCap: 100,
     },
     {
       key: 'off_peak_bonus',
@@ -161,10 +161,10 @@ export const LOYALTY_PROGRAM_POLICY = {
     {
       key: 'birthday_gift',
       label: 'Birthday gift',
-      suggestedAward: '+100 points',
+      suggestedAward: '+50 points',
       description:
         'Automatically awarded once during an active birthday campaign to opted-in members.',
-      defaultCustomerCap: 100,
+      defaultCustomerCap: 50,
     },
     {
       key: 'eid_gift',

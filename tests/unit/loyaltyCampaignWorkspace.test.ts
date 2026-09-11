@@ -11,7 +11,8 @@ const sql = readFileSync(
 
 const campaign = {
   action: 'UPSERT_BONUS_CAMPAIGN' as const,
-  name: 'Gold Eid reward',
+  eventId: '30000000-0000-4000-8000-000000000001',
+  ruleName: 'Gold member reward',
   eventType: 'eid_gift' as const,
   multiplier: null,
   bonusPoints: 100,

@@ -4,6 +4,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Copy,
+  FolderPlus,
   Link2,
   Megaphone,
   Pencil,
@@ -12,6 +13,7 @@ import {
   Search,
   ShieldCheck,
   Target,
+  Trash2,
   UsersRound,
   X,
 } from 'lucide-react'
@@ -20,6 +22,7 @@ import { FormEvent, useMemo, useState } from 'react'
 import type { LoyaltyDashboardPayload } from '@/lib/loyalty/contracts'
 
 type Campaign = LoyaltyDashboardPayload['campaigns'][number]
+type CampaignEvent = LoyaltyDashboardPayload['campaignEvents'][number]
 type EventType = Campaign['eventType']
 type Tier = Campaign['audienceTiers'][number]
 type Filter = 'all' | Campaign['status']
@@ -85,15 +88,17 @@ function localDateTime(value?: string) {
 }
 
 function defaultPoints(type: EventType) {
-  if (type === 'referral_bonus') return 150
+  if (type === 'referral_bonus') return 100
   if (type === 'off_peak_bonus') return 25
+  if (type === 'welcome_bonus' || type === 'birthday_gift') return 50
   return 100
 }
 
 function defaultCustomerCap(type: EventType) {
   if (type === 'double_points') return 500
-  if (type === 'referral_bonus') return 750
+  if (type === 'referral_bonus') return 100
   if (type === 'fixed_bonus') return 50
+  if (type === 'welcome_bonus' || type === 'birthday_gift') return 50
   return 100
 }
 
@@ -104,14 +109,22 @@ function initialEnd() {
 }
 
 export function LoyaltyCampaignManager({
+  campaignEvents: initialEvents,
   campaigns: initialCampaigns,
   campaignOptions,
   initialEventType = null,
-}: Pick<LoyaltyDashboardPayload, 'campaigns' | 'campaignOptions'> & {
+}: Pick<LoyaltyDashboardPayload, 'campaignEvents' | 'campaigns' | 'campaignOptions'> & {
   initialEventType?: EventType | null
 }) {
   const [campaigns, setCampaigns] = useState(initialCampaigns)
-  const [editing, setEditing] = useState<Campaign | 'new' | null>(initialEventType ? 'new' : null)
+  const [campaignEvents, setCampaignEvents] = useState(initialEvents)
+  const [editingEvent, setEditingEvent] = useState<CampaignEvent | 'new' | null>(
+    initialEvents.length ? null : 'new',
+  )
+  const [selectedEventId, setSelectedEventId] = useState(initialEvents[0]?.id ?? '')
+  const [editing, setEditing] = useState<Campaign | 'new' | null>(
+    initialEventType && initialEvents.length ? 'new' : null,
+  )
   const [eventType, setEventType] = useState<EventType>(initialEventType ?? 'double_points')
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
@@ -119,22 +132,43 @@ export function LoyaltyCampaignManager({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const visible = useMemo(() => {
+  const visibleEvents = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return campaigns.filter(
-      (campaign) =>
-        (filter === 'all' || campaign.status === filter) &&
-        (!needle ||
-          campaign.name.toLowerCase().includes(needle) ||
-          eventCopy[campaign.eventType].label.toLowerCase().includes(needle)),
-    )
-  }, [campaigns, filter, query])
+    return campaignEvents
+      .map((campaignEvent) => ({
+        ...campaignEvent,
+        campaigns: campaigns.filter(
+          (campaign) =>
+            campaign.eventId === campaignEvent.id &&
+            (filter === 'all' || campaign.status === filter) &&
+            (!needle ||
+              campaignEvent.name.toLowerCase().includes(needle) ||
+              campaignEvent.description?.toLowerCase().includes(needle) ||
+              campaign.ruleName.toLowerCase().includes(needle) ||
+              eventCopy[campaign.eventType].label.toLowerCase().includes(needle)),
+        ),
+      }))
+      .filter(
+        (campaignEvent) =>
+          campaignEvent.campaigns.length > 0 ||
+          (filter === 'all' &&
+            (!needle ||
+              campaignEvent.name.toLowerCase().includes(needle) ||
+              campaignEvent.description?.toLowerCase().includes(needle))),
+      )
+  }, [campaignEvents, campaigns, filter, query])
   const campaignNames = useMemo(
-    () => new Map(campaigns.map((campaign) => [campaign.id, campaign.name])),
+    () => new Map(campaigns.map((campaign) => [campaign.id, campaign.ruleName])),
     [campaigns],
   )
 
-  function create(type: EventType) {
+  function create(type: EventType, eventId = selectedEventId) {
+    if (!eventId) {
+      setEditingEvent('new')
+      setError('Create an event name before adding reward rules.')
+      return
+    }
+    setSelectedEventId(eventId)
     setEventType(type)
     setEditing('new')
     setMessage(null)
@@ -142,14 +176,106 @@ export function LoyaltyCampaignManager({
   }
 
   function clone(campaign: Campaign) {
+    setSelectedEventId(campaign.eventId)
     setEventType(campaign.eventType)
     setEditing({
       ...campaign,
       id: '',
-      name: `${campaign.name} copy`,
+      ruleName: `${campaign.ruleName} copy`,
       status: 'draft',
       performance: { awardCount: 0, customerCount: 0, awardedPoints: 0, lastAwardedAt: null },
     })
+  }
+
+  async function mutate(body: Record<string, unknown>) {
+    const response = await fetch('/api/loyalty/program', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const payload = (await response.json()) as LoyaltyDashboardPayload & { error?: string }
+    if (!response.ok) throw new Error(payload.error || 'The change could not be saved.')
+    setCampaignEvents(payload.campaignEvents)
+    setCampaigns(payload.campaigns)
+    return payload
+  }
+
+  async function saveEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const currentEvent = editingEvent && editingEvent !== 'new' ? editingEvent : null
+    const name = String(data.get('name') || '').trim()
+    setPending(true)
+    setMessage(null)
+    setError(null)
+    try {
+      const payload = await mutate({
+        action: currentEvent ? 'UPDATE_CAMPAIGN_EVENT' : 'CREATE_CAMPAIGN_EVENT',
+        ...(currentEvent ? { id: currentEvent.id } : {}),
+        name,
+        description: String(data.get('description') || '').trim() || null,
+      })
+      const savedEvent = payload.campaignEvents.find(
+        (item) => item.name.toLowerCase() === name.toLowerCase(),
+      )
+      if (savedEvent) {
+        setSelectedEventId(savedEvent.id)
+        if (!currentEvent) setEditing('new')
+      }
+      setEditingEvent(null)
+      setMessage(
+        currentEvent
+          ? 'Event details updated.'
+          : 'Event created. Add one or more reward rules below it.',
+      )
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The event could not be saved.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function removeEvent(campaignEvent: CampaignEvent) {
+    if (
+      !window.confirm(
+        `Delete “${campaignEvent.name}” and remove all of its reward rules? Existing award history will be retained.`,
+      )
+    )
+      return
+    setPending(true)
+    setMessage(null)
+    setError(null)
+    try {
+      const payload = await mutate({ action: 'DELETE_CAMPAIGN_EVENT', id: campaignEvent.id })
+      if (selectedEventId === campaignEvent.id) {
+        setSelectedEventId(payload.campaignEvents[0]?.id ?? '')
+      }
+      setMessage('Event removed. Existing customer award history remains intact.')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The event could not be removed.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function removeCampaign(campaign: Campaign) {
+    if (
+      !window.confirm(
+        `Delete the “${campaign.ruleName}” reward rule? Existing award history will be retained.`,
+      )
+    )
+      return
+    setPending(true)
+    setMessage(null)
+    setError(null)
+    try {
+      await mutate({ action: 'DELETE_BONUS_CAMPAIGN', id: campaign.id })
+      setMessage('Reward rule removed. Existing customer award history remains intact.')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The reward rule could not be removed.')
+    } finally {
+      setPending(false)
+    }
   }
 
   async function saveCampaign(event: FormEvent<HTMLFormElement>) {
@@ -168,41 +294,35 @@ export function LoyaltyCampaignManager({
     setMessage(null)
     setError(null)
     try {
-      const response = await fetch('/api/loyalty/program', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'UPSERT_BONUS_CAMPAIGN',
-          ...(id ? { id } : {}),
-          name: String(data.get('name')),
-          eventType,
-          multiplier: eventType === 'double_points' ? numberOrNull('multiplier') : null,
-          bonusPoints: eventType === 'double_points' ? null : numberOrNull('bonusPoints'),
-          referredCustomerPoints:
-            eventType === 'referral_bonus' ? numberOrNull('referredCustomerPoints') : null,
-          startsAt: new Date(String(data.get('startsAt'))).toISOString(),
-          endsAt: new Date(String(data.get('endsAt'))).toISOString(),
-          eligibleServiceKeys: data.getAll('eligibleServiceKeys').map(String),
-          eligibleBranchIds: data.getAll('eligibleBranchIds').map(String),
-          audienceTiers: selectedTiers,
-          maxAwardsPerCustomer: Number(data.get('maxAwardsPerCustomer')),
-          perCustomerCap: Number(data.get('perCustomerCap')),
-          totalPointsBudget: Number(data.get('totalPointsBudget')),
-          minimumSpendPence: Math.round(Number(data.get('minimumSpendPounds')) * 100),
-          priority: Number(data.get('priority')),
-          linkedCampaignId: String(data.get('linkedCampaignId') || '') || null,
-          allowStacking: data.get('allowStacking') === 'on',
-          status: String(data.get('status')),
-          terms: String(data.get('terms') || '') || null,
-        }),
+      await mutate({
+        action: 'UPSERT_BONUS_CAMPAIGN',
+        ...(id ? { id } : {}),
+        eventId: String(data.get('eventId')),
+        ruleName: String(data.get('ruleName')),
+        eventType,
+        multiplier: eventType === 'double_points' ? numberOrNull('multiplier') : null,
+        bonusPoints: eventType === 'double_points' ? null : numberOrNull('bonusPoints'),
+        referredCustomerPoints:
+          eventType === 'referral_bonus' ? numberOrNull('referredCustomerPoints') : null,
+        startsAt: new Date(String(data.get('startsAt'))).toISOString(),
+        endsAt: new Date(String(data.get('endsAt'))).toISOString(),
+        eligibleServiceKeys: data.getAll('eligibleServiceKeys').map(String),
+        eligibleBranchIds: data.getAll('eligibleBranchIds').map(String),
+        audienceTiers: selectedTiers,
+        maxAwardsPerCustomer: Number(data.get('maxAwardsPerCustomer')),
+        perCustomerCap: Number(data.get('perCustomerCap')),
+        totalPointsBudget: Number(data.get('totalPointsBudget')),
+        minimumSpendPence: Math.round(Number(data.get('minimumSpendPounds')) * 100),
+        priority: Number(data.get('priority')),
+        linkedCampaignId: String(data.get('linkedCampaignId') || '') || null,
+        allowStacking: data.get('allowStacking') === 'on',
+        status: String(data.get('status')),
+        terms: String(data.get('terms') || '') || null,
       })
-      const payload = (await response.json()) as LoyaltyDashboardPayload & { error?: string }
-      if (!response.ok) throw new Error(payload.error || 'The campaign could not be saved.')
-      setCampaigns(payload.campaigns)
       setEditing(null)
-      setMessage('Campaign saved. Its rules and administrator are in the audit history.')
+      setMessage('Reward rule saved. Its limits and administrator are in the audit history.')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The campaign could not be saved.')
+      setError(reason instanceof Error ? reason.message : 'The reward rule could not be saved.')
     } finally {
       setPending(false)
     }
@@ -224,16 +344,16 @@ export function LoyaltyCampaignManager({
             </span>
             <h2 className="mt-2 text-2xl font-black sm:text-3xl">Campaigns</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Create, schedule and measure bonus events. Every campaign has an audience, qualifying
-              scope, customer frequency limit and total budget.
+              Create one named event first, then add its reward rules. This keeps related rewards
+              together without duplicating the event name.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => create('double_points')}
+            onClick={() => setEditingEvent('new')}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#7f1d2d] px-4 text-sm font-black text-white"
           >
-            <Plus className="size-4" /> Create campaign
+            <FolderPlus className="size-4" /> Create event
           </button>
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -243,7 +363,8 @@ export function LoyaltyCampaignManager({
                 key={type}
                 type="button"
                 onClick={() => create(type)}
-                className="rounded-2xl border border-white bg-white/80 p-3 text-left shadow-sm transition hover:border-red-200 hover:-translate-y-0.5"
+                disabled={!campaignEvents.length}
+                className="rounded-2xl border border-white bg-white/80 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <p className="text-sm font-black">{eventCopy[type].label}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">{eventCopy[type].help}</p>
@@ -252,6 +373,61 @@ export function LoyaltyCampaignManager({
           )}
         </div>
       </section>
+
+      {editingEvent ? (
+        <form
+          onSubmit={saveEvent}
+          className="rounded-3xl border border-red-200 bg-white p-4 shadow-lg sm:p-6"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7f1d2d]">
+                Step 1
+              </p>
+              <h3 className="mt-1 text-xl font-black">
+                {editingEvent === 'new' ? 'Name the event' : 'Edit event'}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Example: Ramadan 2027, Summer travel or New member rewards.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingEvent(null)}
+              aria-label="Close event form"
+              className="grid size-11 place-items-center rounded-xl bg-slate-100"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,18rem)_1fr_auto] lg:items-end">
+            <label className="text-xs font-bold">
+              Event name
+              <input
+                required
+                name="name"
+                maxLength={100}
+                defaultValue={editingEvent === 'new' ? '' : editingEvent.name}
+                className={inputClass}
+                placeholder="Example: Ramadan 2027"
+              />
+            </label>
+            <label className="text-xs font-bold">
+              Internal description <span className="font-normal text-slate-500">(optional)</span>
+              <input
+                name="description"
+                maxLength={500}
+                defaultValue={editingEvent === 'new' ? '' : (editingEvent.description ?? '')}
+                className={inputClass}
+                placeholder="What this event is for"
+              />
+            </label>
+            <button disabled={pending} className="button-primary min-h-11">
+              <Save className="size-4" /> {pending ? 'Saving…' : 'Save event'}
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       {message ? (
         <p
@@ -299,111 +475,178 @@ export function LoyaltyCampaignManager({
           </label>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          {visible.map((campaign) => (
-            <article key={campaign.id} className="rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-3">
+        <div className="mt-4 space-y-4">
+          {visibleEvents.map((campaignEvent) => (
+            <article
+              key={campaignEvent.id}
+              className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/40"
+            >
+              <header className="flex flex-col gap-3 border-b border-slate-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-black">{campaign.name}</h3>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${statusTone[campaign.status]}`}
-                    >
-                      {campaign.status}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs font-bold text-[#7f1d2d]">
-                    {eventCopy[campaign.eventType].label} ·{' '}
-                    {eventCopy[campaign.eventType].automated}
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#7f1d2d]">
+                    Campaign event
                   </p>
+                  <h3 className="mt-1 text-xl font-black">{campaignEvent.name}</h3>
+                  {campaignEvent.description ? (
+                    <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                      {campaignEvent.description}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => clone(campaign)}
-                    aria-label={`Duplicate ${campaign.name}`}
-                    className="grid size-11 place-items-center rounded-xl bg-slate-100"
+                    onClick={() => create('fixed_bonus', campaignEvent.id)}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#7f1d2d] px-3 text-xs font-black text-white"
                   >
-                    <Copy className="size-4" />
+                    <Plus className="size-4" /> Add reward rule
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEventType(campaign.eventType)
-                      setEditing(campaign)
-                    }}
-                    aria-label={`Edit ${campaign.name}`}
-                    className="grid size-11 place-items-center rounded-xl bg-red-50 text-[#7f1d2d]"
+                    onClick={() => setEditingEvent(campaignEvent)}
+                    aria-label={`Edit ${campaignEvent.name}`}
+                    className="grid size-11 place-items-center rounded-xl bg-slate-100"
                   >
                     <Pencil className="size-4" />
                   </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void removeEvent(campaignEvent)}
+                    aria-label={`Delete ${campaignEvent.name}`}
+                    className="grid size-11 place-items-center rounded-xl border border-red-200 bg-white text-red-700 disabled:opacity-50"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
                 </div>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <p className="rounded-xl bg-slate-50 p-2">
-                  <b className="block text-base">
-                    {campaign.performance.customerCount.toLocaleString('en-GB')}
-                  </b>
-                  Customers
-                </p>
-                <p className="rounded-xl bg-slate-50 p-2">
-                  <b className="block text-base">
-                    {campaign.performance.awardCount.toLocaleString('en-GB')}
-                  </b>
-                  Awards
-                </p>
-                <p className="rounded-xl bg-slate-50 p-2">
-                  <b className="block text-base">
-                    {campaign.performance.awardedPoints.toLocaleString('en-GB')}
-                  </b>
-                  Points used
-                </p>
-                <p className="rounded-xl bg-slate-50 p-2">
-                  <b className="block text-base">{campaign.maxAwardsPerCustomer}</b>Per customer
-                </p>
-              </div>
-              <div className="mt-3">
-                <div className="flex justify-between text-[11px] font-bold text-slate-500">
-                  <span>Budget</span>
-                  <span>
-                    {campaign.performance.awardedPoints.toLocaleString('en-GB')} /{' '}
-                    {campaign.totalPointsBudget.toLocaleString('en-GB')} points ·{' '}
-                    {Math.round(budgetUsed(campaign))}%
-                  </span>
-                </div>
-                <progress
-                  value={campaign.performance.awardedPoints}
-                  max={campaign.totalPointsBudget}
-                  className="mt-1 h-2 w-full accent-[#7f1d2d]"
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold text-slate-600">
-                <span className="rounded-full bg-slate-100 px-2 py-1">
-                  {campaign.audienceTiers.join(', ')}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2 py-1">
-                  {campaign.eligibleServiceKeys.length || 'All'} services
-                </span>
-                <span className="rounded-full bg-slate-100 px-2 py-1">
-                  {campaign.eligibleBranchIds.length || 'All'} branches
-                </span>
-                {campaign.linkedCampaignId ? (
-                  <span className="rounded-full bg-violet-100 px-2 py-1 text-violet-700">
-                    <Link2 className="mr-1 inline size-3" />
-                    Linked to {campaignNames.get(campaign.linkedCampaignId) ?? 'campaign'}
-                  </span>
+              </header>
+              <div className="grid gap-3 p-3 xl:grid-cols-2">
+                {campaignEvent.campaigns.map((campaign) => (
+                  <section
+                    key={campaign.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-black">{campaign.ruleName}</h4>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${statusTone[campaign.status]}`}
+                          >
+                            {campaign.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs font-bold text-[#7f1d2d]">
+                          {eventCopy[campaign.eventType].label} ·{' '}
+                          {eventCopy[campaign.eventType].automated}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => clone(campaign)}
+                          aria-label={`Duplicate ${campaign.ruleName}`}
+                          className="grid size-11 place-items-center rounded-xl bg-slate-100"
+                        >
+                          <Copy className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEventId(campaign.eventId)
+                            setEventType(campaign.eventType)
+                            setEditing(campaign)
+                          }}
+                          aria-label={`Edit ${campaign.ruleName}`}
+                          className="grid size-11 place-items-center rounded-xl bg-red-50 text-[#7f1d2d]"
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => void removeCampaign(campaign)}
+                          aria-label={`Delete ${campaign.ruleName}`}
+                          className="grid size-11 place-items-center rounded-xl border border-red-200 bg-white text-red-700 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      <p className="rounded-xl bg-slate-50 p-2">
+                        <b className="block text-base">
+                          {campaign.performance.customerCount.toLocaleString('en-GB')}
+                        </b>
+                        Customers
+                      </p>
+                      <p className="rounded-xl bg-slate-50 p-2">
+                        <b className="block text-base">
+                          {campaign.performance.awardCount.toLocaleString('en-GB')}
+                        </b>
+                        Awards
+                      </p>
+                      <p className="rounded-xl bg-slate-50 p-2">
+                        <b className="block text-base">
+                          {campaign.performance.awardedPoints.toLocaleString('en-GB')}
+                        </b>
+                        Points used
+                      </p>
+                      <p className="rounded-xl bg-slate-50 p-2">
+                        <b className="block text-base">{campaign.maxAwardsPerCustomer}</b>Per
+                        customer
+                      </p>
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex justify-between gap-3 text-[11px] font-bold text-slate-500">
+                        <span>Budget</span>
+                        <span>
+                          {campaign.performance.awardedPoints.toLocaleString('en-GB')} /{' '}
+                          {campaign.totalPointsBudget.toLocaleString('en-GB')} ·{' '}
+                          {Math.round(budgetUsed(campaign))}%
+                        </span>
+                      </div>
+                      <progress
+                        value={campaign.performance.awardedPoints}
+                        max={campaign.totalPointsBudget}
+                        className="mt-1 h-2 w-full accent-[#7f1d2d]"
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold text-slate-600">
+                      <span className="rounded-full bg-slate-100 px-2 py-1">
+                        {campaign.audienceTiers.join(', ')}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1">
+                        {campaign.eligibleServiceKeys.length || 'All'} services
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1">
+                        {campaign.eligibleBranchIds.length || 'All'} branches
+                      </span>
+                      {campaign.linkedCampaignId ? (
+                        <span className="rounded-full bg-violet-100 px-2 py-1 text-violet-700">
+                          <Link2 className="mr-1 inline size-3" />
+                          Linked to {campaignNames.get(campaign.linkedCampaignId) ?? 'reward rule'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">
+                      <CalendarClock className="mr-1 inline size-4" />
+                      {campaignDateFormat.format(new Date(campaign.startsAt))} –{' '}
+                      {campaignDateFormat.format(new Date(campaign.endsAt))}
+                    </p>
+                  </section>
+                ))}
+                {!campaignEvent.campaigns.length ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 xl:col-span-2">
+                    This event has no reward rules yet. Add the first rule to make it useful.
+                  </div>
                 ) : null}
               </div>
-              <p className="mt-3 text-xs text-slate-500">
-                <CalendarClock className="mr-1 inline size-4" />
-                {campaignDateFormat.format(new Date(campaign.startsAt))} –{' '}
-                {campaignDateFormat.format(new Date(campaign.endsAt))}
-              </p>
             </article>
           ))}
-          {!visible.length ? (
+          {!visibleEvents.length ? (
             <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-              No campaigns match this view.
+              No campaign events match this view.
             </div>
           ) : null}
         </div>
@@ -418,9 +661,9 @@ export function LoyaltyCampaignManager({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7f1d2d]">
-                {current?.id ? 'Modify campaign' : 'New campaign'}
+                Step 2 · {current?.id ? 'Modify reward rule' : 'New reward rule'}
               </p>
-              <h2 className="mt-1 text-2xl font-black">Campaign builder</h2>
+              <h2 className="mt-1 text-2xl font-black">Reward rule builder</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Complete the reward, audience, scope and guardrails before scheduling.
               </p>
@@ -440,14 +683,34 @@ export function LoyaltyCampaignManager({
             <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4">
               <legend className="px-2 text-sm font-black">1. Reward and schedule</legend>
               <label className="block text-xs font-bold">
-                Campaign name
+                Parent event
+                <select
+                  required
+                  name="eventId"
+                  defaultValue={current?.eventId ?? selectedEventId}
+                  onChange={(event) => setSelectedEventId(event.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Select an event</option>
+                  {campaignEvents.map((campaignEvent) => (
+                    <option key={campaignEvent.id} value={campaignEvent.id}>
+                      {campaignEvent.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs font-bold">
+                Reward rule name
                 <input
                   required
-                  name="name"
-                  defaultValue={current?.name ?? ''}
+                  name="ruleName"
+                  defaultValue={current?.ruleName ?? eventCopy[eventType].label}
                   className={inputClass}
-                  placeholder="Example: Eid Gold member gift"
+                  placeholder="Example: Gold member bonus"
                 />
+                <span className="mt-1 block font-normal leading-5 text-slate-500">
+                  Use a short unique label within this event. The event name is shown only once.
+                </span>
               </label>
               <label className="block text-xs font-bold">
                 Event type
@@ -506,7 +769,7 @@ export function LoyaltyCampaignManager({
                     type="number"
                     min="1"
                     max="100000"
-                    defaultValue={current?.referredCustomerPoints ?? 100}
+                    defaultValue={current?.referredCustomerPoints ?? 50}
                     className={inputClass}
                   />
                 </label>
@@ -769,7 +1032,7 @@ export function LoyaltyCampaignManager({
             </button>
             <button disabled={pending} className="button-primary min-w-48">
               <Save className="size-4" />
-              {pending ? 'Saving…' : current?.id ? 'Save changes' : 'Create campaign'}
+              {pending ? 'Saving…' : current?.id ? 'Save changes' : 'Create reward rule'}
             </button>
           </div>
         </form>
@@ -786,9 +1049,9 @@ export function LoyaltyCampaignManager({
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-4">
           <Link2 className="size-5 text-[#7f1d2d]" />
-          <h3 className="mt-2 font-black">Linked variants</h3>
+          <h3 className="mt-2 font-black">Event groups</h3>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Build Bronze, Silver, Gold or Diamond variants and connect them as one promotion family.
+            Keep multiple rank, service or branch reward rules under one clearly named event.
           </p>
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-4">

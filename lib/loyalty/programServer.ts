@@ -15,6 +15,8 @@ export type LoyaltyRankName =
 export type LoyaltyBonusCampaign = {
   id: string
   name: string
+  eventId: string
+  ruleName: string
   eventType:
     | 'double_points'
     | 'fixed_bonus'
@@ -48,16 +50,33 @@ export type LoyaltyBonusCampaign = {
   }
 }
 
+export type LoyaltyCampaignEvent = {
+  id: string
+  name: string
+  description: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type LoyaltyCampaignOptions = {
   services: Array<{ key: string; label: string; category: string }>
   branches: Array<{ id: string; name: string }>
-  walkInWindows: Array<{ id: string; locationId: string; serviceType: 'nadra' | 'passport'; isoWeekday: number; startsAt: string; endsAt: string; isActive: boolean }>
+  walkInWindows: Array<{
+    id: string
+    locationId: string
+    serviceType: 'nadra' | 'passport'
+    isoWeekday: number
+    startsAt: string
+    endsAt: string
+    isActive: boolean
+  }>
 }
 
 export async function loadLoyaltyProgramConfiguration(options?: {
   allowFallback?: boolean
 }): Promise<{
   program: LoyaltyProgramPolicy
+  campaignEvents: LoyaltyCampaignEvent[]
   campaigns: LoyaltyBonusCampaign[]
   campaignOptions: LoyaltyCampaignOptions
 }> {
@@ -65,6 +84,7 @@ export async function loadLoyaltyProgramConfiguration(options?: {
   const [
     earningResult,
     voucherResult,
+    eventResult,
     campaignResult,
     performanceResult,
     servicesResult,
@@ -80,12 +100,19 @@ export async function loadLoyaltyProgramConfiguration(options?: {
     service
       .from('customer_loyalty_voucher_rewards')
       .select('id,points_cost,value_pence,validity_months,is_active')
+      .eq('is_active', true)
       .order('display_order'),
+    service
+      .from('customer_loyalty_campaign_events')
+      .select('id,name,description,created_at,updated_at')
+      .eq('is_archived', false)
+      .order('updated_at', { ascending: false }),
     service
       .from('customer_loyalty_bonus_campaigns')
       .select(
-        'id,name,event_type,multiplier,bonus_points,referred_customer_points,starts_at,ends_at,eligible_service_keys,eligible_branch_ids,audience_tiers,max_awards_per_customer,minimum_spend_pence,priority,linked_campaign_id,per_customer_cap,total_points_budget,allow_stacking,status,terms',
+        'id,name,event_id,rule_name,event_type,multiplier,bonus_points,referred_customer_points,starts_at,ends_at,eligible_service_keys,eligible_branch_ids,audience_tiers,max_awards_per_customer,minimum_spend_pence,priority,linked_campaign_id,per_customer_cap,total_points_budget,allow_stacking,status,terms',
       )
+      .eq('is_archived', false)
       .order('starts_at', { ascending: false })
       .limit(100),
     service
@@ -109,15 +136,27 @@ export async function loadLoyaltyProgramConfiguration(options?: {
       .from('customer_loyalty_achievement_rules')
       .select('achievement_key,name,description,required_transactions,bonus_points,is_active')
       .order('display_order'),
-    service.from('customer_loyalty_walkin_windows').select('id,location_id,service_type,iso_weekday,starts_at,ends_at,is_active').order('iso_weekday'),
+    service
+      .from('customer_loyalty_walkin_windows')
+      .select('id,location_id,service_type,iso_weekday,starts_at,ends_at,is_active')
+      .order('iso_weekday'),
   ])
 
-  if (earningResult.error || voucherResult.error || campaignResult.error || ranksResult.error || achievementsResult.error || walkInWindowsResult.error) {
+  if (
+    earningResult.error ||
+    voucherResult.error ||
+    eventResult.error ||
+    campaignResult.error ||
+    ranksResult.error ||
+    achievementsResult.error ||
+    walkInWindowsResult.error
+  ) {
     if (options?.allowFallback === false) {
       throw new Error('The authoritative loyalty programme could not be loaded.')
     }
     return {
       program: LOYALTY_PROGRAM_POLICY,
+      campaignEvents: [],
       campaigns: [],
       campaignOptions: { services: [], branches: [], walkInWindows: [] },
     }
@@ -138,11 +177,20 @@ export async function loadLoyaltyProgramConfiguration(options?: {
     validityMonths: Number(reward.validity_months),
     isActive: reward.is_active,
   }))
+  const campaignEvents: LoyaltyCampaignEvent[] = (eventResult.data ?? []).map((event) => ({
+    id: event.id,
+    name: event.name,
+    description: event.description,
+    createdAt: event.created_at,
+    updatedAt: event.updated_at,
+  }))
   const campaigns: LoyaltyBonusCampaign[] = (campaignResult.data ?? []).map((campaign) => {
     const usage = performance.get(campaign.id)
     return {
       id: campaign.id,
       name: campaign.name,
+      eventId: campaign.event_id,
+      ruleName: campaign.rule_name,
       eventType: campaign.event_type,
       multiplier: campaign.multiplier === null ? null : Number(campaign.multiplier),
       bonusPoints: campaign.bonus_points,
@@ -200,9 +248,7 @@ export async function loadLoyaltyProgramConfiguration(options?: {
     program: {
       ...LOYALTY_PROGRAM_POLICY,
       earningRules: earningRules.length ? earningRules : LOYALTY_PROGRAM_POLICY.earningRules,
-      voucherRewards: voucherRewards.length
-        ? voucherRewards
-        : LOYALTY_PROGRAM_POLICY.voucherRewards,
+      voucherRewards,
       ranks: (ranksResult.data ?? []).length
         ? (ranksResult.data ?? []).map((rank) => ({
             key: rank.rank_key,
@@ -228,11 +274,20 @@ export async function loadLoyaltyProgramConfiguration(options?: {
           }))
         : LOYALTY_PROGRAM_POLICY.achievementRules,
     },
+    campaignEvents,
     campaigns,
     campaignOptions: {
       services: [...serviceOptions.values()],
       branches: (branchesResult.data ?? []).map((branch) => ({ id: branch.id, name: branch.name })),
-      walkInWindows: (walkInWindowsResult.data ?? []).map((window) => ({ id: window.id, locationId: window.location_id, serviceType: window.service_type as 'nadra' | 'passport', isoWeekday: Number(window.iso_weekday), startsAt: String(window.starts_at).slice(0, 5), endsAt: String(window.ends_at).slice(0, 5), isActive: window.is_active })),
+      walkInWindows: (walkInWindowsResult.data ?? []).map((window) => ({
+        id: window.id,
+        locationId: window.location_id,
+        serviceType: window.service_type as 'nadra' | 'passport',
+        isoWeekday: Number(window.iso_weekday),
+        startsAt: String(window.starts_at).slice(0, 5),
+        endsAt: String(window.ends_at).slice(0, 5),
+        isActive: window.is_active,
+      })),
     },
   }
 }

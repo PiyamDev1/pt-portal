@@ -21,7 +21,7 @@ describe('loyalty program policy', () => {
       ),
     ).toEqual({
       remittance: 25,
-      ticket: 80,
+      ticket: 60,
       package: 120,
       cargo: 25,
       application: 25,
