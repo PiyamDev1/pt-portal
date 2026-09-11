@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { loadLoyaltyProgramConfiguration } from '@/lib/loyalty/programServer'
 import { CustomerIntegrationError } from './http'
+import { customerAchievementSummaries } from './loyaltyPresentation'
 
 type LoyaltySource = 'ticket' | 'service' | 'package' | 'adjustment'
 
@@ -235,19 +236,38 @@ export async function customerLoyaltySummary(input: {
     .reverse()
     .find((candidate) => Math.max(0, rankPoints) >= candidate.minimumPoints)
   const year = new Date().getUTCFullYear()
-  const [{ data: achievementRows, error: achievementError }, { data: badgeRows, error: badgeError }, { count: walkInUsed, error: walkInError }] = await Promise.all([
-    service.from('customer_loyalty_achievements').select('achievement_key,status,earned_at').eq('mobile_user_id', mobileUserId),
-    service.from('customer_loyalty_rank_badges').select('rank_key,first_reached_at').eq('mobile_user_id', mobileUserId),
-    service.from('customer_loyalty_walkin_usages').select('id', { count: 'exact', head: true }).eq('mobile_user_id', mobileUserId).eq('programme_year', year).eq('consumes_allowance', true),
+  const [
+    { data: achievementRows, error: achievementError },
+    { data: badgeRows, error: badgeError },
+    { count: walkInUsed, error: walkInError },
+  ] = await Promise.all([
+    service
+      .from('customer_loyalty_achievements')
+      .select('achievement_key,status,earned_at')
+      .eq('mobile_user_id', mobileUserId),
+    service
+      .from('customer_loyalty_rank_badges')
+      .select('rank_key,first_reached_at')
+      .eq('mobile_user_id', mobileUserId),
+    service
+      .from('customer_loyalty_walkin_usages')
+      .select('id', { count: 'exact', head: true })
+      .eq('mobile_user_id', mobileUserId)
+      .eq('programme_year', year)
+      .eq('consumes_allowance', true),
   ])
   if (achievementError || badgeError || walkInError) {
-    throw new CustomerIntegrationError('service_unavailable', 'Loyalty benefits could not be loaded.', 503)
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Loyalty benefits could not be loaded.',
+      503,
+    )
   }
-  const achievementByKey = new Map((achievementRows ?? []).map((row) => [row.achievement_key, row] as const))
-  const validTransactions = (awards ?? []).filter((award) =>
-    ['ticket', 'service', 'package'].includes(award.source_type) &&
-    award.state === 'available' &&
-    !String(award.activation_milestone).startsWith('achievement_'),
+  const validTransactions = (awards ?? []).filter(
+    (award) =>
+      ['ticket', 'service', 'package'].includes(award.source_type) &&
+      award.state === 'available' &&
+      !String(award.activation_milestone).startsWith('achievement_'),
   ).length
   const nextReset = new Date(Date.UTC(year + 1, 0, 1)).toISOString()
   return {
@@ -282,18 +302,24 @@ export async function customerLoyaltySummary(input: {
           rewardedReferrals: (referralRows ?? []).filter((row) => row.status === 'rewarded').length,
         }
       : null,
-    achievements: configuration.program.achievementRules.filter((rule) => rule.isActive).map((rule) => {
-      const award = achievementByKey.get(rule.key)
-      return {
-        ...rule,
-        progress: Math.min(validTransactions, rule.requiredTransactions),
-        status: award?.status === 'earned' ? 'earned' as const : award?.status === 'suspended' ? 'suspended' as const : 'locked' as const,
-        earnedAt: award?.earned_at ? new Date(award.earned_at).toISOString() : null,
-      }
-    }),
+    achievements: customerAchievementSummaries(
+      configuration.program.achievementRules,
+      achievementRows ?? [],
+      validTransactions,
+    ),
     rankBadges: (badgeRows ?? []).flatMap((badge) => {
       const rank = configuration.program.ranks.find((candidate) => candidate.key === badge.rank_key)
-      return rank ? [{ key: rank.key, name: rank.name, colour: rank.colour, firstReachedAt: new Date(badge.first_reached_at).toISOString(), isCurrent: rank.key === currentRank?.key }] : []
+      return rank
+        ? [
+            {
+              key: rank.key,
+              name: rank.name,
+              colour: rank.colour,
+              firstReachedAt: new Date(badge.first_reached_at).toISOString(),
+              isCurrent: rank.key === currentRank?.key,
+            },
+          ]
+        : []
     }),
     walkIn: {
       programmeYear: year,
