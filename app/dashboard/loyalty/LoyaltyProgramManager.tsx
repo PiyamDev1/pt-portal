@@ -129,7 +129,8 @@ export function LoyaltyProgramManager({
             <BadgePoundSterling className="size-4 text-[#7f1d2d]" /> Voucher rewards
           </h3>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Set the points price, cash value and validity independently.
+            Set the cash value and validity. Active rewards must retain at least 300 points for
+            every pound of value; the standard exchange uses 400 points per pound.
           </p>
           <div className="mt-3 space-y-2">
             {program.voucherRewards.map((reward) => (
@@ -152,6 +153,10 @@ export function LoyaltyProgramManager({
                 <div>
                   <p className="text-sm font-black">
                     {reward.points.toLocaleString('en-GB')} points
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {Math.round(reward.points / (reward.valuePence / 100)).toLocaleString('en-GB')}{' '}
+                    points per £1
                   </p>
                   <label className="mt-2 flex items-center gap-2 text-xs font-bold">
                     <input

@@ -27,12 +27,11 @@ type Filter = 'all' | Campaign['status']
 const inputClass =
   'mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#7f1d2d] focus:ring-2 focus:ring-red-100'
 const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Diamond']
-const saleHookRequiredTypes: EventType[] = [
-  'double_points',
-  'fixed_bonus',
-  'welcome_bonus',
-  'off_peak_bonus',
-]
+const campaignDateFormat = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Europe/London',
+})
 const statusTone: Record<Campaign['status'], string> = {
   draft: 'bg-slate-100 text-slate-700',
   scheduled: 'bg-sky-100 text-sky-800',
@@ -45,17 +44,17 @@ const eventCopy: Record<EventType, { label: string; help: string; automated: str
   double_points: {
     label: 'Points multiplier',
     help: 'Adds extra points to a qualifying purchase.',
-    automated: 'Sale-award connection required',
+    automated: 'Automatic sale award',
   },
   fixed_bonus: {
     label: 'Fixed transaction bonus',
     help: 'Adds a fixed number of points after a qualifying purchase.',
-    automated: 'Sale-award connection required',
+    automated: 'Automatic sale award',
   },
   welcome_bonus: {
     label: 'Welcome bonus',
     help: 'Rewards a member after their first qualifying paid service.',
-    automated: 'Sale-award connection required',
+    automated: 'First qualifying purchase',
   },
   referral_bonus: {
     label: 'Verified referral',
@@ -65,7 +64,7 @@ const eventCopy: Record<EventType, { label: string; help: string; automated: str
   off_peak_bonus: {
     label: 'Off-peak / targeted',
     help: 'A fixed incentive limited by dates, branches or services.',
-    automated: 'Sale-award connection required',
+    automated: 'Automatic sale award',
   },
   birthday_gift: {
     label: 'Birthday gift',
@@ -397,8 +396,8 @@ export function LoyaltyCampaignManager({
               </div>
               <p className="mt-3 text-xs text-slate-500">
                 <CalendarClock className="mr-1 inline size-4" />
-                {new Date(campaign.startsAt).toLocaleString('en-GB')} –{' '}
-                {new Date(campaign.endsAt).toLocaleString('en-GB')}
+                {campaignDateFormat.format(new Date(campaign.startsAt))} –{' '}
+                {campaignDateFormat.format(new Date(campaign.endsAt))}
               </p>
             </article>
           ))}
@@ -468,12 +467,6 @@ export function LoyaltyCampaignManager({
                   {eventCopy[eventType].help} Automation: {eventCopy[eventType].automated}.
                 </span>
               </label>
-              {saleHookRequiredTypes.includes(eventType) ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                  This campaign can be designed and saved now, but its qualifying-sale award hook is
-                  not connected yet. Keep it as a draft until that connection is delivered.
-                </div>
-              ) : null}
               {eventType === 'double_points' ? (
                 <label className="block text-xs font-bold">
                   Points multiplier

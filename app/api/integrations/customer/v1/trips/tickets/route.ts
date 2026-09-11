@@ -144,7 +144,11 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
       .eq('service_type', 'TK')
       .is('parent_transaction_id', null)
     if (transactionError || !transactions?.length) {
-      throw new CustomerIntegrationError('service_unavailable', 'Ticket loyalty could not be claimed.', 503)
+      throw new CustomerIntegrationError(
+        'service_unavailable',
+        'Ticket loyalty could not be claimed.',
+        503,
+      )
     }
     const perPassengerPoints = await configuredCustomerLoyaltyPoints('ticket')
     let points = 0
@@ -156,6 +160,7 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
         source: { type: 'ticket', recordId: transaction.id },
         description: `${booking.pnr} flight ticket`,
         points: transactionPoints,
+        serviceKey: 'ticket',
       })
       points += transactionPoints
       loyaltyClaim = { points, activationMilestone: registered.activationMilestone }

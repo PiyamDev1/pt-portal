@@ -19,10 +19,16 @@ function loyaltyWriteError() {
 }
 
 export async function configuredCustomerLoyaltyPoints(ruleKey: string) {
-  const { program } = await loadLoyaltyProgramConfiguration()
+  const { program } = await loadLoyaltyProgramConfiguration({ allowFallback: false }).catch(() => {
+    throw loyaltyWriteError()
+  })
   const rule = program.earningRules.find((candidate) => candidate.key === ruleKey)
   if (!rule || rule.isActive === false || !Number.isSafeInteger(rule.points) || rule.points <= 0) {
-    throw new CustomerIntegrationError('service_unavailable', 'This loyalty reward is unavailable.', 503)
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'This loyalty reward is unavailable.',
+      503,
+    )
   }
   return rule.points
 }
@@ -32,6 +38,10 @@ export async function registerCustomerLoyaltySourceForCode(input: {
   source: CustomerLoyaltySource
   description: string
   points: number
+  serviceKey: string
+  branchId?: string | null
+  spendPence?: number | null
+  occurredAt?: string
 }) {
   const sourceReference = customerLoyaltySourceReference(input.source)
   const customerCode = normalizeCustomerLoyaltyCode(input.customerCode)
@@ -53,10 +63,23 @@ export async function registerCustomerLoyaltySourceForCode(input: {
     },
   )
   if (error) throw loyaltyWriteError()
+  const campaignResult = await getServiceSupabaseClient().rpc(
+    'customer_loyalty_apply_sale_campaigns_v1',
+    {
+      p_source_reference: sourceReference,
+      p_service_key: input.serviceKey,
+      p_rule_key: input.serviceKey,
+      p_branch_id: input.branchId ?? null,
+      p_spend_pence: input.spendPence ?? null,
+      p_occurred_at: input.occurredAt ?? new Date().toISOString(),
+    },
+  )
+  if (campaignResult.error) throw loyaltyWriteError()
   return {
     sourceReference,
     activationMilestone: customerLoyaltyActivationMilestone(input.source.type),
     award: data,
+    campaignAward: campaignResult.data,
   }
 }
 

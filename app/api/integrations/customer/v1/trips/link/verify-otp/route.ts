@@ -14,7 +14,10 @@ import {
 } from '@/lib/customerPortal/http'
 import { verifyCustomerOtpChallenge } from '@/lib/customerPortal/otp'
 import { customerTripSummary } from '@/lib/customerPortal/trips'
-import { configuredCustomerLoyaltyPoints, registerCustomerLoyaltySourceForCode } from '@/lib/customerPortal/loyaltyLifecycleServer'
+import {
+  configuredCustomerLoyaltyPoints,
+  registerCustomerLoyaltySourceForCode,
+} from '@/lib/customerPortal/loyaltyLifecycleServer'
 
 const inputSchema = z
   .object({
@@ -64,6 +67,7 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
           source: { type: 'package', recordId: verified.internalId },
           description: `${trip.title} package`,
           points,
+          serviceKey: 'package',
         })
         return { points, activationMilestone: registered.activationMilestone }
       })()

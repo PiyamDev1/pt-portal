@@ -29,6 +29,7 @@ describe('customer loyalty lifecycle server adapter', () => {
       source: { type: 'ticket', recordId: SOURCE_ID },
       description: 'Manchester to Jeddah ticket',
       points: 125,
+      serviceKey: 'ticket',
     })
 
     expect(mocks.rpc).toHaveBeenCalledWith('customer_loyalty_register_code_source_v1', {
@@ -39,10 +40,19 @@ describe('customer loyalty lifecycle server adapter', () => {
       p_description: 'Manchester to Jeddah ticket',
       p_points: 125,
     })
+    expect(mocks.rpc).toHaveBeenCalledWith('customer_loyalty_apply_sale_campaigns_v1', {
+      p_source_reference: `ticket.v1:${SOURCE_ID}`,
+      p_service_key: 'ticket',
+      p_rule_key: 'ticket',
+      p_branch_id: null,
+      p_spend_pence: null,
+      p_occurred_at: expect.any(String),
+    })
     expect(result).toEqual({
       sourceReference: `ticket.v1:${SOURCE_ID}`,
       activationMilestone: 'issued_and_paid',
       award: { state: 'pending' },
+      campaignAward: { state: 'pending' },
     })
   })
 
@@ -71,6 +81,7 @@ describe('customer loyalty lifecycle server adapter', () => {
         source: { type: 'package', recordId: SOURCE_ID },
         description: 'Package',
         points: 100,
+        serviceKey: 'package',
       }),
     ).rejects.toThrow('A valid customer code is required.')
     expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()

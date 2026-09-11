@@ -44,7 +44,9 @@ export type LoyaltyCampaignOptions = {
   branches: Array<{ id: string; name: string }>
 }
 
-export async function loadLoyaltyProgramConfiguration(): Promise<{
+export async function loadLoyaltyProgramConfiguration(options?: {
+  allowFallback?: boolean
+}): Promise<{
   program: LoyaltyProgramPolicy
   campaigns: LoyaltyBonusCampaign[]
   campaignOptions: LoyaltyCampaignOptions
@@ -86,6 +88,9 @@ export async function loadLoyaltyProgramConfiguration(): Promise<{
   ])
 
   if (earningResult.error || voucherResult.error || campaignResult.error) {
+    if (options?.allowFallback === false) {
+      throw new Error('The authoritative loyalty programme could not be loaded.')
+    }
     return {
       program: LOYALTY_PROGRAM_POLICY,
       campaigns: [],
@@ -139,6 +144,25 @@ export async function loadLoyaltyProgramConfiguration(): Promise<{
       },
     }
   })
+  const serviceOptions = new Map<string, { key: string; label: string; category: string }>()
+  for (const rule of earningResult.data ?? []) {
+    if (rule.is_active) {
+      serviceOptions.set(rule.rule_key, {
+        key: rule.rule_key,
+        label: rule.label,
+        category: 'Loyalty earning rule',
+      })
+    }
+  }
+  for (const item of servicesResult.data ?? []) {
+    if (!serviceOptions.has(item.item_key)) {
+      serviceOptions.set(item.item_key, {
+        key: item.item_key,
+        label: item.option_label || item.label,
+        category: item.group_key,
+      })
+    }
+  }
   return {
     program: {
       ...LOYALTY_PROGRAM_POLICY,
@@ -149,11 +173,7 @@ export async function loadLoyaltyProgramConfiguration(): Promise<{
     },
     campaigns,
     campaignOptions: {
-      services: (servicesResult.data ?? []).map((item) => ({
-        key: item.item_key,
-        label: item.option_label || item.label,
-        category: item.group_key,
-      })),
+      services: [...serviceOptions.values()],
       branches: (branchesResult.data ?? []).map((branch) => ({ id: branch.id, name: branch.name })),
     },
   }

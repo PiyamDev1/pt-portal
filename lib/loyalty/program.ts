@@ -98,12 +98,12 @@ export const LOYALTY_PROGRAM_POLICY = {
     },
   ],
   voucherRewards: [
-    { points: 250, valuePence: 250 },
-    { points: 500, valuePence: 500 },
-    { points: 1_000, valuePence: 1_000 },
-    { points: 2_000, valuePence: 2_000 },
-    { points: 5_000, valuePence: 5_000 },
-    { points: 10_000, valuePence: 12_000 },
+    { points: 1_000, valuePence: 250 },
+    { points: 2_000, valuePence: 500 },
+    { points: 4_000, valuePence: 1_000 },
+    { points: 8_000, valuePence: 2_000 },
+    { points: 20_000, valuePence: 5_000 },
+    { points: 40_000, valuePence: 12_000 },
   ],
   bonusEventOptions: [
     {
@@ -192,6 +192,7 @@ export const LOYALTY_PROGRAM_POLICY = {
     'A failed rank review drops one rank and removes one-third of still-valid points carried into the review period. Points earned during that period are not included in the penalty.',
     'Refunds and cancellations reverse their related points. A resulting negative balance must be cleared by future earnings before another voucher can be issued.',
     'Bonus events must have start and end times, eligible services or branches, a per-customer cap, a total campaign budget and a non-stacking rule unless an administrator explicitly allows stacking.',
+    'The standard voucher exchange is 400 points per pound. The 40,000-point reward includes a 20% long-term saving bonus.',
   ],
   rollout: {
     earningActive: true,

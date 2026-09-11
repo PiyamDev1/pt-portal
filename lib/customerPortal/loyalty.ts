@@ -190,7 +190,9 @@ export async function customerLoyaltySummary(input: {
     service.rpc('customer_loyalty_ensure_referral_code_v1', {
       p_mobile_user_id: mobileUserId,
     }),
-    loadLoyaltyProgramConfiguration(),
+    loadLoyaltyProgramConfiguration({ allowFallback: false }).catch(() => {
+      throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)
+    }),
   ])
   if (error || balanceError)
     throw new CustomerIntegrationError('service_unavailable', 'Loyalty is unavailable.', 503)

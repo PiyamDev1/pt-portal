@@ -14,7 +14,10 @@ import {
   withCustomerIntegrationRoute,
 } from '@/lib/customerPortal/http'
 import { verifyCustomerOtpChallenge } from '@/lib/customerPortal/otp'
-import { configuredCustomerLoyaltyPoints, registerCustomerLoyaltySourceForCode } from '@/lib/customerPortal/loyaltyLifecycleServer'
+import {
+  configuredCustomerLoyaltyPoints,
+  registerCustomerLoyaltySourceForCode,
+} from '@/lib/customerPortal/loyaltyLifecycleServer'
 
 const inputSchema = z
   .object({
@@ -56,9 +59,14 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
         const points = await configuredCustomerLoyaltyPoints('application')
         const registered = await registerCustomerLoyaltySourceForCode({
           customerCode: input.customerCode,
-          source: { type: 'service', namespace: application.candidate.source, recordId: verified.internalId },
+          source: {
+            type: 'service',
+            namespace: application.candidate.source,
+            recordId: verified.internalId,
+          },
           description: `${application.summary.serviceType} application`,
           points,
+          serviceKey: 'application',
         })
         return { points, activationMilestone: registered.activationMilestone }
       })()

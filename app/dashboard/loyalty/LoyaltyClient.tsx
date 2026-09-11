@@ -34,7 +34,11 @@ type Props = {
 }
 
 const numberFormat = new Intl.NumberFormat('en-GB')
-const dateFormat = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Europe/London',
+})
 
 function points(value: number) {
   return numberFormat.format(value)
@@ -296,19 +300,21 @@ export default function LoyaltyClient({ initialData, canAdjust }: Props) {
                 <BadgePoundSterling className="h-4 w-4 text-[#7f1d2d]" /> Voucher rewards
               </h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                {dashboard.program.voucherRewards.map((reward) => (
-                  <div
-                    key={reward.points}
-                    className="rounded-xl border border-red-100 bg-red-50/50 p-3"
-                  >
-                    <p className="text-lg font-black text-[#7f1d2d]">
-                      £{(reward.valuePence / 100).toFixed(2)}
-                    </p>
-                    <p className="text-xs font-semibold text-slate-600">
-                      {points(reward.points)} points
-                    </p>
-                  </div>
-                ))}
+                {dashboard.program.voucherRewards
+                  .filter((reward) => reward.isActive !== false)
+                  .map((reward) => (
+                    <div
+                      key={reward.points}
+                      className="rounded-xl border border-red-100 bg-red-50/50 p-3"
+                    >
+                      <p className="text-lg font-black text-[#7f1d2d]">
+                        £{(reward.valuePence / 100).toFixed(2)}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-600">
+                        {points(reward.points)} points
+                      </p>
+                    </div>
+                  ))}
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">
                 One voucher per transaction. A voucher is consumed in full, with no cash change or

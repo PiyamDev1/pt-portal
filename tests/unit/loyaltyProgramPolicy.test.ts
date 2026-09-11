@@ -29,16 +29,16 @@ describe('loyalty program policy', () => {
     })
   })
 
-  it('keeps the exact voucher values, validity periods and rank thresholds', () => {
+  it('keeps the rebalanced voucher values, validity periods and rank thresholds', () => {
     expect(LOYALTY_PROGRAM_POLICY.pointValidityMonths).toBe(12)
     expect(LOYALTY_PROGRAM_POLICY.voucherValidityMonths).toBe(6)
     expect(LOYALTY_PROGRAM_POLICY.voucherRewards).toEqual([
-      { points: 250, valuePence: 250 },
-      { points: 500, valuePence: 500 },
-      { points: 1_000, valuePence: 1_000 },
-      { points: 2_000, valuePence: 2_000 },
-      { points: 5_000, valuePence: 5_000 },
-      { points: 10_000, valuePence: 12_000 },
+      { points: 1_000, valuePence: 250 },
+      { points: 2_000, valuePence: 500 },
+      { points: 4_000, valuePence: 1_000 },
+      { points: 8_000, valuePence: 2_000 },
+      { points: 20_000, valuePence: 5_000 },
+      { points: 40_000, valuePence: 12_000 },
     ])
     expect(
       LOYALTY_PROGRAM_POLICY.ranks.map(({ name, minimumPoints, maintenancePoints }) => ({

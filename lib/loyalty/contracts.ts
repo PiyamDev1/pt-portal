@@ -37,7 +37,16 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
       displayOrder: z.number().int().min(0).max(1_000_000),
       isActive: z.boolean(),
     })
-    .strict(),
+    .strict()
+    .superRefine((value, context) => {
+      if (value.isActive && value.pointsCost < value.valuePence * 3) {
+        context.addIssue({
+          code: 'custom',
+          path: ['pointsCost'],
+          message: 'Active vouchers require at least 300 points for each pound of value.',
+        })
+      }
+    }),
   z
     .object({
       action: z.literal('UPSERT_BONUS_CAMPAIGN'),
@@ -92,19 +101,6 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
           code: 'custom',
           path: ['audienceTiers'],
           message: 'Referral campaigns must remain available to all ranks.',
-        })
-      }
-      if (
-        ['double_points', 'fixed_bonus', 'welcome_bonus', 'off_peak_bonus'].includes(
-          value.eventType,
-        ) &&
-        ['scheduled', 'active'].includes(value.status)
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['status'],
-          message:
-            'This sale-based campaign must remain a draft until its automatic award connection is enabled.',
         })
       }
       if (

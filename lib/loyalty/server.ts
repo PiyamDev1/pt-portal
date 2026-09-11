@@ -108,7 +108,7 @@ export async function manageLoyaltyProgram(input: {
   request: Record<string, unknown>
 }) {
   const { data, error } = await getServiceSupabaseClient().rpc(
-    'customer_loyalty_manage_program_v2',
+    'customer_loyalty_manage_program_v3',
     {
       p_actor_employee_id: input.actorEmployeeId,
       p_action: input.action,
@@ -123,7 +123,6 @@ export async function manageLoyaltyProgram(input: {
       'a campaign cannot link to itself',
       'linked campaign not found',
       'referral campaigns must remain available to all ranks',
-      'sale-based campaigns must remain draft until automatic awards are connected',
     ]
     const safeMessage = safeCampaignErrors.find((message) => error.message.includes(message))
     throw new Error(safeMessage ?? 'Unable to save the loyalty program change.')

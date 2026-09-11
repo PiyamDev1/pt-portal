@@ -448,6 +448,7 @@ export async function runPosMutation(
     | 'pos_post_transaction_v2'
     | 'pos_post_transaction_v3'
     | 'pos_post_transaction_v5'
+    | 'pos_post_transaction_v6'
     | 'pos_manage_configuration_v2'
     | 'pos_manage_configuration_v3'
     | 'pos_manage_configuration_v4'

@@ -46,13 +46,13 @@ describe('loyalty campaign workspace', () => {
     expect(result.success).toBe(false)
   })
 
-  it('keeps sale-based campaign definitions in draft until their award hook exists', () => {
+  it('allows an active sale-based campaign now that its award hook exists', () => {
     const result = loyaltyProgramMutationSchema.safeParse({
       ...campaign,
       eventType: 'fixed_bonus',
       status: 'active',
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('keeps the two-sided referral reward available to all ranks', () => {
@@ -70,7 +70,6 @@ describe('loyalty campaign workspace', () => {
     expect(sql).toContain('with (security_invoker = true)')
     expect(sql).toContain('campaign limits cannot be reduced below points or awards already issued')
     expect(sql).toContain('campaign links cannot form a cycle')
-    expect(sql).toContain('sale-based campaigns must remain draft')
     expect(sql).toContain('= any(campaign_row.audience_tiers)')
     expect(sql).toContain('member_awards >= campaign_row.max_awards_per_customer')
     expect(sql).toContain('customer_loyalty_manage_program_v2')
