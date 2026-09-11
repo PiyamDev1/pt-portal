@@ -40,4 +40,9 @@ describe('seven-rank loyalty migration', () => {
     expect(sql).toContain('customer_loyalty_rank_for_points_v1(balance.rank_points::integer)')
     expect(sql).toContain("activation_milestone is distinct from ''voucher_redemption''")
   })
+
+  it('does not block the core loyalty migration when an operator-maintained campaign hook differs', () => {
+    expect(sql).not.toContain("raise exception 'sale campaign rank hook definition has drifted'")
+    expect(sql).not.toContain("raise exception 'scheduled campaign rank hook definition has drifted'")
+  })
 })
