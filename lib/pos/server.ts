@@ -399,6 +399,8 @@ function publicPosError(error: SupabaseError): PosServerError {
     POS_CATEGORY_REQUIRED: 'Choose an active POS category.',
     POS_SERVICE_REQUIRED: 'Choose an active service for this category.',
     POS_REMITTANCE_PROVIDER_REQUIRED: 'Choose a remittance provider.',
+    POS_REMITTANCE_VOUCHER_LIMIT:
+      'Remittance transactions accept only £2.50 or £5 loyalty vouchers. The voucher was not used.',
     POS_SUPPLIER_CATEGORY_FORBIDDEN: 'This supplier is not assigned to the selected category.',
     POS_SHADOW_DEBT_FORBIDDEN: 'Link the remaining balance to LMS or the tracked service.',
     POS_INSUFFICIENT_DRAWER: 'The expected drawer cash is insufficient.',
@@ -449,6 +451,7 @@ export async function runPosMutation(
     | 'pos_post_transaction_v3'
     | 'pos_post_transaction_v5'
     | 'pos_post_transaction_v6'
+    | 'pos_post_transaction_v7'
     | 'pos_manage_configuration_v2'
     | 'pos_manage_configuration_v3'
     | 'pos_manage_configuration_v4'

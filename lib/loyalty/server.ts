@@ -29,6 +29,7 @@ function mapMember(row: {
   customer_lifecycle_status: string | null
   portal_linked: boolean | null
   available_points: number | null
+  rank_points: number | null
   pending_points: number | null
   lifetime_points: number | null
   entry_count: number | null
@@ -44,6 +45,7 @@ function mapMember(row: {
     status: row.customer_lifecycle_status || 'active',
     portalLinked: row.portal_linked === true,
     availablePoints: numberValue(row.available_points),
+    rankPoints: numberValue(row.rank_points),
     pendingPoints: numberValue(row.pending_points),
     lifetimePoints: numberValue(row.lifetime_points),
     entryCount: numberValue(row.entry_count),
@@ -60,7 +62,7 @@ export async function loadLoyaltyDashboard(
   let memberQuery = service
     .from('customer_loyalty_staff_member_summary')
     .select(
-      'id,customer_code,customer_name,email,phone_number,customer_lifecycle_status,portal_linked,available_points,pending_points,lifetime_points,entry_count,joined_at,last_activity_at',
+      'id,customer_code,customer_name,email,phone_number,customer_lifecycle_status,portal_linked,available_points,pending_points,lifetime_points,entry_count,joined_at,last_activity_at,rank_points',
       { count: 'exact' },
     )
     .order('last_activity_at', { ascending: false, nullsFirst: false })
@@ -108,7 +110,7 @@ export async function manageLoyaltyProgram(input: {
   request: Record<string, unknown>
 }) {
   const { data, error } = await getServiceSupabaseClient().rpc(
-    'customer_loyalty_manage_program_v3',
+    'customer_loyalty_manage_program_v4',
     {
       p_actor_employee_id: input.actorEmployeeId,
       p_action: input.action,
@@ -136,7 +138,7 @@ export async function loadLoyaltyMember(memberId: string): Promise<LoyaltyMember
     service
       .from('customer_loyalty_staff_member_summary')
       .select(
-        'id,customer_code,customer_name,email,phone_number,customer_lifecycle_status,portal_linked,available_points,pending_points,lifetime_points,entry_count,joined_at,last_activity_at',
+        'id,customer_code,customer_name,email,phone_number,customer_lifecycle_status,portal_linked,available_points,pending_points,lifetime_points,entry_count,joined_at,last_activity_at,rank_points',
       )
       .eq('id', memberId)
       .maybeSingle(),

@@ -19,6 +19,18 @@ export const loyaltyAdjustmentSchema = z
   })
   .strict()
 
+export const loyaltyWalkInConsumeSchema = z.object({
+  customerCode: z.string().trim().min(8).max(40),
+  locationId: z.string().uuid(),
+  serviceType: z.enum(['nadra', 'passport']),
+  idempotencyKey: z.string().uuid(),
+  isOverride: z.boolean().default(false),
+  consumeAllowance: z.boolean().default(true),
+  overrideReason: z.string().trim().min(5).max(300).nullable().default(null),
+}).strict().superRefine((value, context) => {
+  if (value.isOverride && !value.overrideReason) context.addIssue({ code: 'custom', path: ['overrideReason'], message: 'An audited override reason is required.' })
+})
+
 export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
   z
     .object({
@@ -39,11 +51,11 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
     })
     .strict()
     .superRefine((value, context) => {
-      if (value.isActive && value.pointsCost < value.valuePence * 3) {
+      if (value.isActive && value.pointsCost < value.valuePence * 2) {
         context.addIssue({
           code: 'custom',
           path: ['pointsCost'],
-          message: 'Active vouchers require at least 300 points for each pound of value.',
+          message: 'Active vouchers require at least 200 points for each pound of value.',
         })
       }
     }),
@@ -69,9 +81,9 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
       eligibleServiceKeys: z.array(z.string().min(1).max(80)).max(50),
       eligibleBranchIds: z.array(z.string().uuid()).max(50),
       audienceTiers: z
-        .array(z.enum(['Bronze', 'Silver', 'Gold', 'Diamond']))
+        .array(z.enum(['Bronze', 'Silver', 'Gold', 'Platinum', 'Ruby', 'Diamond', 'Elite']))
         .min(1)
-        .max(4),
+        .max(7),
       maxAwardsPerCustomer: z.number().int().min(1).max(1_000),
       minimumSpendPence: z.number().int().min(0).max(100_000_000),
       priority: z.number().int().min(1).max(1_000),
@@ -96,7 +108,7 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
       if (value.eventType === 'referral_bonus' && value.referredCustomerPoints === null) {
         context.addIssue({ code: 'custom', message: 'New-customer points are required.' })
       }
-      if (value.eventType === 'referral_bonus' && value.audienceTiers.length !== 4) {
+      if (value.eventType === 'referral_bonus' && value.audienceTiers.length !== 7) {
         context.addIssue({
           code: 'custom',
           path: ['audienceTiers'],
@@ -114,6 +126,53 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
         })
       }
     }),
+  z
+    .object({
+      action: z.literal('UPDATE_RANK'),
+      rankKey: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/),
+      minimumPoints: z.number().int().min(0).max(10_000_000),
+      maximumPoints: z.number().int().min(0).max(10_000_000).nullable(),
+      maintenancePoints: z.number().int().min(0).max(10_000_000),
+      walkInAllowance: z.number().int().min(0).max(100),
+      callbackPriority: z.number().int().min(0).max(10),
+      waitlistPriority: z.number().int().min(0).max(10),
+      perks: z.array(z.string().trim().min(2).max(160)).max(12),
+      confirmCustomerImpact: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('UPDATE_ACHIEVEMENT'),
+      achievementKey: z.string().regex(/^[a-z][a-z0-9_]{1,49}$/),
+      name: z.string().trim().min(2).max(80),
+      description: z.string().trim().min(5).max(240),
+      requiredTransactions: z.number().int().min(1).max(100_000),
+      bonusPoints: z.number().int().min(1).max(100_000),
+      isActive: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('UPSERT_WALKIN_WINDOW'),
+      id: z.string().uuid().optional(),
+      locationId: z.string().uuid(),
+      serviceType: z.enum(['nadra', 'passport']),
+      isoWeekday: z.number().int().min(1).max(7),
+      startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      isActive: z.boolean(),
+    })
+    .strict()
+    .refine((value) => value.endsAt > value.startsAt, {
+      message: 'The walk-in end time must be after its start time.',
+      path: ['endsAt'],
+    }),
+  z
+    .object({
+      action: z.literal('DELETE_WALKIN_WINDOW'),
+      id: z.string().uuid(),
+    })
+    .strict(),
 ])
 
 export type LoyaltyOverview = {
@@ -133,6 +192,7 @@ export type LoyaltyMember = {
   status: string
   portalLinked: boolean
   availablePoints: number
+  rankPoints: number
   pendingPoints: number
   lifetimePoints: number
   entryCount: number
@@ -168,6 +228,7 @@ export type LoyaltyDashboardPayload = {
   campaignOptions: {
     services: Array<{ key: string; label: string; category: string }>
     branches: Array<{ id: string; name: string }>
+    walkInWindows: Array<{ id: string; locationId: string; serviceType: 'nadra' | 'passport'; isoWeekday: number; startsAt: string; endsAt: string; isActive: boolean }>
   }
 }
 

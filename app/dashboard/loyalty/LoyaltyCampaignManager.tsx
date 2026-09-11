@@ -26,7 +26,7 @@ type Filter = 'all' | Campaign['status']
 
 const inputClass =
   'mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#7f1d2d] focus:ring-2 focus:ring-red-100'
-const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Diamond']
+const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Ruby', 'Diamond', 'Elite']
 const campaignDateFormat = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium',
   timeStyle: 'short',

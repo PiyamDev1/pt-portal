@@ -3,6 +3,15 @@ import 'server-only'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { LOYALTY_PROGRAM_POLICY, type LoyaltyProgramPolicy } from './program'
 
+export type LoyaltyRankName =
+  | 'Bronze'
+  | 'Silver'
+  | 'Gold'
+  | 'Platinum'
+  | 'Ruby'
+  | 'Diamond'
+  | 'Elite'
+
 export type LoyaltyBonusCampaign = {
   id: string
   name: string
@@ -21,7 +30,7 @@ export type LoyaltyBonusCampaign = {
   endsAt: string
   eligibleServiceKeys: string[]
   eligibleBranchIds: string[]
-  audienceTiers: Array<'Bronze' | 'Silver' | 'Gold' | 'Diamond'>
+  audienceTiers: LoyaltyRankName[]
   maxAwardsPerCustomer: number
   minimumSpendPence: number
   priority: number
@@ -42,6 +51,7 @@ export type LoyaltyBonusCampaign = {
 export type LoyaltyCampaignOptions = {
   services: Array<{ key: string; label: string; category: string }>
   branches: Array<{ id: string; name: string }>
+  walkInWindows: Array<{ id: string; locationId: string; serviceType: 'nadra' | 'passport'; isoWeekday: number; startsAt: string; endsAt: string; isActive: boolean }>
 }
 
 export async function loadLoyaltyProgramConfiguration(options?: {
@@ -59,6 +69,9 @@ export async function loadLoyaltyProgramConfiguration(options?: {
     performanceResult,
     servicesResult,
     branchesResult,
+    ranksResult,
+    achievementsResult,
+    walkInWindowsResult,
   ] = await Promise.all([
     service
       .from('customer_loyalty_program_earning_rules')
@@ -85,16 +98,28 @@ export async function loadLoyaltyProgramConfiguration(options?: {
       .eq('classification', 'SERVICE')
       .order('display_order'),
     service.from('locations').select('id,name').order('name'),
+    service
+      .from('customer_loyalty_rank_rules')
+      .select(
+        'rank_key,name,minimum_points,maximum_points,maintenance_points,colour,walk_in_allowance,callback_priority,waitlist_priority,perks,is_active',
+      )
+      .eq('is_active', true)
+      .order('display_order'),
+    service
+      .from('customer_loyalty_achievement_rules')
+      .select('achievement_key,name,description,required_transactions,bonus_points,is_active')
+      .order('display_order'),
+    service.from('customer_loyalty_walkin_windows').select('id,location_id,service_type,iso_weekday,starts_at,ends_at,is_active').order('iso_weekday'),
   ])
 
-  if (earningResult.error || voucherResult.error || campaignResult.error) {
+  if (earningResult.error || voucherResult.error || campaignResult.error || ranksResult.error || achievementsResult.error || walkInWindowsResult.error) {
     if (options?.allowFallback === false) {
       throw new Error('The authoritative loyalty programme could not be loaded.')
     }
     return {
       program: LOYALTY_PROGRAM_POLICY,
       campaigns: [],
-      campaignOptions: { services: [], branches: [] },
+      campaignOptions: { services: [], branches: [], walkInWindows: [] },
     }
   }
   const performance = new Map(
@@ -126,7 +151,15 @@ export async function loadLoyaltyProgramConfiguration(options?: {
       endsAt: campaign.ends_at,
       eligibleServiceKeys: campaign.eligible_service_keys ?? [],
       eligibleBranchIds: campaign.eligible_branch_ids ?? [],
-      audienceTiers: campaign.audience_tiers ?? ['Bronze', 'Silver', 'Gold', 'Diamond'],
+      audienceTiers: (campaign.audience_tiers ?? [
+        'Bronze',
+        'Silver',
+        'Gold',
+        'Platinum',
+        'Ruby',
+        'Diamond',
+        'Elite',
+      ]) as LoyaltyRankName[],
       maxAwardsPerCustomer: Number(campaign.max_awards_per_customer ?? 1),
       minimumSpendPence: Number(campaign.minimum_spend_pence ?? 0),
       priority: Number(campaign.priority ?? 100),
@@ -170,11 +203,36 @@ export async function loadLoyaltyProgramConfiguration(options?: {
       voucherRewards: voucherRewards.length
         ? voucherRewards
         : LOYALTY_PROGRAM_POLICY.voucherRewards,
+      ranks: (ranksResult.data ?? []).length
+        ? (ranksResult.data ?? []).map((rank) => ({
+            key: rank.rank_key,
+            name: rank.name,
+            minimumPoints: Number(rank.minimum_points),
+            maximumPoints: rank.maximum_points === null ? null : Number(rank.maximum_points),
+            maintenancePoints: Number(rank.maintenance_points),
+            colour: rank.colour,
+            walkInAllowance: Number(rank.walk_in_allowance),
+            callbackPriority: Number(rank.callback_priority),
+            waitlistPriority: Number(rank.waitlist_priority),
+            perks: rank.perks ?? [],
+          }))
+        : LOYALTY_PROGRAM_POLICY.ranks,
+      achievementRules: (achievementsResult.data ?? []).length
+        ? (achievementsResult.data ?? []).map((rule) => ({
+            key: rule.achievement_key,
+            name: rule.name,
+            description: rule.description,
+            requiredTransactions: Number(rule.required_transactions),
+            bonusPoints: Number(rule.bonus_points),
+            isActive: rule.is_active,
+          }))
+        : LOYALTY_PROGRAM_POLICY.achievementRules,
     },
     campaigns,
     campaignOptions: {
       services: [...serviceOptions.values()],
       branches: (branchesResult.data ?? []).map((branch) => ({ id: branch.id, name: branch.name })),
+      walkInWindows: (walkInWindowsResult.data ?? []).map((window) => ({ id: window.id, locationId: window.location_id, serviceType: window.service_type as 'nadra' | 'passport', isoWeekday: Number(window.iso_weekday), startsAt: String(window.starts_at).slice(0, 5), endsAt: String(window.ends_at).slice(0, 5), isActive: window.is_active })),
     },
   }
 }

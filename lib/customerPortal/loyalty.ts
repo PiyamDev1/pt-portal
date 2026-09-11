@@ -168,13 +168,15 @@ export async function customerLoyaltySummary(input: {
   ] = await Promise.all([
     service
       .from('customer_loyalty_awards')
-      .select('id,source_type,description,points,state,created_at,activated_at')
+      .select(
+        'id,source_type,description,points,state,activation_milestone,created_at,activated_at',
+      )
       .eq('mobile_user_id', mobileUserId)
       .order('created_at', { ascending: false })
       .limit(200),
     service
       .from('customer_loyalty_staff_member_summary')
-      .select('available_points,pending_points')
+      .select('available_points,pending_points,rank_points')
       .eq('id', mobileUserId)
       .single(),
     service
@@ -212,33 +214,48 @@ export async function customerLoyaltySummary(input: {
   // aggregated by Postgres across the complete immutable award stream.
   const pendingPoints = Number(balance.pending_points || 0)
   const availablePoints = Number(balance.available_points || 0)
-  const expiringLots = (awards ?? [])
-    .filter((award) => award.state === 'available' && Number(award.points) > 0)
-    .map((award) => {
-      const activatedAt = new Date(award.activated_at || award.created_at)
-      const expiresAt = new Date(activatedAt)
-      expiresAt.setUTCMonth(expiresAt.getUTCMonth() + configuration.program.pointValidityMonths)
-      return { points: Number(award.points), expiresAt }
-    })
-    .filter((lot) => lot.expiresAt.getTime() > Date.now())
-    .sort((left, right) => left.expiresAt.getTime() - right.expiresAt.getTime())
-  const nextExpiryAt = expiringLots[0]?.expiresAt ?? null
-  const expiringPoints = nextExpiryAt
-    ? expiringLots
-        .filter(
-          (lot) =>
-            lot.expiresAt.toISOString().slice(0, 10) === nextExpiryAt.toISOString().slice(0, 10),
-        )
-        .reduce((total, lot) => total + lot.points, 0)
-    : 0
-  const tier = [...configuration.program.ranks]
+  const rankPoints = Number(balance.rank_points || 0)
+  const { data: expiry, error: expiryError } = await service.rpc(
+    'customer_loyalty_expiry_summary_v1',
+    {
+      p_mobile_user_id: mobileUserId,
+      p_validity_months: configuration.program.pointValidityMonths,
+    },
+  )
+  if (expiryError)
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Loyalty expiry could not be loaded.',
+      503,
+    )
+  const expirySummary = (expiry || {}) as { nextExpiryAt?: string | null; expiringPoints?: number }
+  const nextExpiryAt = expirySummary.nextExpiryAt ? new Date(expirySummary.nextExpiryAt) : null
+  const expiringPoints = Number(expirySummary.expiringPoints || 0)
+  const currentRank = [...configuration.program.ranks]
     .reverse()
-    .find((candidate) => availablePoints >= candidate.minimumPoints)?.name
+    .find((candidate) => Math.max(0, rankPoints) >= candidate.minimumPoints)
+  const year = new Date().getUTCFullYear()
+  const [{ data: achievementRows, error: achievementError }, { data: badgeRows, error: badgeError }, { count: walkInUsed, error: walkInError }] = await Promise.all([
+    service.from('customer_loyalty_achievements').select('achievement_key,status,earned_at').eq('mobile_user_id', mobileUserId),
+    service.from('customer_loyalty_rank_badges').select('rank_key,first_reached_at').eq('mobile_user_id', mobileUserId),
+    service.from('customer_loyalty_walkin_usages').select('id', { count: 'exact', head: true }).eq('mobile_user_id', mobileUserId).eq('programme_year', year).eq('consumes_allowance', true),
+  ])
+  if (achievementError || badgeError || walkInError) {
+    throw new CustomerIntegrationError('service_unavailable', 'Loyalty benefits could not be loaded.', 503)
+  }
+  const achievementByKey = new Map((achievementRows ?? []).map((row) => [row.achievement_key, row] as const))
+  const validTransactions = (awards ?? []).filter((award) =>
+    ['ticket', 'service', 'package'].includes(award.source_type) &&
+    award.state === 'available' &&
+    !String(award.activation_milestone).startsWith('achievement_'),
+  ).length
+  const nextReset = new Date(Date.UTC(year + 1, 0, 1)).toISOString()
   return {
     customerCode: input.customerCode,
-    tier: String(tier || 'Member').slice(0, 80),
+    tier: String(currentRank?.name || 'Member').slice(0, 80),
     pendingPoints: Math.max(0, pendingPoints),
     availablePoints: Math.max(0, availablePoints),
+    rankPoints: Math.max(0, rankPoints),
     expiringPoints: Math.max(0, expiringPoints),
     nextExpiryAt: nextExpiryAt?.toISOString() ?? null,
     redemptionEnabled: vouchersReady && configuration.program.rollout.voucherIssuanceActive,
@@ -265,6 +282,27 @@ export async function customerLoyaltySummary(input: {
           rewardedReferrals: (referralRows ?? []).filter((row) => row.status === 'rewarded').length,
         }
       : null,
+    achievements: configuration.program.achievementRules.filter((rule) => rule.isActive).map((rule) => {
+      const award = achievementByKey.get(rule.key)
+      return {
+        ...rule,
+        progress: Math.min(validTransactions, rule.requiredTransactions),
+        status: award?.status === 'earned' ? 'earned' as const : award?.status === 'suspended' ? 'suspended' as const : 'locked' as const,
+        earnedAt: award?.earned_at ? new Date(award.earned_at).toISOString() : null,
+      }
+    }),
+    rankBadges: (badgeRows ?? []).flatMap((badge) => {
+      const rank = configuration.program.ranks.find((candidate) => candidate.key === badge.rank_key)
+      return rank ? [{ key: rank.key, name: rank.name, colour: rank.colour, firstReachedAt: new Date(badge.first_reached_at).toISOString(), isCurrent: rank.key === currentRank?.key }] : []
+    }),
+    walkIn: {
+      programmeYear: year,
+      allowance: currentRank?.walkInAllowance ?? 0,
+      used: Number(walkInUsed ?? 0),
+      remaining: Math.max(0, (currentRank?.walkInAllowance ?? 0) - Number(walkInUsed ?? 0)),
+      eligibleServiceTypes: ['nadra', 'passport'] as const,
+      resetAt: nextReset,
+    },
     entries,
     updatedAt: new Date().toISOString(),
   }
