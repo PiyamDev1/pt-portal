@@ -55,7 +55,7 @@ describe('loyalty program policy', () => {
       { name: 'Platinum', minimumPoints: 8_000, maintenancePoints: 2_667 },
       { name: 'Ruby', minimumPoints: 15_000, maintenancePoints: 5_000 },
       { name: 'Diamond', minimumPoints: 25_000, maintenancePoints: 8_334 },
-      { name: 'Elite', minimumPoints: 40_000, maintenancePoints: 13_334 },
+      { name: 'Kryptonite', minimumPoints: 40_000, maintenancePoints: 13_334 },
     ])
   })
 

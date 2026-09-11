@@ -130,7 +130,7 @@ export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
       eligibleServiceKeys: z.array(z.string().min(1).max(80)).max(50),
       eligibleBranchIds: z.array(z.string().uuid()).max(50),
       audienceTiers: z
-        .array(z.enum(['Bronze', 'Silver', 'Gold', 'Platinum', 'Ruby', 'Diamond', 'Elite']))
+        .array(z.enum(['Bronze', 'Silver', 'Gold', 'Platinum', 'Ruby', 'Diamond', 'Kryptonite']))
         .min(1)
         .max(7),
       maxAwardsPerCustomer: z.number().int().min(1).max(1_000),

@@ -10,7 +10,7 @@ export type LoyaltyRankName =
   | 'Platinum'
   | 'Ruby'
   | 'Diamond'
-  | 'Elite'
+  | 'Kryptonite'
 
 export type LoyaltyBonusCampaign = {
   id: string
@@ -206,7 +206,7 @@ export async function loadLoyaltyProgramConfiguration(options?: {
         'Platinum',
         'Ruby',
         'Diamond',
-        'Elite',
+        'Kryptonite',
       ]) as LoyaltyRankName[],
       maxAwardsPerCustomer: Number(campaign.max_awards_per_customer ?? 1),
       minimumSpendPence: Number(campaign.minimum_spend_pence ?? 0),
