@@ -37,7 +37,7 @@ with (security_invoker = true)
 as
 select
   campaign.id as campaign_id,
-  count(award.id)::integer as award_count,
+  count(award.award_id)::integer as award_count,
   count(distinct award.mobile_user_id)::integer as customer_count,
   coalesce(sum(case when ledger.state <> 'reversed' then award.points else 0 end), 0)::bigint
     as awarded_points,

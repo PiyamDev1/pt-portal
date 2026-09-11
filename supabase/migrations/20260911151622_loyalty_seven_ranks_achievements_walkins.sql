@@ -2,6 +2,18 @@ begin;
 
 select pg_advisory_xact_lock(hashtextextended('loyalty:seven-ranks-achievements-walkins:v1', 0));
 
+do $$
+begin
+  if to_regprocedure(
+    'public.customer_loyalty_apply_sale_campaigns_v1(text,text,text,uuid,bigint,timestamptz)'
+  ) is null then
+    raise exception 'customer loyalty campaign hooks are not installed'
+      using errcode = '55000',
+        hint = 'Apply 20260911020000_connect_loyalty_campaign_hooks.sql before this migration.';
+  end if;
+end;
+$$;
+
 create table public.customer_loyalty_rank_rules (
   rank_key text primary key check (rank_key ~ '^[a-z][a-z0-9_]{1,31}$'),
   name text not null unique check (length(btrim(name)) between 2 and 40),
@@ -164,6 +176,16 @@ update public.customer_loyalty_voucher_rewards
 set is_active = false, updated_at = clock_timestamp()
 where is_active;
 
+-- The prior programme enforced the earlier 300-points-per-GBP floor. Replace
+-- it before inserting the approved 200-points-per-GBP rewards; this migration
+-- is transactional, so a failed earlier run left no partial catalogue behind.
+alter table public.customer_loyalty_voucher_rewards
+  drop constraint if exists customer_loyalty_voucher_rewards_minimum_exchange_rate;
+alter table public.customer_loyalty_voucher_rewards
+  add constraint customer_loyalty_voucher_rewards_minimum_exchange_rate check (
+    not is_active or points_cost >= value_pence * 2
+  );
+
 insert into public.customer_loyalty_voucher_rewards (
   points_cost, value_pence, validity_months, display_order, is_active
 ) values
@@ -181,13 +203,6 @@ on conflict(points_cost) do update set
   display_order = excluded.display_order,
   is_active = true,
   updated_at = clock_timestamp();
-
-alter table public.customer_loyalty_voucher_rewards
-  drop constraint if exists customer_loyalty_voucher_rewards_minimum_exchange_rate;
-alter table public.customer_loyalty_voucher_rewards
-  add constraint customer_loyalty_voucher_rewards_minimum_exchange_rate check (
-    not is_active or points_cost >= value_pence * 2
-  );
 
 create or replace function public.customer_loyalty_rank_for_points_v1(p_points integer)
 returns public.customer_loyalty_rank_rules
@@ -373,11 +388,13 @@ begin
     raise exception 'An override reason is required' using errcode = '22023', hint = 'LOYALTY_WALKIN_OVERRIDE_REASON_REQUIRED';
   end if;
   if not p_is_override and not exists (
-    select 1 from public.customer_loyalty_walkin_windows window
-    where window.location_id = p_location_id and window.service_type = p_service_type
-      and window.is_active
-      and window.iso_weekday = extract(isodow from local_time)::integer
-      and local_time::time >= window.starts_at and local_time::time < window.ends_at
+    select 1 from public.customer_loyalty_walkin_windows walkin_window
+    where walkin_window.location_id = p_location_id
+      and walkin_window.service_type = p_service_type
+      and walkin_window.is_active
+      and walkin_window.iso_weekday = extract(isodow from local_time)::integer
+      and local_time::time >= walkin_window.starts_at
+      and local_time::time < walkin_window.ends_at
   ) then
     raise exception 'Walk-in access is not available at this branch and time'
       using errcode = '22023', hint = 'LOYALTY_WALKIN_WINDOW_CLOSED';
