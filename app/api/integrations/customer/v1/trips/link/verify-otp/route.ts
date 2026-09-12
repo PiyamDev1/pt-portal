@@ -69,7 +69,9 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
           points,
           serviceKey: 'package',
         })
-        return { points, activationMilestone: registered.activationMilestone }
+        return registered.award
+          ? { points, activationMilestone: registered.activationMilestone }
+          : null
       })()
     : null
   const result = {

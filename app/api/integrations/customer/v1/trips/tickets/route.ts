@@ -190,8 +190,13 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
         points: transactionPoints,
         serviceKey: 'ticket',
       })
-      points += transactionPoints
-      loyaltyClaim = { points, activationMilestone: registered.activationMilestone }
+      if (registered.award) {
+        points += transactionPoints
+        loyaltyClaim = {
+          points,
+          activationMilestone: registered.activationMilestone,
+        }
+      }
     }
   }
   return customerIntegrationOk({ trip, loyaltyClaim }, context.requestId)

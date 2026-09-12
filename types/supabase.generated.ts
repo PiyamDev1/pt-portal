@@ -14298,6 +14298,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      customer_loyalty_unlink_source_v1: {
+        Args: {
+          p_customer_subject: string
+          p_source_namespace: string | null
+          p_source_record_id: string
+          p_source_type: string
+        }
+        Returns: Json
+      }
       customer_loyalty_source_reference_v1: {
         Args: {
           p_source_namespace: string

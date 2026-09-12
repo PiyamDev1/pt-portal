@@ -63,6 +63,14 @@ export async function registerCustomerLoyaltySourceForCode(input: {
     },
   )
   if (error) throw loyaltyWriteError()
+  if (!data) {
+    return {
+      sourceReference,
+      activationMilestone: customerLoyaltyActivationMilestone(input.source.type),
+      award: null,
+      campaignAward: null,
+    }
+  }
   const campaignResult = await getServiceSupabaseClient().rpc(
     'customer_loyalty_apply_sale_campaigns_v1',
     {
@@ -130,4 +138,37 @@ export async function reconcileCustomerLoyaltySource(source: CustomerLoyaltySour
   )
   if (error) throw loyaltyWriteError()
   return data
+}
+
+export interface CustomerLoyaltyUnlinkResult {
+  unlinked: true
+  sourceHadPoints: boolean
+  removedPoints: number
+  retainedRedeemedPoints: number
+}
+
+export async function unlinkCustomerLoyaltySource(input: {
+  customerSubject: string
+  source: Omit<CustomerLoyaltySource, 'type'> & {
+    type: 'ticket' | 'service' | 'package'
+  }
+}) {
+  customerLoyaltySourceReference(input.source)
+  const { data, error } = await getServiceSupabaseClient().rpc(
+    'customer_loyalty_unlink_source_v1',
+    {
+      p_customer_subject: input.customerSubject,
+      p_source_type: input.source.type,
+      p_source_namespace: input.source.namespace?.trim().toLowerCase() || null,
+      p_source_record_id: input.source.recordId,
+    },
+  )
+  if (error) throw loyaltyWriteError()
+  const result = data as Partial<CustomerLoyaltyUnlinkResult> | null
+  return {
+    unlinked: true as const,
+    sourceHadPoints: result?.sourceHadPoints === true,
+    removedPoints: Math.max(0, Number(result?.removedPoints || 0)),
+    retainedRedeemedPoints: Math.max(0, Number(result?.retainedRedeemedPoints || 0)),
+  }
 }
