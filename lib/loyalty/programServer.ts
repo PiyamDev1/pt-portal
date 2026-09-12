@@ -225,6 +225,29 @@ export async function loadLoyaltyProgramConfiguration(options?: {
       },
     }
   })
+  const bonusEventOptions = LOYALTY_PROGRAM_POLICY.bonusEventOptions.map(
+    (option) => {
+      const configured = campaigns.find(
+        (campaign) =>
+          campaign.eventType === option.key &&
+          ['scheduled', 'active'].includes(campaign.status),
+      )
+      if (!configured) return option
+      const suggestedAward =
+        configured.eventType === 'double_points' && configured.multiplier
+          ? `${configured.multiplier}× base points`
+          : configured.eventType === 'referral_bonus' &&
+              configured.referredCustomerPoints
+            ? `+${configured.bonusPoints} / +${configured.referredCustomerPoints} points`
+            : `+${configured.bonusPoints} points`
+      return {
+        ...option,
+        suggestedAward,
+        description: configured.terms || option.description,
+        defaultCustomerCap: configured.perCustomerCap,
+      }
+    },
+  )
   const serviceOptions = new Map<string, { key: string; label: string; category: string }>()
   for (const rule of earningResult.data ?? []) {
     if (rule.is_active) {
@@ -249,6 +272,7 @@ export async function loadLoyaltyProgramConfiguration(options?: {
       ...LOYALTY_PROGRAM_POLICY,
       earningRules: earningRules.length ? earningRules : LOYALTY_PROGRAM_POLICY.earningRules,
       voucherRewards,
+      bonusEventOptions,
       ranks: (ranksResult.data ?? []).length
         ? (ranksResult.data ?? []).map((rank) => ({
             key: rank.rank_key,

@@ -5429,6 +5429,9 @@ export type Database = {
       }
       mobile_users: {
         Row: {
+          birthday_reward_day: number | null
+          birthday_reward_locked_at: string | null
+          birthday_reward_month: number | null
           created_at: string
           customer_code: string | null
           customer_lifecycle_status: string
@@ -5438,6 +5441,9 @@ export type Database = {
           phone_number: string | null
         }
         Insert: {
+          birthday_reward_day?: number | null
+          birthday_reward_locked_at?: string | null
+          birthday_reward_month?: number | null
           created_at?: string
           customer_code?: string | null
           customer_lifecycle_status?: string
@@ -5447,6 +5453,9 @@ export type Database = {
           phone_number?: string | null
         }
         Update: {
+          birthday_reward_day?: number | null
+          birthday_reward_locked_at?: string | null
+          birthday_reward_month?: number | null
           created_at?: string
           customer_code?: string | null
           customer_lifecycle_status?: string

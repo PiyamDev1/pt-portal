@@ -31,7 +31,9 @@ export async function customerMobileUser(input: {
         }
   const { data: subjectMatch, error: subjectLookupError } = await service
     .from('mobile_users')
-    .select('id,email,external_customer_subject,customer_code')
+    .select(
+      'id,email,external_customer_subject,customer_code,birthday_reward_month,birthday_reward_day,birthday_reward_locked_at',
+    )
     .eq('external_customer_subject', input.customerSubject)
     .maybeSingle()
   if (subjectLookupError) {
@@ -47,7 +49,6 @@ export async function customerMobileUser(input: {
         customer_code: input.customerCode,
         email: normalizedEmail,
         customer_lifecycle_status: 'active',
-        ...birthdayFields,
       })
       .eq('id', subjectMatch.id)
     if (updateError) {
@@ -95,6 +96,7 @@ export async function customerMobileUser(input: {
         email: normalizedEmail,
         customer_lifecycle_status: 'active',
         ...birthdayFields,
+        birthday_reward_locked_at: new Date().toISOString(),
       })
       .eq('id', existing.id)
     if (error)
@@ -111,6 +113,7 @@ export async function customerMobileUser(input: {
       customer_code: input.customerCode,
       customer_lifecycle_status: 'active',
       ...birthdayFields,
+      birthday_reward_locked_at: new Date().toISOString(),
     })
     .select('id')
     .single()
