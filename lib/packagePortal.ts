@@ -1,13 +1,13 @@
 import type { TravelPackageDocument } from '@/app/types/packages'
 
 export function normalizePackagePortalReference(value: unknown) {
-  return typeof value === 'string'
-    ? value
-        .trim()
-        .toUpperCase()
-        .replace(/\s+/g, '')
-        .replace(/[^A-Z0-9-]/g, '')
-    : ''
+  if (typeof value !== 'string') return ''
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9-]/g, '')
+  return /^[A-Z0-9]{6}$/.test(normalized) ? `PT-${normalized}` : normalized
 }
 
 export function createPublicPackageDocument(

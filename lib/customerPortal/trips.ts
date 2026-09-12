@@ -14,6 +14,7 @@ import { normalizePackagePortalReference } from '@/lib/packagePortal'
 import { getS3Client } from '@/lib/s3Client'
 import { getOrCreateResourceAlias, resolveResourceAlias, verifyCustomerAccessGrant } from './grants'
 import { CustomerIntegrationError } from './http'
+import { canStreamCustomerTripDocuments, effectiveCustomerTripScopes } from './tripAuthorization'
 
 const PACKAGE_SELECT = [
   'id',
@@ -28,6 +29,8 @@ const PACKAGE_SELECT = [
   'document_access_token',
   'document_access_enabled',
   'document_access_expires_at',
+  'document_release_status',
+  'passport_status',
   'current_public_summary',
   'created_at',
   'updated_at',
@@ -43,6 +46,7 @@ const DOCUMENT_SELECT = [
   'file_type',
   'storage_bucket',
   'storage_key',
+  'public_notes',
   'released_at',
   'created_at',
 ].join(',')
@@ -60,6 +64,8 @@ export type CustomerTripPackageRow = {
   document_access_token: string | null
   document_access_enabled: boolean | null
   document_access_expires_at: string | null
+  document_release_status: string | null
+  passport_status: string | null
   current_public_summary: Record<string, unknown> | null
   created_at: string
   updated_at: string | null
@@ -75,6 +81,7 @@ type DocumentRow = {
   file_type: string | null
   storage_bucket: string
   storage_key: string
+  public_notes: string | null
   released_at: string | null
   created_at: string
 }
@@ -151,11 +158,22 @@ export async function packageByInternalId(internalId: string) {
 
 export async function lookupCustomerTrip(packageReference: string, requestedSurname: string) {
   const reference = normalizePackagePortalReference(packageReference)
-  const { data, error } = await getServiceSupabaseClient()
+  const service = getServiceSupabaseClient()
+  let { data, error } = await service
     .from('travel_packages')
     .select(PACKAGE_SELECT)
     .ilike('package_reference', reference)
     .maybeSingle()
+  const legacyReference = /^PT-[A-Z0-9]{6}$/.test(reference) ? reference.slice(3) : ''
+  if (!data && !error && legacyReference) {
+    const legacyResult = await service
+      .from('travel_packages')
+      .select(PACKAGE_SELECT)
+      .ilike('package_reference', legacyReference)
+      .maybeSingle()
+    data = legacyResult.data
+    error = legacyResult.error
+  }
   if (error || !data) {
     throw new CustomerIntegrationError('lookup_not_matched', 'Package details do not match.', 404)
   }
@@ -231,6 +249,78 @@ function transportText(value: unknown) {
   return result || null
 }
 
+function nullableText(value: unknown, max: number) {
+  const text = cleanText(value, '', max)
+  return text || null
+}
+
+function packagePublicInformation(summary: Record<string, unknown> | null) {
+  const source = summary?.keyInformation ?? summary?.legacyKeyInformation
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return []
+  return Object.entries(source as Record<string, unknown>)
+    .flatMap(([key, value]) => {
+      if (!['string', 'number'].includes(typeof value)) return []
+      const safeValue = cleanText(String(value), '', 240)
+      if (!safeValue) return []
+      const label = cleanText(
+        key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' '),
+        'Information',
+        80,
+      )
+      return [{ label, value: safeValue }]
+    })
+    .slice(0, 12)
+}
+
+function transportDetails(
+  row: { voucher_data?: unknown; version?: unknown; released_at?: unknown } | null | undefined,
+) {
+  if (!row?.voucher_data || typeof row.voucher_data !== 'object' || Array.isArray(row.voucher_data))
+    return null
+  const voucher = row.voucher_data as Record<string, unknown>
+  const assignedRoutes = Array.isArray(voucher.routeAssignments)
+    ? voucher.routeAssignments.flatMap((candidate) => {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return []
+        const route = candidate as Record<string, unknown>
+        const label = nullableText(route.routeName, 160)
+        if (!label) return []
+        return [
+          {
+            label,
+            detail:
+              [nullableText(route.type, 80), nullableText(route.vehicleType, 80)]
+                .filter(Boolean)
+                .join(' · ') || null,
+          },
+        ]
+      })
+    : []
+  const routes = assignedRoutes.length
+    ? assignedRoutes
+    : Array.isArray(voucher.routes)
+      ? voucher.routes.flatMap((route) => {
+          const label = nullableText(route, 160)
+          return label ? [{ label, detail: null }] : []
+        })
+      : []
+  return {
+    version: Math.max(0, Math.trunc(numberValue(row.version))),
+    releasedAt:
+      typeof row.released_at === 'string' && Number.isFinite(Date.parse(row.released_at))
+        ? new Date(row.released_at).toISOString()
+        : null,
+    arrivalLocation: nullableText(voucher.arrivalAirport, 120),
+    arrivalAt: nullableText(voucher.arrivalAt, 80),
+    departureLocation: nullableText(voucher.departureAirport, 120),
+    departureAt: nullableText(voucher.departureAt, 80),
+    provider: nullableText(voucher.providerName ?? voucher.transportCompany, 120),
+    driverContact: nullableText(voucher.driverContact, 80),
+    vehicle: nullableText(voucher.vehicleType ?? voucher.vehicle, 120),
+    publicNotes: nullableText(voucher.publicNotes, 1000),
+    routes: routes.slice(0, 12),
+  }
+}
+
 async function releasedInvoice(packageId: string) {
   const service = getServiceSupabaseClient()
   const { data: version } = await service
@@ -266,14 +356,17 @@ async function releasedInvoice(packageId: string) {
 async function releasedTransport(packageId: string) {
   const { data } = await getServiceSupabaseClient()
     .from('travel_package_transport_vouchers')
-    .select('voucher_data')
+    .select('version,released_at,voucher_data')
     .eq('package_id', packageId)
     .eq('customer_visible', true)
     .eq('status', 'released_to_customer')
     .order('version', { ascending: false })
     .limit(1)
     .maybeSingle()
-  return transportText(data?.voucher_data)
+  return {
+    summary: transportText(data?.voucher_data),
+    details: transportDetails(data),
+  }
 }
 
 async function releasedDocuments(packageId: string, publicTripId: string) {
@@ -303,6 +396,7 @@ async function releasedDocuments(packageId: string, publicTripId: string) {
         mimeType: safeStoredDocumentMimeType(document.file_type),
         sizeBytes: Math.max(0, Math.trunc(numberValue(document.file_size))),
         releasedAt: isoOrNow(document.released_at ?? document.created_at),
+        publicNotes: nullableText(document.public_notes, 500),
         previewUrl: `/api/v1/trips/${publicTripId}/documents/${publicId}`,
         downloadUrl: `/api/v1/trips/${publicTripId}/documents/${publicId}?disposition=attachment`,
       }
@@ -317,10 +411,13 @@ export async function customerTripSummary(input: {
   grantedAt?: string
 }) {
   const row = await packageByInternalId(input.internalId)
-  const [documents, invoice, transportSummary] = await Promise.all([
-    releasedDocuments(row.id, input.publicId),
+  const canViewDocuments = input.scopes.includes('documents')
+  const [documents, invoice, transport] = await Promise.all([
+    canViewDocuments ? releasedDocuments(row.id, input.publicId) : Promise.resolve([]),
     input.scopes.includes('financials') ? releasedInvoice(row.id) : Promise.resolve(null),
-    releasedTransport(row.id),
+    canViewDocuments
+      ? releasedTransport(row.id)
+      : Promise.resolve({ summary: null, details: null }),
   ])
   const summaryTitle = row.current_public_summary?.title
   const title = cleanText(
@@ -331,8 +428,9 @@ export async function customerTripSummary(input: {
     160,
   )
   return {
+    journeyKind: 'package' as const,
     tripId: input.publicId,
-    packageReference: cleanText(row.package_reference, 'Package', 80),
+    packageReference: normalizePackagePortalReference(row.package_reference) || 'Package',
     title,
     destination: row.destination ? cleanText(row.destination, '', 160) || null : null,
     startsOn: dateOnly(row.departure_date),
@@ -344,7 +442,50 @@ export async function customerTripSummary(input: {
     },
     documents,
     invoice,
-    transportSummary,
+    transportSummary: transport.summary,
+    packagePortal: {
+      releaseStatus: cleanText(row.document_release_status, 'Preparing', 60),
+      accessExpiresAt:
+        row.document_access_expires_at &&
+        Number.isFinite(Date.parse(row.document_access_expires_at))
+          ? new Date(row.document_access_expires_at).toISOString()
+          : null,
+      linkingMethod: row.customer_email ? ('email_otp' as const) : ('staff_assisted' as const),
+      contentAccess: canViewDocuments ? ('verified' as const) : ('otp_required' as const),
+      publicInformation: packagePublicInformation(row.current_public_summary),
+      bookingChecklist: canViewDocuments
+        ? [
+            {
+              key: 'passport',
+              label: 'Passport details supplied',
+              complete: row.passport_status === 'ready',
+            },
+            {
+              key: 'flight',
+              label: 'Flight documents released',
+              complete: documents.some((document) => document.category === 'flight'),
+            },
+            {
+              key: 'hotel',
+              label: 'Hotel documents released',
+              complete: documents.some((document) => document.category === 'hotel'),
+            },
+            {
+              key: 'visa',
+              label: 'Visa documents released',
+              complete: documents.some((document) => document.category === 'visa'),
+            },
+            {
+              key: 'transport',
+              label: 'Transport details released',
+              complete:
+                Boolean(transport.details) ||
+                documents.some((document) => document.category === 'transport'),
+            },
+          ]
+        : [],
+      transport: transport.details,
+    },
     lastUpdatedAt: isoOrNow(row.updated_at ?? row.created_at),
   }
 }
@@ -362,12 +503,23 @@ export async function customerTripFromGrant(input: {
     requiredScope: input.requiredScope,
     customerSubject: input.customerSubject,
   })
+  if (
+    input.requiredScope === 'documents' &&
+    !canStreamCustomerTripDocuments(grant.scopes, grant.customerSubject)
+  ) {
+    throw new CustomerIntegrationError(
+      'not_found',
+      'Document access requires a verified account link.',
+      404,
+    )
+  }
+  const effectiveScopes = effectiveCustomerTripScopes(grant.scopes, grant.customerSubject)
   return {
     grant,
     trip: await customerTripSummary({
       internalId: grant.internalId,
       publicId: grant.publicId,
-      scopes: grant.scopes,
+      scopes: effectiveScopes,
       grantedAt:
         typeof grant.metadata.grantedAt === 'string' ? grant.metadata.grantedAt : undefined,
     }),

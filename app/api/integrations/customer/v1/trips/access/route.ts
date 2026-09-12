@@ -23,7 +23,7 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
   const row = await lookupCustomerTrip(input.packageReference, input.leadSurname)
   const alias = await getOrCreateResourceAlias('trip', row.id)
   const grantedAt = new Date().toISOString()
-  const scopes = ['read', 'documents', 'financials', 'lead', 'invite']
+  const scopes = ['read']
   const grant = await createCustomerAccessGrant({
     resourceType: 'trip',
     internalId: row.id,

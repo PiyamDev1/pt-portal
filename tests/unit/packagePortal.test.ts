@@ -11,6 +11,12 @@ describe('package portal public data boundary', () => {
     expect(normalizePackagePortalReference(' pt-ab%_12 ')).toBe('PT-AB12')
   })
 
+  it('adds the PT prefix to current six-character package references', () => {
+    expect(normalizePackagePortalReference(' arjagk ')).toBe('PT-ARJAGK')
+    expect(normalizePackagePortalReference('PT-ARJAGK')).toBe('PT-ARJAGK')
+    expect(normalizePackagePortalReference('UMR-2026-001')).toBe('UMR-2026-001')
+  })
+
   it('does not expose document storage or internal metadata', () => {
     const document = {
       id: 'document-1',

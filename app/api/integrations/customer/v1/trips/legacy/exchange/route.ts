@@ -40,7 +40,7 @@ export const POST = withCustomerIntegrationRoute(async (request) => {
     resourceType: 'trip',
     internalId: data.id,
     publicId: alias.publicId,
-    scopes: ['read', 'documents', 'financials', 'lead', 'invite'],
+    scopes: ['read'],
     ttlSeconds: 30 * 60,
     metadata: { source: 'legacy_package_token', grantedAt: new Date().toISOString() },
   })
