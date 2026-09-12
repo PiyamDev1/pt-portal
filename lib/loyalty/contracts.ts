@@ -19,25 +19,18 @@ export const loyaltyAdjustmentSchema = z
   })
   .strict()
 
-export const loyaltyWalkInConsumeSchema = z
+export const loyaltyMemberServiceLookupSchema = z
   .object({
-    customerCode: z.string().trim().min(8).max(40),
+    customerCode: z.string().trim().min(1).max(512),
     locationId: z.string().uuid(),
-    serviceType: z.enum(['nadra', 'passport']),
-    idempotencyKey: z.string().uuid(),
-    isOverride: z.boolean().default(false),
-    consumeAllowance: z.boolean().default(true),
-    overrideReason: z.string().trim().min(5).max(300).nullable().default(null),
   })
   .strict()
-  .superRefine((value, context) => {
-    if (value.isOverride && !value.overrideReason)
-      context.addIssue({
-        code: 'custom',
-        path: ['overrideReason'],
-        message: 'An audited override reason is required.',
-      })
+
+export const loyaltyMemberServiceConsumeSchema = loyaltyMemberServiceLookupSchema
+  .extend({
+    idempotencyKey: z.string().uuid(),
   })
+  .strict()
 
 export const loyaltyProgramMutationSchema = z.discriminatedUnion('action', [
   z

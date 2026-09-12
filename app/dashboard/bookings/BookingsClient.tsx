@@ -13,6 +13,7 @@ import BookingSettingsTab, {
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
 import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
 import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
+import MemberServiceModal from '@/app/dashboard/bookings/MemberServiceModal'
 import { useBookingDraft } from '@/app/dashboard/bookings/useBookingDraft'
 import { resolveAppointmentStartTime } from '@/lib/bookingTimeSelection'
 import {
@@ -112,6 +113,7 @@ export default function BookingsClient({
   const [serviceOptions, setServiceOptions] = useState<BookingServiceOption[]>([])
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [showWaitlistModal, setShowWaitlistModal] = useState(false)
+  const [showMemberServiceModal, setShowMemberServiceModal] = useState(false)
   const [showRescheduleOnly, setShowRescheduleOnly] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
   const [historyBookingId, setHistoryBookingId] = useState<string | null>(null)
@@ -1621,6 +1623,14 @@ export default function BookingsClient({
                       <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                       Refresh
                     </button>
+                    <button
+                      onClick={() => setShowMemberServiceModal(true)}
+                      disabled={!selectedLocationId}
+                      className="ui-tap ui-focus col-span-2 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#7f1d2d]/25 bg-red-50 px-3 text-sm font-semibold text-[#7f1d2d] disabled:opacity-50"
+                    >
+                      <SparkIcon className="h-4 w-4" />
+                      Member Service
+                    </button>
                   </div>
 
                   <input
@@ -1780,6 +1790,17 @@ export default function BookingsClient({
                 >
                   <PlusIcon className="h-4 w-4" />
                   Add Appointment
+                </button>
+              )}
+
+              {!showSettings && (
+                <button
+                  onClick={() => setShowMemberServiceModal(true)}
+                  disabled={!selectedLocationId}
+                  className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-[#7f1d2d]/25 bg-red-50 px-3 py-2 text-xs font-semibold text-[#7f1d2d] transition-all hover:-translate-y-0.5 hover:bg-red-100 disabled:opacity-50 sm:text-sm"
+                >
+                  <SparkIcon className="h-4 w-4" />
+                  Member Service
                 </button>
               )}
 
@@ -3135,6 +3156,15 @@ export default function BookingsClient({
         initialDate={appointmentForm.date}
         onClose={() => setShowWaitlistModal(false)}
         onCreated={fetchWaitlist}
+      />
+
+      <MemberServiceModal
+        isOpen={showMemberServiceModal}
+        locationId={selectedLocationId}
+        locationName={
+          branchLocations.find((location) => location.id === selectedLocationId)?.name ?? ''
+        }
+        onClose={() => setShowMemberServiceModal(false)}
       />
 
       {showDayAgendaModal && (
