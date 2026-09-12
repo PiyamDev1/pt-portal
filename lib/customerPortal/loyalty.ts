@@ -419,6 +419,52 @@ export async function onboardCustomerLoyalty(input: {
   return { referralCode: String(referralCode), referral, welcome }
 }
 
+export async function validateCustomerLoyaltyReferralCode(referralCode: string) {
+  const service = getServiceSupabaseClient()
+  const normalizedCode = referralCode.trim().toUpperCase()
+  const { data: code, error: codeError } = await service
+    .from('customer_loyalty_referral_codes')
+    .select('mobile_user_id')
+    .eq('referral_code', normalizedCode)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (codeError) {
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Referral verification is unavailable.',
+      503,
+    )
+  }
+  if (!code) return { valid: false }
+
+  const [memberResult, referralResult] = await Promise.all([
+    service
+      .from('mobile_users')
+      .select('id')
+      .eq('id', code.mobile_user_id)
+      .eq('customer_lifecycle_status', 'active')
+      .maybeSingle(),
+    service
+      .from('customer_loyalty_referrals')
+      .select('id', { count: 'exact', head: true })
+      .eq('referrer_mobile_user_id', code.mobile_user_id)
+      .in('status', ['authenticated', 'rewarded']),
+  ])
+
+  if (memberResult.error || referralResult.error) {
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Referral verification is unavailable.',
+      503,
+    )
+  }
+
+  return {
+    valid: Boolean(memberResult.data) && (referralResult.count ?? 0) < 10,
+  }
+}
+
 export async function issueCustomerLoyaltyVoucher(input: {
   customerSubject: string
   customerCode: string
