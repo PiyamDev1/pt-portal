@@ -167,6 +167,7 @@ export async function customerLoyaltySummary(input: {
     { data: balance, error: balanceError },
     { data: vouchers, error: voucherError },
     { data: referralRows, error: referralError },
+    { data: referralPointRows, error: referralPointsError },
     { data: referralCode, error: referralCodeError },
     configuration,
   ] = await Promise.all([
@@ -193,6 +194,12 @@ export async function customerLoyaltySummary(input: {
       .from('customer_loyalty_referrals')
       .select('status')
       .eq('referrer_mobile_user_id', mobileUserId),
+    service
+      .from('customer_loyalty_awards')
+      .select('points')
+      .eq('mobile_user_id', mobileUserId)
+      .eq('activation_milestone', 'referral_bonus')
+      .gt('points', 0),
     service.rpc('customer_loyalty_ensure_referral_code_v1', {
       p_mobile_user_id: mobileUserId,
     }),
@@ -205,7 +212,7 @@ export async function customerLoyaltySummary(input: {
   // Voucher issuance and referrals are independent capabilities. A referral
   // setup failure must never hide otherwise healthy voucher rewards.
   const vouchersReady = !voucherError
-  const referralsReady = !referralError && !referralCodeError
+  const referralsReady = !referralError && !referralPointsError && !referralCodeError
   const entries = (awards ?? []).map((award) => ({
     entryId: customerLoyaltyEntryId(award.id),
     occurredAt: new Date(award.created_at).toISOString(),
@@ -297,13 +304,22 @@ export async function customerLoyaltySummary(input: {
         }))
       : [],
     referral: referralsReady
-      ? {
-          referralCode: String(referralCode),
-          authenticatedReferrals: (referralRows ?? []).filter((row) =>
+      ? (() => {
+          const authenticatedReferrals = (referralRows ?? []).filter((row) =>
             ['authenticated', 'rewarded'].includes(row.status),
-          ).length,
-          rewardedReferrals: (referralRows ?? []).filter((row) => row.status === 'rewarded').length,
-        }
+          ).length
+          return {
+            referralCode: String(referralCode),
+            authenticatedReferrals,
+            rewardedReferrals: (referralRows ?? []).filter((row) => row.status === 'rewarded')
+              .length,
+            referralLimit: 10,
+            remainingReferrals: Math.max(0, 10 - authenticatedReferrals),
+            lifetimePointsLimit: 1050,
+            earnedReferralPoints: (referralPointRows ?? [])
+              .reduce((total, row) => total + Number(row.points), 0),
+          }
+        })()
       : null,
     achievements: customerAchievementSummaries(
       configuration.program.achievementRules,
@@ -347,6 +363,19 @@ export async function onboardCustomerLoyalty(input: {
   accountCreatedAt: string
 }) {
   const mobileUserId = await customerMobileUser(input)
+  const { data: welcome, error: welcomeError } = await getServiceSupabaseClient().rpc(
+    'customer_loyalty_award_welcome_v1',
+    {
+      p_mobile_user_id: mobileUserId,
+    },
+  )
+  if (welcomeError) {
+    throw new CustomerIntegrationError(
+      'service_unavailable',
+      'Welcome reward could not be applied.',
+      503,
+    )
+  }
   let referral = { status: 'not_supplied', bonusAwarded: false }
   if (input.referralCode) {
     const accountAge = Date.now() - Date.parse(input.accountCreatedAt)
@@ -387,7 +416,7 @@ export async function onboardCustomerLoyalty(input: {
   if (error) {
     throw new CustomerIntegrationError('service_unavailable', 'Referral could not be loaded.', 503)
   }
-  return { referralCode: String(referralCode), referral }
+  return { referralCode: String(referralCode), referral, welcome }
 }
 
 export async function issueCustomerLoyaltyVoucher(input: {

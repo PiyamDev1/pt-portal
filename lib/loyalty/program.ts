@@ -140,7 +140,7 @@ export const LOYALTY_PROGRAM_POLICY = {
       key: 'welcome_bonus',
       label: 'Welcome bonus',
       suggestedAward: '+50 points',
-      description: 'Awarded once after a new member completes their first qualifying paid service.',
+      description: 'Awarded once in a customer lifetime after verified account setup.',
       defaultCustomerCap: 50,
     },
     {
@@ -148,8 +148,8 @@ export const LOYALTY_PROGRAM_POLICY = {
       label: 'Verified referral',
       suggestedAward: '+100 / +50 points',
       description:
-        '100 points to the referrer and 50 to the new member after the referred member completes a first qualifying purchase.',
-      defaultCustomerCap: 100,
+        '100 points to the referrer and 50 to the new member after verified account setup, with up to 10 outgoing referrals.',
+      defaultCustomerCap: 1050,
     },
     {
       key: 'off_peak_bonus',
