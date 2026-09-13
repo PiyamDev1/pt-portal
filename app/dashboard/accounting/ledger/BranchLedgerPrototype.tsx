@@ -7,16 +7,12 @@ import {
   Building2,
   CalendarDays,
   Check,
-  CircleDollarSign,
   FileSpreadsheet,
   Landmark,
   LockKeyhole,
   Plus,
   ReceiptText,
   ShieldCheck,
-  TrendingDown,
-  TrendingUp,
-  UsersRound,
   WalletCards,
 } from 'lucide-react'
 
@@ -53,37 +49,6 @@ function nextMonthLabel(label: string) {
   const date = new Date(label.slice(0, -5) + ' 1, ' + label.slice(-4))
   date.setMonth(date.getMonth() + 1)
   return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-}
-
-function Metric({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string
-  value: string
-  detail: string
-  icon: typeof CircleDollarSign
-  tone: string
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-            {label}
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-xs text-slate-500">{detail}</p>
-        </div>
-        <span className={'flex h-10 w-10 items-center justify-center rounded-xl ' + tone}>
-          <Icon className="h-5 w-5" />
-        </span>
-      </div>
-    </section>
-  )
 }
 
 function BlankEntry({
@@ -261,10 +226,6 @@ function CategorySheet({
           {finalized ? 'Finalised' : 'Open month'}
         </span>
       </header>
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">
-        <span className="text-xs font-bold text-slate-500">Month total</span>
-        <span className={'text-xl font-black ' + totalTone}>{GBP.format(total)}</span>
-      </div>
       <div className="divide-y divide-slate-100">
         {groups.map((group) => {
           const categoryItems = items.filter((item) => item.group === group)
@@ -331,6 +292,10 @@ function CategorySheet({
           <Plus className="h-3.5 w-3.5" /> Add {sheetLabel.toLowerCase()} category
         </button>
       </div>
+      <footer className="flex items-center justify-between border-t-2 border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
+        <span className="text-sm font-black text-slate-700">Total {sheetLabel.toLowerCase()}</span>
+        <span className={'text-2xl font-black ' + totalTone}>{GBP.format(total)}</span>
+      </footer>
     </section>
   )
 }
@@ -583,40 +548,6 @@ export default function BranchLedgerPrototype() {
           <Check className="h-4 w-4" /> Finalise {currentMonth.label}
         </button>
       </section>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Branch summary">
-        <Metric
-          label="Income"
-          value={GBP.format(incomeTotal)}
-          detail="Current month"
-          icon={TrendingUp}
-          tone="bg-emerald-50 text-emerald-700"
-        />
-        <Metric
-          label="Expenses"
-          value={GBP.format(expenseTotal)}
-          detail="Current month"
-          icon={TrendingDown}
-          tone="bg-rose-50 text-rose-700"
-        />
-        <Metric
-          label="Net result"
-          value={GBP.format(incomeTotal - expenseTotal)}
-          detail="Income after branch costs"
-          icon={CircleDollarSign}
-          tone="bg-sky-50 text-sky-700"
-        />
-        <Metric
-          label="People costs"
-          value={GBP.format(
-            expenseItems
-              .filter((item) => item.group === 'People')
-              .reduce((sum, item) => sum + item.amount, 0),
-          )}
-          detail="Wages and commissions"
-          icon={UsersRound}
-          tone="bg-violet-50 text-violet-700"
-        />
-      </section>
       <section className="grid gap-4 2xl:grid-cols-2">
         <CategorySheet
           kind="income"
@@ -638,6 +569,17 @@ export default function BranchLedgerPrototype() {
           onAdd={(group, label, amount) => addItem('expense', group, label, amount)}
           onAddCategory={() => addCategory('expense')}
         />
+      </section>
+      <section className="flex flex-col items-start justify-between gap-3 rounded-2xl border-2 border-slate-950 bg-slate-950 px-5 py-4 text-white shadow-sm sm:flex-row sm:items-center sm:px-6">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">
+            Monthly result
+          </p>
+          <p className="mt-1 text-sm font-bold text-slate-300">Total income minus total expenses</p>
+        </div>
+        <p className="text-3xl font-black tracking-tight">
+          Net result: {GBP.format(incomeTotal - expenseTotal)}
+        </p>
       </section>
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -7,6 +7,7 @@ describe('Branch Ledger prototype', () => {
     render(<BranchLedgerPrototype />)
 
     expect(screen.getByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
+    expect(screen.queryByLabelText('Branch summary')).toBeNull()
     expect(screen.getAllByText('Category-led monthly sheet · no fixed items')).toHaveLength(2)
     expect(screen.getByLabelText('Income Commissions & transfers new item')).toBeTruthy()
     expect(screen.getByLabelText('Expenses Bills & subscriptions new amount')).toBeTruthy()
@@ -43,6 +44,8 @@ describe('Branch Ledger prototype', () => {
     })
     fireEvent.blur(screen.getByLabelText('Edit So Energy Ltd amount'))
     expect(screen.getAllByText('£200.00').length).toBeGreaterThan(0)
+    expect(screen.getByText('Total expenses')).toBeTruthy()
+    expect(screen.getByText('Net result: -£200.00')).toBeTruthy()
 
     fireEvent.change(screen.getByLabelText('Rename Bills & subscriptions category'), {
       target: { value: 'Utilities' },
