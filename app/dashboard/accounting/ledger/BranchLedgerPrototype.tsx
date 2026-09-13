@@ -11,7 +11,6 @@ import {
   FileSpreadsheet,
   Landmark,
   LockKeyhole,
-  Pencil,
   Plus,
   ReceiptText,
   ShieldCheck,
@@ -19,7 +18,6 @@ import {
   TrendingUp,
   UsersRound,
   WalletCards,
-  X,
 } from 'lucide-react'
 
 type ViewMode = 'manager' | 'hq'
@@ -33,6 +31,7 @@ type LedgerItem = {
   carriedFrom?: string
 }
 type LedgerMonth = { label: string; finalized: boolean; items: LedgerItem[] }
+type Categories = Record<LedgerKind, string[]>
 
 const GBP = new Intl.NumberFormat('en-GB', {
   style: 'currency',
@@ -140,30 +139,103 @@ function BlankEntry({
   )
 }
 
+function InlineText({
+  value,
+  label,
+  disabled,
+  onSave,
+  className,
+}: {
+  value: string
+  label: string
+  disabled: boolean
+  onSave: (value: string) => boolean | void
+  className: string
+}) {
+  const [draft, setDraft] = useState(value)
+  function save() {
+    const nextValue = draft.trim()
+    if (!nextValue || nextValue === value) {
+      setDraft(value)
+      return
+    }
+    if (onSave(nextValue) === false) setDraft(value)
+  }
+  return (
+    <input
+      aria-label={label}
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={save}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') {
+          setDraft(value)
+          event.currentTarget.blur()
+        }
+      }}
+      className={className}
+    />
+  )
+}
+
+function InlineAmount({
+  item,
+  disabled,
+  onSave,
+}: {
+  item: LedgerItem
+  disabled: boolean
+  onSave: (amount: number) => void
+}) {
+  const [draft, setDraft] = useState(item.amount ? String(item.amount) : '')
+  function save() {
+    const amount = Number(draft)
+    if (!Number.isFinite(amount) || amount < 0) {
+      setDraft(item.amount ? String(item.amount) : '')
+      return
+    }
+    onSave(amount)
+  }
+  return (
+    <input
+      aria-label={'Edit ' + item.label + ' amount'}
+      value={draft}
+      disabled={disabled}
+      inputMode="decimal"
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={save}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') {
+          setDraft(item.amount ? String(item.amount) : '')
+          event.currentTarget.blur()
+        }
+      }}
+      className="h-8 min-w-0 rounded-lg border border-transparent bg-transparent px-2 text-right font-mono text-xs font-black text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:text-slate-400"
+    />
+  )
+}
+
 function CategorySheet({
   kind,
   groups,
   items,
   finalized,
-  editingId,
-  editValue,
-  onEdit,
-  onEditValue,
-  onSave,
-  onCancel,
+  onUpdateItem,
+  onRenameCategory,
   onAdd,
+  onAddCategory,
 }: {
   kind: LedgerKind
   groups: string[]
   items: LedgerItem[]
   finalized: boolean
-  editingId: string | null
-  editValue: string
-  onEdit: (item: LedgerItem) => void
-  onEditValue: (value: string) => void
-  onSave: () => void
-  onCancel: () => void
+  onUpdateItem: (id: string, updates: Partial<Pick<LedgerItem, 'label' | 'amount'>>) => void
+  onRenameCategory: (oldName: string, newName: string) => boolean
   onAdd: (group: string, label: string, amount: number) => void
+  onAddCategory: () => void
 }) {
   const income = kind === 'income'
   const total = items.reduce((sum, item) => sum + item.amount, 0)
@@ -198,10 +270,14 @@ function CategorySheet({
           const categoryItems = items.filter((item) => item.group === group)
           return (
             <div key={group}>
-              <div className="flex items-center justify-between bg-slate-50 px-4 py-2.5 sm:px-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.11em] text-slate-500">
-                  {group}
-                </p>
+              <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-2.5 sm:px-5">
+                <InlineText
+                  label={'Rename ' + group + ' category'}
+                  value={group}
+                  disabled={finalized}
+                  onSave={(name) => onRenameCategory(group, name)}
+                  className="min-w-0 flex-1 border border-transparent bg-transparent p-0 text-[10px] font-black uppercase tracking-[0.11em] text-slate-500 outline-none hover:border-slate-200 hover:bg-white focus:border-amber-300 focus:bg-white focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed"
+                />
                 <span className="text-[10px] font-bold text-slate-400">
                   {categoryItems.length
                     ? String(categoryItems.length) +
@@ -216,61 +292,25 @@ function CategorySheet({
                   className="grid grid-cols-[minmax(0,1fr)_104px_42px] items-center gap-2 px-4 py-2.5 sm:px-5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-slate-900">{item.label}</p>
+                    <InlineText
+                      label={'Edit ' + item.label + ' name'}
+                      value={item.label}
+                      disabled={finalized}
+                      onSave={(label) => onUpdateItem(item.id, { label })}
+                      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                    />
                     {item.carriedFrom && (
                       <span className="mt-1 inline-flex rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-500">
                         Carried from {item.carriedFrom}
                       </span>
                     )}
                   </div>
-                  {editingId === item.id ? (
-                    <input
-                      aria-label={'Edit ' + item.label + ' amount'}
-                      autoFocus
-                      value={editValue}
-                      onChange={(event) => onEditValue(event.target.value)}
-                      className="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-right font-mono text-xs font-black text-slate-900 outline-none focus:ring-2 focus:ring-amber-100"
-                    />
-                  ) : (
-                    <p className="text-right font-mono text-xs font-black text-slate-900">
-                      {item.amount ? GBP.format(item.amount) : '—'}
-                    </p>
-                  )}
-                  <div className="flex justify-end">
-                    {editingId === item.id ? (
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          aria-label={'Save ' + item.label + ' amount'}
-                          onClick={onSave}
-                          className="rounded-md bg-emerald-700 p-1.5 text-white hover:bg-emerald-800"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={'Cancel ' + item.label + ' edit'}
-                          onClick={onCancel}
-                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label={'Quick edit ' + item.label}
-                        disabled={finalized}
-                        onClick={() => onEdit(item)}
-                        className={
-                          'rounded-md p-1.5 disabled:cursor-not-allowed disabled:text-slate-300 ' +
-                          actionTone
-                        }
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
+                  <InlineAmount
+                    item={item}
+                    disabled={finalized}
+                    onSave={(amount) => onUpdateItem(item.id, { amount })}
+                  />
+                  <span className={'text-right text-[10px] font-black ' + actionTone}>Auto</span>
                 </div>
               ))}
               <BlankEntry
@@ -282,6 +322,14 @@ function CategorySheet({
             </div>
           )
         })}
+        <button
+          type="button"
+          onClick={onAddCategory}
+          disabled={finalized}
+          className="flex w-full items-center gap-2 border-t border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-black text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400 sm:px-5"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add {sheetLabel.toLowerCase()} category
+        </button>
       </div>
     </section>
   )
@@ -293,9 +341,11 @@ export default function BranchLedgerPrototype() {
   const [months, setMonths] = useState<LedgerMonth[]>([
     { label: 'September 2026', finalized: false, items: [] },
   ])
+  const [categories, setCategories] = useState<Categories>({
+    income: INCOME_GROUPS,
+    expense: EXPENSE_GROUPS,
+  })
   const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
   const currentMonth = months[currentMonthIndex]
   const incomeItems = currentMonth.items.filter((item) => item.kind === 'income')
   const expenseItems = currentMonth.items.filter((item) => item.kind === 'expense')
@@ -327,27 +377,46 @@ export default function BranchLedgerPrototype() {
       ),
     )
   }
-  function startEdit(item: LedgerItem) {
-    setEditingId(item.id)
-    setEditValue(String(item.amount))
+  function updateItem(id: string, updates: Partial<Pick<LedgerItem, 'label' | 'amount'>>) {
+    setMonths((current) =>
+      current.map((month, index) =>
+        index === currentMonthIndex
+          ? {
+              ...month,
+              items: month.items.map((item) => (item.id === id ? { ...item, ...updates } : item)),
+            }
+          : month,
+      ),
+    )
   }
-  function saveEdit() {
-    if (!editingId) return
-    const amount = Number(editValue)
-    if (Number.isFinite(amount) && amount >= 0)
-      setMonths((current) =>
-        current.map((month, index) =>
-          index === currentMonthIndex
-            ? {
-                ...month,
-                items: month.items.map((item) =>
-                  item.id === editingId ? { ...item, amount } : item,
-                ),
-              }
-            : month,
+  function renameCategory(kind: LedgerKind, oldName: string, newName: string) {
+    const name = newName.trim()
+    if (!name || categories[kind].some((category) => category === name && category !== oldName)) {
+      return false
+    }
+    setCategories((current) => ({
+      ...current,
+      [kind]: current[kind].map((category) => (category === oldName ? name : category)),
+    }))
+    setMonths((current) =>
+      current.map((month) => ({
+        ...month,
+        items: month.items.map((item) =>
+          item.kind === kind && item.group === oldName ? { ...item, group: name } : item,
         ),
-      )
-    setEditingId(null)
+      })),
+    )
+    return true
+  }
+  function addCategory(kind: LedgerKind) {
+    const prefix = kind === 'income' ? 'New income category' : 'New expense category'
+    let name = prefix
+    let number = 2
+    while (categories[kind].includes(name)) {
+      name = prefix + ' ' + number
+      number += 1
+    }
+    setCategories((current) => ({ ...current, [kind]: [...current[kind], name] }))
   }
   function finalizeMonth() {
     if (currentMonth.finalized) return
@@ -364,7 +433,6 @@ export default function BranchLedgerPrototype() {
       { label: nextMonthLabel(currentMonth.label), finalized: false, items: carried },
     ])
     setCurrentMonthIndex(months.length)
-    setEditingId(null)
   }
 
   return (
@@ -493,10 +561,7 @@ export default function BranchLedgerPrototype() {
               <button
                 key={month.label}
                 type="button"
-                onClick={() => {
-                  setCurrentMonthIndex(index)
-                  setEditingId(null)
-                }}
+                onClick={() => setCurrentMonthIndex(index)}
                 className={
                   'rounded-lg px-3 py-1.5 text-xs font-black ' +
                   (index === currentMonthIndex
@@ -555,29 +620,23 @@ export default function BranchLedgerPrototype() {
       <section className="grid gap-4 2xl:grid-cols-2">
         <CategorySheet
           kind="income"
-          groups={INCOME_GROUPS}
+          groups={categories.income}
           items={incomeItems}
           finalized={currentMonth.finalized}
-          editingId={editingId}
-          editValue={editValue}
-          onEdit={startEdit}
-          onEditValue={setEditValue}
-          onSave={saveEdit}
-          onCancel={() => setEditingId(null)}
+          onUpdateItem={updateItem}
+          onRenameCategory={(oldName, newName) => renameCategory('income', oldName, newName)}
           onAdd={(group, label, amount) => addItem('income', group, label, amount)}
+          onAddCategory={() => addCategory('income')}
         />
         <CategorySheet
           kind="expense"
-          groups={EXPENSE_GROUPS}
+          groups={categories.expense}
           items={expenseItems}
           finalized={currentMonth.finalized}
-          editingId={editingId}
-          editValue={editValue}
-          onEdit={startEdit}
-          onEditValue={setEditValue}
-          onSave={saveEdit}
-          onCancel={() => setEditingId(null)}
+          onUpdateItem={updateItem}
+          onRenameCategory={(oldName, newName) => renameCategory('expense', oldName, newName)}
           onAdd={(group, label, amount) => addItem('expense', group, label, amount)}
+          onAddCategory={() => addCategory('expense')}
         />
       </section>
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">

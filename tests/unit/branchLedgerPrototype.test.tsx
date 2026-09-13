@@ -23,7 +23,7 @@ describe('Branch Ledger prototype', () => {
     expect(screen.getByLabelText('Select branch')).toBeTruthy()
   })
 
-  it('adds and quick-edits an item, then carries its name into the next month with a blank amount', () => {
+  it('autosaves direct item and category edits, then carries entries into the next month', () => {
     render(<BranchLedgerPrototype />)
 
     fireEvent.change(screen.getByLabelText('Expenses Bills & subscriptions new item'), {
@@ -34,18 +34,33 @@ describe('Branch Ledger prototype', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add item to Bills & subscriptions' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Quick edit So Energy' }))
-    fireEvent.change(screen.getByLabelText('Edit So Energy amount'), {
+    fireEvent.change(screen.getByLabelText('Edit So Energy name'), {
+      target: { value: 'So Energy Ltd' },
+    })
+    fireEvent.blur(screen.getByLabelText('Edit So Energy name'))
+    fireEvent.change(screen.getByLabelText('Edit So Energy Ltd amount'), {
       target: { value: '200.00' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save So Energy amount' }))
+    fireEvent.blur(screen.getByLabelText('Edit So Energy Ltd amount'))
     expect(screen.getAllByText('£200.00').length).toBeGreaterThan(0)
+
+    fireEvent.change(screen.getByLabelText('Rename Bills & subscriptions category'), {
+      target: { value: 'Utilities' },
+    })
+    fireEvent.blur(screen.getByLabelText('Rename Bills & subscriptions category'))
+    expect(screen.getByLabelText('Expenses Utilities new item')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add expenses category' }))
+    fireEvent.change(screen.getByLabelText('Rename New expense category category'), {
+      target: { value: 'Seasonal costs' },
+    })
+    fireEvent.blur(screen.getByLabelText('Rename New expense category category'))
+    expect(screen.getByLabelText('Expenses Seasonal costs new item')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Finalise September 2026' }))
     expect(screen.getByRole('button', { name: 'Finalise October 2026' })).toBeTruthy()
     expect(screen.getByText('Carried from September 2026')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Quick edit So Energy' }))
-    expect((screen.getByLabelText('Edit So Energy amount') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('Edit So Energy Ltd amount') as HTMLInputElement).value).toBe('')
   })
 })
