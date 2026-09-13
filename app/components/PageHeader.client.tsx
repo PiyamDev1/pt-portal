@@ -96,7 +96,7 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
       { href: '/dashboard/accounting', label: 'Accounting Home', icon: BadgePoundSterling },
       {
         href: '/dashboard/accounting/ledger',
-        label: 'General ledger preview',
+        label: 'Branch Ledger preview',
         icon: FileSpreadsheet,
       },
       {

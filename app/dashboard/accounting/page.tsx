@@ -45,13 +45,13 @@ export default function AccountingPage() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-slate-900">General ledger</h3>
+                <h3 className="font-black text-slate-900">Branch Ledger</h3>
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-800">
                   Preview
                 </span>
               </div>
               <p className="mt-1 text-sm text-slate-500">
-                Explore the planned journal and reporting workspace
+                Explore branch income, expenses and monthly results
               </p>
             </div>
             <ArrowRight className="h-5 w-5 shrink-0 text-emerald-600 transition group-hover:translate-x-1 group-hover:text-emerald-800" />

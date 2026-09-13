@@ -1,10 +1,10 @@
-import AccountingLedgerPrototype from './AccountingLedgerPrototype'
+import BranchLedgerPrototype from './BranchLedgerPrototype'
 
 export const metadata = {
-  title: 'Ledger Preview - Accounting - PT Portal',
-  description: 'Frontend preview of the planned Accounting ledger workspace',
+  title: 'Branch Ledger Preview - Accounting - PT Portal',
+  description: 'Frontend preview of the planned branch income and expense ledger',
 }
 
 export default function AccountingLedgerPage() {
-  return <AccountingLedgerPrototype />
+  return <BranchLedgerPrototype />
 }
