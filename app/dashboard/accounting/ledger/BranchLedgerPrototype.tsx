@@ -45,6 +45,8 @@ type FinancialPosition = {
   carriedFrom?: string
 }
 type CompanyBranchPosition = {
+  income: number
+  expenses: number
   cashStart: number
   cashEnd: number
   profitStart: number
@@ -534,6 +536,99 @@ function CompanyBranchLines({
   )
 }
 
+function CompanyBranchOverview({
+  positions,
+  finalized,
+  onUpdate,
+  onOpenBranch,
+}: {
+  positions: Record<string, CompanyBranchPosition>
+  finalized: boolean
+  onUpdate: (branch: string, field: keyof CompanyBranchPosition, value: number) => void
+  onOpenBranch: (branch: string) => void
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col justify-between gap-3 border-b border-slate-200 bg-slate-950 px-5 py-4 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">
+            HQ trading overview
+          </p>
+          <h2 className="mt-1 text-lg font-black text-white">All branches</h2>
+          <p className="mt-1 text-xs text-slate-300">
+            Compare every branch for the selected month, then open its full sheet when needed.
+          </p>
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">
+          Inline autosave
+        </span>
+      </header>
+      <div className="overflow-x-auto">
+        <div className="min-w-[680px]">
+          <div className="grid grid-cols-[minmax(150px,1.25fr)_minmax(112px,0.7fr)_minmax(112px,0.7fr)_minmax(126px,0.8fr)_minmax(126px,0.8fr)_112px] divide-x divide-slate-100 text-xs">
+            {['Branch', 'Income', 'Expenses', 'Net result', 'Cash in hand', ''].map((heading) => (
+              <div
+                key={heading || 'action'}
+                className="bg-slate-50 px-4 py-3 text-right font-black uppercase tracking-[0.1em] text-slate-500 first:text-left"
+              >
+                {heading}
+              </div>
+            ))}
+            {BRANCHES.map((branch) => {
+              const values = positions[branch]
+              const netResult = values.income - values.expenses
+              return (
+                <div key={branch} className="contents">
+                  <div className="border-t border-slate-100 px-4 py-3 font-black text-slate-950">
+                    {branch}
+                  </div>
+                  <div className="border-t border-slate-100 px-2 py-1">
+                    <InlineBalance
+                      label={'Company income ' + branch}
+                      value={values.income}
+                      disabled={finalized}
+                      onSave={(value) => onUpdate(branch, 'income', value)}
+                    />
+                  </div>
+                  <div className="border-t border-slate-100 px-2 py-1">
+                    <InlineBalance
+                      label={'Company expenses ' + branch}
+                      value={values.expenses}
+                      disabled={finalized}
+                      onSave={(value) => onUpdate(branch, 'expenses', value)}
+                    />
+                  </div>
+                  <div
+                    className={
+                      'border-t border-slate-100 px-4 py-3 text-right font-mono text-sm font-black ' +
+                      (netResult < 0 ? 'text-rose-700' : 'text-emerald-700')
+                    }
+                  >
+                    {GBP.format(netResult)}
+                  </div>
+                  <div className="border-t border-slate-100 px-4 py-3 text-right font-mono text-sm font-black text-slate-900">
+                    {GBP.format(values.cashEnd)}
+                  </div>
+                  <div className="flex items-center justify-end border-t border-slate-100 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenBranch(branch)}
+                      className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-black text-slate-700 hover:bg-slate-200"
+                      aria-label={'Open ' + branch + ' Branch Ledger'}
+                    >
+                      Open sheet
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function MonthlyPosition({
   position,
   finalized,
@@ -606,7 +701,7 @@ function MonthlyPosition({
         </div>
         {position.suppliers.length === 0 && (
           <div className="col-span-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
-            No supplier balances added for this branch.
+            No supplier balances added for the company.
           </div>
         )}
         {position.suppliers.map((balance) => (
@@ -628,7 +723,7 @@ function MonthlyPosition({
         </div>
         {position.banks.length === 0 && (
           <div className="col-span-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
-            No bank balances added for this branch.
+            No bank balances added for the company.
           </div>
         )}
         {position.banks.map((balance) => (
@@ -818,7 +913,7 @@ export default function BranchLedgerPrototype() {
     Object.fromEntries(
       BRANCHES.map((branch) => [
         branch,
-        { cashStart: 0, cashEnd: 0, profitStart: 0, profitEnd: 0 },
+        { income: 0, expenses: 0, cashStart: 0, cashEnd: 0, profitStart: 0, profitEnd: 0 },
       ]),
     ),
   )
@@ -1007,6 +1102,8 @@ export default function BranchLedgerPrototype() {
         Object.entries(current).map(([branch, values]) => [
           branch,
           {
+            income: values.income,
+            expenses: values.expenses,
             cashStart: values.cashEnd,
             cashEnd: values.cashEnd,
             profitStart: values.profitEnd,
@@ -1057,7 +1154,7 @@ export default function BranchLedgerPrototype() {
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
                 {ledgerView === 'company'
-                  ? 'Company-wide balances with branch cash and profit / loss'
+                  ? 'All branches, alongside company-wide balances'
                   : 'A flexible monthly sheet that grows with your branch'}
               </p>
             </div>
@@ -1254,16 +1351,27 @@ export default function BranchLedgerPrototype() {
           />
         </>
       ) : (
-        <MonthlyPosition
-          key={currentMonth.label + '-company'}
-          position={companyPosition}
-          finalized={currentMonth.finalized}
-          onUpdate={updateCompanyPosition}
-          onAddNamedBalance={addCompanyNamedBalance}
-          onUpdateNamedBalance={updateCompanyNamedBalance}
-          branchPositions={companyBranchPositions}
-          onUpdateBranchPosition={updateCompanyBranchPosition}
-        />
+        <div className="space-y-4">
+          <CompanyBranchOverview
+            positions={companyBranchPositions}
+            finalized={currentMonth.finalized}
+            onUpdate={updateCompanyBranchPosition}
+            onOpenBranch={(branch) => {
+              setSelectedBranch(branch)
+              setLedgerView('branch')
+            }}
+          />
+          <MonthlyPosition
+            key={currentMonth.label + '-company'}
+            position={companyPosition}
+            finalized={currentMonth.finalized}
+            onUpdate={updateCompanyPosition}
+            onAddNamedBalance={addCompanyNamedBalance}
+            onUpdateNamedBalance={updateCompanyNamedBalance}
+            branchPositions={companyBranchPositions}
+            onUpdateBranchPosition={updateCompanyBranchPosition}
+          />
+        </div>
       )}
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -16,9 +16,32 @@ describe('Branch Ledger prototype', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Company Ledger' }))
     expect(screen.getAllByRole('heading', { name: 'Company Ledger' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'All branches' })).toBeTruthy()
+    expect(screen.getByLabelText('Company income Manchester')).toBeTruthy()
+    expect(screen.getByLabelText('Company expenses Bradford')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open Birmingham Branch Ledger' })).toBeTruthy()
     expect(screen.getByText('LMS — customer / company balance')).toBeTruthy()
-    expect(screen.getByText('No supplier balances added for this branch.')).toBeTruthy()
-    expect(screen.getByText('No bank balances added for this branch.')).toBeTruthy()
+    expect(screen.getByText('No supplier balances added for the company.')).toBeTruthy()
+    expect(screen.getByText('No bank balances added for the company.')).toBeTruthy()
+  })
+
+  it('lets HQ compare branches then open a selected branch sheet', () => {
+    render(<BranchLedgerPrototype />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Company Ledger' }))
+    fireEvent.change(screen.getByLabelText('Company income Bradford'), {
+      target: { value: '1200' },
+    })
+    fireEvent.blur(screen.getByLabelText('Company income Bradford'))
+    fireEvent.change(screen.getByLabelText('Company expenses Bradford'), {
+      target: { value: '450' },
+    })
+    fireEvent.blur(screen.getByLabelText('Company expenses Bradford'))
+    expect(screen.getByText('£750.00')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Bradford Branch Ledger' }))
+    expect(screen.getByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
+    expect((screen.getByLabelText('Select branch') as HTMLSelectElement).value).toBe('Bradford')
   })
 
   it('locks a manager to their assigned branch and allows HQ to select a branch', () => {
