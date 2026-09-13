@@ -26,7 +26,21 @@ type LedgerItem = {
   kind: LedgerKind
   carriedFrom?: string
 }
-type LedgerMonth = { label: string; finalized: boolean; items: LedgerItem[] }
+type FinancialPosition = {
+  supplierStart: number
+  supplierEnd: number
+  bankStart: number
+  bankEnd: number
+  cashStart: number
+  cashEnd: number
+  netStart: number
+}
+type LedgerMonth = {
+  label: string
+  finalized: boolean
+  items: LedgerItem[]
+  position: FinancialPosition
+}
 type Categories = Record<LedgerKind, string[]>
 
 const GBP = new Intl.NumberFormat('en-GB', {
@@ -44,6 +58,15 @@ const EXPENSE_GROUPS = [
   'People',
   'Donations & other',
 ]
+const EMPTY_POSITION: FinancialPosition = {
+  supplierStart: 0,
+  supplierEnd: 0,
+  bankStart: 0,
+  bankEnd: 0,
+  cashStart: 0,
+  cashEnd: 0,
+  netStart: 0,
+}
 
 function nextMonthLabel(label: string) {
   const date = new Date(label.slice(0, -5) + ' 1, ' + label.slice(-4))
@@ -183,6 +206,134 @@ function InlineAmount({
   )
 }
 
+function InlineBalance({
+  label,
+  value,
+  disabled,
+  onSave,
+}: {
+  label: string
+  value: number
+  disabled: boolean
+  onSave: (value: number) => void
+}) {
+  const [draft, setDraft] = useState(value ? String(value) : '')
+  function save() {
+    const amount = Number(draft)
+    if (!Number.isFinite(amount)) {
+      setDraft(value ? String(value) : '')
+      return
+    }
+    onSave(amount)
+  }
+  return (
+    <input
+      aria-label={label}
+      value={draft}
+      disabled={disabled}
+      inputMode="decimal"
+      placeholder="£ 0.00"
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={save}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') {
+          setDraft(value ? String(value) : '')
+          event.currentTarget.blur()
+        }
+      }}
+      className="h-9 w-full rounded-lg border border-transparent bg-transparent px-2 text-right font-mono text-sm font-black text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:text-slate-400"
+    />
+  )
+}
+
+function MonthlyPosition({
+  position,
+  netResult,
+  finalized,
+  onUpdate,
+}: {
+  position: FinancialPosition
+  netResult: number
+  finalized: boolean
+  onUpdate: (field: keyof FinancialPosition, value: number) => void
+}) {
+  const rows: Array<{
+    label: string
+    start: keyof FinancialPosition
+    end: keyof FinancialPosition
+  }> = [
+    { label: 'Supplier balances', start: 'supplierStart', end: 'supplierEnd' },
+    { label: 'Bank balances', start: 'bankStart', end: 'bankEnd' },
+    { label: 'Cash in hand', start: 'cashStart', end: 'cashEnd' },
+  ]
+  const endingNet = position.netStart + netResult
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+            Financial position
+          </p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">Opening & closing position</h2>
+          <p className="mt-1 text-xs text-slate-500">Balances at the start and end of this month</p>
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+          Inline autosave
+        </span>
+      </header>
+      <div className="grid grid-cols-[minmax(120px,1fr)_minmax(104px,0.7fr)_minmax(104px,0.7fr)] divide-x divide-slate-100 text-xs">
+        <div className="bg-slate-50 px-4 py-3 font-black uppercase tracking-[0.1em] text-slate-500">
+          Balance
+        </div>
+        <div className="bg-slate-50 px-4 py-3 text-right font-black uppercase tracking-[0.1em] text-slate-500">
+          Start of month
+        </div>
+        <div className="bg-slate-50 px-4 py-3 text-right font-black uppercase tracking-[0.1em] text-slate-500">
+          End of month
+        </div>
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <div className="border-t border-slate-100 px-4 py-3 font-bold text-slate-900">
+              {row.label}
+            </div>
+            <div className="border-t border-slate-100 px-2 py-1">
+              <InlineBalance
+                label={'Start of month ' + row.label}
+                value={position[row.start]}
+                disabled={finalized}
+                onSave={(value) => onUpdate(row.start, value)}
+              />
+            </div>
+            <div className="border-t border-slate-100 px-2 py-1">
+              <InlineBalance
+                label={'End of month ' + row.label}
+                value={position[row.end]}
+                disabled={finalized}
+                onSave={(value) => onUpdate(row.end, value)}
+              />
+            </div>
+          </div>
+        ))}
+        <div className="border-t-2 border-slate-300 bg-slate-950 px-4 py-3 font-black text-white">
+          Net result
+        </div>
+        <div className="border-t-2 border-slate-300 bg-slate-950 px-2 py-1">
+          <InlineBalance
+            label="Start of month net result"
+            value={position.netStart}
+            disabled={finalized}
+            onSave={(value) => onUpdate('netStart', value)}
+          />
+        </div>
+        <div className="flex items-center justify-end border-t-2 border-slate-300 bg-slate-950 px-4 py-3 font-mono text-sm font-black text-emerald-300">
+          {GBP.format(endingNet)}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function CategorySheet({
   kind,
   groups,
@@ -304,7 +455,7 @@ export default function BranchLedgerPrototype() {
   const [viewMode, setViewMode] = useState<ViewMode>('hq')
   const [selectedBranch, setSelectedBranch] = useState('Manchester')
   const [months, setMonths] = useState<LedgerMonth[]>([
-    { label: 'September 2026', finalized: false, items: [] },
+    { label: 'September 2026', finalized: false, items: [], position: EMPTY_POSITION },
   ])
   const [categories, setCategories] = useState<Categories>({
     income: INCOME_GROUPS,
@@ -354,6 +505,15 @@ export default function BranchLedgerPrototype() {
       ),
     )
   }
+  function updatePosition(field: keyof FinancialPosition, value: number) {
+    setMonths((current) =>
+      current.map((month, index) =>
+        index === currentMonthIndex
+          ? { ...month, position: { ...month.position, [field]: value } }
+          : month,
+      ),
+    )
+  }
   function renameCategory(kind: LedgerKind, oldName: string, newName: string) {
     const name = newName.trim()
     if (!name || categories[kind].some((category) => category === name && category !== oldName)) {
@@ -395,7 +555,20 @@ export default function BranchLedgerPrototype() {
       ...current.map((month, index) =>
         index === currentMonthIndex ? { ...month, finalized: true } : month,
       ),
-      { label: nextMonthLabel(currentMonth.label), finalized: false, items: carried },
+      {
+        label: nextMonthLabel(currentMonth.label),
+        finalized: false,
+        items: carried,
+        position: {
+          supplierStart: currentMonth.position.supplierEnd,
+          supplierEnd: 0,
+          bankStart: currentMonth.position.bankEnd,
+          bankEnd: 0,
+          cashStart: currentMonth.position.cashEnd,
+          cashEnd: 0,
+          netStart: currentMonth.position.netStart + incomeTotal - expenseTotal,
+        },
+      },
     ])
     setCurrentMonthIndex(months.length)
   }
@@ -581,6 +754,13 @@ export default function BranchLedgerPrototype() {
           Net result: {GBP.format(incomeTotal - expenseTotal)}
         </p>
       </section>
+      <MonthlyPosition
+        key={currentMonth.label}
+        position={currentMonth.position}
+        netResult={incomeTotal - expenseTotal}
+        finalized={currentMonth.finalized}
+        onUpdate={updatePosition}
+      />
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">

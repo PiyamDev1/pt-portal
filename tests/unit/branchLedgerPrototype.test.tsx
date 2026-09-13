@@ -8,6 +8,7 @@ describe('Branch Ledger prototype', () => {
 
     expect(screen.getByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
     expect(screen.queryByLabelText('Branch summary')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Opening & closing position' })).toBeTruthy()
     expect(screen.getAllByText('Category-led monthly sheet · no fixed items')).toHaveLength(2)
     expect(screen.getByLabelText('Income Commissions & transfers new item')).toBeTruthy()
     expect(screen.getByLabelText('Expenses Bills & subscriptions new amount')).toBeTruthy()
@@ -47,6 +48,11 @@ describe('Branch Ledger prototype', () => {
     expect(screen.getByText('Total expenses')).toBeTruthy()
     expect(screen.getByText('Net result: -£200.00')).toBeTruthy()
 
+    fireEvent.change(screen.getByLabelText('End of month Bank balances'), {
+      target: { value: '750' },
+    })
+    fireEvent.blur(screen.getByLabelText('End of month Bank balances'))
+
     fireEvent.change(screen.getByLabelText('Rename Bills & subscriptions category'), {
       target: { value: 'Utilities' },
     })
@@ -63,6 +69,12 @@ describe('Branch Ledger prototype', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Finalise September 2026' }))
     expect(screen.getByRole('button', { name: 'Finalise October 2026' })).toBeTruthy()
     expect(screen.getByText('Carried from September 2026')).toBeTruthy()
+    expect((screen.getByLabelText('Start of month Bank balances') as HTMLInputElement).value).toBe(
+      '750',
+    )
+    expect((screen.getByLabelText('Start of month net result') as HTMLInputElement).value).toBe(
+      '-200',
+    )
 
     expect((screen.getByLabelText('Edit So Energy Ltd amount') as HTMLInputElement).value).toBe('')
   })
