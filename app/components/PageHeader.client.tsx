@@ -20,6 +20,7 @@ import {
   Clock3,
   Database,
   FileText,
+  FileSpreadsheet,
   Home,
   Menu,
   Settings,
@@ -93,6 +94,11 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
     title: 'Accounting menu',
     items: [
       { href: '/dashboard/accounting', label: 'Accounting Home', icon: BadgePoundSterling },
+      {
+        href: '/dashboard/accounting/ledger',
+        label: 'General ledger preview',
+        icon: FileSpreadsheet,
+      },
       {
         href: '/dashboard/accounting/applications',
         label: 'Applications',

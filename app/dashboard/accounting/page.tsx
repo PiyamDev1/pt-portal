@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BadgePoundSterling,
   ChartNoAxesColumnIncreasing,
+  FileSpreadsheet,
   FileText,
   Settings2,
 } from 'lucide-react'
@@ -35,6 +36,27 @@ export default function AccountingPage() {
           Reports
         </h2>
         <div className="grid max-w-4xl gap-3 md:grid-cols-2">
+          <Link
+            href="/dashboard/accounting/ledger"
+            className="group flex items-center gap-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-700 text-white">
+              <FileSpreadsheet className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-slate-900">General ledger</h3>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-800">
+                  Preview
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Explore the planned journal and reporting workspace
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 shrink-0 text-emerald-600 transition group-hover:translate-x-1 group-hover:text-emerald-800" />
+          </Link>
+
           <Link
             href="/dashboard/accounting/applications"
             className="group flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md"

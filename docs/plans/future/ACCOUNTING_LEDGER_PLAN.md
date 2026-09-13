@@ -71,7 +71,7 @@ Keep the workflow simple for a sole accountant: spreadsheet-style entry, no appr
 
 ## Assumptions
 
-- Financial year runs from 1 February to 31 January.
+- Financial year runs from 1 April to 31 March.
 - The cutover date is chosen during setup after the final spreadsheet month is agreed.
 - Soft locks are optional and manually controlled by the sole accountant.
 - Historical transaction detail will not be imported unless separately approved.
