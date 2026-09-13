@@ -31,6 +31,7 @@ type NamedBalance = {
   name: string
   start: number
   end: number
+  carriedFrom?: string
 }
 type FinancialPosition = {
   suppliers: NamedBalance[]
@@ -38,6 +39,7 @@ type FinancialPosition = {
   cashStart: number
   cashEnd: number
   netStart: number
+  carriedFrom?: string
 }
 type LedgerMonth = {
   label: string
@@ -284,6 +286,11 @@ function NamedBalanceEntry({
           onSave={(name) => onUpdate({ name })}
           className="w-full rounded-md border border-transparent bg-transparent px-1 py-1 text-xs font-bold text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed"
         />
+        {balance.carriedFrom && (
+          <span className="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-800">
+            Carried forward · not yet edited
+          </span>
+        )}
       </div>
       <div className="border-t border-slate-100 px-2 py-1">
         <InlineBalance
@@ -411,12 +418,20 @@ function MonthlyPosition({
           </p>
           <h2 className="mt-1 text-lg font-black text-slate-950">Opening & closing position</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Only add suppliers and banks used by this branch.
+            Only add suppliers and banks used by this branch. The ledger net result is included
+            below.
           </p>
         </div>
-        <span className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
-          Inline autosave
-        </span>
+        <div className="text-right">
+          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+            Inline autosave
+          </span>
+          {position.carriedFrom && (
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-amber-700">
+              Carried forward · not yet edited
+            </p>
+          )}
+        </div>
       </header>
       {suggestions('supplier-suggestions', SUPPLIER_SUGGESTIONS)}
       {suggestions('bank-suggestions', BANK_SUGGESTIONS)}
@@ -497,7 +512,10 @@ function MonthlyPosition({
           />
         </div>
         <div className="border-t-2 border-slate-300 bg-slate-950 px-4 py-3 font-black text-white">
-          Net result
+          <p>Net result from ledger above</p>
+          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+            This month: {GBP.format(netResult)}
+          </p>
         </div>
         <div className="border-t-2 border-slate-300 bg-slate-950 px-2 py-1">
           <InlineBalance
@@ -593,8 +611,8 @@ function CategorySheet({
                       className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:text-slate-400"
                     />
                     {item.carriedFrom && (
-                      <span className="mt-1 inline-flex rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-500">
-                        Carried from {item.carriedFrom}
+                      <span className="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-800">
+                        Carried forward · not yet edited
                       </span>
                     )}
                   </div>
@@ -680,7 +698,9 @@ export default function BranchLedgerPrototype() {
         index === currentMonthIndex
           ? {
               ...month,
-              items: month.items.map((item) => (item.id === id ? { ...item, ...updates } : item)),
+              items: month.items.map((item) =>
+                item.id === id ? { ...item, ...updates, carriedFrom: undefined } : item,
+              ),
             }
           : month,
       ),
@@ -690,7 +710,7 @@ export default function BranchLedgerPrototype() {
     setMonths((current) =>
       current.map((month, index) =>
         index === currentMonthIndex
-          ? { ...month, position: { ...month.position, [field]: value } }
+          ? { ...month, position: { ...month.position, [field]: value, carriedFrom: undefined } }
           : month,
       ),
     )
@@ -728,7 +748,7 @@ export default function BranchLedgerPrototype() {
               position: {
                 ...month.position,
                 [collection]: month.position[collection].map((balance) =>
-                  balance.id === id ? { ...balance, ...updates } : balance,
+                  balance.id === id ? { ...balance, ...updates, carriedFrom: undefined } : balance,
                 ),
               },
             }
@@ -770,7 +790,6 @@ export default function BranchLedgerPrototype() {
     const carried = currentMonth.items.map((item, index) => ({
       ...item,
       id: item.kind + '-carry-' + (currentMonthIndex + 1) + '-' + index,
-      amount: 0,
       carriedFrom: currentMonth.label,
     }))
     setMonths((current) => [
@@ -785,16 +804,19 @@ export default function BranchLedgerPrototype() {
           suppliers: currentMonth.position.suppliers.map((balance) => ({
             ...balance,
             start: balance.end,
-            end: 0,
+            end: balance.end,
+            carriedFrom: currentMonth.label,
           })),
           banks: currentMonth.position.banks.map((balance) => ({
             ...balance,
             start: balance.end,
-            end: 0,
+            end: balance.end,
+            carriedFrom: currentMonth.label,
           })),
           cashStart: currentMonth.position.cashEnd,
-          cashEnd: 0,
+          cashEnd: currentMonth.position.cashEnd,
           netStart: currentMonth.position.netStart + incomeTotal - expenseTotal,
+          carriedFrom: currentMonth.label,
         },
       },
     ])

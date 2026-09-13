@@ -9,6 +9,7 @@ describe('Branch Ledger prototype', () => {
     expect(screen.getByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
     expect(screen.queryByLabelText('Branch summary')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Opening & closing position' })).toBeTruthy()
+    expect(screen.getByText('Net result from ledger above')).toBeTruthy()
     expect(screen.getByText('No supplier balances added for this branch.')).toBeTruthy()
     expect(screen.getByText('No bank balances added for this branch.')).toBeTruthy()
     expect(screen.getAllByText('Category-led monthly sheet · no fixed items')).toHaveLength(2)
@@ -73,7 +74,7 @@ describe('Branch Ledger prototype', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Finalise September 2026' }))
     expect(screen.getByRole('button', { name: 'Finalise October 2026' })).toBeTruthy()
-    expect(screen.getByText('Carried from September 2026')).toBeTruthy()
+    expect(screen.getAllByText('Carried forward · not yet edited').length).toBeGreaterThan(0)
     expect(
       (screen.getByLabelText('Start of month Revolut bank balance') as HTMLInputElement).value,
     ).toBe('750')
@@ -81,6 +82,8 @@ describe('Branch Ledger prototype', () => {
       '-200',
     )
 
-    expect((screen.getByLabelText('Edit So Energy Ltd amount') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Edit So Energy Ltd amount') as HTMLInputElement).value).toBe(
+      '200',
+    )
   })
 })
