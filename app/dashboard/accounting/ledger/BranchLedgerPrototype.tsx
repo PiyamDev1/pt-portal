@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 type ViewMode = 'manager' | 'hq'
+type LedgerView = 'branch' | 'company'
 type LedgerKind = 'income' | 'expense'
 type LedgerItem = {
   id: string
@@ -42,6 +43,12 @@ type FinancialPosition = {
   cashEnd: number
   netStart: number
   carriedFrom?: string
+}
+type CompanyBranchPosition = {
+  cashStart: number
+  cashEnd: number
+  profitStart: number
+  profitEnd: number
 }
 type LedgerMonth = {
   label: string
@@ -386,29 +393,172 @@ function NewNamedBalance({
   )
 }
 
-function MonthlyPosition({
+function BranchPosition({
+  branch,
   position,
   netResult,
   finalized,
   onUpdate,
-  onAddNamedBalance,
-  onUpdateNamedBalance,
 }: {
+  branch: string
   position: FinancialPosition
   netResult: number
   finalized: boolean
-  onUpdate: (
-    field: 'lmsStart' | 'lmsEnd' | 'cashStart' | 'cashEnd' | 'netStart',
-    value: number,
-  ) => void
+  onUpdate: (field: 'cashStart' | 'cashEnd' | 'netStart', value: number) => void
+}) {
+  const endingProfit = position.netStart + netResult
+  return (
+    <section className="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
+      <header className="border-b border-sky-100 bg-sky-50 px-5 py-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
+          Branch position
+        </p>
+        <h2 className="mt-1 text-lg font-black text-slate-950">{branch} cash & trading result</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Company-wide LMS, supplier and bank balances are kept in Company Ledger.
+        </p>
+      </header>
+      <div className="grid grid-cols-[minmax(140px,1fr)_minmax(104px,0.7fr)_minmax(104px,0.7fr)] divide-x divide-slate-100 text-xs">
+        <div className="bg-slate-50 px-4 py-3 font-black uppercase tracking-[0.1em] text-slate-500">
+          Branch item
+        </div>
+        <div className="bg-slate-50 px-4 py-3 text-right font-black uppercase tracking-[0.1em] text-slate-500">
+          Start of month
+        </div>
+        <div className="bg-slate-50 px-4 py-3 text-right font-black uppercase tracking-[0.1em] text-slate-500">
+          End of month
+        </div>
+        <div className="border-t border-slate-100 bg-slate-950 px-4 py-3 font-black text-white">
+          <p>{branch} net profit / loss</p>
+          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+            From income and expenses: {GBP.format(netResult)}
+          </p>
+        </div>
+        <div className="border-t border-slate-100 bg-slate-950 px-2 py-1">
+          <InlineBalance
+            label={'Start of month ' + branch + ' net profit or loss'}
+            value={position.netStart}
+            disabled={finalized}
+            onSave={(value) => onUpdate('netStart', value)}
+          />
+        </div>
+        <div className="flex items-center justify-end border-t border-slate-100 bg-slate-950 px-4 py-3 font-mono text-sm font-black text-emerald-300">
+          {GBP.format(endingProfit)}
+        </div>
+        <div className="border-t border-slate-100 px-4 py-3 font-bold text-slate-900">
+          Cash in hand — {branch}
+        </div>
+        <div className="border-t border-slate-100 px-2 py-1">
+          <InlineBalance
+            label={'Start of month cash in hand ' + branch}
+            value={position.cashStart}
+            disabled={finalized}
+            onSave={(value) => onUpdate('cashStart', value)}
+          />
+        </div>
+        <div className="border-t border-slate-100 px-2 py-1">
+          <InlineBalance
+            label={'End of month cash in hand ' + branch}
+            value={position.cashEnd}
+            disabled={finalized}
+            onSave={(value) => onUpdate('cashEnd', value)}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CompanyBranchLines({
+  positions,
+  finalized,
+  onUpdate,
+}: {
+  positions: Record<string, CompanyBranchPosition>
+  finalized: boolean
+  onUpdate: (branch: string, field: keyof CompanyBranchPosition, value: number) => void
+}) {
+  return (
+    <>
+      <div className="col-span-3 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+        Branch positions
+      </div>
+      {BRANCHES.flatMap((branch) => {
+        const values = positions[branch]
+        return [
+          <div key={branch + '-profit'} className="contents">
+            <div className="border-t border-slate-100 px-4 py-3 font-bold text-slate-900">
+              {branch} net profit / loss
+            </div>
+            <div className="border-t border-slate-100 px-2 py-1">
+              <InlineBalance
+                label={'Company start ' + branch + ' net profit or loss'}
+                value={values.profitStart}
+                disabled={finalized}
+                onSave={(value) => onUpdate(branch, 'profitStart', value)}
+              />
+            </div>
+            <div className="border-t border-slate-100 px-2 py-1">
+              <InlineBalance
+                label={'Company end ' + branch + ' net profit or loss'}
+                value={values.profitEnd}
+                disabled={finalized}
+                onSave={(value) => onUpdate(branch, 'profitEnd', value)}
+              />
+            </div>
+          </div>,
+          <div key={branch + '-cash'} className="contents">
+            <div className="border-t border-slate-100 px-4 py-3 font-bold text-slate-900">
+              Cash in hand — {branch}
+            </div>
+            <div className="border-t border-slate-100 px-2 py-1">
+              <InlineBalance
+                label={'Company start cash in hand ' + branch}
+                value={values.cashStart}
+                disabled={finalized}
+                onSave={(value) => onUpdate(branch, 'cashStart', value)}
+              />
+            </div>
+            <div className="border-t border-slate-100 px-2 py-1">
+              <InlineBalance
+                label={'Company end cash in hand ' + branch}
+                value={values.cashEnd}
+                disabled={finalized}
+                onSave={(value) => onUpdate(branch, 'cashEnd', value)}
+              />
+            </div>
+          </div>,
+        ]
+      })}
+    </>
+  )
+}
+
+function MonthlyPosition({
+  position,
+  finalized,
+  onUpdate,
+  onAddNamedBalance,
+  onUpdateNamedBalance,
+  branchPositions,
+  onUpdateBranchPosition,
+}: {
+  position: FinancialPosition
+  finalized: boolean
+  onUpdate: (field: 'lmsStart' | 'lmsEnd', value: number) => void
   onAddNamedBalance: (kind: 'supplier' | 'bank', name: string, start: number, end: number) => void
   onUpdateNamedBalance: (
     kind: 'supplier' | 'bank',
     id: string,
     updates: Partial<NamedBalance>,
   ) => void
+  branchPositions: Record<string, CompanyBranchPosition>
+  onUpdateBranchPosition: (
+    branch: string,
+    field: keyof CompanyBranchPosition,
+    value: number,
+  ) => void
 }) {
-  const endingNet = position.netStart + netResult
   const suggestions = (id: string, names: string[]) => (
     <datalist id={id}>
       {names.map((name) => (
@@ -421,12 +571,11 @@ function MonthlyPosition({
       <header className="flex flex-col justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-            Financial position
+            Company financial position
           </p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Opening & closing position</h2>
+          <h2 className="mt-1 text-lg font-black text-slate-950">Company Ledger</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Only add suppliers and banks used by this branch. The ledger net result is included
-            below.
+            Company-wide LMS, suppliers and banks, plus each branch’s cash and profit / loss.
           </p>
         </div>
         <div className="text-right">
@@ -524,48 +673,11 @@ function MonthlyPosition({
             onSave={(value) => onUpdate('lmsEnd', value)}
           />
         </div>
-        <div className="col-span-3 border-t border-slate-200 bg-slate-950 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
-          Net profit / loss
-        </div>
-        <div className="border-t border-slate-700 bg-slate-950 px-4 py-3 font-black text-white">
-          <p>Net profit / loss from income and expenses</p>
-          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-            This month: {GBP.format(netResult)}
-          </p>
-        </div>
-        <div className="border-t border-slate-700 bg-slate-950 px-2 py-1">
-          <InlineBalance
-            label="Start of month net profit or loss"
-            value={position.netStart}
-            disabled={finalized}
-            onSave={(value) => onUpdate('netStart', value)}
-          />
-        </div>
-        <div className="flex items-center justify-end border-t border-slate-700 bg-slate-950 px-4 py-3 font-mono text-sm font-black text-emerald-300">
-          {GBP.format(endingNet)}
-        </div>
-        <div className="col-span-3 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-          Cash in hand
-        </div>
-        <div className="border-t border-slate-100 px-4 py-3 font-bold text-slate-900">
-          Cash in hand
-        </div>
-        <div className="border-t border-slate-100 px-2 py-1">
-          <InlineBalance
-            label="Start of month cash in hand"
-            value={position.cashStart}
-            disabled={finalized}
-            onSave={(value) => onUpdate('cashStart', value)}
-          />
-        </div>
-        <div className="border-t border-slate-100 px-2 py-1">
-          <InlineBalance
-            label="End of month cash in hand"
-            value={position.cashEnd}
-            disabled={finalized}
-            onSave={(value) => onUpdate('cashEnd', value)}
-          />
-        </div>
+        <CompanyBranchLines
+          positions={branchPositions}
+          finalized={finalized}
+          onUpdate={onUpdateBranchPosition}
+        />
       </div>
     </section>
   )
@@ -690,6 +802,7 @@ function CategorySheet({
 
 export default function BranchLedgerPrototype() {
   const [viewMode, setViewMode] = useState<ViewMode>('hq')
+  const [ledgerView, setLedgerView] = useState<LedgerView>('branch')
   const [selectedBranch, setSelectedBranch] = useState('Manchester')
   const [months, setMonths] = useState<LedgerMonth[]>([
     { label: 'September 2026', finalized: false, items: [], position: EMPTY_POSITION },
@@ -698,6 +811,17 @@ export default function BranchLedgerPrototype() {
     income: INCOME_GROUPS,
     expense: EXPENSE_GROUPS,
   })
+  const [companyPosition, setCompanyPosition] = useState<FinancialPosition>(EMPTY_POSITION)
+  const [companyBranchPositions, setCompanyBranchPositions] = useState<
+    Record<string, CompanyBranchPosition>
+  >(() =>
+    Object.fromEntries(
+      BRANCHES.map((branch) => [
+        branch,
+        { cashStart: 0, cashEnd: 0, profitStart: 0, profitEnd: 0 },
+      ]),
+    ),
+  )
   const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
   const currentMonth = months[currentMonthIndex]
   const incomeItems = currentMonth.items.filter((item) => item.kind === 'income')
@@ -707,7 +831,10 @@ export default function BranchLedgerPrototype() {
 
   function switchMode(mode: ViewMode) {
     setViewMode(mode)
-    if (mode === 'manager') setSelectedBranch('Manchester')
+    if (mode === 'manager') {
+      setSelectedBranch('Manchester')
+      setLedgerView('branch')
+    }
   }
   function addItem(kind: LedgerKind, group: string, label: string, amount: number) {
     setMonths((current) =>
@@ -744,10 +871,7 @@ export default function BranchLedgerPrototype() {
       ),
     )
   }
-  function updatePosition(
-    field: 'lmsStart' | 'lmsEnd' | 'cashStart' | 'cashEnd' | 'netStart',
-    value: number,
-  ) {
+  function updatePosition(field: 'cashStart' | 'cashEnd' | 'netStart', value: number) {
     setMonths((current) =>
       current.map((month, index) =>
         index === currentMonthIndex
@@ -756,46 +880,43 @@ export default function BranchLedgerPrototype() {
       ),
     )
   }
-  function addNamedBalance(kind: 'supplier' | 'bank', name: string, start: number, end: number) {
-    const collection = kind === 'supplier' ? 'suppliers' : 'banks'
-    setMonths((current) =>
-      current.map((month, index) =>
-        index === currentMonthIndex
-          ? {
-              ...month,
-              position: {
-                ...month.position,
-                [collection]: [
-                  ...month.position[collection],
-                  { id: kind + '-' + Date.now(), name, start, end },
-                ],
-              },
-            }
-          : month,
-      ),
-    )
+  function updateCompanyPosition(field: 'lmsStart' | 'lmsEnd', value: number) {
+    setCompanyPosition((current) => ({ ...current, [field]: value, carriedFrom: undefined }))
   }
-  function updateNamedBalance(
+  function addCompanyNamedBalance(
+    kind: 'supplier' | 'bank',
+    name: string,
+    start: number,
+    end: number,
+  ) {
+    const collection = kind === 'supplier' ? 'suppliers' : 'banks'
+    setCompanyPosition((current) => ({
+      ...current,
+      [collection]: [...current[collection], { id: kind + '-' + Date.now(), name, start, end }],
+    }))
+  }
+  function updateCompanyNamedBalance(
     kind: 'supplier' | 'bank',
     id: string,
     updates: Partial<NamedBalance>,
   ) {
     const collection = kind === 'supplier' ? 'suppliers' : 'banks'
-    setMonths((current) =>
-      current.map((month, index) =>
-        index === currentMonthIndex
-          ? {
-              ...month,
-              position: {
-                ...month.position,
-                [collection]: month.position[collection].map((balance) =>
-                  balance.id === id ? { ...balance, ...updates, carriedFrom: undefined } : balance,
-                ),
-              },
-            }
-          : month,
+    setCompanyPosition((current) => ({
+      ...current,
+      [collection]: current[collection].map((balance) =>
+        balance.id === id ? { ...balance, ...updates, carriedFrom: undefined } : balance,
       ),
-    )
+    }))
+  }
+  function updateCompanyBranchPosition(
+    branch: string,
+    field: keyof CompanyBranchPosition,
+    value: number,
+  ) {
+    setCompanyBranchPositions((current) => ({
+      ...current,
+      [branch]: { ...current[branch], [field]: value },
+    }))
   }
   function renameCategory(kind: LedgerKind, oldName: string, newName: string) {
     const name = newName.trim()
@@ -863,6 +984,37 @@ export default function BranchLedgerPrototype() {
         },
       },
     ])
+    setCompanyPosition((current) => ({
+      ...current,
+      suppliers: current.suppliers.map((balance) => ({
+        ...balance,
+        start: balance.end,
+        end: balance.end,
+        carriedFrom: currentMonth.label,
+      })),
+      banks: current.banks.map((balance) => ({
+        ...balance,
+        start: balance.end,
+        end: balance.end,
+        carriedFrom: currentMonth.label,
+      })),
+      lmsStart: current.lmsEnd,
+      lmsEnd: current.lmsEnd,
+      carriedFrom: currentMonth.label,
+    }))
+    setCompanyBranchPositions((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([branch, values]) => [
+          branch,
+          {
+            cashStart: values.cashEnd,
+            cashEnd: values.cashEnd,
+            profitStart: values.profitEnd,
+            profitEnd: values.profitEnd,
+          },
+        ]),
+      ),
+    )
     setCurrentMonthIndex(months.length)
   }
 
@@ -901,10 +1053,12 @@ export default function BranchLedgerPrototype() {
             </span>
             <div>
               <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                Branch Ledger
+                {ledgerView === 'company' ? 'Company Ledger' : 'Branch Ledger'}
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                A flexible monthly sheet that grows with your branch
+                {ledgerView === 'company'
+                  ? 'Company-wide balances with branch cash and profit / loss'
+                  : 'A flexible monthly sheet that grows with your branch'}
               </p>
             </div>
           </div>
@@ -937,6 +1091,37 @@ export default function BranchLedgerPrototype() {
           </button>
         </div>
       </header>
+      <nav
+        aria-label="Ledger view"
+        className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
+      >
+        <button
+          type="button"
+          onClick={() => setLedgerView('branch')}
+          className={
+            'rounded-lg px-3 py-2 text-xs font-black ' +
+            (ledgerView === 'branch'
+              ? 'bg-slate-950 text-white'
+              : 'text-slate-500 hover:bg-slate-50')
+          }
+        >
+          Branch Ledger
+        </button>
+        {viewMode === 'hq' && (
+          <button
+            type="button"
+            onClick={() => setLedgerView('company')}
+            className={
+              'rounded-lg px-3 py-2 text-xs font-black ' +
+              (ledgerView === 'company'
+                ? 'bg-slate-950 text-white'
+                : 'text-slate-500 hover:bg-slate-50')
+            }
+          >
+            Company Ledger
+          </button>
+        )}
+      </nav>
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex items-start gap-3">
           <span
@@ -953,34 +1138,42 @@ export default function BranchLedgerPrototype() {
           </span>
           <div>
             <p className="text-sm font-black text-slate-900">
-              {viewMode === 'hq' ? 'HQ staff view' : 'Branch manager view'}
+              {ledgerView === 'company'
+                ? 'HQ company view'
+                : viewMode === 'hq'
+                  ? 'HQ staff view'
+                  : 'Branch manager view'}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
-              {viewMode === 'hq'
-                ? 'Select a branch to view its monthly sheet.'
-                : 'This view is locked to the manager’s assigned branch.'}
+              {ledgerView === 'company'
+                ? 'Company-wide LMS, supplier and bank balances; no branch manager access.'
+                : viewMode === 'hq'
+                  ? 'Select a branch to view its monthly sheet.'
+                  : 'This view is locked to the manager’s assigned branch.'}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-500">Branch</span>
-          {viewMode === 'hq' ? (
-            <select
-              aria-label="Select branch"
-              value={selectedBranch}
-              onChange={(event) => setSelectedBranch(event.target.value)}
-              className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-            >
-              {BRANCHES.map((branch) => (
-                <option key={branch}>{branch}</option>
-              ))}
-            </select>
-          ) : (
-            <div className="inline-flex h-10 items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-black text-sky-900">
-              <LockKeyhole className="h-3.5 w-3.5" /> Manchester
-            </div>
-          )}
-        </div>
+        {ledgerView === 'branch' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">Branch</span>
+            {viewMode === 'hq' ? (
+              <select
+                aria-label="Select branch"
+                value={selectedBranch}
+                onChange={(event) => setSelectedBranch(event.target.value)}
+                className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              >
+                {BRANCHES.map((branch) => (
+                  <option key={branch}>{branch}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="inline-flex h-10 items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-black text-sky-900">
+                <LockKeyhole className="h-3.5 w-3.5" /> Manchester
+              </div>
+            )}
+          </div>
+        )}
       </section>
       <section className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:p-5">
         <div>
@@ -1014,48 +1207,64 @@ export default function BranchLedgerPrototype() {
           <Check className="h-4 w-4" /> Finalise {currentMonth.label}
         </button>
       </section>
-      <section className="grid gap-4 2xl:grid-cols-2">
-        <CategorySheet
-          kind="income"
-          groups={categories.income}
-          items={incomeItems}
+      {ledgerView === 'branch' ? (
+        <>
+          <section className="grid gap-4 2xl:grid-cols-2">
+            <CategorySheet
+              kind="income"
+              groups={categories.income}
+              items={incomeItems}
+              finalized={currentMonth.finalized}
+              onUpdateItem={updateItem}
+              onRenameCategory={(oldName, newName) => renameCategory('income', oldName, newName)}
+              onAdd={(group, label, amount) => addItem('income', group, label, amount)}
+              onAddCategory={() => addCategory('income')}
+            />
+            <CategorySheet
+              kind="expense"
+              groups={categories.expense}
+              items={expenseItems}
+              finalized={currentMonth.finalized}
+              onUpdateItem={updateItem}
+              onRenameCategory={(oldName, newName) => renameCategory('expense', oldName, newName)}
+              onAdd={(group, label, amount) => addItem('expense', group, label, amount)}
+              onAddCategory={() => addCategory('expense')}
+            />
+          </section>
+          <section className="flex flex-col items-start justify-between gap-3 rounded-2xl border-2 border-slate-950 bg-slate-950 px-5 py-4 text-white shadow-sm sm:flex-row sm:items-center sm:px-6">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">
+                Monthly result
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-300">
+                Total income minus total expenses
+              </p>
+            </div>
+            <p className="text-3xl font-black tracking-tight">
+              Net result: {GBP.format(incomeTotal - expenseTotal)}
+            </p>
+          </section>
+          <BranchPosition
+            key={currentMonth.label + selectedBranch}
+            branch={selectedBranch}
+            position={currentMonth.position}
+            netResult={incomeTotal - expenseTotal}
+            finalized={currentMonth.finalized}
+            onUpdate={updatePosition}
+          />
+        </>
+      ) : (
+        <MonthlyPosition
+          key={currentMonth.label + '-company'}
+          position={companyPosition}
           finalized={currentMonth.finalized}
-          onUpdateItem={updateItem}
-          onRenameCategory={(oldName, newName) => renameCategory('income', oldName, newName)}
-          onAdd={(group, label, amount) => addItem('income', group, label, amount)}
-          onAddCategory={() => addCategory('income')}
+          onUpdate={updateCompanyPosition}
+          onAddNamedBalance={addCompanyNamedBalance}
+          onUpdateNamedBalance={updateCompanyNamedBalance}
+          branchPositions={companyBranchPositions}
+          onUpdateBranchPosition={updateCompanyBranchPosition}
         />
-        <CategorySheet
-          kind="expense"
-          groups={categories.expense}
-          items={expenseItems}
-          finalized={currentMonth.finalized}
-          onUpdateItem={updateItem}
-          onRenameCategory={(oldName, newName) => renameCategory('expense', oldName, newName)}
-          onAdd={(group, label, amount) => addItem('expense', group, label, amount)}
-          onAddCategory={() => addCategory('expense')}
-        />
-      </section>
-      <section className="flex flex-col items-start justify-between gap-3 rounded-2xl border-2 border-slate-950 bg-slate-950 px-5 py-4 text-white shadow-sm sm:flex-row sm:items-center sm:px-6">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">
-            Monthly result
-          </p>
-          <p className="mt-1 text-sm font-bold text-slate-300">Total income minus total expenses</p>
-        </div>
-        <p className="text-3xl font-black tracking-tight">
-          Net result: {GBP.format(incomeTotal - expenseTotal)}
-        </p>
-      </section>
-      <MonthlyPosition
-        key={currentMonth.label}
-        position={currentMonth.position}
-        netResult={incomeTotal - expenseTotal}
-        finalized={currentMonth.finalized}
-        onUpdate={updatePosition}
-        onAddNamedBalance={addNamedBalance}
-        onUpdateNamedBalance={updateNamedBalance}
-      />
+      )}
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -1071,8 +1280,9 @@ export default function BranchLedgerPrototype() {
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             Enter an item underneath the relevant category. When you finalise a month, its entries
-            are locked and their names are carried into the following month with blank amounts—so
-            recurring items are ready to update, while no value is copied accidentally.
+            are locked and carried into the following month with their values. A small marker stays
+            visible until you edit the carried entry, but no change is required when the amount is
+            still correct.
           </p>
         </div>
         <aside className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm">
