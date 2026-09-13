@@ -36,6 +36,8 @@ type NamedBalance = {
 type FinancialPosition = {
   suppliers: NamedBalance[]
   banks: NamedBalance[]
+  lmsStart: number
+  lmsEnd: number
   cashStart: number
   cashEnd: number
   netStart: number
@@ -80,6 +82,8 @@ const BANK_SUGGESTIONS = ['Revolut', 'HSBC', 'TSB']
 const EMPTY_POSITION: FinancialPosition = {
   suppliers: [],
   banks: [],
+  lmsStart: 0,
+  lmsEnd: 0,
   cashStart: 0,
   cashEnd: 0,
   netStart: 0,
@@ -393,7 +397,10 @@ function MonthlyPosition({
   position: FinancialPosition
   netResult: number
   finalized: boolean
-  onUpdate: (field: 'cashStart' | 'cashEnd' | 'netStart', value: number) => void
+  onUpdate: (
+    field: 'lmsStart' | 'lmsEnd' | 'cashStart' | 'cashEnd' | 'netStart',
+    value: number,
+  ) => void
   onAddNamedBalance: (kind: 'supplier' | 'bank', name: string, start: number, end: number) => void
   onUpdateNamedBalance: (
     kind: 'supplier' | 'bank',
@@ -489,6 +496,54 @@ function MonthlyPosition({
           disabled={finalized}
           onAdd={(name, start, end) => onAddNamedBalance('bank', name, start, end)}
         />
+        <div className="col-span-3 flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+          <span>LMS balance</span>
+          <Link href="/dashboard/lms" className="text-emerald-700 hover:text-emerald-800">
+            View LMS
+          </Link>
+        </div>
+        <div className="border-t border-slate-100 px-4 py-3 font-bold text-slate-900">
+          <p>LMS — customer / company balance</p>
+          <p className="mt-0.5 text-[10px] font-medium text-slate-400">
+            + customer owes us · − we owe customer
+          </p>
+        </div>
+        <div className="border-t border-slate-100 px-2 py-1">
+          <InlineBalance
+            label="Start of month LMS balance"
+            value={position.lmsStart}
+            disabled={finalized}
+            onSave={(value) => onUpdate('lmsStart', value)}
+          />
+        </div>
+        <div className="border-t border-slate-100 px-2 py-1">
+          <InlineBalance
+            label="End of month LMS balance"
+            value={position.lmsEnd}
+            disabled={finalized}
+            onSave={(value) => onUpdate('lmsEnd', value)}
+          />
+        </div>
+        <div className="col-span-3 border-t border-slate-200 bg-slate-950 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
+          Net profit / loss
+        </div>
+        <div className="border-t border-slate-700 bg-slate-950 px-4 py-3 font-black text-white">
+          <p>Net profit / loss from income and expenses</p>
+          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+            This month: {GBP.format(netResult)}
+          </p>
+        </div>
+        <div className="border-t border-slate-700 bg-slate-950 px-2 py-1">
+          <InlineBalance
+            label="Start of month net profit or loss"
+            value={position.netStart}
+            disabled={finalized}
+            onSave={(value) => onUpdate('netStart', value)}
+          />
+        </div>
+        <div className="flex items-center justify-end border-t border-slate-700 bg-slate-950 px-4 py-3 font-mono text-sm font-black text-emerald-300">
+          {GBP.format(endingNet)}
+        </div>
         <div className="col-span-3 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
           Cash in hand
         </div>
@@ -510,23 +565,6 @@ function MonthlyPosition({
             disabled={finalized}
             onSave={(value) => onUpdate('cashEnd', value)}
           />
-        </div>
-        <div className="border-t-2 border-slate-300 bg-slate-950 px-4 py-3 font-black text-white">
-          <p>Net result from ledger above</p>
-          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-            This month: {GBP.format(netResult)}
-          </p>
-        </div>
-        <div className="border-t-2 border-slate-300 bg-slate-950 px-2 py-1">
-          <InlineBalance
-            label="Start of month net result"
-            value={position.netStart}
-            disabled={finalized}
-            onSave={(value) => onUpdate('netStart', value)}
-          />
-        </div>
-        <div className="flex items-center justify-end border-t-2 border-slate-300 bg-slate-950 px-4 py-3 font-mono text-sm font-black text-emerald-300">
-          {GBP.format(endingNet)}
         </div>
       </div>
     </section>
@@ -706,7 +744,10 @@ export default function BranchLedgerPrototype() {
       ),
     )
   }
-  function updatePosition(field: 'cashStart' | 'cashEnd' | 'netStart', value: number) {
+  function updatePosition(
+    field: 'lmsStart' | 'lmsEnd' | 'cashStart' | 'cashEnd' | 'netStart',
+    value: number,
+  ) {
     setMonths((current) =>
       current.map((month, index) =>
         index === currentMonthIndex
@@ -813,6 +854,8 @@ export default function BranchLedgerPrototype() {
             end: balance.end,
             carriedFrom: currentMonth.label,
           })),
+          lmsStart: currentMonth.position.lmsEnd,
+          lmsEnd: currentMonth.position.lmsEnd,
           cashStart: currentMonth.position.cashEnd,
           cashEnd: currentMonth.position.cashEnd,
           netStart: currentMonth.position.netStart + incomeTotal - expenseTotal,

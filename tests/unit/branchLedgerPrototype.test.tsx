@@ -9,7 +9,8 @@ describe('Branch Ledger prototype', () => {
     expect(screen.getByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
     expect(screen.queryByLabelText('Branch summary')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Opening & closing position' })).toBeTruthy()
-    expect(screen.getByText('Net result from ledger above')).toBeTruthy()
+    expect(screen.getByText('LMS — customer / company balance')).toBeTruthy()
+    expect(screen.getByText('Net profit / loss from income and expenses')).toBeTruthy()
     expect(screen.getByText('No supplier balances added for this branch.')).toBeTruthy()
     expect(screen.getByText('No bank balances added for this branch.')).toBeTruthy()
     expect(screen.getAllByText('Category-led monthly sheet · no fixed items')).toHaveLength(2)
@@ -59,6 +60,11 @@ describe('Branch Ledger prototype', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add bank' }))
 
+    fireEvent.change(screen.getByLabelText('End of month LMS balance'), {
+      target: { value: '300' },
+    })
+    fireEvent.blur(screen.getByLabelText('End of month LMS balance'))
+
     fireEvent.change(screen.getByLabelText('Rename Bills & subscriptions category'), {
       target: { value: 'Utilities' },
     })
@@ -78,9 +84,12 @@ describe('Branch Ledger prototype', () => {
     expect(
       (screen.getByLabelText('Start of month Revolut bank balance') as HTMLInputElement).value,
     ).toBe('750')
-    expect((screen.getByLabelText('Start of month net result') as HTMLInputElement).value).toBe(
-      '-200',
+    expect((screen.getByLabelText('Start of month LMS balance') as HTMLInputElement).value).toBe(
+      '300',
     )
+    expect(
+      (screen.getByLabelText('Start of month net profit or loss') as HTMLInputElement).value,
+    ).toBe('-200')
 
     expect((screen.getByLabelText('Edit So Energy Ltd amount') as HTMLInputElement).value).toBe(
       '200',
