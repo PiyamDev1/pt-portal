@@ -1,16 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   ArrowLeft,
   Building2,
   CalendarDays,
-  ChevronDown,
+  Check,
   CircleDollarSign,
   FileSpreadsheet,
   Landmark,
   LockKeyhole,
+  Pencil,
   Plus,
   ReceiptText,
   ShieldCheck,
@@ -22,17 +23,16 @@ import {
 } from 'lucide-react'
 
 type ViewMode = 'manager' | 'hq'
-type EntryKind = 'income' | 'expense'
+type LedgerKind = 'income' | 'expense'
 
-type BranchEntry = {
+type LedgerItem = {
   id: string
-  branch: string
-  date: string
-  title: string
-  category: string
-  method: string
+  label: string
+  group: string
   amount: number
-  kind: EntryKind
+  kind: LedgerKind
+  recurring?: boolean
+  branch?: string
 }
 
 const GBP = new Intl.NumberFormat('en-GB', {
@@ -42,195 +42,86 @@ const GBP = new Intl.NumberFormat('en-GB', {
 })
 
 const BRANCHES = ['Manchester', 'Bradford', 'Birmingham']
-
-const ENTRIES: BranchEntry[] = [
-  {
-    id: 'income-1',
-    branch: 'Manchester',
-    date: '13 Sep',
-    title: 'Application & document services',
-    category: 'Applications',
-    method: 'Card & cash',
-    amount: 1840,
-    kind: 'income',
-  },
-  {
-    id: 'income-2',
-    branch: 'Manchester',
-    date: '12 Sep',
-    title: 'Ticketing sales received',
-    category: 'Ticketing',
-    method: 'Card clearing',
-    amount: 2470,
-    kind: 'income',
-  },
-  {
-    id: 'income-3',
-    branch: 'Manchester',
-    date: '11 Sep',
-    title: 'Umrah package deposits',
-    category: 'Packages',
-    method: 'Bank transfer',
-    amount: 3600,
-    kind: 'income',
-  },
-  {
-    id: 'income-4',
-    branch: 'Manchester',
-    date: '09 Sep',
-    title: 'LMS instalment payments',
-    category: 'Customer payments',
-    method: 'Bank transfer',
-    amount: 920,
-    kind: 'income',
-  },
-  {
-    id: 'expense-1',
-    branch: 'Manchester',
-    date: '13 Sep',
-    title: 'Gas & electricity',
-    category: 'Utilities',
-    method: 'Direct debit',
-    amount: 318.42,
-    kind: 'expense',
-  },
-  {
-    id: 'expense-2',
-    branch: 'Manchester',
-    date: '12 Sep',
-    title: 'Staff commission provision',
-    category: 'Commissions',
-    method: 'Accrual',
-    amount: 486,
-    kind: 'expense',
-  },
-  {
-    id: 'expense-3',
-    branch: 'Manchester',
-    date: '10 Sep',
-    title: 'Monthly payroll allocation',
-    category: 'Wages',
-    method: 'Bank transfer',
-    amount: 2840,
-    kind: 'expense',
-  },
-  {
-    id: 'expense-4',
-    branch: 'Manchester',
-    date: '09 Sep',
-    title: 'NADRA processing fees',
-    category: 'Supplier costs',
-    method: 'Bank transfer',
-    amount: 720,
-    kind: 'expense',
-  },
-  {
-    id: 'income-5',
-    branch: 'Bradford',
-    date: '13 Sep',
-    title: 'Application & document services',
-    category: 'Applications',
-    method: 'Card & cash',
-    amount: 1260,
-    kind: 'income',
-  },
-  {
-    id: 'income-6',
-    branch: 'Bradford',
-    date: '12 Sep',
-    title: 'Ticketing sales received',
-    category: 'Ticketing',
-    method: 'Card clearing',
-    amount: 1880,
-    kind: 'income',
-  },
-  {
-    id: 'income-7',
-    branch: 'Bradford',
-    date: '10 Sep',
-    title: 'Walk-in service income',
-    category: 'POS services',
-    method: 'Cash',
-    amount: 540,
-    kind: 'income',
-  },
-  {
-    id: 'expense-5',
-    branch: 'Bradford',
-    date: '13 Sep',
-    title: 'Premises rent',
-    category: 'Rent',
-    method: 'Bank transfer',
-    amount: 1320,
-    kind: 'expense',
-  },
-  {
-    id: 'expense-6',
-    branch: 'Bradford',
-    date: '11 Sep',
-    title: 'Monthly payroll allocation',
-    category: 'Wages',
-    method: 'Bank transfer',
-    amount: 1840,
-    kind: 'expense',
-  },
-  {
-    id: 'expense-7',
-    branch: 'Bradford',
-    date: '09 Sep',
-    title: 'Broadband & phone',
-    category: 'Utilities',
-    method: 'Direct debit',
-    amount: 185,
-    kind: 'expense',
-  },
-  {
-    id: 'income-8',
-    branch: 'Birmingham',
-    date: '13 Sep',
-    title: 'Application & document services',
-    category: 'Applications',
-    method: 'Card & cash',
-    amount: 1640,
-    kind: 'income',
-  },
-  {
-    id: 'income-9',
-    branch: 'Birmingham',
-    date: '11 Sep',
-    title: 'Package deposits',
-    category: 'Packages',
-    method: 'Bank transfer',
-    amount: 2100,
-    kind: 'income',
-  },
-  {
-    id: 'expense-8',
-    branch: 'Birmingham',
-    date: '12 Sep',
-    title: 'Staff commission provision',
-    category: 'Commissions',
-    method: 'Accrual',
-    amount: 310,
-    kind: 'expense',
-  },
-  {
-    id: 'expense-9',
-    branch: 'Birmingham',
-    date: '10 Sep',
-    title: 'Monthly payroll allocation',
-    category: 'Wages',
-    method: 'Bank transfer',
-    amount: 2140,
-    kind: 'expense',
-  },
-]
-
-function total(entries: BranchEntry[]) {
-  return entries.reduce((sum, entry) => sum + entry.amount, 0)
+const BRANCH_MULTIPLIERS: Record<string, number> = {
+  Manchester: 1,
+  Bradford: 0.68,
+  Birmingham: 0.82,
 }
 
-function SummaryMetric({
+const incomeSeed: Array<[string, string, number, boolean?]> = [
+  ['TC', 'Commissions & transfers', 0],
+  ['WU commission', 'Commissions & transfers', 0],
+  ['RIA commission', 'Commissions & transfers', 2652],
+  ['DEX commission', 'Commissions & transfers', 140],
+  ['Intercity commission', 'Commissions & transfers', 36],
+  ['Cargo', 'Commissions & transfers', 57.87],
+  ['NADRA++', 'Document & travel services', 1322],
+  ['GB passport', 'Document & travel services', 199],
+  ['BRP', 'Document & travel services', 0],
+  ['Visa', 'Document & travel services', 456],
+  ['Rent flat', 'Other income', 1300, true],
+  ['Grant', 'Other income', 0],
+  ['Extra income', 'Other income', 480],
+]
+
+const expenseSeed: Array<[string, string, number, boolean?]> = [
+  ['Postage', 'Operating costs', 0],
+  ['Transport', 'Operating costs', 146.83],
+  ['Office repair & equipment', 'Operating costs', 118.33],
+  ['Supplier & service costs', 'Operating costs', 1562.5],
+  ['Rent', 'Premises & finance', 0, true],
+  ['Loan', 'Premises & finance', 0, true],
+  ['Water', 'Premises & finance', 0, true],
+  ['So Energy', 'Bills & subscriptions', 162.06, true],
+  ['Verisure', 'Bills & subscriptions', 0, true],
+  ['Virgin', 'Bills & subscriptions', 54.2, true],
+  ['O2 mobile', 'Bills & subscriptions', 73.07, true],
+  ['Lyca Mobile', 'Bills & subscriptions', 6, true],
+  ['Microsoft 365 & Yahoo', 'Bills & subscriptions', 16.58, true],
+  ['Direct Line insurance', 'Bills & subscriptions', 37.19, true],
+  ['Bank charges', 'Professional & statutory', 10],
+  ['Accountant', 'Professional & statutory', 0, true],
+  ['Nest Pension', 'Professional & statutory', 0, true],
+  ['HMRC taxes', 'Professional & statutory', 190],
+  ['Developer fees', 'Professional & statutory', 109.72],
+  ['Solicitor & court fees', 'Professional & statutory', 1050],
+  ['IATA & Amadeus', 'Professional & statutory', 20, true],
+  ['Wages & payees', 'People', 6105.03, true],
+  ['Staff commissions', 'People', 206.76],
+  ['MEA', 'Donations & other', 0],
+  ['Sadqa', 'Donations & other', 0],
+  ['Other donation', 'Donations & other', 0],
+  ['Currency & misc', 'Donations & other', 0],
+]
+
+const FIXED_ITEMS: LedgerItem[] = [
+  ...incomeSeed.map(([label, group, amount, recurring]) => ({
+    id: `income-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    label,
+    group,
+    amount,
+    kind: 'income' as const,
+    recurring,
+  })),
+  ...expenseSeed.map(([label, group, amount, recurring]) => ({
+    id: `expense-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    label,
+    group,
+    amount,
+    kind: 'expense' as const,
+    recurring,
+  })),
+]
+
+function groupItems(items: LedgerItem[]) {
+  return items.reduce<Record<string, LedgerItem[]>>((groups, item) => {
+    groups[item.group] ||= []
+    groups[item.group].push(item)
+    return groups
+  }, {})
+}
+
+function Metric({
   label,
   value,
   detail,
@@ -261,161 +152,137 @@ function SummaryMetric({
   )
 }
 
-function LedgerSheet({
+function MonthlySheet({
   kind,
-  entries,
-  onAdd,
-  onRemoveDraft,
-  showDraft,
+  items,
+  amountFor,
+  editingId,
+  editValue,
+  onEdit,
+  onEditValue,
+  onSave,
+  onCancel,
 }: {
-  kind: EntryKind
-  entries: BranchEntry[]
-  onAdd: () => void
-  onRemoveDraft: () => void
-  showDraft: boolean
+  kind: LedgerKind
+  items: LedgerItem[]
+  amountFor: (item: LedgerItem) => number
+  editingId: string | null
+  editValue: string
+  onEdit: (item: LedgerItem) => void
+  onEditValue: (value: string) => void
+  onSave: () => void
+  onCancel: () => void
 }) {
   const isIncome = kind === 'income'
   const label = isIncome ? 'Income' : 'Expenses'
-  const Icon = isIncome ? TrendingUp : TrendingDown
+  const groups = groupItems(items)
+  const total = items.reduce((sum, item) => sum + amountFor(item), 0)
   const accent = isIncome
     ? {
-        container: 'border-emerald-200',
+        border: 'border-emerald-200',
         header: 'bg-emerald-700',
         total: 'text-emerald-700',
-        button: 'border-emerald-200 text-emerald-800 hover:bg-emerald-50',
+        action: 'text-emerald-700 hover:bg-emerald-50',
       }
     : {
-        container: 'border-rose-200',
+        border: 'border-rose-200',
         header: 'bg-rose-700',
         total: 'text-rose-700',
-        button: 'border-rose-200 text-rose-800 hover:bg-rose-50',
+        action: 'text-rose-700 hover:bg-rose-50',
       }
 
   return (
-    <section
-      className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${accent.container}`}
-    >
-      <header className={`${accent.header} px-4 py-4 text-white sm:px-5`}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15">
-              <Icon className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="text-lg font-black">{label}</h2>
-              <p className="text-xs text-white/75">September 2026 · this branch</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onAdd}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-black text-slate-900 shadow-sm hover:bg-slate-100"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add {isIncome ? 'income' : 'expense'}
-          </button>
+    <section className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${accent.border}`}>
+      <header
+        className={`${accent.header} flex items-center justify-between px-4 py-4 text-white sm:px-5`}
+      >
+        <div>
+          <h2 className="text-lg font-black">{label}</h2>
+          <p className="mt-0.5 text-xs text-white/75">Fixed monthly categories · no daily dates</p>
         </div>
+        <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em]">
+          Monthly sheet
+        </span>
       </header>
-
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">
-        <span className="text-xs font-bold text-slate-500">Month to date</span>
-        <span className={`text-xl font-black ${accent.total}`}>{GBP.format(total(entries))}</span>
+        <span className="text-xs font-bold text-slate-500">September total</span>
+        <span className={`text-xl font-black ${accent.total}`}>{GBP.format(total)}</span>
       </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left text-xs">
-          <thead className="border-b border-slate-100 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
-            <tr>
-              <th className="px-4 py-3 sm:px-5">Date</th>
-              <th className="px-2 py-3">Description</th>
-              <th className="px-2 py-3">Category</th>
-              <th className="px-2 py-3">Paid via</th>
-              <th className="px-4 py-3 text-right sm:px-5">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) => (
-              <tr
-                key={entry.id}
-                className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+      <div className="divide-y divide-slate-100">
+        {Object.entries(groups).map(([group, groupEntries]) => (
+          <div key={group}>
+            <div className="flex items-center justify-between bg-slate-50 px-4 py-2.5 sm:px-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.11em] text-slate-500">
+                {group}
+              </p>
+              <span className="text-[10px] font-bold text-slate-400">
+                {groupEntries.some((item) => item.recurring)
+                  ? 'Includes recurring items'
+                  : 'Variable items'}
+              </span>
+            </div>
+            {groupEntries.map((item) => (
+              <div
+                key={item.id}
+                className="grid grid-cols-[minmax(0,1fr)_116px_42px] items-center gap-2 px-4 py-2.5 sm:px-5"
               >
-                <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-600 sm:px-5">
-                  {entry.date}
-                </td>
-                <td className="px-2 py-3 font-bold text-slate-900">{entry.title}</td>
-                <td className="px-2 py-3">
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">
-                    {entry.category}
-                  </span>
-                </td>
-                <td className="px-2 py-3 text-slate-500">{entry.method}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-black text-slate-900 sm:px-5">
-                  {GBP.format(entry.amount)}
-                </td>
-              </tr>
-            ))}
-            {showDraft && (
-              <tr className="border-b border-dashed border-slate-200 bg-amber-50/50">
-                <td className="px-4 py-2 sm:px-5">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-slate-900">{item.label}</p>
+                  {item.recurring && (
+                    <span className="mt-1 inline-flex rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      Repeats monthly
+                    </span>
+                  )}
+                </div>
+                {editingId === item.id ? (
                   <input
-                    aria-label={`${label} draft date`}
-                    type="date"
-                    className="h-8 rounded-md border border-amber-200 bg-white px-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-100"
+                    aria-label={`Edit ${item.label} amount`}
+                    autoFocus
+                    value={editValue}
+                    onChange={(event) => onEditValue(event.target.value)}
+                    className="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-right font-mono text-xs font-black text-slate-900 outline-none focus:ring-2 focus:ring-amber-100"
                   />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    aria-label={`${label} draft description`}
-                    className="h-8 w-full rounded-md border border-amber-200 bg-white px-2 text-xs outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-amber-100"
-                    placeholder="Description"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    aria-label={`${label} draft category`}
-                    className="h-8 w-full rounded-md border border-amber-200 bg-white px-2 text-xs outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-amber-100"
-                    placeholder="Category"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    aria-label={`${label} draft method`}
-                    className="h-8 w-full rounded-md border border-amber-200 bg-white px-2 text-xs outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-amber-100"
-                    placeholder="Method"
-                  />
-                </td>
-                <td className="px-4 py-2 sm:px-5">
-                  <div className="flex items-center justify-end gap-1">
-                    <input
-                      aria-label={`${label} draft amount`}
-                      className="h-8 w-20 rounded-md border border-amber-200 bg-white px-2 text-right text-xs outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-amber-100"
-                      placeholder="0.00"
-                    />
+                ) : (
+                  <p className="text-right font-mono text-xs font-black text-slate-900">
+                    {amountFor(item) ? GBP.format(amountFor(item)) : '—'}
+                  </p>
+                )}
+                <div className="flex justify-end">
+                  {editingId === item.id ? (
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Save ${item.label} amount`}
+                        onClick={onSave}
+                        className="rounded-md bg-emerald-700 p-1.5 text-white hover:bg-emerald-800"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Cancel ${item.label} edit`}
+                        onClick={onCancel}
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={onRemoveDraft}
-                      aria-label={`Remove ${label.toLowerCase()} draft`}
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-white hover:text-rose-700"
+                      aria-label={`Quick edit ${item.label}`}
+                      onClick={() => onEdit(item)}
+                      className={`rounded-md p-1.5 ${accent.action}`}
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
-
-      <footer className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2.5 text-xs sm:px-5">
-        <span className="text-slate-500">{entries.length} recorded entries</span>
-        <button
-          type="button"
-          className={`inline-flex items-center gap-1 font-black ${accent.button}`}
-        >
-          View all <ChevronDown className="h-3.5 w-3.5" />
-        </button>
-      </footer>
     </section>
   )
 }
@@ -423,21 +290,65 @@ function LedgerSheet({
 export default function BranchLedgerPrototype() {
   const [viewMode, setViewMode] = useState<ViewMode>('hq')
   const [selectedBranch, setSelectedBranch] = useState('Manchester')
-  const [draftKind, setDraftKind] = useState<EntryKind | null>(null)
+  const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [quickKind, setQuickKind] = useState<LedgerKind>('expense')
+  const [quickCategory, setQuickCategory] = useState('Postage')
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickNote, setQuickNote] = useState('')
+  const [quickEntries, setQuickEntries] = useState<LedgerItem[]>([])
 
-  const branchEntries = useMemo(
-    () => ENTRIES.filter((entry) => entry.branch === selectedBranch),
-    [selectedBranch],
-  )
-  const income = branchEntries.filter((entry) => entry.kind === 'income')
-  const expenses = branchEntries.filter((entry) => entry.kind === 'expense')
-  const incomeTotal = total(income)
-  const expenseTotal = total(expenses)
-  const net = incomeTotal - expenseTotal
+  const multiplier = BRANCH_MULTIPLIERS[selectedBranch] || 1
+  const scopedQuickEntries = quickEntries.filter((entry) => entry.branch === selectedBranch)
+  const incomeItems = [
+    ...FIXED_ITEMS.filter((item) => item.kind === 'income'),
+    ...scopedQuickEntries.filter((item) => item.kind === 'income'),
+  ]
+  const expenseItems = [
+    ...FIXED_ITEMS.filter((item) => item.kind === 'expense'),
+    ...scopedQuickEntries.filter((item) => item.kind === 'expense'),
+  ]
+  const amountFor = (item: LedgerItem) =>
+    editedAmounts[item.id] ??
+    (item.branch ? item.amount : Math.round(item.amount * multiplier * 100) / 100)
+  const incomeTotal = incomeItems.reduce((sum, item) => sum + amountFor(item), 0)
+  const expenseTotal = expenseItems.reduce((sum, item) => sum + amountFor(item), 0)
+  const categoryOptions = (quickKind === 'income' ? incomeItems : expenseItems)
+    .map((item) => item.label)
+    .filter((label, index, all) => all.indexOf(label) === index)
 
-  function setMode(mode: ViewMode) {
+  function switchMode(mode: ViewMode) {
     setViewMode(mode)
     if (mode === 'manager') setSelectedBranch('Manchester')
+  }
+  function startEdit(item: LedgerItem) {
+    setEditingId(item.id)
+    setEditValue(String(amountFor(item)))
+  }
+  function saveEdit() {
+    if (!editingId) return
+    const amount = Number(editValue)
+    if (Number.isFinite(amount) && amount >= 0)
+      setEditedAmounts((current) => ({ ...current, [editingId]: amount }))
+    setEditingId(null)
+  }
+  function addQuickEntry() {
+    const amount = Number(quickAmount)
+    if (!Number.isFinite(amount) || amount <= 0) return
+    setQuickEntries((current) => [
+      ...current,
+      {
+        id: `quick-${Date.now()}`,
+        label: quickNote.trim() || quickCategory,
+        group: 'Quick entries',
+        amount,
+        kind: quickKind,
+        branch: selectedBranch,
+      },
+    ])
+    setQuickAmount('')
+    setQuickNote('')
   }
 
   return (
@@ -451,7 +362,7 @@ export default function BranchLedgerPrototype() {
             <div>
               <p className="text-sm font-black">Branch Ledger UI preview</p>
               <p className="text-xs text-amber-800">
-                Sample figures only · access controls and data are not live yet
+                Built from your recurring monthly worksheet · sample figures only
               </p>
             </div>
           </div>
@@ -460,7 +371,6 @@ export default function BranchLedgerPrototype() {
           </span>
         </div>
       </div>
-
       <header className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
           <Link
@@ -478,33 +388,31 @@ export default function BranchLedgerPrototype() {
                 Branch Ledger
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                A simple view of what came in and what went out
+                Recurring monthly income and expenses, kept in one simple sheet
               </p>
             </div>
           </div>
         </div>
-
         <div
           className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
           aria-label="Access view preview"
         >
           <button
             type="button"
-            onClick={() => setMode('manager')}
+            onClick={() => switchMode('manager')}
             className={`rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'manager' ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
           >
             Branch manager
           </button>
           <button
             type="button"
-            onClick={() => setMode('hq')}
+            onClick={() => switchMode('hq')}
             className={`rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'hq' ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
           >
             HQ staff
           </button>
         </div>
       </header>
-
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex items-start gap-3">
           <span
@@ -522,7 +430,7 @@ export default function BranchLedgerPrototype() {
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
               {viewMode === 'hq'
-                ? 'Select a branch to view its ledger. HQ can see all branches one at a time.'
+                ? 'Select a branch to view its monthly sheet.'
                 : 'This view is locked to the manager’s assigned branch.'}
             </p>
           </div>
@@ -547,93 +455,156 @@ export default function BranchLedgerPrototype() {
           )}
         </div>
       </section>
-
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Branch summary">
-        <SummaryMetric
+        <Metric
           label="Income"
           value={GBP.format(incomeTotal)}
-          detail="Month to date"
+          detail="Monthly sheet total"
           icon={TrendingUp}
           tone="bg-emerald-50 text-emerald-700"
         />
-        <SummaryMetric
+        <Metric
           label="Expenses"
           value={GBP.format(expenseTotal)}
-          detail="Month to date"
+          detail="Monthly sheet total"
           icon={TrendingDown}
           tone="bg-rose-50 text-rose-700"
         />
-        <SummaryMetric
+        <Metric
           label="Net result"
-          value={GBP.format(net)}
-          detail={net >= 0 ? 'Income after branch costs' : 'Costs exceed income'}
+          value={GBP.format(incomeTotal - expenseTotal)}
+          detail="Income after branch costs"
           icon={CircleDollarSign}
-          tone={net >= 0 ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700'}
+          tone="bg-sky-50 text-sky-700"
         />
-        <SummaryMetric
-          label="Staff & commission"
+        <Metric
+          label="People costs"
           value={GBP.format(
-            total(expenses.filter((entry) => ['Wages', 'Commissions'].includes(entry.category))),
+            expenseItems
+              .filter((item) => item.group === 'People')
+              .reduce((sum, item) => sum + amountFor(item), 0),
           )}
-          detail="Included in branch expenses"
+          detail="Wages and commissions"
           icon={UsersRound}
           tone="bg-violet-50 text-violet-700"
         />
       </section>
-
+      <section className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-black">
+              <Plus className="h-4 w-4 text-emerald-400" /> Quick entry
+            </p>
+            <p className="mt-1 text-xs text-slate-300">
+              Use this for a new or exceptional item. Regular lines stay fixed below.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[120px_minmax(150px,1fr)_110px_minmax(160px,1fr)_auto]">
+            <select
+              aria-label="Quick entry type"
+              value={quickKind}
+              onChange={(event) => {
+                const nextKind = event.target.value as LedgerKind
+                setQuickKind(nextKind)
+                setQuickCategory(nextKind === 'income' ? 'TC' : 'Postage')
+              }}
+              className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-sm font-bold text-white outline-none"
+            >
+              <option value="income" className="text-slate-900">
+                Income
+              </option>
+              <option value="expense" className="text-slate-900">
+                Expense
+              </option>
+            </select>
+            <select
+              aria-label="Quick entry category"
+              value={quickCategory}
+              onChange={(event) => setQuickCategory(event.target.value)}
+              className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-sm font-bold text-white outline-none"
+            >
+              {categoryOptions.map((category) => (
+                <option key={category} className="text-slate-900">
+                  {category}
+                </option>
+              ))}
+            </select>
+            <input
+              aria-label="Quick entry amount"
+              value={quickAmount}
+              onChange={(event) => setQuickAmount(event.target.value)}
+              inputMode="decimal"
+              placeholder="Amount"
+              className="h-10 rounded-lg border border-white/15 bg-white/10 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-400"
+            />
+            <input
+              aria-label="Quick entry note"
+              value={quickNote}
+              onChange={(event) => setQuickNote(event.target.value)}
+              placeholder="Optional note"
+              className="h-10 rounded-lg border border-white/15 bg-white/10 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-400"
+            />
+            <button
+              type="button"
+              onClick={addQuickEntry}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-400 px-3 text-xs font-black text-emerald-950 hover:bg-emerald-300"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add
+            </button>
+          </div>
+        </div>
+      </section>
       <section className="grid gap-4 2xl:grid-cols-2">
-        <LedgerSheet
+        <MonthlySheet
           kind="income"
-          entries={income}
-          showDraft={draftKind === 'income'}
-          onAdd={() => setDraftKind('income')}
-          onRemoveDraft={() => setDraftKind(null)}
+          items={incomeItems}
+          amountFor={amountFor}
+          editingId={editingId}
+          editValue={editValue}
+          onEdit={startEdit}
+          onEditValue={setEditValue}
+          onSave={saveEdit}
+          onCancel={() => setEditingId(null)}
         />
-        <LedgerSheet
+        <MonthlySheet
           kind="expense"
-          entries={expenses}
-          showDraft={draftKind === 'expense'}
-          onAdd={() => setDraftKind('expense')}
-          onRemoveDraft={() => setDraftKind(null)}
+          items={expenseItems}
+          amountFor={amountFor}
+          editingId={editingId}
+          editValue={editValue}
+          onEdit={startEdit}
+          onEditValue={setEditValue}
+          onSave={saveEdit}
+          onCancel={() => setEditingId(null)}
         />
       </section>
-
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-                What is included
+                Designed for the year
               </p>
-              <h2 className="mt-1 text-lg font-black text-slate-950">Clear branch categories</h2>
+              <h2 className="mt-1 text-lg font-black text-slate-950">
+                Fixed lines first, exceptions second
+              </h2>
             </div>
             <ReceiptText className="h-5 w-5 text-slate-400" />
           </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-xl bg-emerald-50 p-3">
-              <p className="text-xs font-black text-emerald-900">Income</p>
-              <p className="mt-1 text-xs leading-5 text-emerald-800">
-                Applications, POS services, ticketing, package payments, instalments and other
-                branch income.
-              </p>
-            </div>
-            <div className="rounded-xl bg-rose-50 p-3">
-              <p className="text-xs font-black text-rose-900">Expenses</p>
-              <p className="mt-1 text-xs leading-5 text-rose-800">
-                Wages, commissions, rent, utility bills, supplier costs, refunds and other branch
-                costs.
-              </p>
-            </div>
-          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Recurring bills, wages, commissions and regular income sources stay in the same place
+            every month. Quick edit changes a line amount; Quick entry adds an unusual item without
+            changing the standard template.
+          </p>
         </div>
         <aside className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm">
           <div className="flex items-center gap-2">
             <WalletCards className="h-5 w-5 text-emerald-400" />
-            <p className="font-black">Implementation safeguard</p>
+            <p className="font-black">Access safeguard</p>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-300">
-            When connected, the branch is determined on the server from the employee record. HQ may
-            choose a branch; a branch manager never receives another branch’s rows from the API.
+            When implemented, branch scope is resolved on the server. HQ chooses a branch; a branch
+            manager’s request never returns another branch’s sheet.
           </p>
           <div className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-black text-emerald-300">
             <CalendarDays className="h-3.5 w-3.5" /> September 2026
