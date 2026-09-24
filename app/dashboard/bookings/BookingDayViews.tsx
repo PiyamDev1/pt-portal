@@ -205,6 +205,7 @@ export function DayAgendaModal({
   slots,
   slotsError,
   onClose,
+  onDateChange,
   onServiceChange,
   onPersonCountChange,
   onSelectSlot,
@@ -220,6 +221,7 @@ export function DayAgendaModal({
   slots: SlotOption[]
   slotsError: string | null
   onClose: () => void
+  onDateChange: (date: Date) => void
   onServiceChange: (value: string) => void
   onPersonCountChange: (value: number) => void
   onSelectSlot: (slot: SlotOption) => void
@@ -234,6 +236,21 @@ export function DayAgendaModal({
   const nextStartGap = selectedService
     ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
     : null
+  const selectedDateKey = selectedDate.toISOString().slice(0, 10)
+  const todayKey = today.toISOString().slice(0, 10)
+
+  const moveSearchDate = (days: number) => {
+    const next = new Date(selectedDate)
+    next.setUTCDate(next.getUTCDate() + days)
+    if (next.toISOString().slice(0, 10) < todayKey) return
+    onDateChange(next)
+  }
+
+  const selectSearchDate = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < todayKey) return
+    const next = new Date(`${value}T00:00:00.000Z`)
+    if (!Number.isNaN(next.getTime())) onDateChange(next)
+  }
 
   const timeline = useMemo(() => {
     const ordered = bookings
@@ -316,11 +333,53 @@ export function DayAgendaModal({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
           >
             Close
           </button>
+        </div>
+
+        <div className="border-b border-slate-200 bg-white px-5 py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Look for another day</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Choose any future date before selecting a time — you are not limited to the next
+                available slot.
+              </p>
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => moveSearchDate(-1)}
+                disabled={selectedDateKey <= todayKey}
+                aria-label="Previous available date"
+                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-lg text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <label className="block text-xs font-medium text-slate-600">
+                Appointment date
+                <input
+                  type="date"
+                  min={todayKey}
+                  value={selectedDateKey}
+                  onChange={(event) => selectSearchDate(event.target.value)}
+                  className="mt-1 block h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => moveSearchDate(1)}
+                aria-label="Next available date"
+                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-lg text-slate-600 transition hover:bg-slate-50"
+              >
+                ›
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">

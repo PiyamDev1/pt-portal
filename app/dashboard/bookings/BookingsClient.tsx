@@ -1783,7 +1783,7 @@ export default function BookingsClient({
                 <>
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => openCreateAppointment()}
+                      onClick={() => openDayAgenda(selectedDate)}
                       className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#8b1d2c] px-3 text-sm font-semibold text-white shadow-sm"
                     >
                       <PlusIcon className="h-4 w-4" />
@@ -1958,7 +1958,7 @@ export default function BookingsClient({
 
               {!showSettings && (
                 <button
-                  onClick={() => openCreateAppointment()}
+                  onClick={() => openDayAgenda(selectedDate)}
                   className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-indigo-600 bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-indigo-700 sm:text-sm"
                 >
                   <PlusIcon className="h-4 w-4" />
@@ -2470,7 +2470,8 @@ export default function BookingsClient({
               </div>
 
               <p className="bookings-desktop-only hidden px-1 text-xs text-slate-500 md:block">
-                Select a date to update the detailed day queue below.
+                Click a future date to add an appointment or find an available time. Past dates stay
+                read-only.
               </p>
 
               <div className="bookings-desktop-only bookings-calendar-grid overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
@@ -2495,7 +2496,7 @@ export default function BookingsClient({
                     return (
                       <button
                         key={day.toISOString()}
-                        onClick={() => selectDay(day)}
+                        onClick={() => openDayAgenda(day)}
                         className={`min-h-[96px] p-2 sm:min-h-[118px] sm:p-3 border-r border-b border-slate-100 text-left transition-all duration-150 ${
                           isSelected
                             ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
@@ -2861,6 +2862,25 @@ export default function BookingsClient({
                 Close
               </button>
             </div>
+
+            {!editingBooking && (
+              <div className="rounded-2xl border border-indigo-100 bg-[linear-gradient(135deg,_#eff6ff_0%,_#ffffff_78%)] px-4 py-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-950">
+                      Manual appointment details
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-indigo-800">
+                      This is for exceptional bookings. For the quickest route, close this form and
+                      use a calendar date or “Find an available time” to choose a slot first.
+                    </p>
+                  </div>
+                  <span className="w-fit rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700">
+                    Branded email + VISIT code on save
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {editingBooking && (
@@ -3558,6 +3578,7 @@ export default function BookingsClient({
           slots={dayAgendaSlots}
           slotsError={dayAgendaSlotsError}
           onClose={() => setShowDayAgendaModal(false)}
+          onDateChange={selectDay}
           onServiceChange={setDayAgendaServiceId}
           onPersonCountChange={(value) => setDayAgendaPersonCount(Math.max(1, value))}
           onSelectSlot={(slot) =>

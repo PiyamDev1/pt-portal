@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => {
 
   const getRouteSupabaseClient = vi.fn(async () => ({ from }))
   const sendBookingEmail = vi.fn()
+  const customerPortalAccessEmailBlock = vi.fn(() => '\n\nportal access code')
 
   return {
     bookingSingle,
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => {
     auditInsert,
     getRouteSupabaseClient,
     sendBookingEmail,
+    customerPortalAccessEmailBlock,
   }
 })
 
@@ -57,6 +59,8 @@ vi.mock('@/lib/api/serverSupabase', () => ({
 }))
 
 vi.mock('@/lib/bookingEmail', () => ({
+  customerPortalAccessEmailBlock: mocks.customerPortalAccessEmailBlock,
+  defaultTemplate: vi.fn((kind: string) => `${kind} default`),
   sendBookingEmail: mocks.sendBookingEmail,
 }))
 
@@ -74,6 +78,7 @@ describe('POST /api/bookings/[id]/resend', () => {
         service_id: 'service-1',
         start_time: '2026-06-06T10:00:00.000Z',
         status: 'confirmed',
+        customer_guest_code: 'VISIT-A1B2C3D4E5F6',
       },
       error: null,
     })
@@ -123,7 +128,9 @@ describe('POST /api/bookings/[id]/resend', () => {
         to: 'alex@example.com',
         kind: 'confirmation',
         subject: 'Your appointment confirmation was re-sent',
+        template: 'confirmation\n\nportal access code',
       }),
     )
+    expect(mocks.customerPortalAccessEmailBlock).toHaveBeenCalledWith('VISIT-A1B2C3D4E5F6')
   })
 })

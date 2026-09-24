@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { BookingSource, BookingStatus } from '@/app/types/bookings'
-import { BookingRow, SelectedDayPanel } from '@/app/dashboard/bookings/BookingDayViews'
+import {
+  BookingRow,
+  DayAgendaModal,
+  SelectedDayPanel,
+} from '@/app/dashboard/bookings/BookingDayViews'
 import type { BookingWithService } from '@/app/dashboard/bookings/bookingClientModel'
 
 const booking: BookingWithService = {
@@ -85,5 +89,37 @@ describe('booking day views', () => {
     expect(onOpenHistory).toHaveBeenCalledWith(booking.id)
     expect(onResendEmail).toHaveBeenCalledWith(booking)
     expect(onStatusChange).toHaveBeenCalledWith(booking.id, BookingStatus.CONFIRMED)
+  })
+
+  it('lets the availability desk search a later date before a slot is chosen', () => {
+    const onDateChange = vi.fn()
+
+    render(
+      <DayAgendaModal
+        selectedDate={new Date('2026-08-12T00:00:00.000Z')}
+        today={new Date('2026-08-12T00:00:00.000Z')}
+        bookings={[]}
+        serviceOptions={[]}
+        serviceId=""
+        personCount={1}
+        loadingSlots={false}
+        slots={[]}
+        slotsError={null}
+        onClose={vi.fn()}
+        onDateChange={onDateChange}
+        onServiceChange={vi.fn()}
+        onPersonCountChange={vi.fn()}
+        onSelectSlot={vi.fn()}
+        onSelectBooking={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Look for another day')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Appointment date'), {
+      target: { value: '2026-08-16' },
+    })
+
+    expect(onDateChange).toHaveBeenCalledOnce()
+    expect(onDateChange.mock.calls[0][0].toISOString()).toBe('2026-08-16T00:00:00.000Z')
   })
 })

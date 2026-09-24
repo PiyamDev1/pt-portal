@@ -71,6 +71,14 @@ export interface BookingService {
   person_count_excludes_family_head: boolean
   /** Minutes allowed past service end/branch close for appointment completion. */
   close_overrun_tolerance_minutes: number
+  /** Whether customers can select this service in the separate customer portal. */
+  customer_visible: boolean
+  /** Optional plain-language description shown to customers before booking. */
+  customer_description: string | null
+  /** Maximum party size accepted through the customer portal. */
+  customer_max_group_size: number
+  /** Customer self-service change/cancellation deadline. */
+  customer_modification_cutoff_hours: number
   is_active: boolean
 }
 

@@ -26,6 +26,43 @@ function isMissingServiceTimingColumns(error: unknown): boolean {
 
 type TemplateValidationError = { field: string; invalidTokens: string[] }
 
+function customerPortalSettingsError(input: {
+  customer_visible?: unknown
+  customer_description?: unknown
+  customer_max_group_size?: unknown
+  customer_modification_cutoff_hours?: unknown
+}): string | null {
+  if (input.customer_visible !== undefined && typeof input.customer_visible !== 'boolean') {
+    return 'customer_visible must be true or false'
+  }
+  if (
+    input.customer_description !== undefined &&
+    input.customer_description !== null &&
+    typeof input.customer_description !== 'string'
+  ) {
+    return 'customer_description must be text'
+  }
+  if (
+    typeof input.customer_description === 'string' &&
+    input.customer_description.trim().length > 1000
+  ) {
+    return 'customer_description must be 1000 characters or fewer'
+  }
+  if (input.customer_max_group_size !== undefined) {
+    const value = input.customer_max_group_size
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 100) {
+      return 'customer_max_group_size must be a whole number from 1 to 100'
+    }
+  }
+  if (input.customer_modification_cutoff_hours !== undefined) {
+    const value = input.customer_modification_cutoff_hours
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 168) {
+      return 'customer_modification_cutoff_hours must be a whole number from 0 to 168'
+    }
+  }
+  return null
+}
+
 function validateServiceTemplates(input: {
   confirmation_template?: string | null
   modification_template?: string | null
@@ -104,6 +141,10 @@ export async function POST(request: NextRequest) {
       duration_per_additional_person_minutes,
       person_count_excludes_family_head,
       close_overrun_tolerance_minutes,
+      customer_visible,
+      customer_description,
+      customer_max_group_size,
+      customer_modification_cutoff_hours,
     } = body as {
       location_id: string
       name: string
@@ -118,6 +159,10 @@ export async function POST(request: NextRequest) {
       duration_per_additional_person_minutes?: number
       person_count_excludes_family_head?: boolean
       close_overrun_tolerance_minutes?: number
+      customer_visible?: boolean
+      customer_description?: string | null
+      customer_max_group_size?: number
+      customer_modification_cutoff_hours?: number
     }
 
     if (!location_id || !name || !duration_minutes) {
@@ -136,6 +181,16 @@ export async function POST(request: NextRequest) {
         { error: 'available_days values must be between 0 and 6' },
         { status: 400 },
       )
+    }
+
+    const portalSettingsError = customerPortalSettingsError({
+      customer_visible,
+      customer_description,
+      customer_max_group_size,
+      customer_modification_cutoff_hours,
+    })
+    if (portalSettingsError) {
+      return NextResponse.json({ error: portalSettingsError }, { status: 400 })
     }
 
     const templateErrors = validateServiceTemplates({
@@ -169,6 +224,10 @@ export async function POST(request: NextRequest) {
       available_days: available_days ?? null,
       service_start_time: service_start_time ?? null,
       service_end_time: service_end_time ?? null,
+      customer_visible: customer_visible ?? false,
+      customer_description: customer_description?.trim() || null,
+      customer_max_group_size: customer_max_group_size ?? 20,
+      customer_modification_cutoff_hours: customer_modification_cutoff_hours ?? 24,
     }
 
     let { data, error } = await supabase

@@ -82,6 +82,10 @@ function buildNewServiceDraft() {
     duration_per_additional_person_minutes: 0,
     person_count_excludes_family_head: true,
     close_overrun_tolerance_minutes: 15,
+    customer_visible: false,
+    customer_description: '',
+    customer_max_group_size: 20,
+    customer_modification_cutoff_hours: 24,
   }
 }
 
@@ -154,6 +158,10 @@ export interface BookingServiceRow {
   duration_per_additional_person_minutes: number
   person_count_excludes_family_head: boolean
   close_overrun_tolerance_minutes: number
+  customer_visible: boolean
+  customer_description: string | null
+  customer_max_group_size: number
+  customer_modification_cutoff_hours: number
   is_active: boolean
 }
 
@@ -299,6 +307,13 @@ function normalizeServiceRow(service: BookingServiceRow): BookingServiceRow {
     ...service,
     person_count_excludes_family_head: service.person_count_excludes_family_head !== false,
     close_overrun_tolerance_minutes: Math.max(0, service.close_overrun_tolerance_minutes ?? 15),
+    customer_visible: service.customer_visible === true,
+    customer_description: service.customer_description ?? null,
+    customer_max_group_size: Math.min(100, Math.max(1, service.customer_max_group_size ?? 20)),
+    customer_modification_cutoff_hours: Math.min(
+      168,
+      Math.max(0, service.customer_modification_cutoff_hours ?? 24),
+    ),
   }
 }
 
@@ -356,6 +371,18 @@ export default function BookingSettingsTab({
   const selectedBranch = useMemo(
     () => branchLocations.find((l) => l.id === selectedLocationId),
     [branchLocations, selectedLocationId],
+  )
+  const activeServiceCount = useMemo(
+    () => services.filter((service) => service.is_active).length,
+    [services],
+  )
+  const customerPortalServiceCount = useMemo(
+    () => services.filter((service) => service.is_active && service.customer_visible).length,
+    [services],
+  )
+  const weeklyOpenDayCount = useMemo(
+    () => weeklySettings.filter((setting) => !setting.is_closed).length,
+    [weeklySettings],
   )
 
   const loadAll = async (locationId: string) => {
@@ -601,6 +628,10 @@ export default function BookingSettingsTab({
           duration_per_additional_person_minutes: newService.duration_per_additional_person_minutes,
           person_count_excludes_family_head: newService.person_count_excludes_family_head,
           close_overrun_tolerance_minutes: newService.close_overrun_tolerance_minutes,
+          customer_visible: newService.customer_visible,
+          customer_description: newService.customer_description || null,
+          customer_max_group_size: newService.customer_max_group_size,
+          customer_modification_cutoff_hours: newService.customer_modification_cutoff_hours,
         }),
       })
       const json = await res.json()
@@ -640,6 +671,10 @@ export default function BookingSettingsTab({
             editingService.duration_per_additional_person_minutes,
           person_count_excludes_family_head: editingService.person_count_excludes_family_head,
           close_overrun_tolerance_minutes: editingService.close_overrun_tolerance_minutes,
+          customer_visible: editingService.customer_visible,
+          customer_description: editingService.customer_description,
+          customer_max_group_size: editingService.customer_max_group_size,
+          customer_modification_cutoff_hours: editingService.customer_modification_cutoff_hours,
         }),
       })
       const json = await res.json()
@@ -731,49 +766,249 @@ export default function BookingSettingsTab({
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <label className="text-sm font-semibold text-slate-700">Branch Location</label>
-        <select
-          value={selectedLocationId}
-          onChange={(e) => onLocationChange(e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white min-w-[260px]"
-        >
-          {branchLocations.map((location) => (
-            <option key={location.id} value={location.id}>
-              {location.name}
-              {location.branch_code ? ` (${location.branch_code})` : ''}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-slate-500">
-          Settings apply to:{' '}
-          <span className="font-semibold">{selectedBranch?.name || 'Branch'}</span>
-        </p>
-      </div>
+      <section className="overflow-hidden rounded-[24px] border border-indigo-100 bg-[linear-gradient(135deg,_#eff6ff_0%,_#eef2ff_48%,_#ffffff_100%)] shadow-[0_18px_50px_-36px_rgba(30,58,138,0.45)]">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">
+              Booking setup
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-slate-900">Appointments, your way</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Set the branch timetable, make services bookable on the customer portal, and keep
+              every customer email on-brand from one place.
+            </p>
+          </div>
+          <label className="block min-w-[250px] text-sm font-semibold text-slate-700">
+            Branch
+            <select
+              value={selectedLocationId}
+              onChange={(e) => onLocationChange(e.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            >
+              {branchLocations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                  {location.branch_code ? ` (${location.branch_code})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="grid border-t border-indigo-100 bg-white/70 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="border-b border-indigo-100 px-5 py-4 sm:border-r lg:border-b-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Branch
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {selectedBranch?.name || 'Select a branch'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {selectedBranch?.appointments_enabled === false
+                ? 'Appointments paused'
+                : 'Appointments active'}
+            </p>
+          </div>
+          <div className="border-b border-indigo-100 px-5 py-4 lg:border-b-0 lg:border-r">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Weekly hours
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {weeklyOpenDayCount} days open
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Capacity and breaks included</p>
+          </div>
+          <div className="border-b border-indigo-100 px-5 py-4 sm:border-r lg:border-b-0 lg:border-r">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Live services
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{activeServiceCount} active</p>
+            <p className="mt-1 text-xs text-slate-500">{services.length} configured in total</p>
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Customer portal
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {customerPortalServiceCount} bookable
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Each confirmation includes a VISIT code</p>
+          </div>
+        </div>
+      </section>
 
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={() => setActiveSection('overrides')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'overrides' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
-        >
-          One-off Schedule
-        </button>
-        <button
-          onClick={() => setActiveSection('services')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'services' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
-        >
-          Services & Slot Gaps
-        </button>
-        <button
-          onClick={() => setActiveSection('reminders')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'reminders' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
-        >
-          Reminders & Penalties
-        </button>
+      <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 md:grid-cols-3">
+        {[
+          {
+            id: 'overrides' as const,
+            title: 'Hours & special dates',
+            detail: 'Weekly availability, capacity, breaks, and exceptions',
+          },
+          {
+            id: 'services' as const,
+            title: 'Services & customer portal',
+            detail: 'Slot rules, portal visibility, codes, and email copy',
+          },
+          {
+            id: 'reminders' as const,
+            title: 'Messages & attendance',
+            detail: 'Reminders, attendance confirmation, and no-show rules',
+          },
+        ].map((section) => {
+          const active = activeSection === section.id
+          return (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              aria-pressed={active}
+              className={`rounded-xl px-4 py-3 text-left transition ${
+                active
+                  ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-indigo-100'
+                  : 'text-slate-600 hover:bg-white/70'
+              }`}
+            >
+              <span className="block text-sm font-semibold">{section.title}</span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500">{section.detail}</span>
+            </button>
+          )
+        })}
       </div>
 
       {activeSection === 'overrides' && (
         <div className="space-y-4">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-800">Weekly appointment hours</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  These are the normal hours used when a customer or colleague looks for a slot. Add
+                  a special date below only when this weekly pattern changes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={saveWeekly}
+                disabled={loading}
+                className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : 'Save weekly hours'}
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {weeklySettings.map((row) => (
+                <div
+                  key={row.day_of_week}
+                  className="grid gap-3 px-4 py-4 lg:grid-cols-[130px_minmax(155px,1fr)_minmax(250px,1.25fr)_minmax(210px,1fr)_100px] lg:items-center"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {DAY_NAMES[row.day_of_week]}
+                    </p>
+                    <label className="mt-1 inline-flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={!row.is_closed}
+                        onChange={(e) => updateDay(row.day_of_week, 'is_closed', !e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                      />
+                      Accept bookings
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <LabeledInput label="Open">
+                      <input
+                        type="time"
+                        disabled={row.is_closed}
+                        value={row.open_time || ''}
+                        onChange={(e) => updateDay(row.day_of_week, 'open_time', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                      />
+                    </LabeledInput>
+                    <LabeledInput label="Close">
+                      <input
+                        type="time"
+                        disabled={row.is_closed}
+                        value={row.close_time || ''}
+                        onChange={(e) => updateDay(row.day_of_week, 'close_time', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                      />
+                    </LabeledInput>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <LabeledInput label="Lunch break">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input
+                          aria-label={`${DAY_NAMES[row.day_of_week]} lunch start`}
+                          type="time"
+                          disabled={row.is_closed}
+                          value={row.lunch_start_time || ''}
+                          onChange={(e) =>
+                            updateDay(row.day_of_week, 'lunch_start_time', e.target.value || null)
+                          }
+                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+                        />
+                        <input
+                          aria-label={`${DAY_NAMES[row.day_of_week]} lunch end`}
+                          type="time"
+                          disabled={row.is_closed}
+                          value={row.lunch_end_time || ''}
+                          onChange={(e) =>
+                            updateDay(row.day_of_week, 'lunch_end_time', e.target.value || null)
+                          }
+                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+                        />
+                      </div>
+                    </LabeledInput>
+                    <LabeledInput label="Prayer break">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input
+                          aria-label={`${DAY_NAMES[row.day_of_week]} prayer start`}
+                          type="time"
+                          disabled={row.is_closed}
+                          value={row.prayer_start_time || ''}
+                          onChange={(e) =>
+                            updateDay(row.day_of_week, 'prayer_start_time', e.target.value || null)
+                          }
+                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+                        />
+                        <input
+                          aria-label={`${DAY_NAMES[row.day_of_week]} prayer end`}
+                          type="time"
+                          disabled={row.is_closed}
+                          value={row.prayer_end_time || ''}
+                          onChange={(e) =>
+                            updateDay(row.day_of_week, 'prayer_end_time', e.target.value || null)
+                          }
+                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+                        />
+                      </div>
+                    </LabeledInput>
+                  </div>
+
+                  <LabeledInput label="Concurrent staff">
+                    <input
+                      type="number"
+                      min={1}
+                      disabled={row.is_closed}
+                      value={row.concurrent_staff}
+                      onChange={(e) =>
+                        updateDay(
+                          row.day_of_week,
+                          'concurrent_staff',
+                          Math.max(1, Number(e.target.value) || 1),
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                    />
+                  </LabeledInput>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold text-slate-700">
               Add One-off Schedule (special date)
@@ -940,26 +1175,51 @@ export default function BookingSettingsTab({
 
       {activeSection === 'services' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">
-              Define service-specific duration, buffer before next appointment, service hours, and
-              customer email templates for booked/modified/cancelled events.
-            </p>
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-slate-800">Services and slot rules</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Define duration, capacity spacing, service hours, customer-portal availability, and
+                the message customers receive.
+              </p>
+            </div>
             <button
+              type="button"
               onClick={() => {
                 setNewService(buildNewServiceDraft())
                 setShowAddService(true)
               }}
-              className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium"
+              className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
             >
               + Add Service
             </button>
           </div>
 
-          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <p className="font-semibold">Template Variables</p>
+          <section className="rounded-2xl border border-indigo-100 bg-[linear-gradient(135deg,_#eff6ff_0%,_#ffffff_72%)] p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-indigo-950">
+                  Customer portal and booking codes
+                </p>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-indigo-800">
+                  Only active services marked as customer-visible appear in the customer portal. A
+                  confirmation email includes a private <strong>VISIT</strong> code so a signed-in
+                  customer can claim a staff-created appointment; secure management links remain
+                  separate from that code.
+                </p>
+              </div>
+              <span className="w-fit rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700">
+                {customerPortalServiceCount} service{customerPortalServiceCount === 1 ? '' : 's'}{' '}
+                live
+              </span>
+            </div>
+          </section>
+
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <p className="font-semibold">Email copy and visual theme</p>
             <p className="mt-1">
-              Use square brackets exactly as shown, for example: Dear [Customer Name].
+              Every appointment email now uses the Piyam Travel navy theme, company logo, and an
+              appointment summary. Use square brackets exactly as shown to personalise the copy.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {TEMPLATE_VARIABLES.map((token) => (
@@ -1096,6 +1356,78 @@ export default function BookingSettingsTab({
                       </button>
                     )
                   })}
+                </div>
+              </div>
+              <div className="md:col-span-5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-950">Customer portal listing</p>
+                    <p className="mt-1 text-xs leading-5 text-indigo-800">
+                      Keep this off for internal-only services. Turn it on only when customers can
+                      select this service in the customer portal.
+                    </p>
+                  </div>
+                  <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800">
+                    <input
+                      type="checkbox"
+                      checked={newService.customer_visible}
+                      onChange={(e) =>
+                        setNewService((p) => ({ ...p, customer_visible: e.target.checked }))
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                    Offer in customer portal
+                  </label>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px_190px]">
+                  <LabeledInput label="Customer-facing description (optional)">
+                    <textarea
+                      rows={2}
+                      maxLength={1000}
+                      value={newService.customer_description}
+                      onChange={(e) =>
+                        setNewService((p) => ({ ...p, customer_description: e.target.value }))
+                      }
+                      placeholder="Tell customers what this appointment is for and what to bring."
+                      className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </LabeledInput>
+                  <LabeledInput label="Maximum group size">
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={newService.customer_max_group_size}
+                      onChange={(e) =>
+                        setNewService((p) => ({
+                          ...p,
+                          customer_max_group_size: Math.min(
+                            100,
+                            Math.max(1, Number(e.target.value) || 1),
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </LabeledInput>
+                  <LabeledInput label="Change/cancel cutoff (hours)">
+                    <input
+                      type="number"
+                      min={0}
+                      max={168}
+                      value={newService.customer_modification_cutoff_hours}
+                      onChange={(e) =>
+                        setNewService((p) => ({
+                          ...p,
+                          customer_modification_cutoff_hours: Math.min(
+                            168,
+                            Math.max(0, Number(e.target.value) || 0),
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </LabeledInput>
                 </div>
               </div>
               <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1391,6 +1723,93 @@ export default function BookingSettingsTab({
                         })}
                       </div>
                     </div>
+                    <div className="md:col-span-5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-indigo-950">
+                            Customer portal listing
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-indigo-800">
+                            A customer-visible service can be booked online for this branch. The
+                            booking email supplies a VISIT code for customers to claim a
+                            staff-created appointment later.
+                          </p>
+                        </div>
+                        <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800">
+                          <input
+                            type="checkbox"
+                            checked={editingService.customer_visible}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p ? { ...p, customer_visible: e.target.checked } : p,
+                              )
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                          />
+                          Offer in customer portal
+                        </label>
+                      </div>
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px_190px]">
+                        <LabeledInput label="Customer-facing description (optional)">
+                          <textarea
+                            rows={2}
+                            maxLength={1000}
+                            value={editingService.customer_description || ''}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p ? { ...p, customer_description: e.target.value || null } : p,
+                              )
+                            }
+                            placeholder="Tell customers what this appointment is for and what to bring."
+                            className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
+                          />
+                        </LabeledInput>
+                        <LabeledInput label="Maximum group size">
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={editingService.customer_max_group_size}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p
+                                  ? {
+                                      ...p,
+                                      customer_max_group_size: Math.min(
+                                        100,
+                                        Math.max(1, Number(e.target.value) || 1),
+                                      ),
+                                    }
+                                  : p,
+                              )
+                            }
+                            className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
+                          />
+                        </LabeledInput>
+                        <LabeledInput label="Change/cancel cutoff (hours)">
+                          <input
+                            type="number"
+                            min={0}
+                            max={168}
+                            value={editingService.customer_modification_cutoff_hours}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p
+                                  ? {
+                                      ...p,
+                                      customer_modification_cutoff_hours: Math.min(
+                                        168,
+                                        Math.max(0, Number(e.target.value) || 0),
+                                      ),
+                                    }
+                                  : p,
+                              )
+                            }
+                            className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
+                          />
+                        </LabeledInput>
+                      </div>
+                    </div>
                     <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <LabeledInput label="Booking Confirmation Email Template">
                         <>
@@ -1563,6 +1982,17 @@ export default function BookingSettingsTab({
                         {service.modification_template ? 'Modified' : '--'} /{' '}
                         {service.cancellation_template ? 'Cancelled' : '--'}
                       </p>
+                      <p className="mt-2 text-xs font-medium text-indigo-700">
+                        Customer portal:{' '}
+                        {service.customer_visible && service.is_active
+                          ? `Live · up to ${service.customer_max_group_size} people · ${service.customer_modification_cutoff_hours}h change/cancel cutoff`
+                          : 'Internal only'}
+                      </p>
+                      {service.customer_visible && service.customer_description && (
+                        <p className="mt-1 max-w-2xl text-xs text-slate-500">
+                          {service.customer_description}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <button

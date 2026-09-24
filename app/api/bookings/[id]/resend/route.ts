@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { BookingStatus } from '@/app/types/bookings'
-import { sendBookingEmail } from '@/lib/bookingEmail'
+import {
+  customerPortalAccessEmailBlock,
+  defaultTemplate,
+  sendBookingEmail,
+} from '@/lib/bookingEmail'
 import { deriveBookingEmailSubject, getIdempotencyKey } from '@/lib/bookingOperations'
 import {
   findIdempotentBooking,
@@ -108,12 +112,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           ? service.confirmation_template
           : service.modification_template
 
+    const baseTemplate = template?.trim() || defaultTemplate(kind)
+    const templateWithPortalAccess =
+      kind === 'cancellation'
+        ? baseTemplate
+        : `${baseTemplate}${customerPortalAccessEmailBlock(booking.customer_guest_code)}`
     const subject = deriveBookingEmailSubject({ kind, manualResend: true })
     const result = await sendBookingEmail({
       to: booking.customer_email,
       subject,
       kind,
-      template,
+      template: templateWithPortalAccess,
       customerName: booking.customer_name,
       serviceName: service.name,
       startTimeISO: booking.start_time,

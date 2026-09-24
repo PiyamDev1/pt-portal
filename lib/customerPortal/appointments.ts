@@ -3,7 +3,11 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { reserveBookingCapacity, releaseBookingCapacity } from '@/lib/bookingCapacity'
-import { defaultTemplate, sendBookingEmail } from '@/lib/bookingEmail'
+import {
+  customerPortalAccessEmailBlock,
+  defaultTemplate,
+  sendBookingEmail,
+} from '@/lib/bookingEmail'
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import {
@@ -492,7 +496,7 @@ export async function createCustomerAppointment(input: {
     to: input.contactEmail,
     subject: 'Your appointment is confirmed',
     kind: 'confirmation',
-    template: `${serviceRow.confirmation_template?.trim() || defaultTemplate('confirmation')}\n\nYour guest code: ${booking.customer_guest_code}\nManage your appointment securely: ${manageUrl}`,
+    template: `${serviceRow.confirmation_template?.trim() || defaultTemplate('confirmation')}${customerPortalAccessEmailBlock(booking.customer_guest_code, manageUrl)}`,
     customerName: input.contactName,
     serviceName: serviceRow.name,
     startTimeISO: slot.starts_at,

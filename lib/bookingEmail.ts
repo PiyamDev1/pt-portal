@@ -18,6 +18,49 @@ export {
 
 const BOOKING_SENDER_EMAIL = 'noreply.appointments@piyamtravel.com'
 
+function bookingEmailBaseUrl(): string {
+  const candidate =
+    process.env.APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'https://ims.piyamtravel.com'
+  const normalized = candidate.replace(/\/$/, '')
+  return /^https?:\/\//i.test(normalized) ? normalized : 'https://ims.piyamtravel.com'
+}
+
+function bookingEmailHeading(kind: 'confirmation' | 'modification' | 'cancellation'): string {
+  if (kind === 'confirmation') return 'Appointment confirmed'
+  if (kind === 'modification') return 'Appointment updated'
+  return 'Appointment cancelled'
+}
+
+/**
+ * Adds the non-secret customer-portal route and the claim code to a booking email.
+ * The code lets a signed-in customer link a guest booking; it never replaces a
+ * signed management grant when one is available.
+ */
+export function customerPortalAccessEmailBlock(
+  guestCode: string | null | undefined,
+  managementUrl?: string | null,
+): string {
+  const normalizedCode = guestCode?.trim().toUpperCase()
+  if (!normalizedCode) return ''
+
+  const portalAppointmentsUrl = `${(
+    process.env.CUSTOMER_PORTAL_ALLOWED_ORIGIN || 'https://portal.piyamtravel.com'
+  ).replace(/\/$/, '')}/appointments`
+  const managementLine = managementUrl ? `\nManage your appointment securely: ${managementUrl}` : ''
+
+  return [
+    '',
+    '',
+    `Customer portal access code: ${normalizedCode}`,
+    'Keep this code private. Sign in to the customer portal to add this appointment to your account.',
+    `Customer portal: ${portalAppointmentsUrl}`,
+    managementLine,
+  ].join('\n')
+}
+
 function formatDateTime(isoString: string): { date: string; time: string } {
   const d = new Date(isoString)
   return {
@@ -112,6 +155,11 @@ export async function sendBookingEmail(params: {
   const html = buildBookingEmailHtmlFromTemplate(
     params.template?.trim() || defaultTemplate(params.kind),
     values,
+    {
+      logoUrl: `${bookingEmailBaseUrl()}/logo.png`,
+      heading: bookingEmailHeading(params.kind),
+      eyebrow: 'Piyam Travel appointments',
+    },
   )
 
   try {
