@@ -82,13 +82,14 @@ export default function BookingsClient({
     return d
   }, [])
 
-  const [view, setView] = useState<'week' | 'list' | 'multi'>('multi')
+  const [view, setView] = useState<'today' | 'week' | 'list' | 'multi'>('today')
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today))
   const [monthStart, setMonthStart] = useState<Date>(() => startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState<Date>(today)
   const [mobileWeekDayIndex, setMobileWeekDayIndex] = useState(0)
   const [mobileListMode, setMobileListMode] = useState<'day' | 'week'>('day')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [showWorkspaceTools, setShowWorkspaceTools] = useState(false)
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
   const [loading, setLoading] = useState(false)
@@ -97,10 +98,12 @@ export default function BookingsClient({
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<'all' | BookingSource>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
   const [serviceFilter, setServiceFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [showCancelled, setShowCancelled] = useState(true)
   const [showSaveViewForm, setShowSaveViewForm] = useState(false)
   const [saveViewName, setSaveViewName] = useState('')
@@ -146,6 +149,8 @@ export default function BookingsClient({
   const notesAutosaveSkipNextRef = useRef(false)
   const latestNotesRef = useRef('')
   const lastBackgroundRefreshAtRef = useRef(0)
+  const bookingRequestIdRef = useRef(0)
+  const lastLoadedBookingScopeRef = useRef<string | null>(null)
   const confirmTokenRef = useRef(0)
   const [appointmentForm, setAppointmentForm] = useState<BookingDraftPayload>({
     customer_name: '',
@@ -185,13 +190,14 @@ export default function BookingsClient({
       }),
     [calendarGridStart],
   )
-  const rangeStart = useMemo(
-    () => (view === 'multi' ? new Date(calendarGridStart) : new Date(weekStart)),
-    [view, calendarGridStart, weekStart],
-  )
+  const rangeStart = useMemo(() => {
+    if (view === 'multi') return new Date(calendarGridStart)
+    if (view === 'today') return new Date(selectedDate)
+    return new Date(weekStart)
+  }, [view, calendarGridStart, selectedDate, weekStart])
   const rangeEnd = useMemo(() => {
     const to = new Date(rangeStart)
-    to.setUTCDate(to.getUTCDate() + (view === 'multi' ? 42 : 7))
+    to.setUTCDate(to.getUTCDate() + (view === 'multi' ? 42 : view === 'today' ? 1 : 7))
     return to
   }, [rangeStart, view])
 
@@ -204,12 +210,51 @@ export default function BookingsClient({
     return now.toISOString().slice(0, 10)
   }, [])
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearchQuery(searchQuery), 300)
+    return () => window.clearTimeout(timeout)
+  }, [searchQuery])
+
+  const bookingScopeKey = useMemo(
+    () =>
+      [
+        fromISO,
+        toISO,
+        selectedLocationId,
+        statusFilter,
+        sourceFilter,
+        serviceFilter,
+        showCancelled ? 'with-cancelled' : 'without-cancelled',
+        debouncedSearchQuery.trim().toLowerCase(),
+      ].join('|'),
+    [
+      debouncedSearchQuery,
+      fromISO,
+      selectedLocationId,
+      serviceFilter,
+      showCancelled,
+      sourceFilter,
+      statusFilter,
+      toISO,
+    ],
+  )
+
   const fetchBookings = useCallback(
     async (background = false) => {
+      const requestId = ++bookingRequestIdRef.current
+      const scopeChanged =
+        lastLoadedBookingScopeRef.current !== null &&
+        lastLoadedBookingScopeRef.current !== bookingScopeKey
+
       if (background) {
         setRefreshing(true)
       } else {
         setLoading(true)
+        setRefreshing(false)
+        setLoadError(null)
+        if (scopeChanged) {
+          setBookings([])
+        }
       }
 
       try {
@@ -221,22 +266,36 @@ export default function BookingsClient({
         params.set('source', sourceFilter)
         params.set('service_id', serviceFilter)
         params.set('include_cancelled', String(showCancelled))
-        if (searchQuery.trim()) {
-          params.set('q', searchQuery.trim())
+        if (debouncedSearchQuery.trim()) {
+          params.set('q', debouncedSearchQuery.trim())
         }
 
         const res = await fetch(`/api/bookings?${params.toString()}`, { cache: 'no-store' })
+        if (requestId !== bookingRequestIdRef.current) return
         if (res.status === 429) {
           setAutoRefresh(false)
           setLastUpdatedAt(new Date())
+          setLoadError('Automatic refresh is paused. You can refresh again when you are ready.')
           return
         }
         const json = await res.json()
+        if (requestId !== bookingRequestIdRef.current) return
+        if (!res.ok) {
+          throw new Error(json.error || 'Unable to load appointments')
+        }
         setBookings(json.bookings || [])
+        lastLoadedBookingScopeRef.current = bookingScopeKey
         setLastUpdatedAt(new Date())
+        setLoadError(null)
       } catch {
-        setBookings([])
+        if (requestId !== bookingRequestIdRef.current) return
+        setLoadError(
+          background
+            ? 'Could not refresh appointments. The last loaded results are still shown.'
+            : 'Could not load appointments. Check your connection and try again.',
+        )
       } finally {
+        if (requestId !== bookingRequestIdRef.current) return
         if (background) {
           setRefreshing(false)
         } else {
@@ -246,7 +305,8 @@ export default function BookingsClient({
     },
     [
       fromISO,
-      searchQuery,
+      debouncedSearchQuery,
+      bookingScopeKey,
       selectedLocationId,
       serviceFilter,
       showCancelled,
@@ -396,42 +456,62 @@ export default function BookingsClient({
 
   const goToPrev = () => {
     if (view === 'multi') {
-      setMonthStart((prev) => {
-        const d = new Date(prev)
-        d.setUTCMonth(d.getUTCMonth() - 1)
-        return d
-      })
+      const nextMonth = new Date(monthStart)
+      nextMonth.setUTCMonth(nextMonth.getUTCMonth() - 1)
+      const lastDay = new Date(
+        Date.UTC(nextMonth.getUTCFullYear(), nextMonth.getUTCMonth() + 1, 0),
+      ).getUTCDate()
+      const nextDate = new Date(nextMonth)
+      nextDate.setUTCDate(Math.min(selectedDate.getUTCDate(), lastDay))
+      setMonthStart(nextMonth)
+      setWeekStart(startOfWeek(nextDate))
+      setSelectedDate(nextDate)
       return
     }
 
-    setWeekStart((prev) => {
-      const d = new Date(prev)
-      d.setUTCDate(d.getUTCDate() - 7)
-      return d
-    })
+    const previousDate = new Date(selectedDate)
+    previousDate.setUTCDate(previousDate.getUTCDate() - (view === 'today' ? 1 : 7))
+    setSelectedDate(previousDate)
+    setWeekStart(startOfWeek(previousDate))
+    setMonthStart(startOfMonth(previousDate))
   }
 
   const goToNext = () => {
     if (view === 'multi') {
-      setMonthStart((prev) => {
-        const d = new Date(prev)
-        d.setUTCMonth(d.getUTCMonth() + 1)
-        return d
-      })
+      const nextMonth = new Date(monthStart)
+      nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1)
+      const lastDay = new Date(
+        Date.UTC(nextMonth.getUTCFullYear(), nextMonth.getUTCMonth() + 1, 0),
+      ).getUTCDate()
+      const nextDate = new Date(nextMonth)
+      nextDate.setUTCDate(Math.min(selectedDate.getUTCDate(), lastDay))
+      setMonthStart(nextMonth)
+      setWeekStart(startOfWeek(nextDate))
+      setSelectedDate(nextDate)
       return
     }
 
-    setWeekStart((prev) => {
-      const d = new Date(prev)
-      d.setUTCDate(d.getUTCDate() + 7)
-      return d
-    })
+    const nextDate = new Date(selectedDate)
+    nextDate.setUTCDate(nextDate.getUTCDate() + (view === 'today' ? 1 : 7))
+    setSelectedDate(nextDate)
+    setWeekStart(startOfWeek(nextDate))
+    setMonthStart(startOfMonth(nextDate))
   }
 
   const goToToday = () => {
     setSelectedDate(today)
     setWeekStart(startOfWeek(today))
     setMonthStart(startOfMonth(today))
+  }
+
+  const changeView = (nextView: typeof view) => {
+    setView(nextView)
+    if (nextView === 'week' || nextView === 'list') {
+      setWeekStart(startOfWeek(selectedDate))
+    }
+    if (nextView === 'multi') {
+      setMonthStart(startOfMonth(selectedDate))
+    }
   }
 
   const loadSlotsFor = useCallback(
@@ -509,10 +589,20 @@ export default function BookingsClient({
     [selectedDateKey, serviceOptions, todayDateKey],
   )
 
+  const selectDay = useCallback((day: Date) => {
+    setSelectedDate(day)
+    setWeekStart(startOfWeek(day))
+    setMonthStart(startOfMonth(day))
+  }, [])
+
   const openDayAgenda = useCallback(
     (day: Date) => {
-      setSelectedDate(day)
-      setWeekStart(startOfWeek(day))
+      selectDay(day)
+      if (day.toISOString().slice(0, 10) < todayDateKey) {
+        setView('today')
+        toast.message('Past dates are read-only.')
+        return
+      }
       setDayAgendaServiceId(
         (current) => current || appointmentForm.service_id || serviceOptions[0]?.id || '',
       )
@@ -521,7 +611,13 @@ export default function BookingsClient({
       setDayAgendaSlotsError(null)
       setShowDayAgendaModal(true)
     },
-    [appointmentForm.person_count, appointmentForm.service_id, serviceOptions],
+    [
+      appointmentForm.person_count,
+      appointmentForm.service_id,
+      selectDay,
+      serviceOptions,
+      todayDateKey,
+    ],
   )
 
   const allActiveBookings = bookings.filter((b) => b.status !== BookingStatus.CANCELLED)
@@ -530,7 +626,7 @@ export default function BookingsClient({
     if (statusFilter !== 'all' && b.status !== statusFilter) return false
     if (serviceFilter !== 'all' && b.service_id !== serviceFilter) return false
     if (!showCancelled && b.status === BookingStatus.CANCELLED) return false
-    if (searchQuery.trim()) {
+    if (debouncedSearchQuery.trim()) {
       const haystack = [
         b.customer_name,
         b.customer_phone,
@@ -541,7 +637,7 @@ export default function BookingsClient({
       ]
         .join(' ')
         .toLowerCase()
-      if (!haystack.includes(searchQuery.trim().toLowerCase())) return false
+      if (!haystack.includes(debouncedSearchQuery.trim().toLowerCase())) return false
     }
     return true
   })
@@ -787,6 +883,11 @@ export default function BookingsClient({
     } finally {
       setUpdatingId(null)
     }
+  }
+
+  const updateQueueStatus = (id: string, status: string) => {
+    const isRoutineStatus = status === BookingStatus.CONFIRMED || status === BookingStatus.COMPLETED
+    void updateStatus(id, status, isRoutineStatus ? { skipConfirm: true } : undefined)
   }
 
   const openEditBooking = (booking: BookingWithService) => {
@@ -1406,6 +1507,7 @@ export default function BookingsClient({
           : null
       : null
 
+  const dayLabel = formatHeaderDate(selectedDate)
   const weekLabel = `${formatHeaderDate(weekStart)} — ${formatHeaderDate(weekDays[6])}`
   const monthLabel = formatMonthLabel(monthStart)
 
@@ -1413,9 +1515,25 @@ export default function BookingsClient({
     view === 'multi'
       ? monthStart.getUTCFullYear() === today.getUTCFullYear() &&
         monthStart.getUTCMonth() === today.getUTCMonth()
-      : isSameUTCDay(weekStart, startOfWeek(today))
+      : view === 'today'
+        ? isSameUTCDay(selectedDate, today)
+        : isSameUTCDay(weekStart, startOfWeek(today))
 
   const selectedDateCount = selectedBookings.length
+  const canCreateOnSelectedDay = selectedDateKey >= todayDateKey
+  const selectedPendingCount = selectedBookings.filter(
+    (booking) => booking.status === BookingStatus.PENDING,
+  ).length
+  const selectedConfirmedCount = selectedBookings.filter(
+    (booking) => booking.status === BookingStatus.CONFIRMED,
+  ).length
+  const nextSelectedBooking = selectedBookings
+    .slice()
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    .find((booking) => new Date(booking.start_time).getTime() >= Date.now())
+  const activeWaitlistCount = waitlistEntries.filter(
+    (entry) => entry.status === 'waiting' || entry.status === 'contacted',
+  ).length
   const refreshLabel = lastUpdatedAt
     ? lastUpdatedAt.toLocaleTimeString('en-GB', {
         hour: '2-digit',
@@ -1437,8 +1555,13 @@ export default function BookingsClient({
   }, [panelServiceId, serviceOptions])
 
   useEffect(() => {
-    if (view !== 'week') return
-    if (!selectedDateKey || !panelServiceId || selectedBookings.length > 0) {
+    if (view !== 'week' && view !== 'today') return
+    if (
+      !canCreateOnSelectedDay ||
+      !selectedDateKey ||
+      !panelServiceId ||
+      selectedBookings.length > 0
+    ) {
       setPanelSlots([])
       setPanelSlotsError(null)
       return
@@ -1461,6 +1584,7 @@ export default function BookingsClient({
       cancelled = true
     }
   }, [
+    canCreateOnSelectedDay,
     loadSlotsFor,
     panelPersonCount,
     panelServiceId,
@@ -1488,24 +1612,38 @@ export default function BookingsClient({
                       Appointments
                     </h1>
                     <p className="mt-1 text-sm text-slate-600">
-                      {view === 'multi' ? monthLabel : weekLabel}
+                      {view === 'today' ? dayLabel : view === 'multi' ? monthLabel : weekLabel}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 self-start rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm">
                     <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white">
                       <button
-                        onClick={() => setView('multi')}
+                        onClick={() => changeView('today')}
+                        aria-pressed={view === 'today'}
+                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                          view === 'today'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <ClockIcon className="h-4 w-4" />
+                        Day
+                      </button>
+                      <button
+                        onClick={() => changeView('multi')}
+                        aria-pressed={view === 'multi'}
                         className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
                           view === 'multi'
                             ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-slate-600 hover:bg-slate-50'
+                            : 'border-l border-slate-200 text-slate-600 hover:bg-slate-50'
                         }`}
                       >
                         <CalendarIcon className="h-4 w-4" />
                         Calendar
                       </button>
                       <button
-                        onClick={() => setView('week')}
+                        onClick={() => changeView('week')}
+                        aria-pressed={view === 'week'}
                         className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
                           view === 'week'
                             ? 'bg-indigo-600 text-white shadow-sm'
@@ -1516,7 +1654,8 @@ export default function BookingsClient({
                         Week
                       </button>
                       <button
-                        onClick={() => setView('list')}
+                        onClick={() => changeView('list')}
+                        aria-pressed={view === 'list'}
                         className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
                           view === 'list'
                             ? 'bg-indigo-600 text-white shadow-sm'
@@ -1531,27 +1670,54 @@ export default function BookingsClient({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                    {view === 'multi' ? (
+                    {view === 'today' ? (
+                      <ClockIcon className="h-3.5 w-3.5" />
+                    ) : view === 'multi' ? (
                       <CalendarIcon className="h-3.5 w-3.5" />
                     ) : view === 'week' ? (
                       <WeekIcon className="h-3.5 w-3.5" />
                     ) : (
                       <ListIcon className="h-3.5 w-3.5" />
                     )}
-                    {view === 'multi'
-                      ? 'Calendar overview'
-                      : view === 'week'
-                        ? 'Week timeline'
-                        : 'Appointment list'}
+                    {view === 'today'
+                      ? 'Daily agenda'
+                      : view === 'multi'
+                        ? 'Calendar overview'
+                        : view === 'week'
+                          ? 'Week timeline'
+                          : 'Appointment list'}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                    <FilterIcon className="h-3.5 w-3.5" />
-                    {sourceFilterLabel}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                    <FilterIcon className="h-3.5 w-3.5" />
-                    {statusFilterLabel}
-                  </span>
+                  {sourceFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                      <FilterIcon className="h-3.5 w-3.5" />
+                      {sourceFilterLabel}
+                    </span>
+                  )}
+                  {statusFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                      <FilterIcon className="h-3.5 w-3.5" />
+                      {statusFilterLabel}
+                    </span>
+                  )}
+                  {serviceFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                      <FilterIcon className="h-3.5 w-3.5" />
+                      {serviceOptions.find((service) => service.id === serviceFilter)?.name ||
+                        'Service filter'}
+                    </span>
+                  )}
+                  {!showCancelled && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                      <FilterIcon className="h-3.5 w-3.5" />
+                      Cancelled hidden
+                    </span>
+                  )}
+                  {searchQuery.trim() && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                      <FilterIcon className="h-3.5 w-3.5" />
+                      {searchQuery === debouncedSearchQuery ? 'Search active' : 'Updating search'}
+                    </span>
+                  )}
                   {selectedLocationId && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
                       <PinIcon className="h-3.5 w-3.5" />
@@ -1567,7 +1733,13 @@ export default function BookingsClient({
                 <button
                   onClick={goToPrev}
                   className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-600"
-                  title={view === 'multi' ? 'Previous month' : 'Previous week'}
+                  title={
+                    view === 'multi'
+                      ? 'Previous month'
+                      : view === 'today'
+                        ? 'Previous day'
+                        : 'Previous week'
+                  }
                 >
                   <ChevronLeftIcon className="h-4 w-4" />
                 </button>
@@ -1585,7 +1757,9 @@ export default function BookingsClient({
                 <button
                   onClick={goToNext}
                   className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-600"
-                  title={view === 'multi' ? 'Next month' : 'Next week'}
+                  title={
+                    view === 'multi' ? 'Next month' : view === 'today' ? 'Next day' : 'Next week'
+                  }
                 >
                   <ChevronRightIcon className="h-4 w-4" />
                 </button>
@@ -1735,7 +1909,13 @@ export default function BookingsClient({
               <button
                 onClick={goToPrev}
                 className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
-                title={view === 'multi' ? 'Previous month' : 'Previous week'}
+                title={
+                  view === 'multi'
+                    ? 'Previous month'
+                    : view === 'today'
+                      ? 'Previous day'
+                      : 'Previous week'
+                }
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </button>
@@ -1755,18 +1935,11 @@ export default function BookingsClient({
               <button
                 onClick={goToNext}
                 className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
-                title={view === 'multi' ? 'Next month' : 'Next week'}
+                title={
+                  view === 'multi' ? 'Next month' : view === 'today' ? 'Next day' : 'Next week'
+                }
               >
                 <ChevronRightIcon className="h-4 w-4" />
-              </button>
-
-              <button
-                onClick={() => fetchBookings(true)}
-                disabled={refreshing}
-                className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
-              >
-                <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
 
               {isAdmin && (
@@ -1827,85 +2000,128 @@ export default function BookingsClient({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search customer, email, phone, notes"
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
+                  className="min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
                 />
               )}
 
               {!showSettings && (
-                <div className="relative">
-                  <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <select
-                    value={sourceFilter}
-                    onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
-                    className="rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-700 transition-colors hover:border-slate-300 sm:text-sm"
-                  >
-                    <option value="all">All sources</option>
-                    <option value={BookingSource.PORTAL}>Portal</option>
-                    <option value={BookingSource.WHATSAPP}>WhatsApp</option>
-                    <option value={BookingSource.WEBSITE}>Website</option>
-                  </select>
-                </div>
-              )}
-
-              {!showSettings && (
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as 'all' | BookingStatus)}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
-                >
-                  <option value="all">All statuses</option>
-                  <option value={BookingStatus.PENDING}>Pending</option>
-                  <option value={BookingStatus.CONFIRMED}>Confirmed</option>
-                  <option value={BookingStatus.COMPLETED}>Completed</option>
-                  <option value={BookingStatus.CANCELLED}>Cancelled</option>
-                </select>
-              )}
-
-              {!showSettings && (
-                <select
-                  value={serviceFilter}
-                  onChange={(e) => setServiceFilter(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
-                >
-                  <option value="all">All services</option>
-                  {serviceOptions.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {!showSettings && (
-                <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm">
-                  <input
-                    type="checkbox"
-                    checked={showCancelled}
-                    onChange={(e) => setShowCancelled(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                  />
-                  Show cancelled
-                </label>
-              )}
-
-              {!showSettings && (
                 <button
-                  onClick={openSaveViewForm}
-                  className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
+                  onClick={() => setShowWorkspaceTools((current) => !current)}
+                  aria-expanded={showWorkspaceTools}
+                  className={`ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                    showWorkspaceTools
+                      ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
                 >
-                  Save View
-                </button>
-              )}
-
-              {!showSettings && (
-                <button
-                  onClick={exportBookings}
-                  className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
-                >
-                  Export CSV
+                  <FilterIcon className="h-4 w-4" />
+                  Filters &amp; tools
                 </button>
               )}
             </div>
+
+            {!showSettings && showWorkspaceTools && (
+              <div
+                className="bookings-desktop-only hidden rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 shadow-sm md:block"
+                aria-label="Booking filters and workspace tools"
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+                  <div>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">Narrow this view</p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Filters apply to this workspace. Exports include the chosen date,
+                          location, source, and status.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSourceFilter('all')
+                          setStatusFilter('all')
+                          setServiceFilter('all')
+                          setShowCancelled(true)
+                          setSearchQuery('')
+                          setDebouncedSearchQuery('')
+                        }}
+                        className="ui-tap ui-focus text-xs font-medium text-indigo-700 hover:text-indigo-900"
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <select
+                        value={sourceFilter}
+                        onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
+                        aria-label="Booking source"
+                        className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="all">All sources</option>
+                        <option value={BookingSource.PORTAL}>Portal</option>
+                        <option value={BookingSource.WHATSAPP}>WhatsApp</option>
+                        <option value={BookingSource.WEBSITE}>Website</option>
+                      </select>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as 'all' | BookingStatus)}
+                        aria-label="Appointment status"
+                        className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="all">All statuses</option>
+                        <option value={BookingStatus.PENDING}>Pending</option>
+                        <option value={BookingStatus.CONFIRMED}>Confirmed</option>
+                        <option value={BookingStatus.COMPLETED}>Completed</option>
+                        <option value={BookingStatus.CANCELLED}>Cancelled</option>
+                      </select>
+                      <select
+                        value={serviceFilter}
+                        onChange={(e) => setServiceFilter(e.target.value)}
+                        aria-label="Booking service"
+                        className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="all">All services</option>
+                        {serviceOptions.map((service) => (
+                          <option key={service.id} value={service.id}>
+                            {service.name}
+                          </option>
+                        ))}
+                      </select>
+                      <label className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={showCancelled}
+                          onChange={(e) => setShowCancelled(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                        />
+                        Include cancelled
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                    <button
+                      onClick={() => fetchBookings(true)}
+                      disabled={refreshing}
+                      className="ui-tap ui-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                      {refreshing ? 'Refreshing' : 'Refresh'}
+                    </button>
+                    <button
+                      onClick={openSaveViewForm}
+                      className="ui-tap ui-focus min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Save view
+                    </button>
+                    <button
+                      onClick={exportBookings}
+                      className="ui-tap ui-focus min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Export CSV
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm">
               <span className="inline-flex items-center gap-1.5 font-medium text-slate-600">
@@ -1926,6 +2142,21 @@ export default function BookingsClient({
                 <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-600">
                   Auto-refresh paused
                 </span>
+              )}
+              {loadError && (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800"
+                >
+                  <span>{loadError}</span>
+                  <button
+                    onClick={() => fetchBookings(true)}
+                    disabled={refreshing}
+                    className="ui-focus font-semibold underline underline-offset-2 disabled:opacity-50"
+                  >
+                    Retry
+                  </button>
+                </div>
               )}
               <span className="ui-tap inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
                 <EyeIcon className="h-4 w-4 text-slate-500" />
@@ -1992,7 +2223,7 @@ export default function BookingsClient({
               </div>
             )}
 
-            {!showSettings && (
+            {!showSettings && view !== 'today' && (
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm">
                   <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
@@ -2030,6 +2261,149 @@ export default function BookingsClient({
               selectedLocationId={selectedLocationId}
               onLocationChange={setSelectedLocationId}
             />
+          </div>
+        ) : view === 'today' ? (
+          <div className="animate-enter-fade-up animate-enter-delay-1 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <SelectedDayPanel
+              selectedDate={selectedDate}
+              today={today}
+              selectedBookings={selectedBookings}
+              loading={loading}
+              updatingId={updatingId}
+              onStatusChange={updateQueueStatus}
+              onEditBooking={openEditBooking}
+              onOpenHistory={(bookingId) => setHistoryBookingId(bookingId)}
+              onResendEmail={resendBookingEmail}
+              resendingBookingId={resendingBookingId}
+              selectedDateCount={selectedDateCount}
+              onOpenDayAgenda={() => openDayAgenda(selectedDate)}
+              canCreate={canCreateOnSelectedDay}
+              enableQuickAvailability={canCreateOnSelectedDay}
+              serviceOptions={serviceOptions}
+              quickServiceId={panelServiceId}
+              quickPersonCount={panelPersonCount}
+              quickSlots={panelSlots}
+              quickSlotsLoading={loadingPanelSlots}
+              quickSlotsError={panelSlotsError}
+              onQuickServiceChange={setPanelServiceId}
+              onQuickPersonCountChange={(value) => setPanelPersonCount(Math.max(1, value))}
+              onQuickSelectSlot={(slot) =>
+                openCreateAppointment({
+                  date: selectedDateKey,
+                  service_id: panelServiceId,
+                  person_count: panelPersonCount,
+                  start_time: slot.isoString,
+                })
+              }
+            />
+
+            <aside className="space-y-4">
+              <section className="rounded-[24px] border border-indigo-100 bg-[linear-gradient(145deg,_#eef2ff_0%,_#ffffff_72%)] p-5 shadow-[0_18px_50px_-32px_rgba(79,70,229,0.45)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Daily queue</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Visible appointments for this day.
+                    </p>
+                  </div>
+                  <span className="rounded-xl bg-indigo-600 px-2.5 py-1 text-sm font-bold text-white">
+                    {selectedDateCount}
+                  </span>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                      To confirm
+                    </dt>
+                    <dd className="mt-1 text-xl font-semibold text-amber-900">
+                      {selectedPendingCount}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                      Confirmed
+                    </dt>
+                    <dd className="mt-1 text-xl font-semibold text-emerald-900">
+                      {selectedConfirmedCount}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-4 rounded-xl border border-white bg-white/80 px-3 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Next up
+                  </p>
+                  {nextSelectedBooking ? (
+                    <button
+                      onClick={() => openEditBooking(nextSelectedBooking)}
+                      className="ui-focus mt-1 w-full text-left"
+                    >
+                      <p className="text-sm font-semibold text-slate-800">
+                        {formatTime(nextSelectedBooking.start_time)} ·{' '}
+                        {nextSelectedBooking.customer_name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {nextSelectedBooking.booking_services?.name || 'Appointment'}
+                      </p>
+                    </button>
+                  ) : (
+                    <p className="mt-1 text-sm text-slate-500">
+                      No remaining appointments on this day.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-sm font-semibold text-slate-800">Desk actions</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {canCreateOnSelectedDay
+                    ? 'Start from an available time or add the appointment details directly.'
+                    : 'Past dates cannot accept new appointments.'}
+                </p>
+                <div className="mt-4 grid gap-2">
+                  <button
+                    onClick={() => openDayAgenda(selectedDate)}
+                    disabled={!canCreateOnSelectedDay}
+                    className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <ClockIcon className="h-4 w-4" />
+                    Find an available time
+                  </button>
+                  <button
+                    onClick={() => openCreateAppointment({ date: selectedDateKey })}
+                    disabled={!canCreateOnSelectedDay}
+                    className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Add appointment details
+                  </button>
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-950">Waiting list</p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      {activeWaitlistCount > 0
+                        ? `${activeWaitlistCount} customer${activeWaitlistCount === 1 ? '' : 's'} still need a slot.`
+                        : 'No customer is currently waiting for a slot.'}
+                    </p>
+                  </div>
+                  {activeWaitlistCount > 0 && (
+                    <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">
+                      {activeWaitlistCount}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowWaitlistModal(true)}
+                  className="ui-tap ui-focus mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  Add to waiting list
+                </button>
+              </section>
+            </aside>
           </div>
         ) : (
           view === 'multi' && (
@@ -2095,6 +2469,10 @@ export default function BookingsClient({
                 </div>
               </div>
 
+              <p className="bookings-desktop-only hidden px-1 text-xs text-slate-500 md:block">
+                Select a date to update the detailed day queue below.
+              </p>
+
               <div className="bookings-desktop-only bookings-calendar-grid overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
                 <div className="grid grid-cols-7 border-b border-slate-200 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
                   {CALENDAR_DAY_LABELS.map((label) => (
@@ -2117,7 +2495,7 @@ export default function BookingsClient({
                     return (
                       <button
                         key={day.toISOString()}
-                        onClick={() => openDayAgenda(day)}
+                        onClick={() => selectDay(day)}
                         className={`min-h-[96px] p-2 sm:min-h-[118px] sm:p-3 border-r border-b border-slate-100 text-left transition-all duration-150 ${
                           isSelected
                             ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
@@ -2186,13 +2564,14 @@ export default function BookingsClient({
                 selectedBookings={selectedBookings}
                 loading={loading}
                 updatingId={updatingId}
-                onStatusChange={updateStatus}
+                onStatusChange={updateQueueStatus}
                 onEditBooking={openEditBooking}
                 onOpenHistory={(bookingId) => setHistoryBookingId(bookingId)}
                 onResendEmail={resendBookingEmail}
                 resendingBookingId={resendingBookingId}
                 selectedDateCount={selectedDateCount}
                 onOpenDayAgenda={() => openDayAgenda(selectedDate)}
+                canCreate={canCreateOnSelectedDay}
                 enableQuickAvailability={false}
                 serviceOptions={serviceOptions}
                 quickServiceId={panelServiceId}
@@ -2215,7 +2594,7 @@ export default function BookingsClient({
           )
         )}
 
-        {view === 'week' && (
+        {!showSettings && view === 'week' && (
           <div className="animate-enter-fade-up animate-enter-delay-1 space-y-3">
             <div className="md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -2267,7 +2646,7 @@ export default function BookingsClient({
           </div>
         )}
 
-        {view === 'list' && (
+        {!showSettings && view === 'list' && (
           <div className="animate-enter-fade-up animate-enter-delay-1 space-y-3">
             <div className="md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
               <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-1">
@@ -2377,7 +2756,7 @@ export default function BookingsClient({
                             <BookingRow
                               key={booking.id}
                               booking={booking}
-                              onStatusChange={updateStatus}
+                              onStatusChange={updateQueueStatus}
                               onEditBooking={openEditBooking}
                               onOpenHistory={(bookingId) => setHistoryBookingId(bookingId)}
                               onResendEmail={resendBookingEmail}

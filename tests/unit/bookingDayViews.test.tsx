@@ -75,6 +75,7 @@ describe('booking day views', () => {
       />,
     )
 
+    fireEvent.click(screen.getByText('More'))
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     fireEvent.click(screen.getByRole('button', { name: 'History' }))
     fireEvent.click(screen.getByRole('button', { name: 'Re-send' }))

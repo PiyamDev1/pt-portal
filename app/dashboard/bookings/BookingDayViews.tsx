@@ -34,6 +34,7 @@ export function SelectedDayPanel({
   resendingBookingId,
   selectedDateCount,
   onOpenDayAgenda,
+  canCreate = true,
   enableQuickAvailability,
   serviceOptions,
   quickServiceId,
@@ -57,6 +58,7 @@ export function SelectedDayPanel({
   resendingBookingId: string | null
   selectedDateCount: number
   onOpenDayAgenda: () => void
+  canCreate?: boolean
   enableQuickAvailability: boolean
   serviceOptions: BookingServiceOption[]
   quickServiceId: string
@@ -71,8 +73,16 @@ export function SelectedDayPanel({
   return (
     <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)]">
       <div className="flex items-center justify-between border-b border-slate-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] px-5 py-4">
-        <button onClick={onOpenDayAgenda} className="text-left">
-          <h2 className="font-semibold text-slate-800 hover:text-indigo-700 transition-colors">
+        <button
+          onClick={onOpenDayAgenda}
+          disabled={!canCreate}
+          className="text-left disabled:cursor-not-allowed"
+        >
+          <h2
+            className={`font-semibold transition-colors ${
+              canCreate ? 'text-slate-800 hover:text-indigo-700' : 'text-slate-500'
+            }`}
+          >
             {formatDateLabel(selectedDate)}
             {isSameUTCDay(selectedDate, today) && (
               <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
@@ -95,7 +105,9 @@ export function SelectedDayPanel({
           <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
             <p className="text-base font-semibold text-slate-700">No appointments on this day</p>
             <p className="mt-2 text-sm text-slate-400">
-              Use the agenda or click directly in the week timeline to create the next booking.
+              {canCreate
+                ? 'Use the agenda or click directly in the week timeline to create the next booking.'
+                : 'This is a historical day, so new appointments cannot be added.'}
             </p>
           </div>
           {enableQuickAvailability && (
@@ -525,6 +537,9 @@ export const BookingRow = memo(function BookingRow({
   const sourceClass = SOURCE_CONFIG[booking.source] ?? 'bg-slate-100 text-slate-600'
   const isUpdating = updatingId === booking.id
   const isResending = resendingBookingId === booking.id
+  const closeMoreActions = (trigger: HTMLElement) => {
+    trigger.closest('details')?.removeAttribute('open')
+  }
 
   return (
     <div className="px-4 sm:px-5 py-4 transition-all hover:bg-slate-50/80">
@@ -598,29 +613,6 @@ export const BookingRow = memo(function BookingRow({
             {booking.source}
           </span>
 
-          <button
-            onClick={() => onEditBooking(booking)}
-            className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
-          >
-            <PencilIcon className="h-3.5 w-3.5" />
-            Edit
-          </button>
-
-          <button
-            onClick={() => onOpenHistory(booking.id)}
-            className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
-          >
-            History
-          </button>
-
-          <button
-            onClick={() => void onResendEmail(booking)}
-            disabled={isResending}
-            className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-          >
-            {isResending ? 'Sending…' : 'Re-send'}
-          </button>
-
           {booking.status === BookingStatus.PENDING && (
             <button
               onClick={() => onStatusChange(booking.id, 'confirmed')}
@@ -641,17 +633,59 @@ export const BookingRow = memo(function BookingRow({
               {isUpdating ? '…' : 'Mark Done'}
             </button>
           )}
-          {(booking.status === BookingStatus.PENDING ||
-            booking.status === BookingStatus.CONFIRMED) && (
-            <button
-              onClick={() => onStatusChange(booking.id, 'cancelled')}
-              disabled={isUpdating}
-              className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
+          <details className="group">
+            <summary
+              aria-label={`More actions for ${booking.customer_name}`}
+              className="ui-tap ui-focus cursor-pointer list-none rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 [&::-webkit-details-marker]:hidden"
             >
-              {!isUpdating && <CloseIcon className="h-3.5 w-3.5" />}
-              {isUpdating ? '…' : 'Cancel'}
-            </button>
-          )}
+              More
+            </summary>
+            <div className="mt-2 grid min-w-40 gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button
+                onClick={(event) => {
+                  closeMoreActions(event.currentTarget)
+                  onEditBooking(booking)
+                }}
+                className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <PencilIcon className="h-3.5 w-3.5" />
+                Edit
+              </button>
+              <button
+                onClick={(event) => {
+                  closeMoreActions(event.currentTarget)
+                  onOpenHistory(booking.id)
+                }}
+                className="ui-tap ui-focus rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                History
+              </button>
+              <button
+                onClick={(event) => {
+                  closeMoreActions(event.currentTarget)
+                  void onResendEmail(booking)
+                }}
+                disabled={isResending}
+                className="ui-tap ui-focus rounded-lg px-2.5 py-2 text-left text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+              >
+                {isResending ? 'Sending…' : 'Re-send'}
+              </button>
+              {(booking.status === BookingStatus.PENDING ||
+                booking.status === BookingStatus.CONFIRMED) && (
+                <button
+                  onClick={(event) => {
+                    closeMoreActions(event.currentTarget)
+                    onStatusChange(booking.id, 'cancelled')
+                  }}
+                  disabled={isUpdating}
+                  className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {!isUpdating && <CloseIcon className="h-3.5 w-3.5" />}
+                  {isUpdating ? 'Updating…' : 'Cancel appointment'}
+                </button>
+              )}
+            </div>
+          </details>
         </div>
       </div>
     </div>
