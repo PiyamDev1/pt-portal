@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildBookingEmailHtmlFromTemplate } from '@/lib/bookingEmailTemplate'
 
 describe('booking email template', () => {
-  it('renders the Piyam Travel visual theme, appointment details, and a customer portal code card', () => {
+  it('renders the Piyam Travel maroon email theme, appointment details, and a customer portal code card', () => {
     const html = buildBookingEmailHtmlFromTemplate(
       'Dear [Customer Name],\n\nCustomer portal access code: VISIT-A1B2C3D4E5F6\nKeep this code private.\nCustomer portal: https://portal.piyamtravel.com/appointments',
       {
@@ -25,6 +25,10 @@ describe('booking email template', () => {
     expect(html).toContain('Customer portal access code')
     expect(html).toContain('VISIT-A1B2C3D4E5F6')
     expect(html).toContain('href="https://portal.piyamtravel.com/appointments"')
+    expect(html).toContain('background:#ffffff;border-bottom:4px solid #8b1d2c')
+    expect(html).toContain('background:#fbf4f5')
+    expect(html).toContain('background:#fff7f8')
+    expect(html).not.toContain('#3b82f6')
   })
 
   it('escapes custom email copy instead of treating it as markup', () => {
