@@ -26,10 +26,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply only the reviewed migration
-        env:
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Authenticate Supabase CLI
+        run: npx --yes supabase@latest login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+
+      - name: Stage only the reviewed migration
         run: |
-          psql "host=db.${SUPABASE_PROJECT_REF}.supabase.co port=5432 dbname=postgres user=postgres sslmode=require" \
-            --set ON_ERROR_STOP=1 \
-            --file supabase/migrations/20260925184500_ticketing_direct_payment_status.sql
+          mkdir -p .ticketing-payment-stage
+          mv supabase/migrations .ticketing-payment-stage/all-migrations
+          mkdir -p supabase/migrations
+          cp .ticketing-payment-stage/all-migrations/20260925184500_ticketing_direct_payment_status.sql \
+            supabase/migrations/20260925184500_ticketing_direct_payment_status.sql
+
+      - name: Link production project through the supported pooler
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Apply only the reviewed migration
+        run: npx --yes supabase@latest db push --linked --yes
