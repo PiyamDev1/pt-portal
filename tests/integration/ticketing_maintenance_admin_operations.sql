@@ -48,6 +48,13 @@ begin
   end if;
 
   definition := pg_get_functiondef(
+    'public.protect_posted_ticket_fare_lines()'::regprocedure
+  );
+  if position('ticketing_initial_pricing_context_matches_2026082801' in definition) = 0 then
+    raise exception 'Posted fare protection does not permit authorised price corrections';
+  end if;
+
+  definition := pg_get_functiondef(
     'public.ticketing_actor_is_admin_2026082802(uuid)'::regprocedure
   );
   if position('maintenance admin' in definition) > 0 then

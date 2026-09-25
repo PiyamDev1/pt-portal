@@ -7,6 +7,7 @@ on:
       - 'supabase/migrations/20260925184500_ticketing_direct_payment_status.sql'
       - 'supabase/migrations/20260925193000_ticketing_master_admin_posted_detail_override.sql'
       - 'supabase/migrations/20260925201500_ticketing_master_admin_operational_edits.sql'
+      - 'supabase/migrations/20260925201501_ticketing_allow_authorized_price_corrections.sql'
       - '.github/workflows/deploy-ticketing-payment-status.yml'
   workflow_dispatch:
 
@@ -49,7 +50,8 @@ jobs:
             20260908214024 \
             20260925184500 \
             20260925193000 \
-            20260925201500; do
+            20260925201500 \
+            20260925201501; do
             cp .ticketing-payment-stage/all-migrations/"${version}"_*.sql supabase/migrations/
           done
 

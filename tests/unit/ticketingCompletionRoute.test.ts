@@ -290,7 +290,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         id: ACTOR_ID,
         email: 'admin@example.test',
         fullName: 'Portal Admin',
-        role: 'Master Admin',
+        role: 'Admin',
         departments: [],
       },
     })
@@ -496,7 +496,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
         id: ACTOR_ID,
         email: 'admin@example.test',
         fullName: 'Portal Admin',
-        role: 'Master Admin',
+        role: 'Admin',
         departments: [],
       },
     })
@@ -577,7 +577,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
     expect(JSON.stringify(body)).not.toMatch(/commission|profit|audit|sourceEvents/i)
   })
 
-  it('does not ask a Super Admin for an on-behalf reason and records an audit marker', async () => {
+  it('keeps the legacy Super Admin alias reason-free with the Master Admin marker', async () => {
     mocks.requireTicketingAccess.mockResolvedValue({
       authorized: true,
       scope: 'team',
@@ -605,7 +605,7 @@ describe('/api/ticketing/ledger/[bookingId]', () => {
       p_idempotency_key: 'super-on-behalf-1',
       p_details: {
         ...validPatch(),
-        onBehalfReason: 'Super Admin completion override',
+        onBehalfReason: 'Master Admin completion override',
       },
     })
     expect(body.completionContext).toMatchObject({
