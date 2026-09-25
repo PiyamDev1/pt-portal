@@ -55,6 +55,17 @@ begin
   end if;
 
   definition := pg_get_functiondef(
+    'public.protect_ticket_transaction_history()'::regprocedure
+  );
+  if position('ticketing_owner_correction_context_matches_2026082402' in definition) = 0
+    or position('ticketing_initial_pricing_context_matches_2026082801' in definition) = 0
+    or position('ticketing_date_correction_context_matches_2026090203' in definition) = 0
+    or position('ticketing.direct_payment_status_update' in definition) = 0
+  then
+    raise exception 'Transaction history protection dropped an authorised correction context';
+  end if;
+
+  definition := pg_get_functiondef(
     'public.ticketing_actor_is_admin_2026082802(uuid)'::regprocedure
   );
   if position('maintenance admin' in definition) > 0 then
