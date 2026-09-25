@@ -4,14 +4,9 @@
 do $master_admin_completion_override$
 declare
   function_definition text;
-  old_guard constant text := $guard$
-  if booking_row.payment_status is distinct from transaction_row.payment_status
-    or transaction_row.payment_status not in ('unpaid', 'paid')
-  then
-    raise exception 'Ticket payment state requires an audited correction'
-      using errcode = '55000', hint = 'TICKETING_CORRECTION_REQUIRED';
-  end if;
-$guard$;
+  guard_pattern constant text :=
+    'if\s+booking_row\.payment_status\s+is\s+distinct\s+from\s+transaction_row\.payment_status\s+or\s+transaction_row\.payment_status\s+not\s+in\s+\([^)]*\)\s+then\s+raise\s+exception\s+''Ticket payment state requires an audited correction''\s+using\s+errcode\s+=\s+''55000'',\s+hint\s+=\s+''TICKETING_CORRECTION_REQUIRED'';\s+end\s+if;';
+  guard_count integer;
   new_guard constant text := $guard$
   if (
     booking_row.payment_status is distinct from transaction_row.payment_status
@@ -26,14 +21,13 @@ begin
     'public.ticketing_complete_tk_details_authorized(uuid,uuid,text,jsonb)'::regprocedure
   ) into function_definition;
 
-  if function_definition is null
-    or position(old_guard in function_definition) = 0
-    or position(old_guard in replace(function_definition, old_guard, '')) > 0
-  then
+  select count(*) into guard_count
+  from regexp_matches(function_definition, guard_pattern, 'gs');
+  if function_definition is null or guard_count <> 1 then
     raise exception 'Ticketing completion function differs from the reviewed posted-payment guard'
       using errcode = '55000', hint = 'TICKETING_COMPLETION_SCHEMA_DRIFT';
   end if;
 
-  execute replace(function_definition, old_guard, new_guard);
+  execute regexp_replace(function_definition, guard_pattern, new_guard, 'gs');
 end
 $master_admin_completion_override$;
