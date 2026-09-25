@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/migrations/20260925184500_ticketing_direct_payment_status.sql'
+      - 'supabase/migrations/20260925193000_ticketing_master_admin_posted_detail_override.sql'
       - '.github/workflows/deploy-ticketing-payment-status.yml'
   workflow_dispatch:
 
