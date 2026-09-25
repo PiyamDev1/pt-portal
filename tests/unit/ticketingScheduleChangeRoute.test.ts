@@ -197,7 +197,7 @@ describe('POST /api/ticketing/flight-monitor/[sectorId]/schedule-change', () => 
     )
     expect(mocks.rpc).toHaveBeenCalledWith(
       'ticketing_transition_schedule_change',
-      expect.objectContaining({ p_action: 'finalise', p_reason: 'Super Admin override' }),
+      expect.objectContaining({ p_action: 'finalise', p_reason: 'Master Admin override' }),
     )
   })
 
