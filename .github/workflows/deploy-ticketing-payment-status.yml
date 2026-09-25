@@ -6,6 +6,7 @@ on:
     paths:
       - 'supabase/migrations/20260925184500_ticketing_direct_payment_status.sql'
       - 'supabase/migrations/20260925193000_ticketing_master_admin_posted_detail_override.sql'
+      - 'supabase/migrations/20260925201500_ticketing_master_admin_operational_edits.sql'
       - '.github/workflows/deploy-ticketing-payment-status.yml'
   workflow_dispatch:
 
@@ -47,7 +48,8 @@ jobs:
             20260902000200 \
             20260908214024 \
             20260925184500 \
-            20260925193000; do
+            20260925193000 \
+            20260925201500; do
             cp .ticketing-payment-stage/all-migrations/"${version}"_*.sql supabase/migrations/
           done
 
