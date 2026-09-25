@@ -1,11 +1,11 @@
 /**
- * Platform-wide Super Admin workflow policy.
+ * Platform-wide Master Admin workflow policy.
  *
  * This is deliberately a server-enforced role check at each protected route.
  * The default reason preserves the immutable audit record without asking a
- * Super Admin to type an explanation for an authorised operational action.
+ * Master Admin to type an explanation for an authorised operational action.
  */
-export const SUPER_ADMIN_AUDIT_REASON = 'Super Admin override'
+export const SUPER_ADMIN_AUDIT_REASON = 'Master Admin override'
 
 export function normalizeStaffRole(value: unknown) {
   return String(value || '')
@@ -15,5 +15,6 @@ export function normalizeStaffRole(value: unknown) {
 }
 
 export function isSuperAdmin(role: unknown) {
-  return normalizeStaffRole(role) === 'super admin'
+  const normalized = normalizeStaffRole(role)
+  return normalized === 'super admin' || normalized === 'master admin'
 }

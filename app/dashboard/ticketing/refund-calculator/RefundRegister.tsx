@@ -104,7 +104,7 @@ function RefundEventForm({
           eventDate,
           reference: reference.trim() || null,
           notes: notes.trim() || null,
-          overrideReason: reason.trim() || (isSuperAdmin ? 'Super Admin override' : null),
+          overrideReason: reason.trim() || (isSuperAdmin ? 'Master Admin override' : null),
         },
         idempotencyKey.current,
       )

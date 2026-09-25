@@ -192,7 +192,7 @@ describe('POST /api/ticketing/flight-monitor/[sectorId]/schedule-change', () => 
       expect.objectContaining({
         p_action: 'review',
         p_idempotency_key: `super-admin-review:${REQUEST_ID}`,
-        p_reason: 'Super Admin override',
+        p_reason: 'Master Admin override',
       }),
     )
     expect(mocks.rpc).toHaveBeenCalledWith(

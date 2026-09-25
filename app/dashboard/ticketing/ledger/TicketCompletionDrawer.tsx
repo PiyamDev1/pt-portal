@@ -16,6 +16,7 @@ import {
   loadTicketCompletionDetail,
   TicketLedgerApiError,
   updateTicketCompletionDetail,
+  updateTicketRootPaymentStatus,
 } from './ledgerClientApi'
 import type {
   TicketCompletionDetail,
@@ -336,11 +337,6 @@ export function TicketCompletionDrawer({
       nextErrors.paymentStatus =
         'Every grouped sale price is required before marking this ticket Paid.'
     }
-    if (draft.paymentStatus === 'part_paid') {
-      nextErrors.paymentStatus =
-        'Part-paid records require the future payment or correction workflow before more details can be saved.'
-    }
-
     for (const passenger of draft.passengers) {
       const prefix = `passenger.${passenger.passengerType}.${passenger.position}`
       if (passenger.fullName.trim().length > 200) {
@@ -373,7 +369,49 @@ export function TicketCompletionDrawer({
       focusFirstError()
       return
     }
-    if (draft.paymentStatus === 'part_paid') return
+    const paymentChanged = draft.paymentStatus !== initialDraft?.paymentStatus
+    const detailsChangedWithoutPayment =
+      initialDraft &&
+      JSON.stringify({ ...draft, paymentStatus: 'unchanged', paidAt: null, onBehalfReason: '' }) !==
+        JSON.stringify({ ...initialDraft, paymentStatus: 'unchanged', paidAt: null, onBehalfReason: '' })
+
+    if (paymentChanged && !detailsChangedWithoutPayment) {
+      setIsSaving(true)
+      setSaveError('')
+      try {
+        await updateTicketRootPaymentStatus(
+          bookingId,
+          {
+            expectedBookingVersion: detail.bookingVersion,
+            expectedTransactionVersion: detail.transactionVersion,
+            paymentStatus: draft.paymentStatus,
+            paidAt:
+              draft.paymentStatus === 'paid'
+                ? draft.paidAt || todayInTimezone(timezone)
+                : null,
+          },
+          idempotencyKey.current,
+        )
+        toast.success(`Payment marked ${draft.paymentStatus.replace('_', ' ')}`)
+        setInitialDraft(draft)
+        onClose()
+        void onSaved()
+      } catch (error) {
+        setSaveError(
+          error instanceof TicketLedgerApiError
+            ? error.message
+            : 'Unable to update payment. Your selection is still here for retry.',
+        )
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
+    if (draft.paymentStatus === 'part_paid') {
+      setSaveError('Save the payment status on its own before editing other ticket details.')
+      return
+    }
 
     const input: TicketCompletionUpdate = {
       expectedBookingVersion: detail.bookingVersion,
@@ -449,7 +487,7 @@ export function TicketCompletionDrawer({
           <button
             type="submit"
             form="ticket-completion-form"
-            disabled={isSaving || !operationalDirty || draft.paymentStatus === 'part_paid'}
+            disabled={isSaving || !operationalDirty}
             className="ui-tap ui-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
             {isSaving ? (
@@ -560,7 +598,7 @@ export function TicketCompletionDrawer({
                       maxLength={500}
                       rows={2}
                       required
-                      disabled={isSaving || draft.paymentStatus === 'part_paid'}
+                      disabled={isSaving}
                       aria-label="On-behalf completion reason"
                       aria-invalid={Boolean(errors.onBehalfReason)}
                       aria-describedby={
@@ -587,18 +625,8 @@ export function TicketCompletionDrawer({
               </div>
             )}
 
-            {draft.paymentStatus === 'part_paid' && (
-              <div
-                role="alert"
-                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"
-              >
-                This record is Part Paid. It is read-only here until the dedicated payment or
-                correction workflow is available.
-              </div>
-            )}
-
             <fieldset
-              disabled={isSaving || draft.paymentStatus === 'part_paid'}
+              disabled={isSaving}
               className="space-y-3"
             >
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
@@ -665,7 +693,7 @@ export function TicketCompletionDrawer({
             </fieldset>
 
             <fieldset
-              disabled={isSaving || draft.paymentStatus === 'part_paid'}
+              disabled={isSaving}
               className="space-y-3"
             >
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
@@ -748,13 +776,9 @@ export function TicketCompletionDrawer({
                 Payment status
                 <select
                   value={draft.paymentStatus}
-                  disabled={
-                    detail.paymentStatus === 'paid' ||
-                    detail.paymentStatus === 'part_paid' ||
-                    isSaving
-                  }
+                  disabled={isSaving}
                   onChange={(event) => {
-                    const paymentStatus = event.target.value as 'unpaid' | 'paid'
+                    const paymentStatus = event.target.value as 'unpaid' | 'part_paid' | 'paid'
                     updateDraft((current) => ({
                       ...current,
                       paymentStatus,
@@ -771,22 +795,20 @@ export function TicketCompletionDrawer({
                   className={fieldClass(Boolean(errors.paymentStatus))}
                 >
                   <option value="unpaid">Unpaid</option>
-                  <option value="part_paid" disabled>
+                  <option value="part_paid">
                     Part Paid — requires payment workflow
                   </option>
                   <option value="paid">Paid</option>
                 </select>
                 <FieldError id="ticket-detail-payment-error" message={errors.paymentStatus} />
-                {detail.paymentStatus === 'paid' && (
-                  <span className="mt-1 block text-[10px] font-semibold text-slate-500">
-                    Recorded payments cannot be moved backwards.
-                  </span>
-                )}
+                <span className="mt-1 block text-[10px] font-semibold text-slate-500">
+                  Payment status can be changed directly.
+                </span>
               </label>
             </fieldset>
 
             <fieldset
-              disabled={isSaving || draft.paymentStatus === 'part_paid'}
+              disabled={isSaving}
               className="space-y-3"
             >
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">

@@ -84,7 +84,7 @@ export function TicketAttributionDialog({
       return
     }
     const cleanReason = reason.trim()
-    const resolvedReason = cleanReason || (isSuperAdmin ? 'Super Admin override' : '')
+    const resolvedReason = cleanReason || (isSuperAdmin ? 'Master Admin override' : '')
     if (!resolvedReason) {
       setError('Enter a reason for this attribution correction.')
       return
@@ -96,7 +96,7 @@ export function TicketAttributionDialog({
     const cleanWaiverReason = commissionWaiverReason.trim()
     const resolvedWaiverReason =
       cleanWaiverReason ||
-      (isSuperAdmin && commercialTreatment !== 'standard' ? 'Super Admin override' : '')
+      (isSuperAdmin && commercialTreatment !== 'standard' ? 'Master Admin override' : '')
     if (commercialTreatment !== 'standard' && resolvedWaiverReason.length < 3) {
       setError('Enter why this ticket does not use standard commission.')
       return

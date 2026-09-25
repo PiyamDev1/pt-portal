@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { isSuperAdmin as isPlatformSuperAdmin } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
@@ -116,16 +117,12 @@ function privateError(message: string, status: number, extra: Record<string, unk
   return apiError(message, status, extra, PRIVATE_RESPONSE)
 }
 
-function normalizeRole(value: string) {
-  return value.trim().toLowerCase().replace(/[_-]+/g, ' ')
-}
-
 function canCompleteTicketOnBehalf(role: string) {
   return canManageTicketingRecords(role)
 }
 
 function isSuperAdmin(role: string) {
-  return normalizeRole(role) === 'super admin'
+  return isPlatformSuperAdmin(role)
 }
 
 function completionContext(
@@ -557,7 +554,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   ) {
     completionDetails = {
       ...completionDetails,
-      onBehalfReason: 'Super Admin completion override',
+      onBehalfReason: 'Master Admin completion override',
     }
   }
 

@@ -340,11 +340,11 @@ export function TicketQuickEntryForm({
         commissionWaiverReason:
           draft.commercialTreatment === 'standard'
             ? null
-            : draft.commissionWaiverReason.trim() || (isSuperAdmin ? 'Super Admin override' : null),
+            : draft.commissionWaiverReason.trim() || (isSuperAdmin ? 'Master Admin override' : null),
         responsibleEmployeeId: draft.responsibleEmployeeId,
         assistantEmployeeIds: draft.assistantEmployeeIds,
         attributionReason: attributionOverride
-          ? draft.attributionReason.trim() || (isSuperAdmin ? 'Super Admin override' : null)
+          ? draft.attributionReason.trim() || (isSuperAdmin ? 'Master Admin override' : null)
           : null,
       },
     }

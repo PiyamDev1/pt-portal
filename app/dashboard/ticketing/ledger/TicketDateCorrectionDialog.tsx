@@ -87,7 +87,7 @@ export function TicketDateCorrectionDialog({
     if (isSaving) return
 
     const cleanReason = reason.trim()
-    const resolvedReason = cleanReason || (isSuperAdmin ? 'Super Admin override' : '')
+    const resolvedReason = cleanReason || (isSuperAdmin ? 'Master Admin override' : '')
     if (!bookingDate || !keyDate) {
       setError(`Enter both the booking date and ${isHeld ? 'airline deadline' : 'issued date'}.`)
       return

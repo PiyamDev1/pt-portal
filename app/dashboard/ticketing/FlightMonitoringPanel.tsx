@@ -211,7 +211,7 @@ export function FlightMonitoringPanel() {
 
   const submitScheduleChange = useCallback(async () => {
     if (!scheduleDialog) return
-    const reason = scheduleDraft.reason.trim() || (isSuperAdmin ? 'Super Admin override' : '')
+    const reason = scheduleDraft.reason.trim() || (isSuperAdmin ? 'Master Admin override' : '')
     if (!reason) {
       setScheduleError('Add a short operational note for the audit history.')
       return

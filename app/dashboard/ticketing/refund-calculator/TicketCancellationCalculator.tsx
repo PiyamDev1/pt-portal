@@ -572,7 +572,7 @@ export function TicketCancellationCalculator({ isSuperAdmin = false }: { isSuper
       retainedAgentCommissionGbp: cancellation.retainedAgentCommissionPence / 100,
       desiredCompanyMarkupGbp: cancellation.desiredCompanyMarkupPence / 100,
       notes: refundNotes.trim() || null,
-      overrideReason: overrideReason.trim() || (isSuperAdmin ? 'Super Admin override' : null),
+      overrideReason: overrideReason.trim() || (isSuperAdmin ? 'Master Admin override' : null),
     }
     setIsSaving(true)
     setSaveError('')
@@ -1330,7 +1330,7 @@ export function TicketCancellationCalculator({ isSuperAdmin = false }: { isSuper
                             className="mt-1 w-full rounded-xl border border-red-300 px-3 py-2 text-sm"
                           />
                           <span className="mt-1 block font-medium">
-                            Only Admin, Master Admin or Super Admin can save a reduced-result
+                            Only Admin or Master Admin can save a reduced-result
                             override.
                           </span>
                         </label>
