@@ -7,6 +7,7 @@ import { TicketFollowOnEntryForm } from './TicketFollowOnEntryForm'
 import { TicketLedgerList } from './TicketLedgerList'
 import { TicketCompletionDrawer } from './TicketCompletionDrawer'
 import { TicketServicePaymentDialog } from './TicketServicePaymentDialog'
+import { TicketPaymentStatusDialog } from './TicketPaymentStatusDialog'
 import { TicketAttributionDialog } from './TicketAttributionDialog'
 import { TicketDateCorrectionDialog } from './TicketDateCorrectionDialog'
 import { TicketItineraryDrawer } from './TicketItineraryDrawer'
@@ -40,6 +41,7 @@ export function TicketingLedgerClient() {
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
   const [selectedPaymentItem, setSelectedPaymentItem] = useState<TicketLedgerItem | null>(null)
+  const [selectedRootPaymentItem, setSelectedRootPaymentItem] = useState<TicketLedgerItem | null>(null)
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<TicketLedgerItem | null>(null)
   const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
     null,
@@ -329,6 +331,7 @@ export function TicketingLedgerClient() {
           currentTimeMs={currentTimeMs}
           onComplete={(item) => setSelectedBookingId(item.bookingId)}
           onMarkPaid={setSelectedPaymentItem}
+          onUpdatePayment={setSelectedRootPaymentItem}
           onEditItinerary={setSelectedItineraryItem}
           canManageRecords={payload.context.canManageRecords}
           canManageAttribution={payload.context.canManageAttribution}
@@ -402,6 +405,16 @@ export function TicketingLedgerClient() {
           item={selectedPaymentItem}
           timezone={payload.context.timezone}
           onClose={() => setSelectedPaymentItem(null)}
+          onSaved={() => refresh(false, currentCursor)}
+        />
+      )}
+
+      {selectedRootPaymentItem && (
+        <TicketPaymentStatusDialog
+          key={`${selectedRootPaymentItem.transactionId}:${selectedRootPaymentItem.transactionVersion}`}
+          item={selectedRootPaymentItem}
+          timezone={payload.context.timezone}
+          onClose={() => setSelectedRootPaymentItem(null)}
           onSaved={() => refresh(false, currentCursor)}
         />
       )}

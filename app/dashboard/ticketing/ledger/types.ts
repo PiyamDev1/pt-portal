@@ -207,6 +207,13 @@ export type TicketCompletionContext = {
   canManageRecords: boolean
 }
 
+export type TicketRootPaymentStatusInput = {
+  expectedBookingVersion: number
+  expectedTransactionVersion: number
+  paymentStatus: 'unpaid' | 'part_paid' | 'paid'
+  paidAt: string | null
+}
+
 export type TicketChangeRequestType = 'amendment' | 'deletion'
 
 export type TicketChangeRequest = {

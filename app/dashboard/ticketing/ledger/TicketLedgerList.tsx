@@ -93,6 +93,7 @@ export function TicketLedgerList({
   currentTimeMs,
   onComplete,
   onMarkPaid,
+  onUpdatePayment,
   onEditItinerary,
   canManageRecords = false,
   canManageAttribution,
@@ -108,6 +109,7 @@ export function TicketLedgerList({
   currentTimeMs: number
   onComplete: (item: TicketLedgerItem) => void
   onMarkPaid: (item: TicketLedgerItem) => void
+  onUpdatePayment: (item: TicketLedgerItem) => void
   onEditItinerary: (item: TicketLedgerItem) => void
   canManageRecords?: boolean
   canManageAttribution: boolean
@@ -292,6 +294,17 @@ export function TicketLedgerList({
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {item.serviceType === 'TK' ? (
                     <>
+                      {(isResponsibleEmployee || canManageAttribution) && (
+                        <button
+                          type="button"
+                          onClick={() => onUpdatePayment(item)}
+                          aria-label={`Update payment for ${item.pnr}`}
+                          className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 text-center text-xs font-black leading-tight text-emerald-800 hover:bg-emerald-100"
+                        >
+                          <Banknote className="h-3.5 w-3.5" aria-hidden="true" />
+                          Payment
+                        </button>
+                      )}
                       {isResponsibleEmployee ? (
                         <button
                           type="button"

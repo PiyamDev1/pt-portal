@@ -11,6 +11,7 @@ import type {
   TicketChangeRequest,
   TicketChangeRequestType,
   TicketLedgerPayload,
+  TicketRootPaymentStatusInput,
   TicketServiceBookingLookupResult,
   TicketServiceBookingOption,
 } from './types'
@@ -351,6 +352,29 @@ export async function updateTicketCompletionDetail(
   if (!response.ok) {
     throw new TicketLedgerApiError(
       payload.error || 'Unable to save the ticket details',
+      payload.fieldErrors,
+      payload.code,
+    )
+  }
+}
+
+export async function updateTicketRootPaymentStatus(
+  bookingId: string,
+  input: TicketRootPaymentStatusInput,
+  idempotencyKey: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/ticketing/ledger/${encodeURIComponent(bookingId)}/payment-status`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(input),
+    },
+  )
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  if (!response.ok) {
+    throw new TicketLedgerApiError(
+      payload.error || 'Unable to update the ticket payment',
       payload.fieldErrors,
       payload.code,
     )

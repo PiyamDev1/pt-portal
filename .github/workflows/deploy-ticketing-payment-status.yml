@@ -1,0 +1,35 @@
+name: Deploy direct Ticketing payment status updates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20260925184500_ticketing_direct_payment_status.sql'
+      - '.github/workflows/deploy-ticketing-payment-status.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ticketing-payment-status
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: ckubfbjfjbhuotyfwmac
+
+jobs:
+  migrate:
+    name: Apply direct Ticketing payment update
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply only the reviewed migration
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          psql "host=db.${SUPABASE_PROJECT_REF}.supabase.co port=5432 dbname=postgres user=postgres sslmode=require" \
+            --set ON_ERROR_STOP=1 \
+            --file supabase/migrations/20260925184500_ticketing_direct_payment_status.sql
