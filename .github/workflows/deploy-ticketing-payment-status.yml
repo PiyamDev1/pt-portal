@@ -34,8 +34,20 @@ jobs:
           mkdir -p .ticketing-payment-stage
           mv supabase/migrations .ticketing-payment-stage/all-migrations
           mkdir -p supabase/migrations
-          cp .ticketing-payment-stage/all-migrations/20260925184500_ticketing_direct_payment_status.sql \
-            supabase/migrations/20260925184500_ticketing_direct_payment_status.sql
+          for version in \
+            20260831000800 \
+            20260831000801 \
+            20260831000900 \
+            20260831001000 \
+            20260831001100 \
+            20260831001200 \
+            20260831001300 \
+            20260902000100 \
+            20260902000200 \
+            20260908214024 \
+            20260925184500; do
+            cp .ticketing-payment-stage/all-migrations/"${version}"_*.sql supabase/migrations/
+          done
 
       - name: Link production project through the supported pooler
         env:
