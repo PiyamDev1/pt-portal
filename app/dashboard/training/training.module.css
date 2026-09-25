@@ -1,0 +1,132 @@
+.heroGlow {
+  animation: training-drift 11s ease-in-out infinite;
+}
+
+.heroArtwork {
+  animation: training-float 8s ease-in-out infinite;
+}
+
+.heroSparkle {
+  animation: training-sparkle 2.8s ease-in-out infinite;
+}
+
+.courseCard {
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+
+@media (hover: hover) {
+  .courseCard:hover {
+    transform: translateY(-5px);
+    border-color: rgba(139, 29, 44, 0.3);
+    box-shadow: 0 22px 38px -25px rgba(30, 41, 59, 0.4);
+  }
+}
+
+.certificatePaper {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(207, 164, 82, 0.16), transparent 22%),
+    radial-gradient(circle at 88% 82%, rgba(139, 29, 44, 0.1), transparent 28%),
+    linear-gradient(135deg, #fffefa 0%, #fffaf0 47%, #fffdf8 100%);
+}
+
+.certificatePaper::before {
+  content: 'PT';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  color: rgba(139, 29, 44, 0.045);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(9rem, 28vw, 19rem);
+  font-weight: 700;
+  letter-spacing: -0.14em;
+  line-height: 1;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  user-select: none;
+}
+
+.certificateSeal {
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.45),
+    0 10px 22px -12px rgba(120, 53, 15, 0.8);
+  animation: training-seal-pulse 4s ease-in-out infinite;
+}
+
+.certificateShine {
+  animation: training-shine 5s ease-in-out infinite;
+}
+
+@keyframes training-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-1.2rem, 1rem, 0) scale(1.08);
+  }
+}
+
+@keyframes training-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  50% {
+    transform: translate3d(0, -0.65rem, 0) rotate(-0.7deg);
+  }
+}
+
+@keyframes training-sparkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes training-seal-pulse {
+  0%,
+  100% {
+    transform: rotate(-8deg) scale(1);
+  }
+
+  50% {
+    transform: rotate(-8deg) scale(1.04);
+  }
+}
+
+@keyframes training-shine {
+  0%,
+  20% {
+    transform: translateX(-145%) skewX(-18deg);
+  }
+
+  45%,
+  100% {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroGlow,
+  .heroArtwork,
+  .heroSparkle,
+  .certificateSeal,
+  .certificateShine {
+    animation: none;
+  }
+
+  .courseCard {
+    transition: none;
+  }
+}
