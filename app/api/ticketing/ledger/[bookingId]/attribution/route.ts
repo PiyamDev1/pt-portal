@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { SUPER_ADMIN_AUDIT_REASON } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import {
   TICKET_ATTRIBUTION_CAPABILITY_VERSION,
@@ -10,7 +11,11 @@ import {
   type TicketingCorrectAttributionInput,
   type TicketingCorrectAttributionResult,
 } from '@/lib/ticketing/attributionContracts'
-import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import {
+  canManageTicketingRecords,
+  isTicketingSuperAdmin,
+  requireTicketingAccess,
+} from '@/lib/ticketing/apiAuth'
 import { TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import { ticketingBookingIdSchema } from '@/lib/ticketing/completionContracts'
 import { hasTicketingSchemaCapability } from '@/lib/ticketing/schemaCapability'
@@ -234,6 +239,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   )
   if (bodyError || !entry) return privateError(bodyError || 'Invalid ticket attribution.', 400)
 
+  const superAdmin = isTicketingSuperAdmin(access.employee.role)
+  const reason = entry.reason || (superAdmin ? SUPER_ADMIN_AUDIT_REASON : null)
+  const commissionWaiverReason =
+    entry.commercialTreatment === 'standard'
+      ? null
+      : entry.commissionWaiverReason || (superAdmin ? SUPER_ADMIN_AUDIT_REASON : null)
+  if (!reason) return privateError('A reason is required when correcting ticket attribution.', 400)
+  if (entry.commercialTreatment !== 'standard' && !commissionWaiverReason) {
+    return privateError('A commission treatment reason is required.', 400)
+  }
+  const resolvedEntry = { ...entry, reason, commissionWaiverReason }
+
   const idempotencyKey = request.headers.get('idempotency-key')?.trim()
   if (!idempotencyKey || idempotencyKey.length > 200) {
     return privateError('A valid Idempotency-Key header is required.', 400)
@@ -247,7 +264,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   // Resolve presentation-safe recipients before the atomic write. Otherwise a
   // nullable/blank employee name could let the correction commit and then turn
   // the HTTP response (and every idempotent replay) into a 500.
-  const selectedEmployeeIds = [entry.responsibleEmployeeId, ...entry.assistantEmployeeIds]
+  const selectedEmployeeIds = [
+    resolvedEntry.responsibleEmployeeId,
+    ...resolvedEntry.assistantEmployeeIds,
+  ]
   const selectedEmployees = await employeeNames(supabase, selectedEmployeeIds)
   if (!selectedEmployees) {
     return privateError('Unable to load ticket attribution employees right now.', 500)
@@ -266,20 +286,20 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     {
       p_actor_employee_id: access.employee.id,
       p_booking_id: parsedBookingId.data,
-      p_expected_booking_version: entry.expectedBookingVersion,
+      p_expected_booking_version: resolvedEntry.expectedBookingVersion,
       p_idempotency_key: idempotencyKey,
       p_correction: {
-        responsibleEmployeeId: entry.responsibleEmployeeId,
-        assistantEmployeeIds: entry.assistantEmployeeIds,
-        commercialTreatment: entry.commercialTreatment,
-        commissionWaiverReason: entry.commissionWaiverReason,
-        reason: entry.reason,
+        responsibleEmployeeId: resolvedEntry.responsibleEmployeeId,
+        assistantEmployeeIds: resolvedEntry.assistantEmployeeIds,
+        commercialTreatment: resolvedEntry.commercialTreatment,
+        commissionWaiverReason: resolvedEntry.commissionWaiverReason,
+        reason: resolvedEntry.reason,
       },
     },
   )
   if (error) return mutationError(error)
 
-  const attribution = parsedRpcAttribution(data, parsedBookingId.data, entry)
+  const attribution = parsedRpcAttribution(data, parsedBookingId.data, resolvedEntry)
   if (!attribution) return privateError('Ticketing returned an invalid attribution result.', 500)
 
   const responsibleEmployee = selectedEmployeesById.get(attribution.primaryEmployeeId)

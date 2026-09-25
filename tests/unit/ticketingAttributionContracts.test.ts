@@ -55,7 +55,6 @@ describe('ticketing attribution contracts', () => {
         ),
       },
     },
-    { name: 'a blank reason', patch: { reason: '  ' } },
     { name: 'an unknown identity field', patch: { actingEmployeeId: PRIMARY_ID } },
   ])('rejects $name', ({ patch }) => {
     expect(
@@ -71,17 +70,15 @@ describe('ticketing attribution contracts', () => {
     ).toBe(false)
   })
 
-  it('requires a reason for commission-free correction treatments', () => {
+  it('allows the server to supply Super Admin audit defaults', () => {
     expect(
-      ticketingCorrectAttributionSchema.safeParse({
+      ticketingCorrectAttributionSchema.parse({
         expectedBookingVersion: 4,
         responsibleEmployeeId: PRIMARY_ID,
         assistantEmployeeIds: [],
         commercialTreatment: 'commission_waived',
-        commissionWaiverReason: null,
-        reason: 'Correct treatment',
-      }).success,
-    ).toBe(false)
+      }),
+    ).toMatchObject({ commissionWaiverReason: null, reason: null })
   })
 
   it('applies empty attribution defaults to ordinary quick entry', () => {

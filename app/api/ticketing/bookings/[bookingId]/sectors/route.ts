@@ -3,8 +3,13 @@ import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { SUPER_ADMIN_AUDIT_REASON } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import {
+  canManageTicketingRecords,
+  isTicketingSuperAdmin,
+  requireTicketingAccess,
+} from '@/lib/ticketing/apiAuth'
 import { TICKET_MAINTENANCE_OPERATIONS_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import { ticketingBookingIdSchema } from '@/lib/ticketing/completionContracts'
 import {
@@ -222,6 +227,7 @@ async function loadAccessibleItinerary(
   bookingId: string,
   actorEmployeeId: string,
   allowOnBehalf: boolean,
+  isSuperAdmin: boolean,
 ) {
   let bookingQuery = supabase
     .from('ticket_bookings')
@@ -365,7 +371,7 @@ async function loadAccessibleItinerary(
     },
     context: {
       isOnBehalf: booking.owner_employee_id !== actorEmployeeId,
-      onBehalfReasonRequired: booking.owner_employee_id !== actorEmployeeId,
+      onBehalfReasonRequired: booking.owner_employee_id !== actorEmployeeId && !isSuperAdmin,
     },
     itineraryVersion,
     sectors: validSectors,
@@ -452,6 +458,7 @@ function itineraryFromRpcResult(
   data: unknown,
   bookingId: string,
   actorEmployeeId: string,
+  isSuperAdmin: boolean,
 ): TicketingItineraryResponse | null {
   const result = data as ItineraryRpcResult | null
   const bookingVersion = Number(result?.booking?.version)
@@ -572,7 +579,7 @@ function itineraryFromRpcResult(
       },
       defaultAirline: bookingAirline,
     },
-    context: { isOnBehalf, onBehalfReasonRequired: isOnBehalf },
+    context: { isOnBehalf, onBehalfReasonRequired: isOnBehalf && !isSuperAdmin },
     itineraryVersion,
     sectors: sectors as TicketingItinerarySector[],
     changed: result.changed,
@@ -597,6 +604,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     parsedBookingId.data,
     access.employee.id,
     canReplaceOnBehalf(access.employee.role),
+    isTicketingSuperAdmin(access.employee.role),
   )
   if (loaded.error === 'database') {
     return privateError('Unable to load the itinerary right now.', 500)
@@ -631,6 +639,9 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   )
   if (bodyError || !entry) return privateError(bodyError || 'Invalid itinerary details.', 400)
 
+  const superAdmin = isTicketingSuperAdmin(access.employee.role)
+  const adminReason = entry.adminReason || (superAdmin ? SUPER_ADMIN_AUDIT_REASON : null)
+
   const supabase = getServiceSupabaseClient()
   if (!(await hasItineraryCapability(supabase))) {
     return privateError('Ticket itinerary entry is not installed on this database.', 503)
@@ -649,10 +660,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       departureLocal: sector.departureLocal,
       arrivalLocal: sector.arrivalLocal,
     })),
-    p_on_behalf_reason: entry.adminReason,
+    p_on_behalf_reason: adminReason,
   })
   if (error) return mutationError(error)
-  const result = itineraryFromRpcResult(data, parsedBookingId.data, access.employee.id)
+  const result = itineraryFromRpcResult(data, parsedBookingId.data, access.employee.id, superAdmin)
   if (!result) {
     return privateError('Ticketing returned an invalid itinerary result.', 500)
   }

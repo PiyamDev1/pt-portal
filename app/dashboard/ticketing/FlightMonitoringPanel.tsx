@@ -113,6 +113,7 @@ export function FlightMonitoringPanel() {
     awaitingFinalisation: 0,
   })
   const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [ownerEmployeeId, setOwnerEmployeeId] = useState('all')
@@ -147,6 +148,7 @@ export function FlightMonitoringPanel() {
         setItems((current) => (mode === 'more' ? [...current, ...payload.items] : payload.items))
         setCounts(payload.counts)
         setNextCursor(payload.nextCursor)
+        setIsSuperAdmin(payload.context.isSuperAdmin)
         setError('')
       } catch (caught) {
         if (signal?.aborted) return
@@ -209,7 +211,7 @@ export function FlightMonitoringPanel() {
 
   const submitScheduleChange = useCallback(async () => {
     if (!scheduleDialog) return
-    const reason = scheduleDraft.reason.trim()
+    const reason = scheduleDraft.reason.trim() || (isSuperAdmin ? 'Super Admin override' : '')
     if (!reason) {
       setScheduleError('Add a short operational note for the audit history.')
       return
@@ -251,7 +253,7 @@ export function FlightMonitoringPanel() {
     } finally {
       setIsSavingSchedule(false)
     }
-  }, [load, scheduleDialog, scheduleDraft])
+  }, [isSuperAdmin, load, scheduleDialog, scheduleDraft])
 
   return (
     <section
@@ -682,27 +684,29 @@ export function FlightMonitoringPanel() {
                 </div>
               )}
 
-              <label>
-                <span className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">
-                  Operational note
-                </span>
-                <textarea
-                  value={scheduleDraft.reason}
-                  onChange={(event) =>
-                    setScheduleDraft((current) => ({ ...current, reason: event.target.value }))
-                  }
-                  maxLength={500}
-                  rows={3}
-                  placeholder={
-                    scheduleDialog.action === 'mark'
-                      ? 'Where was the new schedule confirmed?'
-                      : scheduleDialog.action === 'dismiss'
-                        ? 'Why is this report being dismissed?'
-                        : 'What was checked or communicated?'
-                  }
-                  className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-                />
-              </label>
+              {!isSuperAdmin && (
+                <label>
+                  <span className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">
+                    Operational note
+                  </span>
+                  <textarea
+                    value={scheduleDraft.reason}
+                    onChange={(event) =>
+                      setScheduleDraft((current) => ({ ...current, reason: event.target.value }))
+                    }
+                    maxLength={500}
+                    rows={3}
+                    placeholder={
+                      scheduleDialog.action === 'mark'
+                        ? 'Where was the new schedule confirmed?'
+                        : scheduleDialog.action === 'dismiss'
+                          ? 'Why is this report being dismissed?'
+                          : 'What was checked or communicated?'
+                    }
+                    className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                  />
+                </label>
+              )}
 
               {scheduleDialog.action === 'finalise' && (
                 <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-semibold leading-5 text-sky-900">

@@ -224,6 +224,7 @@ export function TicketingLedgerClient() {
             employeeId={payload.context.employeeId}
             employeeName={payload.context.employeeName}
             canManageAttribution={payload.context.canManageAttribution}
+            isSuperAdmin={payload.context.isSuperAdmin}
             attributionEmployees={payload.context.attributionEmployees}
             onCreated={() => refresh(false, currentCursor)}
           />
@@ -410,6 +411,7 @@ export function TicketingLedgerClient() {
           key={`${selectedAttributionItem.transactionId}:${selectedAttributionItem.attributionVersion}`}
           item={selectedAttributionItem}
           employees={payload.context.attributionEmployees}
+          isSuperAdmin={payload.context.isSuperAdmin}
           onClose={() => setSelectedAttributionItem(null)}
           onSaved={() => refresh(false, currentCursor)}
         />
@@ -419,6 +421,7 @@ export function TicketingLedgerClient() {
         <TicketDateCorrectionDialog
           key={`${selectedDateItem.transactionId}:${selectedDateItem.transactionVersion}`}
           item={selectedDateItem}
+          isSuperAdmin={payload.context.isSuperAdmin}
           onClose={() => setSelectedDateItem(null)}
           onSaved={() => refresh(false, currentCursor)}
         />

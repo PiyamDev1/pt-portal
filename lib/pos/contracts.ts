@@ -282,6 +282,7 @@ export type PosBootstrapPayload = {
     canApprove: boolean
     canImport: boolean
     canViewCrossBranch: boolean
+    isSuperAdmin: boolean
   }
   loadedAt: string
 }

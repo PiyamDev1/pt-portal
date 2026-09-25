@@ -142,8 +142,7 @@ function AirportCodeField({
     const controller = new AbortController()
     const timeout = window.setTimeout(
       () => {
-        const lookup =
-          query.length === 3 ? { codes: [query] } : { query, limit: 20 }
+        const lookup = query.length === 3 ? { codes: [query] } : { query, limit: 20 }
         void loadTicketAirports(lookup, controller.signal)
           .then((options) => {
             onAirportsLoaded(options)
@@ -600,27 +599,29 @@ export function TicketItineraryDrawer({
                   The responsible agent remains unchanged and your signed-in account is recorded as
                   the person making this update.
                 </p>
-                <label className="mt-3 block text-xs font-bold text-slate-700">
-                  On-behalf reason
-                  <textarea
-                    value={draft.adminReason}
-                    onChange={(event) =>
-                      updateDraft((current) => ({ ...current, adminReason: event.target.value }))
-                    }
-                    maxLength={500}
-                    rows={2}
-                    required={reasonRequired}
-                    disabled={isSaving}
-                    aria-label="On-behalf itinerary reason"
-                    aria-invalid={Boolean(errors.adminReason)}
-                    aria-describedby={
-                      errors.adminReason ? 'itinerary-admin-reason-error' : undefined
-                    }
-                    className={fieldClass(Boolean(errors.adminReason))}
-                    placeholder="For example: updating the booking while the agent is off sick"
-                  />
-                  <FieldError id="itinerary-admin-reason-error" message={errors.adminReason} />
-                </label>
+                {reasonRequired && (
+                  <label className="mt-3 block text-xs font-bold text-slate-700">
+                    On-behalf reason
+                    <textarea
+                      value={draft.adminReason}
+                      onChange={(event) =>
+                        updateDraft((current) => ({ ...current, adminReason: event.target.value }))
+                      }
+                      maxLength={500}
+                      rows={2}
+                      required={reasonRequired}
+                      disabled={isSaving}
+                      aria-label="On-behalf itinerary reason"
+                      aria-invalid={Boolean(errors.adminReason)}
+                      aria-describedby={
+                        errors.adminReason ? 'itinerary-admin-reason-error' : undefined
+                      }
+                      className={fieldClass(Boolean(errors.adminReason))}
+                      placeholder="For example: updating the booking while the agent is off sick"
+                    />
+                    <FieldError id="itinerary-admin-reason-error" message={errors.adminReason} />
+                  </label>
+                )}
               </section>
             )}
 

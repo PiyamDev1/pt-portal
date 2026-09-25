@@ -146,6 +146,7 @@ export function TicketQuickEntryForm({
   employeeId,
   employeeName,
   canManageAttribution,
+  isSuperAdmin,
   attributionEmployees,
   onCreated,
 }: {
@@ -154,6 +155,7 @@ export function TicketQuickEntryForm({
   employeeId: string
   employeeName: string
   canManageAttribution: boolean
+  isSuperAdmin: boolean
   attributionEmployees: TicketAttributionEmployee[]
   onCreated: () => Promise<void>
 }) {
@@ -225,7 +227,7 @@ export function TicketQuickEntryForm({
       if (!availableEmployeeIds.has(draft.responsibleEmployeeId)) {
         nextErrors.responsibleEmployeeId = 'Choose an active responsible agent.'
       }
-      if (attributionOverride && !draft.attributionReason.trim()) {
+      if (attributionOverride && !isSuperAdmin && !draft.attributionReason.trim()) {
         nextErrors.attributionReason = 'Explain why this ticket is being entered for other staff.'
       } else if (draft.attributionReason.trim().length > 500) {
         nextErrors.attributionReason = 'Keep the attribution reason to 500 characters or fewer.'
@@ -241,6 +243,7 @@ export function TicketQuickEntryForm({
     }
 
     if (
+      !isSuperAdmin &&
       draft.commercialTreatment !== 'standard' &&
       draft.commissionWaiverReason.trim().length < 3
     ) {
@@ -335,10 +338,14 @@ export function TicketQuickEntryForm({
         fares,
         commercialTreatment: draft.commercialTreatment,
         commissionWaiverReason:
-          draft.commercialTreatment === 'standard' ? null : draft.commissionWaiverReason.trim(),
+          draft.commercialTreatment === 'standard'
+            ? null
+            : draft.commissionWaiverReason.trim() || (isSuperAdmin ? 'Super Admin override' : null),
         responsibleEmployeeId: draft.responsibleEmployeeId,
         assistantEmployeeIds: draft.assistantEmployeeIds,
-        attributionReason: attributionOverride ? draft.attributionReason.trim() : null,
+        attributionReason: attributionOverride
+          ? draft.attributionReason.trim() || (isSuperAdmin ? 'Super Admin override' : null)
+          : null,
       },
     }
   }
@@ -882,7 +889,7 @@ export function TicketQuickEntryForm({
                   </span>
                 </label>
 
-                {draft.commercialTreatment !== 'standard' && (
+                {draft.commercialTreatment !== 'standard' && !isSuperAdmin && (
                   <label className="text-xs font-bold text-slate-700">
                     {isStaffFamilyBooking ? 'Relationship / reason' : 'Waiver reason'}
                     <textarea
@@ -1041,7 +1048,7 @@ export function TicketQuickEntryForm({
                 </div>
               </div>
 
-              {attributionOverride && (
+              {attributionOverride && !isSuperAdmin && (
                 <label className="mt-3 block text-xs font-bold text-slate-700">
                   Attribution reason
                   <textarea

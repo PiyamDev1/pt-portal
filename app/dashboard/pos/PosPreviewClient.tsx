@@ -932,6 +932,7 @@ export default function PosPreviewClient({
         canApprove: false,
         canImport: false,
         canViewCrossBranch: false,
+        isSuperAdmin: false,
       },
       loadedAt: new Date().toISOString(),
     },

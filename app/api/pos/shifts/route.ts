@@ -3,6 +3,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { SUPER_ADMIN_AUDIT_REASON, isSuperAdmin } from '@/lib/auth/superAdmin'
 import { isPosManager } from '@/lib/pos/access'
 import {
   posApproveCloseoutSchema,
@@ -68,7 +69,12 @@ export async function POST(request: Request) {
     functionName = 'pos_close_shift_v1'
     const { action: _action, ...closeout } = data
     void _action
-    payload = closeout
+    payload = {
+      ...closeout,
+      reason:
+        closeout.reason ||
+        (isSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : undefined),
+    }
   } else {
     functionName = 'pos_open_shift_v1'
     const { action: _action, ...opening } = data

@@ -5,6 +5,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { ADMIN_ROLES } from '@/lib/auth/staffSession'
+import { SUPER_ADMIN_AUDIT_REASON } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { type TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
 import {
@@ -16,7 +17,11 @@ import {
   type TicketingLedgerItem,
   type TicketingQuickTkResult,
 } from '@/lib/ticketing/contracts'
-import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import {
+  canManageTicketingRecords,
+  isTicketingSuperAdmin,
+  requireTicketingAccess,
+} from '@/lib/ticketing/apiAuth'
 import { ticketingDetailsStatus } from '@/lib/ticketing/completionContracts'
 import { TICKET_DATE_CORRECTION_CAPABILITY_VERSION } from '@/lib/ticketing/dateCorrectionContracts'
 import {
@@ -615,6 +620,7 @@ export async function GET(request: NextRequest) {
         canManageAttribution,
         canManageRecords: canManageAttribution,
         canArchiveRecords: canArchiveTicketingRecords(access.employee.role),
+        isSuperAdmin: isTicketingSuperAdmin(access.employee.role),
         attributionEmployees,
         staffFamilyChangeFeeGbp: staffFamilyPolicy.changeFeeGbp,
         staffFamilyRefundFeeGbp: staffFamilyPolicy.refundFeeGbp,
@@ -647,6 +653,14 @@ export async function POST(request: NextRequest) {
   const responsibleEmployeeId = entry.responsibleEmployeeId || access.employee.id
   const assistantEmployeeIds = entry.assistantEmployeeIds
   const responsibleEmployeeChanged = responsibleEmployeeId !== access.employee.id
+  const superAdmin = isTicketingSuperAdmin(access.employee.role)
+  const attributionReason = responsibleEmployeeChanged
+    ? entry.attributionReason || (superAdmin ? SUPER_ADMIN_AUDIT_REASON : null)
+    : null
+  const commissionWaiverReason =
+    entry.commercialTreatment === 'standard'
+      ? null
+      : entry.commissionWaiverReason || (superAdmin ? SUPER_ADMIN_AUDIT_REASON : null)
 
   if (!canManageAttribution && responsibleEmployeeChanged) {
     return apiError('Only an administrator can assign a ticket to another employee.', 403)
@@ -654,8 +668,11 @@ export async function POST(request: NextRequest) {
   if (assistantEmployeeIds.includes(responsibleEmployeeId)) {
     return apiError('The responsible employee cannot also be an assistant.', 400)
   }
-  if (responsibleEmployeeChanged && !entry.attributionReason) {
+  if (responsibleEmployeeChanged && !attributionReason) {
     return apiError('A reason is required when changing ticket attribution.', 400)
+  }
+  if (entry.commercialTreatment !== 'standard' && !commissionWaiverReason) {
+    return apiError('Explain why ordinary commission is waived for this booking.', 400)
   }
 
   const idempotencyKey = request.headers.get('idempotency-key')?.trim()
@@ -671,7 +688,8 @@ export async function POST(request: NextRequest) {
       ...entry,
       responsibleEmployeeId,
       assistantEmployeeIds,
-      attributionReason: responsibleEmployeeChanged ? entry.attributionReason : null,
+      attributionReason,
+      commissionWaiverReason,
     },
   })
 

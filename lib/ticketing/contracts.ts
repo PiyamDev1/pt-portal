@@ -146,14 +146,6 @@ export const ticketingQuickTkSchema = z
       })
     }
 
-    if (entry.commercialTreatment !== 'standard' && !entry.commissionWaiverReason) {
-      context.addIssue({
-        code: 'custom',
-        path: ['commissionWaiverReason'],
-        message: 'Explain why ordinary commission is waived for this booking',
-      })
-    }
-
     if (entry.commercialTreatment === 'staff_family' && entry.operationalStatus === 'issued') {
       for (const fare of entry.fares) {
         const netSale =

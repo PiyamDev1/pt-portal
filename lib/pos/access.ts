@@ -1,4 +1,5 @@
 import type { StaffSession } from '@/lib/auth/staffSession'
+import { isSuperAdmin } from '@/lib/auth/superAdmin'
 
 function normalized(value: string) {
   return value.trim().toLowerCase().replace(/[_-]+/g, ' ')
@@ -14,6 +15,7 @@ export function posPermissions(access: StaffSession) {
     canApprove: canManage,
     canImport: canManage,
     canViewCrossBranch,
+    isSuperAdmin: isSuperAdmin(access.employee.role),
   }
 }
 

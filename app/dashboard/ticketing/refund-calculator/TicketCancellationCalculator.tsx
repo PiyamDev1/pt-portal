@@ -226,7 +226,7 @@ function newIdempotencyKey() {
     : `ticket-refund-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-export function TicketCancellationCalculator() {
+export function TicketCancellationCalculator({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) {
   const [draft, setDraft] = useState<Draft>(INITIAL_DRAFT)
   const [errors, setErrors] = useState<Errors>({})
   const [result, setResult] = useState<TicketCancellationResult | null>(null)
@@ -572,7 +572,7 @@ export function TicketCancellationCalculator() {
       retainedAgentCommissionGbp: cancellation.retainedAgentCommissionPence / 100,
       desiredCompanyMarkupGbp: cancellation.desiredCompanyMarkupPence / 100,
       notes: refundNotes.trim() || null,
-      overrideReason: overrideReason.trim() || null,
+      overrideReason: overrideReason.trim() || (isSuperAdmin ? 'Super Admin override' : null),
     }
     setIsSaving(true)
     setSaveError('')
@@ -1145,7 +1145,7 @@ export function TicketCancellationCalculator() {
             </div>
           ) : (
             <div className="mt-5 space-y-4">
-              {result.requiresManagerReview && (
+              {result.requiresManagerReview && !isSuperAdmin && (
                 <div
                   role="alert"
                   className="rounded-xl bg-red-50 p-4 text-red-900 ring-1 ring-red-200"
@@ -1203,7 +1203,7 @@ export function TicketCancellationCalculator() {
                     </h3>
                   </div>
 
-                  {replacementResult.requiresManagerReview ? (
+                  {replacementResult.requiresManagerReview && !isSuperAdmin ? (
                     <div
                       role="alert"
                       className="rounded-xl bg-red-50 p-4 text-red-900 ring-1 ring-red-200"
@@ -1318,22 +1318,23 @@ export function TicketCancellationCalculator() {
                         className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                       />
                     </label>
-                    {(result.requiresManagerReview || replacementResult?.requiresManagerReview) && (
-                      <label className="block text-xs font-bold text-red-800">
-                        Manager/Admin override reason
-                        <textarea
-                          value={overrideReason}
-                          onChange={(event) => setOverrideReason(event.target.value)}
-                          maxLength={500}
-                          rows={2}
-                          className="mt-1 w-full rounded-xl border border-red-300 px-3 py-2 text-sm"
-                        />
-                        <span className="mt-1 block font-medium">
-                          Only Admin, Master Admin or Super Admin can save a reduced-result
-                          override.
-                        </span>
-                      </label>
-                    )}
+                    {(result.requiresManagerReview || replacementResult?.requiresManagerReview) &&
+                      !isSuperAdmin && (
+                        <label className="block text-xs font-bold text-red-800">
+                          Manager/Admin override reason
+                          <textarea
+                            value={overrideReason}
+                            onChange={(event) => setOverrideReason(event.target.value)}
+                            maxLength={500}
+                            rows={2}
+                            className="mt-1 w-full rounded-xl border border-red-300 px-3 py-2 text-sm"
+                          />
+                          <span className="mt-1 block font-medium">
+                            Only Admin, Master Admin or Super Admin can save a reduced-result
+                            override.
+                          </span>
+                        </label>
+                      )}
                     {saveError && (
                       <p role="alert" className="text-xs font-semibold text-red-700">
                         {saveError}

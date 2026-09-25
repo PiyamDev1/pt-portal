@@ -75,6 +75,7 @@ export type TicketLedgerContext = {
   canManageAttribution: boolean
   canManageRecords: boolean
   canArchiveRecords: boolean
+  isSuperAdmin: boolean
   attributionEmployees: TicketAttributionEmployee[]
   staffFamilyChangeFeeGbp: number
   staffFamilyRefundFeeGbp: number

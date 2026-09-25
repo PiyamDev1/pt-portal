@@ -157,7 +157,7 @@ export const posCashMovementSchema = z
     direction: z.enum(['IN', 'OUT']).optional(),
     amount: money,
     denominations: z.array(denominationSchema).max(8).default([]),
-    reason: z.string().trim().min(3).max(1000),
+    reason: z.string().trim().min(3).max(1000).optional(),
     ...verificationFields,
   })
   .strict()
@@ -305,7 +305,7 @@ export const posCorrectionSchema = z
   .object({
     shiftId: z.string().uuid(),
     originalTransactionId: z.string().uuid(),
-    reason: z.string().trim().min(10).max(2000),
+    reason: z.string().trim().min(10).max(2000).optional(),
     verificationCode: z.string().trim().min(1).max(100),
     verificationMethod: z.enum(['totp', 'backup', 'auto']).default('auto'),
   })

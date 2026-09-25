@@ -2,6 +2,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { SUPER_ADMIN_AUDIT_REASON, isSuperAdmin } from '@/lib/auth/superAdmin'
 import { isPosManager } from '@/lib/pos/access'
 import { POS_PRIVATE_RESPONSE, posErrorResponse, posIdempotencyKey } from '@/lib/pos/http'
 import { posCorrectionSchema } from '@/lib/pos/inputContracts'
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
     maxBytes: 16 * 1024,
   })
   if (!data || error) return apiError(error || 'Invalid correction.', 400, {}, POS_PRIVATE_RESPONSE)
+  const reason =
+    data.reason || (isSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : null)
+  if (!reason) return apiError('A correction reason is required.', 400, {}, POS_PRIVATE_RESPONSE)
   const verification = await verifyFreshSecondFactor({
     userId: access.user.id,
     code: data.verificationCode,
@@ -43,6 +47,7 @@ export async function POST(request: Request) {
     return apiOk(
       await runPosMutation('pos_correct_expense_v1', access.employee.id, idempotencyKey, {
         ...payload,
+        reason,
         freshFactorMethod: verification.method,
       }),
       { status: 201, ...POS_PRIVATE_RESPONSE },

@@ -5,6 +5,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { ADMIN_ROLES } from '@/lib/auth/staffSession'
+import { SUPER_ADMIN_AUDIT_REASON, isSuperAdmin } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
@@ -220,7 +221,11 @@ export async function GET(request: NextRequest) {
   return apiOk(
     {
       items,
-      context: { canManage: canManageRefunds(access.employee.role), canConfirm: true },
+      context: {
+        canManage: canManageRefunds(access.employee.role),
+        canConfirm: true,
+        isSuperAdmin: isSuperAdmin(access.employee.role),
+      },
       nextCursor:
         rows.length > limit && pageRows.length > 0
           ? createCursor(pageRows[pageRows.length - 1], pnr, status)
@@ -252,6 +257,9 @@ export async function POST(request: NextRequest) {
   )
   if (bodyError || !input) return privateError(bodyError || 'Invalid refund details.', 400)
 
+  const overrideReason =
+    input.overrideReason || (isSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : null)
+
   const replacement = input.replacement
   const supabase = getServiceSupabaseClient()
   if (!(await hasCapability(supabase))) return privateError('Saved Refunds are not installed.', 503)
@@ -278,7 +286,7 @@ export async function POST(request: NextRequest) {
     p_replacement_desired_markup_gbp: replacement?.desiredMarkupGbp ?? null,
     p_formula_version: TICKET_REFUND_FORMULA_VERSION,
     p_notes: input.notes,
-    p_override_reason: input.overrideReason,
+    p_override_reason: overrideReason,
     p_idempotency_key: idempotencyKey,
   })
   if (result.error) {

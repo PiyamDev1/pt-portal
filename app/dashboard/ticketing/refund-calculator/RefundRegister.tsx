@@ -53,10 +53,12 @@ function gbp(value: string | number | null) {
 function RefundEventForm({
   refund,
   canManage,
+  isSuperAdmin,
   onUpdated,
 }: {
   refund: TicketingRefundItem
   canManage: boolean
+  isSuperAdmin: boolean
   onUpdated: () => Promise<void>
 }) {
   const canConfirmRefund = refund.airlineRecoveryFinal && !refund.confirmedCorrectAt
@@ -102,7 +104,7 @@ function RefundEventForm({
           eventDate,
           reference: reference.trim() || null,
           notes: notes.trim() || null,
-          overrideReason: reason.trim() || null,
+          overrideReason: reason.trim() || (isSuperAdmin ? 'Super Admin override' : null),
         },
         idempotencyKey.current,
       )
@@ -179,7 +181,7 @@ function RefundEventForm({
             className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3"
           />
         </label>
-        {['closed', 'voided'].includes(eventType) && (
+        {['closed', 'voided'].includes(eventType) && !isSuperAdmin && (
           <label className="text-xs font-bold text-slate-700">
             Reason
             <input
@@ -225,6 +227,7 @@ export function RefundRegister() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [canManage, setCanManage] = useState(false)
   const [canConfirm, setCanConfirm] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [expandedId, setExpandedId] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -244,6 +247,7 @@ export function RefundRegister() {
         setNextCursor(page.nextCursor)
         setCanManage(page.context.canManage)
         setCanConfirm(page.context.canConfirm)
+        setIsSuperAdmin(page.context.isSuperAdmin)
         setError('')
       } catch (caught) {
         if (requestId === sequence.current) {
@@ -431,6 +435,7 @@ export function RefundRegister() {
                     key={`${refund.id}:${refund.version}`}
                     refund={refund}
                     canManage={canManage}
+                    isSuperAdmin={isSuperAdmin}
                     onUpdated={() => load(applied)}
                   />
                 )}

@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { SUPER_ADMIN_AUDIT_REASON } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { isTicketingSuperAdmin, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
   TICKET_SCHEDULE_CHANGE_ACTIONS,
   TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION,
@@ -155,6 +156,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (bodyError || !entry) {
     return privateError(bodyError || 'Invalid schedule-change details.', 400)
   }
+  const reason =
+    entry.reason || (isTicketingSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : null)
+  if (!reason) return privateError('An operational note is required.', 400)
 
   const supabase = getServiceSupabaseClient()
   const { data: capability, error: capabilityError } = await supabase.rpc('ticketing_schema_status')
@@ -168,6 +172,25 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     )
   }
 
+  // A Super Admin may complete a marked schedule change in one action. The
+  // underlying state machine still records the review and finalisation events,
+  // but no second administrator interaction is required.
+  if (isTicketingSuperAdmin(access.employee.role) && entry.action === 'finalise') {
+    const { error: reviewError } = await supabase.rpc('ticketing_transition_schedule_change', {
+      p_actor_employee_id: access.employee.id,
+      p_sector_id: sectorId.data,
+      p_expected_itinerary_version: entry.expectedItineraryVersion,
+      p_idempotency_key: `super-admin-review:${entry.requestId}`,
+      p_action: 'review',
+      p_change_id: entry.changeId,
+      p_proposal: null,
+      p_reason: SUPER_ADMIN_AUDIT_REASON,
+    })
+    if (reviewError && reviewError.hint !== 'TICKETING_SCHEDULE_STATE_CONFLICT') {
+      return mutationError(reviewError)
+    }
+  }
+
   const { data, error } = await supabase.rpc('ticketing_transition_schedule_change', {
     p_actor_employee_id: access.employee.id,
     p_sector_id: sectorId.data,
@@ -176,7 +199,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     p_action: entry.action,
     p_change_id: entry.changeId,
     p_proposal: entry.proposal,
-    p_reason: entry.reason,
+    p_reason: reason,
   })
   if (error) return mutationError(error)
 

@@ -2,6 +2,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { SUPER_ADMIN_AUDIT_REASON, isSuperAdmin } from '@/lib/auth/superAdmin'
 import { isPosManager } from '@/lib/pos/access'
 import { posCashMovementSchema } from '@/lib/pos/inputContracts'
 import { POS_PRIVATE_RESPONSE, posErrorResponse, posIdempotencyKey } from '@/lib/pos/http'
@@ -30,6 +31,10 @@ export async function POST(request: Request) {
   if (!data || error)
     return apiError(error || 'Invalid cash movement.', 400, {}, POS_PRIVATE_RESPONSE)
 
+  const reason =
+    data.reason || (isSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : null)
+  if (!reason) return apiError('A reason is required.', 400, {}, POS_PRIVATE_RESPONSE)
+
   const privileged = ['DEPOSIT', 'WITHDRAWAL', 'CORRECTION'].includes(data.movementType)
   let freshFactorMethod: 'totp' | 'backup' | undefined
   if (privileged) {
@@ -50,6 +55,7 @@ export async function POST(request: Request) {
     return apiOk(
       await runPosMutation('pos_record_cash_movement_v1', access.employee.id, idempotencyKey, {
         ...payload,
+        reason,
         ...(freshFactorMethod ? { freshFactorMethod } : {}),
       }),
       { status: 201, ...POS_PRIVATE_RESPONSE },

@@ -29,11 +29,13 @@ function fieldClass(hasError: boolean) {
 export function TicketAttributionDialog({
   item,
   employees,
+  isSuperAdmin,
   onClose,
   onSaved,
 }: {
   item: TicketLedgerItem
   employees: TicketAttributionEmployee[]
+  isSuperAdmin: boolean
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
@@ -82,7 +84,8 @@ export function TicketAttributionDialog({
       return
     }
     const cleanReason = reason.trim()
-    if (!cleanReason) {
+    const resolvedReason = cleanReason || (isSuperAdmin ? 'Super Admin override' : '')
+    if (!resolvedReason) {
       setError('Enter a reason for this attribution correction.')
       return
     }
@@ -91,7 +94,10 @@ export function TicketAttributionDialog({
       return
     }
     const cleanWaiverReason = commissionWaiverReason.trim()
-    if (commercialTreatment !== 'standard' && cleanWaiverReason.length < 3) {
+    const resolvedWaiverReason =
+      cleanWaiverReason ||
+      (isSuperAdmin && commercialTreatment !== 'standard' ? 'Super Admin override' : '')
+    if (commercialTreatment !== 'standard' && resolvedWaiverReason.length < 3) {
       setError('Enter why this ticket does not use standard commission.')
       return
     }
@@ -104,7 +110,7 @@ export function TicketAttributionDialog({
     const nextAssistantIds = [...assistantEmployeeIds].sort()
     const treatmentChanged =
       commercialTreatment !== item.commercialTreatment ||
-      (commercialTreatment === 'standard' ? null : cleanWaiverReason) !==
+      (commercialTreatment === 'standard' ? null : resolvedWaiverReason) !==
         item.commissionWaiverReason
     if (
       responsibleEmployeeId === item.responsibleEmployee.id &&
@@ -125,8 +131,8 @@ export function TicketAttributionDialog({
           responsibleEmployeeId,
           assistantEmployeeIds,
           commercialTreatment,
-          commissionWaiverReason: commercialTreatment === 'standard' ? null : cleanWaiverReason,
-          reason: cleanReason,
+          commissionWaiverReason: commercialTreatment === 'standard' ? null : resolvedWaiverReason,
+          reason: resolvedReason,
         },
         idempotencyKey.current,
       )
@@ -296,7 +302,7 @@ export function TicketAttributionDialog({
               <option value="commission_waived">Other no-commission booking</option>
             </select>
           </label>
-          {commercialTreatment !== 'standard' && (
+          {commercialTreatment !== 'standard' && !isSuperAdmin && (
             <label className="mt-3 block text-xs font-bold text-slate-700">
               {commercialTreatment === 'staff_family' ? 'Relationship / reason' : 'Waiver reason'}
               <textarea
@@ -322,21 +328,23 @@ export function TicketAttributionDialog({
           </p>
         </fieldset>
 
-        <label className="text-xs font-bold text-slate-700">
-          Correction reason
-          <textarea
-            value={reason}
-            onChange={(event) => updateDraft(() => setReason(event.target.value))}
-            maxLength={500}
-            rows={3}
-            disabled={isSaving}
-            aria-label="Attribution correction reason"
-            aria-invalid={Boolean(error)}
-            aria-describedby={error ? 'ticket-attribution-correction-error' : undefined}
-            className={fieldClass(Boolean(error))}
-            placeholder="Explain why the attribution is being corrected"
-          />
-        </label>
+        {!isSuperAdmin && (
+          <label className="text-xs font-bold text-slate-700">
+            Correction reason
+            <textarea
+              value={reason}
+              onChange={(event) => updateDraft(() => setReason(event.target.value))}
+              maxLength={500}
+              rows={3}
+              disabled={isSaving}
+              aria-label="Attribution correction reason"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'ticket-attribution-correction-error' : undefined}
+              className={fieldClass(Boolean(error))}
+              placeholder="Explain why the attribution is being corrected"
+            />
+          </label>
+        )}
 
         {error && (
           <p

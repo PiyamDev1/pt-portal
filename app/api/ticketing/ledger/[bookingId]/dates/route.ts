@@ -2,8 +2,13 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { SUPER_ADMIN_AUDIT_REASON } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { canManageTicketingRecords, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import {
+  canManageTicketingRecords,
+  isTicketingSuperAdmin,
+  requireTicketingAccess,
+} from '@/lib/ticketing/apiAuth'
 import { ticketingBookingIdSchema } from '@/lib/ticketing/completionContracts'
 import {
   TICKET_DATE_CORRECTION_CAPABILITY_VERSION,
@@ -149,6 +154,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   )
   if (bodyError || !entry) return privateError(bodyError || 'Invalid ticket dates.', 400)
 
+  const reason =
+    entry.reason || (isTicketingSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : null)
+  if (!reason) return privateError('A reason is required when correcting ticket dates.', 400)
+  const resolvedEntry = { ...entry, reason }
+
   const idempotencyKey = request.headers.get('idempotency-key')?.trim()
   if (!idempotencyKey || idempotencyKey.length > 200) {
     return privateError('A valid Idempotency-Key header is required.', 400)
@@ -166,21 +176,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { data, error } = await supabase.rpc('ticketing_correct_transaction_dates_2026090203', {
     p_actor_employee_id: access.employee.id,
     p_booking_id: parsedBookingId.data,
-    p_transaction_id: entry.transactionId,
-    p_expected_booking_version: entry.expectedBookingVersion,
-    p_expected_transaction_version: entry.expectedTransactionVersion,
+    p_transaction_id: resolvedEntry.transactionId,
+    p_expected_booking_version: resolvedEntry.expectedBookingVersion,
+    p_expected_transaction_version: resolvedEntry.expectedTransactionVersion,
     p_idempotency_key: idempotencyKey,
     p_correction: {
-      operationalStatus: entry.operationalStatus,
-      bookingDate: entry.bookingDate,
-      timeLimitAt: entry.timeLimitAt,
-      issuedAt: entry.issuedAt,
-      reason: entry.reason,
+      operationalStatus: resolvedEntry.operationalStatus,
+      bookingDate: resolvedEntry.bookingDate,
+      timeLimitAt: resolvedEntry.timeLimitAt,
+      issuedAt: resolvedEntry.issuedAt,
+      reason: resolvedEntry.reason,
     },
   })
   if (error) return mutationError(error)
 
-  const result = parsedResult(data, parsedBookingId.data, entry)
+  const result = parsedResult(data, parsedBookingId.data, resolvedEntry)
   if (!result) return privateError('Ticketing returned an invalid date correction.', 500)
   return apiOk(result, PRIVATE_RESPONSE)
 }

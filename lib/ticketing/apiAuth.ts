@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireStaffSession, type StaffSession } from '@/lib/auth/staffSession'
+import { isSuperAdmin } from '@/lib/auth/superAdmin'
 
 export const TICKETING_DEPARTMENT = 'Ticketing'
 export const TICKETING_OVERSIGHT_ROLES = [
@@ -38,6 +39,10 @@ export function isTicketingOversightRole(role: unknown) {
   return TICKETING_OVERSIGHT_ROLES.some(
     (allowedRole) => normalizeAccessName(allowedRole) === normalizedRole,
   )
+}
+
+export function isTicketingSuperAdmin(role: unknown) {
+  return isSuperAdmin(role)
 }
 
 export function canManageTicketingRecords(role: unknown) {

@@ -5,7 +5,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { ADMIN_ROLES } from '@/lib/auth/staffSession'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { isTicketingSuperAdmin, requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import { TICKET_ADMIN_REQUESTS_SUPPLIERS_API_CAPABILITY_VERSION } from '@/lib/ticketing/contracts'
 import {
   TICKET_SCHEDULE_CHANGE_CAPABILITY_VERSION,
@@ -719,6 +719,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const superAdmin = isTicketingSuperAdmin(access.employee.role)
   const mayResolveAny = canResolveOnBehalf(access.employee.role)
   const items = (monitorItems as TicketingFlightMonitorItem[]).map((item) => {
     const mayResolve = mayResolveAny || item.ownerEmployee.id === access.employee.id
@@ -728,7 +729,9 @@ export async function GET(request: NextRequest) {
         : !mayResolve
           ? []
           : item.scheduleStatus === 'change_marked'
-            ? ['review', 'dismiss']
+            ? superAdmin
+              ? ['finalise', 'dismiss']
+              : ['review', 'dismiss']
             : ['finalise', 'dismiss']
     return {
       ...item,
@@ -766,6 +769,7 @@ export async function GET(request: NextRequest) {
       awaitingFinalisation: counts[2] as number,
     },
     items,
+    context: { isSuperAdmin: superAdmin },
     nextCursor:
       rows.length > filters.limit && pageRows.length > 0
         ? createCursor(pageRows[pageRows.length - 1], filters)

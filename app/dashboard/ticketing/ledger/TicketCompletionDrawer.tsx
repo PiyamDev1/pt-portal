@@ -574,12 +574,7 @@ export function TicketCompletionDrawer({
                       message={errors.onBehalfReason}
                     />
                   </label>
-                ) : (
-                  <p className="mt-3 text-xs font-semibold text-sky-800">
-                    No typed reason is required. The system records this Super Admin action in the
-                    ticket audit trail.
-                  </p>
-                )}
+                ) : null}
               </section>
             )}
 

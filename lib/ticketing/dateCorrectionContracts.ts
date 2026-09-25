@@ -29,7 +29,14 @@ export const ticketingCorrectDatesSchema = z
     bookingDate: isoDateSchema,
     timeLimitAt: localDateTimeSchema.nullable(),
     issuedAt: isoDateSchema.nullable(),
-    reason: z.string().trim().min(1).max(TICKET_DATE_CORRECTION_MAX_REASON_LENGTH),
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TICKET_DATE_CORRECTION_MAX_REASON_LENGTH)
+      .nullable()
+      .optional()
+      .default(null),
   })
   .strict()
   .superRefine((entry, context) => {

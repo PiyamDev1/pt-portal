@@ -320,7 +320,7 @@ export async function loadPosBootstrap(access: StaffSession): Promise<PosBootstr
       canApprove:
         permissions.canApprove &&
         row.status === 'PENDING_APPROVAL' &&
-        row.counted_by !== access.employee.id,
+        (permissions.isSuperAdmin || row.counted_by !== access.employee.id),
     }
   })
 

@@ -109,13 +109,6 @@ export const ticketingAppendRefundEventSchema = z
         message: acceptsAmount ? 'A positive amount is required.' : 'This event has no amount.',
       })
     }
-    if (['closed', 'voided'].includes(value.eventType) && !value.overrideReason) {
-      context.addIssue({
-        code: 'custom',
-        path: ['overrideReason'],
-        message: 'A reason is required.',
-      })
-    }
   })
 
 export type TicketingRecordRefundInput = z.output<typeof ticketingRecordRefundSchema>
@@ -157,7 +150,7 @@ export type TicketingRefundItem = {
 export type TicketingRefundPage = {
   items: TicketingRefundItem[]
   nextCursor: string | null
-  context: { canManage: boolean; canConfirm: boolean }
+  context: { canManage: boolean; canConfirm: boolean; isSuperAdmin: boolean }
 }
 
 export type TicketingRecordRefundResult = {

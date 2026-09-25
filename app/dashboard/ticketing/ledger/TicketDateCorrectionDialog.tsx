@@ -53,10 +53,12 @@ function fieldClass(hasError: boolean) {
 
 export function TicketDateCorrectionDialog({
   item,
+  isSuperAdmin,
   onClose,
   onSaved,
 }: {
   item: TicketLedgerItem
+  isSuperAdmin: boolean
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
@@ -85,6 +87,7 @@ export function TicketDateCorrectionDialog({
     if (isSaving) return
 
     const cleanReason = reason.trim()
+    const resolvedReason = cleanReason || (isSuperAdmin ? 'Super Admin override' : '')
     if (!bookingDate || !keyDate) {
       setError(`Enter both the booking date and ${isHeld ? 'airline deadline' : 'issued date'}.`)
       return
@@ -93,7 +96,7 @@ export function TicketDateCorrectionDialog({
       setError(`${isHeld ? 'Airline deadline' : 'Issued date'} cannot be before the booking date.`)
       return
     }
-    if (!cleanReason) {
+    if (!resolvedReason) {
       setError('Enter a reason for correcting these dates.')
       return
     }
@@ -127,7 +130,7 @@ export function TicketDateCorrectionDialog({
           bookingDate,
           timeLimitAt: isHeld ? keyDate : null,
           issuedAt: isHeld ? null : keyDate,
-          reason: cleanReason,
+          reason: resolvedReason,
         },
         idempotencyKey.current,
       )
@@ -202,21 +205,23 @@ export function TicketDateCorrectionDialog({
           />
         </label>
 
-        <label className="text-xs font-bold text-slate-700">
-          Correction reason
-          <textarea
-            value={reason}
-            onChange={(event) => update(() => setReason(event.target.value))}
-            maxLength={500}
-            rows={3}
-            disabled={isSaving}
-            aria-label="Date correction reason"
-            aria-invalid={Boolean(error)}
-            aria-describedby={error ? 'ticket-date-correction-error' : undefined}
-            className={fieldClass(Boolean(error))}
-            placeholder="Explain why these dates are being corrected"
-          />
-        </label>
+        {!isSuperAdmin && (
+          <label className="text-xs font-bold text-slate-700">
+            Correction reason
+            <textarea
+              value={reason}
+              onChange={(event) => update(() => setReason(event.target.value))}
+              maxLength={500}
+              rows={3}
+              disabled={isSaving}
+              aria-label="Date correction reason"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'ticket-date-correction-error' : undefined}
+              className={fieldClass(Boolean(error))}
+              placeholder="Explain why these dates are being corrected"
+            />
+          </label>
+        )}
 
         {error && (
           <p

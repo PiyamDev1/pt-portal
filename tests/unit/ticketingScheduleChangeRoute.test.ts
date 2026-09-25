@@ -10,6 +10,7 @@ const REQUEST_ID = '86000000-0000-4000-8000-000000000001'
 
 const mocks = vi.hoisted(() => ({
   requireTicketingAccess: vi.fn(),
+  isTicketingSuperAdmin: vi.fn(),
   enforceRateLimit: vi.fn(),
   rpc: vi.fn(),
   getServiceSupabaseClient: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/ticketing/apiAuth', () => ({
   requireTicketingAccess: mocks.requireTicketingAccess,
+  isTicketingSuperAdmin: mocks.isTicketingSuperAdmin,
 }))
 vi.mock('@/lib/security/rateLimit', () => ({
   enforceRateLimit: mocks.enforceRateLimit,
@@ -96,6 +98,7 @@ describe('POST /api/ticketing/flight-monitor/[sectorId]/schedule-change', () => 
       remaining: 39,
       retryAfterSeconds: 0,
     })
+    mocks.isTicketingSuperAdmin.mockReturnValue(false)
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'ticketing_schema_status') {
         return { data: { ready: true, version: 2026082701 }, error: null }
@@ -143,6 +146,59 @@ describe('POST /api/ticketing/flight-monitor/[sectorId]/schedule-change', () => 
       expect((await POST(request(body), context())).status).toBe(400)
     }
     expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
+  })
+
+  it('automatically reviews a marked change before a Super Admin finalises it', async () => {
+    mocks.requireTicketingAccess.mockResolvedValueOnce({
+      authorized: true,
+      scope: 'team',
+      user: { id: ACTOR_ID, email: 'super-admin@example.test' },
+      employee: {
+        id: ACTOR_ID,
+        email: 'super-admin@example.test',
+        fullName: 'Super Admin',
+        role: 'Super Admin',
+        departments: [],
+      },
+    })
+    mocks.isTicketingSuperAdmin.mockReturnValue(true)
+    mocks.rpc.mockImplementation(async (name: string, payload?: Record<string, unknown>) => {
+      if (name === 'ticketing_schema_status') {
+        return { data: { ready: true, version: 2026082701 }, error: null }
+      }
+      if (name === 'ticketing_transition_schedule_change' && payload?.p_action === 'review') {
+        return { data: { ...rpcResult(), action: 'review' }, error: null }
+      }
+      if (name === 'ticketing_transition_schedule_change') {
+        return { data: { ...rpcResult(), action: 'finalise' }, error: null }
+      }
+      throw new Error(`Unexpected RPC: ${name}`)
+    })
+
+    const response = await POST(
+      request({
+        ...markBody(),
+        action: 'finalise',
+        changeId: CHANGE_ID,
+        proposal: null,
+        reason: null,
+      }),
+      context(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_transition_schedule_change',
+      expect.objectContaining({
+        p_action: 'review',
+        p_idempotency_key: `super-admin-review:${REQUEST_ID}`,
+        p_reason: 'Super Admin override',
+      }),
+    )
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'ticketing_transition_schedule_change',
+      expect.objectContaining({ p_action: 'finalise', p_reason: 'Super Admin override' }),
+    )
   })
 
   it('fails closed for an invalid path, missing capability, and invalid RPC result', async () => {

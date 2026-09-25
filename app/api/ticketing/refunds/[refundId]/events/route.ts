@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { SUPER_ADMIN_AUDIT_REASON, isSuperAdmin } from '@/lib/auth/superAdmin'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
 import {
@@ -48,6 +49,12 @@ export async function POST(
   )
   if (bodyError || !input) return privateError(bodyError || 'Invalid refund event.', 400)
 
+  const requiresOverride = ['closed', 'voided'].includes(input.eventType)
+  const overrideReason =
+    input.overrideReason ||
+    (requiresOverride && isSuperAdmin(access.employee.role) ? SUPER_ADMIN_AUDIT_REASON : null)
+  if (requiresOverride && !overrideReason) return privateError('A reason is required.', 400)
+
   const supabase = getServiceSupabaseClient()
   const capability = await supabase.rpc('ticketing_schema_status')
   if (
@@ -66,7 +73,7 @@ export async function POST(
     p_event_date: input.eventDate,
     p_reference: input.reference,
     p_notes: input.notes,
-    p_override_reason: input.overrideReason,
+    p_override_reason: overrideReason,
     p_idempotency_key: idempotencyKey,
   })
   if (result.error) {

@@ -41,8 +41,15 @@ export const ticketingCorrectAttributionSchema = z
       .max(TICKET_ATTRIBUTION_MAX_ASSISTANTS)
       .default([]),
     commercialTreatment: z.enum(TICKET_ATTRIBUTION_COMMERCIAL_TREATMENTS),
-    commissionWaiverReason: z.string().trim().min(3).max(500).nullable(),
-    reason: z.string().trim().min(1).max(TICKET_ATTRIBUTION_MAX_REASON_LENGTH),
+    commissionWaiverReason: z.string().trim().min(3).max(500).nullable().optional().default(null),
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TICKET_ATTRIBUTION_MAX_REASON_LENGTH)
+      .nullable()
+      .optional()
+      .default(null),
   })
   .strict()
   .superRefine((entry, context) => {
@@ -52,13 +59,6 @@ export const ticketingCorrectAttributionSchema = z
         code: 'custom',
         path: ['commissionWaiverReason'],
         message: 'Standard commission treatment cannot include a waiver reason',
-      })
-    }
-    if (entry.commercialTreatment !== 'standard' && entry.commissionWaiverReason === null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['commissionWaiverReason'],
-        message: 'A commission treatment reason is required',
       })
     }
   })

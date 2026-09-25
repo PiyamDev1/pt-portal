@@ -66,7 +66,7 @@ export type ScheduleChangeMutation = {
     departureLocal: string
     arrivalLocal: string | null
   } | null
-  reason: string
+  reason: string | null
 }
 
 export type FlightMonitoringPayload = {
@@ -78,6 +78,7 @@ export type FlightMonitoringPayload = {
   }
   items: FlightMonitoringItem[]
   nextCursor: string | null
+  context: { isSuperAdmin: boolean }
 }
 
 export type FlightMonitoringFilters = {
@@ -127,6 +128,7 @@ export async function loadFlightMonitoring(
     typeof payload.counts.upcoming !== 'number' ||
     typeof payload.counts.changeMarked !== 'number' ||
     typeof payload.counts.awaitingFinalisation !== 'number' ||
+    typeof payload.context?.isSuperAdmin !== 'boolean' ||
     (payload.nextCursor !== null && typeof payload.nextCursor !== 'string')
   ) {
     throw new FlightMonitoringApiError('Flight Monitoring returned an invalid result. Try again.')

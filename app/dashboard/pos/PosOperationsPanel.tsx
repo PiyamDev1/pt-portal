@@ -317,7 +317,7 @@ export default function PosOperationsPanel(props: Props) {
     return (
       <section className="space-y-4 rounded-[1.15rem] border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="flex items-center gap-2 text-sm font-black">
-          <ShieldCheck className="h-4 w-4" /> Closeout and independent approval
+          <ShieldCheck className="h-4 w-4" /> Closeout approval
         </h2>
         {bootstrap.activeShift ? (
           <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
@@ -333,12 +333,14 @@ export default function PosOperationsPanel(props: Props) {
               onChange={setCountedReserve}
               type="number"
             />
-            <Field
-              label="Difference reason"
-              value={reason}
-              onChange={setReason}
-              placeholder="Required when counts differ"
-            />
+            {!bootstrap.permissions.isSuperAdmin && (
+              <Field
+                label="Difference reason"
+                value={reason}
+                onChange={setReason}
+                placeholder="Required when counts differ"
+              />
+            )}
             <ActionButton
               disabled={busy}
               onClick={() =>
@@ -491,7 +493,9 @@ export default function PosOperationsPanel(props: Props) {
               </select>
             </label>
           )}
-          <Field label="Reason" value={reason} onChange={setReason} />
+          {!bootstrap.permissions.isSuperAdmin && (
+            <Field label="Reason" value={reason} onChange={setReason} />
+          )}
           <Field
             label="Manager 2FA"
             value={verificationCode}
@@ -647,7 +651,12 @@ export default function PosOperationsPanel(props: Props) {
           </ActionButton>
           {selectedTransaction?.outgoingType === 'EXPENSE' && bootstrap.permissions.canManage && (
             <ActionButton
-              disabled={busy || !bootstrap.activeShift || !verificationCode || reason.length < 10}
+              disabled={
+                busy ||
+                !bootstrap.activeShift ||
+                !verificationCode ||
+                (!bootstrap.permissions.isSuperAdmin && reason.length < 10)
+              }
               onClick={() =>
                 void run(
                   () =>

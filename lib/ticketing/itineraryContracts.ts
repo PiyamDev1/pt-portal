@@ -114,7 +114,14 @@ export const ticketingScheduleChangeMutationSchema = z
     expectedItineraryVersion: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     changeId: z.string().uuid().nullable().optional().default(null),
     proposal: ticketingScheduleChangeProposalSchema.nullable().optional().default(null),
-    reason: z.string().trim().min(1).max(TICKET_SCHEDULE_CHANGE_MAX_REASON_LENGTH),
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TICKET_SCHEDULE_CHANGE_MAX_REASON_LENGTH)
+      .nullable()
+      .optional()
+      .default(null),
   })
   .strict()
   .superRefine((entry, context) => {
@@ -291,5 +298,6 @@ export type TicketingFlightMonitorResponse = {
     awaitingFinalisation: number
   }
   items: TicketingFlightMonitorItem[]
+  context: { isSuperAdmin: boolean }
   nextCursor: string | null
 }
