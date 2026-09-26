@@ -67,6 +67,22 @@ function passengerMix(item: TicketLedgerItem) {
   return parts.length > 0 ? parts.join(' · ') : `${item.passengerCount} passenger(s)`
 }
 
+function fareTotal(item: TicketLedgerItem, field: 'unitSupplierCost' | 'unitSalePrice') {
+  const values = item.fares.map((fare) => {
+    const unit = Number(fare[field])
+    return Number.isFinite(unit) ? unit * fare.quantity : null
+  })
+  return values.some((value) => value === null)
+    ? null
+    : values.reduce<number>((total, value) => total + Number(value), 0)
+}
+
+function gbp(value: number | null) {
+  return value === null
+    ? 'Not recorded'
+    : new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(value)
+}
+
 function PackageBadge({ status }: { status: string }) {
   if (status === 'matched' || status === 'manually_resolved') {
     return (
@@ -158,6 +174,8 @@ export function TicketLedgerList({
             item.operationalStatus === 'held' &&
             item.timeLimitAt !== null &&
             new Date(item.timeLimitAt).getTime() <= currentTimeMs
+          const supplierCost = fareTotal(item, 'unitSupplierCost')
+          const salePrice = item.salePriceVisible ? fareTotal(item, 'unitSalePrice') : null
           return (
             <article
               key={item.transactionId}
@@ -211,6 +229,14 @@ export function TicketLedgerList({
               <div>
                 <p className="text-sm font-bold text-slate-800">{passengerMix(item)}</p>
                 <p className="mt-0.5 text-xs text-slate-500">{item.passengerCount} ticket(s)</p>
+                <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] ring-1 ring-slate-200">
+                  <p className="font-bold text-slate-700">Supplier cost: {gbp(supplierCost)}</p>
+                  <p className="mt-0.5 font-semibold text-slate-500">
+                    {item.salePriceVisible
+                      ? `Selling price: ${gbp(salePrice)}`
+                      : 'Selling price: booking owner only'}
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -305,40 +331,26 @@ export function TicketLedgerList({
                           Payment
                         </button>
                       )}
-                      {isResponsibleEmployee ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            item.detailsStatus === 'complete' && !canManageAttribution
-                              ? onRequestChange(item, 'amendment')
-                              : onComplete(item)
-                          }
-                          aria-label={`${item.detailsStatus === 'complete' && !canManageAttribution ? 'Request amendment to' : item.detailsStatus === 'complete' ? 'Edit' : 'Complete'} details for ${item.pnr}`}
-                          className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2 text-center text-xs font-black leading-tight text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
-                        >
-                          <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-                          {item.detailsStatus === 'complete' && !canManageAttribution
-                            ? 'Request amendment'
-                            : item.detailsStatus === 'complete'
-                              ? 'Edit details'
-                              : 'Complete details'}
-                        </button>
-                      ) : canManageAttribution ? (
+                      {isResponsibleEmployee || canManageAttribution ? (
                         <button
                           type="button"
                           onClick={() => onComplete(item)}
-                          aria-label={`${item.detailsStatus === 'complete' ? 'Edit' : 'Complete'} details for ${item.pnr} on behalf of ${item.responsibleEmployee.fullName}`}
+                          aria-label={`${item.detailsStatus === 'complete' ? 'Edit' : 'Complete'} details for ${item.pnr}`}
+                          className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2 text-center text-xs font-black leading-tight text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-[#8b1e2d]"
+                        >
+                          <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
+                          {item.detailsStatus === 'complete' ? 'Edit details' : 'Complete details'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onComplete(item)}
+                          aria-label={`View or propose changes to details for ${item.pnr}`}
                           className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-center text-xs font-black leading-tight text-violet-800 hover:bg-violet-100"
                         >
                           <UserRoundCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                          {item.detailsStatus === 'complete'
-                            ? 'Edit on behalf'
-                            : 'Complete on behalf'}
+                          View / propose
                         </button>
-                      ) : (
-                        <p className="col-span-full rounded-xl bg-slate-100 px-3 py-2 text-center text-[11px] font-semibold text-slate-600">
-                          Details handled by {item.responsibleEmployee.fullName}
-                        </p>
                       )}
                       {canManageAttribution && (
                         <button
@@ -351,18 +363,19 @@ export function TicketLedgerList({
                           Correct staff
                         </button>
                       )}
-                      {(item.operationalStatus === 'held' ||
-                        item.operationalStatus === 'issued') && (
-                        <button
-                          type="button"
-                          onClick={() => onEditItinerary(item)}
-                          aria-label={`Edit itinerary for ${item.pnr}`}
-                          className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-center text-xs font-black leading-tight text-violet-800 hover:bg-violet-100"
-                        >
-                          <PlaneTakeoff className="h-3.5 w-3.5" aria-hidden="true" />
-                          Itinerary
-                        </button>
-                      )}
+                      {(isResponsibleEmployee || canManageAttribution) &&
+                        (item.operationalStatus === 'held' ||
+                          item.operationalStatus === 'issued') && (
+                          <button
+                            type="button"
+                            onClick={() => onEditItinerary(item)}
+                            aria-label={`Edit itinerary for ${item.pnr}`}
+                            className="ui-tap ui-focus inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2 text-center text-xs font-black leading-tight text-violet-800 hover:bg-violet-100"
+                          >
+                            <PlaneTakeoff className="h-3.5 w-3.5" aria-hidden="true" />
+                            Itinerary
+                          </button>
+                        )}
                       {(isResponsibleEmployee || canManageAttribution) && (
                         <button
                           type="button"

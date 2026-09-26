@@ -17,9 +17,12 @@ describe('TicketingDashboard', () => {
     )
   })
 
-  it('opens the calculator, operational sales ledger, Low Fare queue and Ticket Vouchers', () => {
+  it('opens the guided replacement workflow and the established Ticketing tools', () => {
     render(<TicketingDashboard />)
 
+    expect(screen.getByRole('link', { name: /Replacement Cases/ }).getAttribute('href')).toBe(
+      '/dashboard/ticketing/replacement-cases',
+    )
     expect(screen.getByRole('link', { name: /Refund Calculator/ }).getAttribute('href')).toBe(
       '/dashboard/ticketing/refund-calculator',
     )
@@ -33,7 +36,7 @@ describe('TicketingDashboard', () => {
       '/dashboard/ticketing/vouchers',
     )
     expect(screen.queryByRole('link', { name: /Flight Monitoring/ })).toBeNull()
-    expect(screen.getAllByText('Available')).toHaveLength(4)
+    expect(screen.getAllByText('Available')).toHaveLength(5)
     expect(screen.queryByText('Coming soon')).toBeNull()
   })
 

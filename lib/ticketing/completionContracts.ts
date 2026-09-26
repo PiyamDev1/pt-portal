@@ -7,6 +7,7 @@ import {
 import type { TicketingAttributionEmployee } from '@/lib/ticketing/attributionContracts'
 
 export const TICKET_COMPLETION_AUTHORIZED_CAPABILITY_VERSION = 2026082403
+export const TICKET_MONTHLY_AGENT_EDIT_CAPABILITY_VERSION = 2026092602
 export const TICKET_COMPLETION_MAX_ON_BEHALF_REASON_LENGTH = 500
 
 function isIsoCalendarDate(value: string) {
@@ -127,6 +128,7 @@ export type TicketingCompletionFare = {
   unitSupplierCost: number | null
   unitSalePrice: number | null
   salePriceLocked: boolean
+  salePriceVisible: boolean
 }
 
 export type TicketingCompletionPassenger = z.output<typeof ticketingCompletionPassengerSchema>
@@ -144,6 +146,8 @@ export type TicketingCompletionDetail = {
   operationalStatus: string
   paymentStatus: 'unpaid' | 'part_paid' | 'paid'
   paidAt: string | null
+  entryDate: string
+  locationTimezone: string
   airline: TicketingAirlineOption
   detailsStatus: (typeof TICKET_DETAILS_STATUSES)[number]
   responsibleEmployee: TicketingAttributionEmployee
@@ -156,6 +160,9 @@ export type TicketingCompletionContext = {
   isOnBehalf: boolean
   onBehalfReasonRequired: boolean
   canManageRecords: boolean
+  editMode: 'direct' | 'approval'
+  salePriceVisible: boolean
+  directEditUntil: string | null
 }
 
 export type TicketingCompletionResponse = {
@@ -163,6 +170,30 @@ export type TicketingCompletionResponse = {
   completionContext: TicketingCompletionContext
   changed?: boolean
   idempotentReplay?: boolean
+}
+
+export function ticketingEditAccess(input: {
+  actorEmployeeId: string
+  ownerEmployeeId: string
+  entryDate: string
+  currentDate: string
+  canManageRecords: boolean
+}) {
+  const isOnBehalf = input.actorEmployeeId !== input.ownerEmployeeId
+  const entryMonth = input.entryDate.slice(0, 7)
+  const currentMonth = input.currentDate.slice(0, 7)
+  const directEditAllowed = input.canManageRecords || (!isOnBehalf && entryMonth === currentMonth)
+  const [year, month] = entryMonth.split('-').map(Number)
+  const lastDay =
+    Number.isInteger(year) && Number.isInteger(month) && month >= 1 && month <= 12
+      ? new Date(Date.UTC(year, month, 0)).getUTCDate()
+      : null
+  return {
+    isOnBehalf,
+    editMode: directEditAllowed ? ('direct' as const) : ('approval' as const),
+    salePriceVisible: input.canManageRecords || !isOnBehalf,
+    directEditUntil: lastDay ? `${entryMonth}-${String(lastDay).padStart(2, '0')}` : null,
+  }
 }
 
 type DetailsStatusInput = Pick<TicketingCompletionDetail, 'contactPhone' | 'departureDate'> & {

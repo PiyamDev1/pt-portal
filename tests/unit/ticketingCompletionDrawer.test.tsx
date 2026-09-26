@@ -19,6 +19,8 @@ const DETAIL: TicketCompletionDetail = {
   contactPhone: null,
   departureDate: null,
   returnDate: null,
+  entryDate: '2026-09-10',
+  locationTimezone: 'Europe/London',
   operationalStatus: 'issued',
   paymentStatus: 'unpaid',
   paidAt: null,
@@ -33,6 +35,7 @@ const DETAIL: TicketCompletionDetail = {
       unitSupplierCost: 450,
       unitSalePrice: null,
       salePriceLocked: false,
+      salePriceVisible: true,
     },
     {
       id: 'fare-child',
@@ -41,6 +44,7 @@ const DETAIL: TicketCompletionDetail = {
       unitSupplierCost: 350,
       unitSalePrice: null,
       salePriceLocked: false,
+      salePriceVisible: true,
     },
   ],
   passengers: [],
@@ -51,6 +55,9 @@ const OWNER_COMPLETION_CONTEXT = {
   isOnBehalf: false,
   onBehalfReasonRequired: false,
   canManageRecords: false,
+  editMode: 'direct' as const,
+  salePriceVisible: true,
+  directEditUntil: '2026-09-30',
 }
 
 const ON_BEHALF_COMPLETION_CONTEXT = {
@@ -58,6 +65,9 @@ const ON_BEHALF_COMPLETION_CONTEXT = {
   isOnBehalf: true,
   onBehalfReasonRequired: true,
   canManageRecords: true,
+  editMode: 'direct' as const,
+  salePriceVisible: true,
+  directEditUntil: null,
 }
 
 function jsonResponse(value: unknown, status = 200) {
@@ -234,7 +244,7 @@ describe('TicketCompletionDrawer', () => {
     expect(onSaved).toHaveBeenCalledOnce()
   })
 
-  it('does not render a typed on-behalf reason field for an exempt Super Admin', async () => {
+  it('does not render a typed on-behalf reason field for an exempt Master Admin', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -249,9 +259,50 @@ describe('TicketCompletionDrawer', () => {
     await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
 
     expect(screen.getByLabelText('On-behalf completion').textContent).toMatch(
-      /system records this Super Admin action/i,
+      /system records this Master Admin action/i,
     )
     expect(screen.queryByLabelText('On-behalf completion reason')).toBeNull()
+  })
+
+  it('shows costs but hides another agent sale and sends proposed changes for approval', async () => {
+    const hiddenSaleDetail: TicketCompletionDetail = {
+      ...DETAIL,
+      fares: DETAIL.fares.map((fare) => ({
+        ...fare,
+        unitSalePrice: null,
+        salePriceVisible: false,
+      })),
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        completionResponse(hiddenSaleDetail, {
+          ownerEmployee: DETAIL.responsibleEmployee,
+          isOnBehalf: true,
+          onBehalfReasonRequired: false,
+          canManageRecords: false,
+          editMode: 'approval',
+          salePriceVisible: false,
+          directEditUntil: null,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ mode: 'approval_requested', requestId: 'request-1' }, 202),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    renderDrawer()
+
+    await screen.findByRole('dialog', { name: 'Complete ABC123 ticket details' })
+    expect(screen.getByText('Changes will be sent for approval')).toBeTruthy()
+    expect(screen.getByText('£450.00')).toBeTruthy()
+    expect(screen.getByText('£350.00')).toBeTruthy()
+    expect((screen.getByLabelText('ADT unit sale price') as HTMLInputElement).disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText('Contact number'), { target: { value: '07123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send for approval' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(toastMocks.success).toHaveBeenCalledWith('Changes sent to administrators for approval')
   })
 
   it('requires all missing issued sale prices together and all sales before Paid', async () => {

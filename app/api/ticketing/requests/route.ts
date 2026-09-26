@@ -9,6 +9,7 @@ type RequestRow = {
   booking_id: string
   request_type: 'amendment' | 'deletion'
   request_notes: string | null
+  proposed_details: Record<string, unknown> | null
   created_at: string
   requested_by_employee: Related<{ id: string; full_name: string | null }>
   ticket_bookings: Related<{
@@ -44,6 +45,7 @@ export async function GET() {
       booking_id,
       request_type,
       request_notes,
+      proposed_details,
       created_at,
       requested_by_employee:employees!ticket_change_requests_requested_by_fkey(id, full_name),
       ticket_bookings!inner(id, pnr, customer_name, archived_at)
@@ -67,6 +69,7 @@ export async function GET() {
         customerName: booking.customer_name,
         requestType: row.request_type,
         requestNotes: row.request_notes,
+        proposedDetails: row.proposed_details,
         createdAt: row.created_at,
         requestedBy: { id: employee.id, fullName: employee.full_name?.trim() || 'Staff member' },
       },

@@ -7,6 +7,7 @@ import type {
   TicketCompletionDetail,
   TicketCompletionContext,
   TicketCompletionLoadResult,
+  TicketCompletionSaveResult,
   TicketCompletionUpdate,
   TicketChangeRequest,
   TicketChangeRequestType,
@@ -328,9 +329,29 @@ export async function loadTicketCompletionDetail(
     throw new TicketLedgerApiError('Ticket details returned an invalid completion context.')
   }
 
+  const editMode = ['direct', 'approval'].includes(payload.completionContext.editMode)
+    ? payload.completionContext.editMode
+    : 'direct'
+  const salePriceVisible = payload.completionContext.salePriceVisible !== false
+  const directEditUntil =
+    typeof payload.completionContext.directEditUntil === 'string'
+      ? payload.completionContext.directEditUntil
+      : null
+
   return {
-    detail: payload.detail,
-    completionContext: payload.completionContext,
+    detail: {
+      ...payload.detail,
+      fares: payload.detail.fares.map((fare) => ({
+        ...fare,
+        salePriceVisible: fare.salePriceVisible !== false,
+      })),
+    },
+    completionContext: {
+      ...payload.completionContext,
+      editMode,
+      salePriceVisible,
+      directEditUntil,
+    },
   }
 }
 
@@ -338,7 +359,7 @@ export async function updateTicketCompletionDetail(
   bookingId: string,
   input: TicketCompletionUpdate,
   idempotencyKey: string,
-): Promise<void> {
+): Promise<TicketCompletionSaveResult> {
   const response = await fetch(`/api/ticketing/ledger/${encodeURIComponent(bookingId)}`, {
     method: 'PATCH',
     headers: {
@@ -347,7 +368,8 @@ export async function updateTicketCompletionDetail(
     },
     body: JSON.stringify(input),
   })
-  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload &
+    Partial<TicketCompletionSaveResult>
 
   if (!response.ok) {
     throw new TicketLedgerApiError(
@@ -356,6 +378,8 @@ export async function updateTicketCompletionDetail(
       payload.code,
     )
   }
+  const mode = payload.mode === 'approval_requested' ? 'approval_requested' : 'saved'
+  return { mode, requestId: payload.requestId }
 }
 
 export async function updateTicketRootPaymentStatus(

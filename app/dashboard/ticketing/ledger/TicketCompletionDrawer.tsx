@@ -149,6 +149,36 @@ function makeDraft(detail: TicketCompletionDetail): CompletionDraft {
   }
 }
 
+function applyProposal(
+  draft: CompletionDraft,
+  proposal: TicketCompletionUpdate | null | undefined,
+): CompletionDraft {
+  if (!proposal) return draft
+  const proposedSales = new Map(
+    proposal.fareSales
+      .filter((fare) => fare.unitSalePrice !== null)
+      .map((fare) => [fare.passengerType, String(fare.unitSalePrice)]),
+  )
+  return {
+    ...draft,
+    contactPhone: proposal.contactPhone || '',
+    departureDate: proposal.departureDate || '',
+    returnDate: proposal.returnDate || '',
+    fareSales: draft.fareSales.map((fare) => ({
+      ...fare,
+      unitSalePrice: proposedSales.get(fare.passengerType) ?? fare.unitSalePrice,
+    })),
+    passengers: proposal.passengers.map((passenger) => ({
+      passengerType: passenger.passengerType,
+      position: passenger.position,
+      fullName: passenger.fullName || '',
+      contactPhone: passenger.contactPhone || '',
+      dateOfBirth: passenger.dateOfBirth || '',
+      ticketNumber: passenger.ticketNumber || '',
+    })),
+  }
+}
+
 function fieldClass(hasError: boolean) {
   return `mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 ${
     hasError
@@ -173,11 +203,13 @@ function titleCase(value: string) {
 export function TicketCompletionDrawer({
   bookingId,
   timezone,
+  proposedDetails,
   onClose,
   onSaved,
 }: {
   bookingId: string | null
   timezone: string
+  proposedDetails?: TicketCompletionUpdate | null
   onClose: () => void
   onSaved: () => Promise<void> | void
 }) {
@@ -220,11 +252,12 @@ export function TicketCompletionDrawer({
 
     void loadTicketCompletionDetail(bookingId, controller.signal)
       .then(({ detail: nextDetail, completionContext: nextCompletionContext }) => {
-        const nextDraft = makeDraft(nextDetail)
+        const currentDraft = makeDraft(nextDetail)
+        const nextDraft = applyProposal(currentDraft, proposedDetails)
         setDetail(nextDetail)
         setCompletionContext(nextCompletionContext)
         setDraft(nextDraft)
-        setInitialDraft(nextDraft)
+        setInitialDraft(currentDraft)
       })
       .catch((error) => {
         if (controller.signal.aborted) return
@@ -239,7 +272,7 @@ export function TicketCompletionDrawer({
       })
 
     return () => controller.abort()
-  }, [bookingId, retryCount])
+  }, [bookingId, proposedDetails, retryCount])
 
   const dirty = Boolean(
     draft && initialDraft && JSON.stringify(draft) !== JSON.stringify(initialDraft),
@@ -252,17 +285,20 @@ export function TicketCompletionDrawer({
   )
   const isOnBehalf = completionContext?.isOnBehalf === true
   const onBehalfReasonRequired = isOnBehalf && completionContext?.onBehalfReasonRequired === true
+  const partPaidReadOnly = detail?.paymentStatus === 'part_paid'
 
   const draftStatus = useMemo(() => {
     if (!draft) return 'needs_details'
-    const hasEverySale = draft.fareSales.every((fare) => MONEY_PATTERN.test(fare.unitSalePrice))
+    const hasEverySale =
+      completionContext?.salePriceVisible === false ||
+      draft.fareSales.every((fare) => MONEY_PATTERN.test(fare.unitSalePrice))
     const hasEveryPassengerName =
       draft.passengers.length > 0 &&
       draft.passengers.every((passenger) => passenger.fullName.trim())
     return draft.contactPhone.trim() && draft.departureDate && hasEverySale && hasEveryPassengerName
       ? 'complete'
       : 'needs_details'
-  }, [draft])
+  }, [completionContext?.salePriceVisible, draft])
   const leadPassengerIndex = draft
     ? Math.max(
         draft.passengers.findIndex((passenger) => passenger.passengerType === 'ADT'),
@@ -333,7 +369,11 @@ export function TicketCompletionDrawer({
     const allSalePricesPresent = draft.fareSales.every((fare) =>
       MONEY_PATTERN.test(fare.unitSalePrice.trim()),
     )
-    if (draft.paymentStatus === 'paid' && !allSalePricesPresent) {
+    if (
+      draft.paymentStatus === 'paid' &&
+      completionContext?.salePriceVisible !== false &&
+      !allSalePricesPresent
+    ) {
       nextErrors.paymentStatus =
         'Every grouped sale price is required before marking this ticket Paid.'
     }
@@ -373,7 +413,12 @@ export function TicketCompletionDrawer({
     const detailsChangedWithoutPayment =
       initialDraft &&
       JSON.stringify({ ...draft, paymentStatus: 'unchanged', paidAt: null, onBehalfReason: '' }) !==
-        JSON.stringify({ ...initialDraft, paymentStatus: 'unchanged', paidAt: null, onBehalfReason: '' })
+        JSON.stringify({
+          ...initialDraft,
+          paymentStatus: 'unchanged',
+          paidAt: null,
+          onBehalfReason: '',
+        })
 
     if (paymentChanged && !detailsChangedWithoutPayment) {
       setIsSaving(true)
@@ -386,9 +431,7 @@ export function TicketCompletionDrawer({
             expectedTransactionVersion: detail.transactionVersion,
             paymentStatus: draft.paymentStatus,
             paidAt:
-              draft.paymentStatus === 'paid'
-                ? draft.paidAt || todayInTimezone(timezone)
-                : null,
+              draft.paymentStatus === 'paid' ? draft.paidAt || todayInTimezone(timezone) : null,
           },
           idempotencyKey.current,
         )
@@ -439,11 +482,13 @@ export function TicketCompletionDrawer({
     setIsSaving(true)
     setSaveError('')
     try {
-      await updateTicketCompletionDetail(bookingId, input, idempotencyKey.current)
+      const result = await updateTicketCompletionDetail(bookingId, input, idempotencyKey.current)
       toast.success(
-        isOnBehalf && completionContext
-          ? `Ticket details saved on behalf of ${completionContext.ownerEmployee.fullName}`
-          : 'Ticket details saved',
+        result.mode === 'approval_requested'
+          ? 'Changes sent to administrators for approval'
+          : isOnBehalf && completionContext
+            ? `Ticket details saved on behalf of ${completionContext.ownerEmployee.fullName}`
+            : 'Ticket details saved',
       )
       setInitialDraft(draft)
       onClose()
@@ -487,7 +532,7 @@ export function TicketCompletionDrawer({
           <button
             type="submit"
             form="ticket-completion-form"
-            disabled={isSaving || !operationalDirty}
+            disabled={isSaving || !operationalDirty || partPaidReadOnly}
             className="ui-tap ui-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-5 text-sm font-black text-white hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
             {isSaving ? (
@@ -495,7 +540,13 @@ export function TicketCompletionDrawer({
             ) : (
               <Save className="h-4 w-4" aria-hidden="true" />
             )}
-            {isSaving ? 'Saving…' : isOnBehalf ? 'Save on behalf' : 'Save details'}
+            {isSaving
+              ? 'Saving…'
+              : completionContext.editMode === 'approval'
+                ? 'Send for approval'
+                : isOnBehalf
+                  ? 'Save on behalf'
+                  : 'Save details'}
           </button>
         </div>
       </div>
@@ -568,6 +619,27 @@ export function TicketCompletionDrawer({
               </span>
             </div>
 
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm ${
+                completionContext.editMode === 'direct'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-amber-200 bg-amber-50 text-amber-950'
+              }`}
+            >
+              <p className="font-black">
+                {completionContext.editMode === 'direct'
+                  ? 'Changes save immediately'
+                  : 'Changes will be sent for approval'}
+              </p>
+              <p className="mt-1 text-xs leading-5">
+                {completionContext.editMode === 'direct'
+                  ? `You own this ticket and it is still within its entry month${completionContext.directEditUntil ? `, ending ${completionContext.directEditUntil}` : ''}.`
+                  : isOnBehalf
+                    ? `This ticket belongs to ${completionContext.ownerEmployee.fullName}. You can propose corrections for an administrator to review.`
+                    : 'The ticket entry month has closed. You can still enter the correction and send it for administrator review.'}
+              </p>
+            </div>
+
             {isOnBehalf && (
               <section
                 aria-label="On-behalf completion"
@@ -580,8 +652,11 @@ export function TicketCompletionDrawer({
                   Responsible agent: {completionContext.ownerEmployee.fullName}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-sky-800">
-                  Your signed-in account is recorded as the acting employee. Ticket responsibility
-                  and staff attribution stay with the responsible agent.
+                  {completionContext.editMode === 'approval'
+                    ? 'Your proposed corrections will be shown to an administrator before anything changes.'
+                    : completionContext.canManageRecords && !onBehalfReasonRequired
+                      ? 'The system records this Master Admin action automatically. Ticket responsibility and staff attribution stay with the responsible agent.'
+                      : 'Your signed-in account is recorded as the acting employee. Ticket responsibility and staff attribution stay with the responsible agent.'}
                 </p>
                 {onBehalfReasonRequired ? (
                   <label className="mt-3 block text-xs font-bold text-slate-700">
@@ -625,10 +700,17 @@ export function TicketCompletionDrawer({
               </div>
             )}
 
-            <fieldset
-              disabled={isSaving}
-              className="space-y-3"
-            >
+            {partPaidReadOnly && (
+              <div
+                role="alert"
+                className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900"
+              >
+                This part-paid record is read-only here. Use the Payment action on the ledger row to
+                update its payment state.
+              </div>
+            )}
+
+            <fieldset disabled={isSaving || partPaidReadOnly} className="space-y-3">
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
                 <CalendarDays className="h-4 w-4 text-[#8b1e2d]" aria-hidden="true" />
                 Customer and journey
@@ -692,10 +774,7 @@ export function TicketCompletionDrawer({
               </p>
             </fieldset>
 
-            <fieldset
-              disabled={isSaving}
-              className="space-y-3"
-            >
+            <fieldset disabled={isSaving || partPaidReadOnly} className="space-y-3">
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
                 <WalletCards className="h-4 w-4 text-[#8b1e2d]" aria-hidden="true" />
                 Sale and payment
@@ -744,24 +823,21 @@ export function TicketCompletionDrawer({
                               ),
                             }))
                           }
-                          disabled={
-                            (fare.salePriceLocked && !completionContext.canManageRecords) ||
-                            isSaving
-                          }
+                          disabled={!fare.salePriceVisible || isSaving}
                           aria-label={`${fare.passengerType} unit sale price`}
                           aria-invalid={Boolean(error || errors.fareSales)}
                           aria-describedby={describedBy || undefined}
                           className={fieldClass(Boolean(error || errors.fareSales))}
                           placeholder="0.00"
                         />
-                        {fare.salePriceLocked && !completionContext.canManageRecords && (
+                        {!fare.salePriceVisible && (
                           <span className="mt-1 block text-[10px] font-semibold text-slate-500">
-                            Locked — request an admin amendment
+                            Selling price is only visible to the booking owner and administrators
                           </span>
                         )}
-                        {fare.salePriceLocked && completionContext.canManageRecords && (
+                        {fare.salePriceVisible && fare.salePriceLocked && (
                           <span className="mt-1 block text-[10px] font-semibold text-violet-700">
-                            Admin correction is audited
+                            Any correction is recorded in the audit history
                           </span>
                         )}
                         <FieldError id={errorId} message={error} />
@@ -775,8 +851,13 @@ export function TicketCompletionDrawer({
               <label className="block text-xs font-bold text-slate-700">
                 Payment status
                 <select
+                  aria-label="Payment status"
                   value={draft.paymentStatus}
-                  disabled={isSaving}
+                  disabled={
+                    isSaving ||
+                    partPaidReadOnly ||
+                    (isOnBehalf && !completionContext.canManageRecords)
+                  }
                   onChange={(event) => {
                     const paymentStatus = event.target.value as 'unpaid' | 'part_paid' | 'paid'
                     updateDraft((current) => ({
@@ -795,22 +876,19 @@ export function TicketCompletionDrawer({
                   className={fieldClass(Boolean(errors.paymentStatus))}
                 >
                   <option value="unpaid">Unpaid</option>
-                  <option value="part_paid">
-                    Part Paid — requires payment workflow
-                  </option>
+                  <option value="part_paid">Part Paid — requires payment workflow</option>
                   <option value="paid">Paid</option>
                 </select>
                 <FieldError id="ticket-detail-payment-error" message={errors.paymentStatus} />
                 <span className="mt-1 block text-[10px] font-semibold text-slate-500">
-                  Payment status can be changed directly.
+                  {isOnBehalf && !completionContext.canManageRecords
+                    ? 'Only the booking owner or an administrator can update payment status.'
+                    : 'Payment status can be changed directly.'}
                 </span>
               </label>
             </fieldset>
 
-            <fieldset
-              disabled={isSaving}
-              className="space-y-3"
-            >
+            <fieldset disabled={isSaving || partPaidReadOnly} className="space-y-3">
               <legend className="flex items-center gap-2 text-sm font-black text-slate-950">
                 <Users className="h-4 w-4 text-[#8b1e2d]" aria-hidden="true" />
                 Passenger details

@@ -10,6 +10,7 @@ import {
   ticketingBookingIdSchema,
   ticketingCompleteTkDetailsSchema,
   ticketingDetailsStatus,
+  ticketingEditAccess,
   type TicketingCompletionContext,
   type TicketingCompletionDetail,
   type TicketingCompletionFare,
@@ -89,6 +90,8 @@ type TransactionRow = {
   operational_status: string
   payment_status: 'unpaid' | 'part_paid' | 'paid'
   paid_at: string | null
+  booking_date: string
+  issued_at: string | null
   responsible_employee: Related<EmployeeNameRow>
   ticket_bookings: Related<BookingRow>
   ticket_passenger_fare_lines: FareRow[] | null
@@ -132,11 +135,24 @@ function completionContext(
   onBehalfReasonExempt: boolean,
 ): TicketingCompletionContext {
   const isOnBehalf = detail.responsibleEmployee.id !== actorEmployeeId
+  const access = ticketingEditAccess({
+    actorEmployeeId,
+    ownerEmployeeId: detail.responsibleEmployee.id,
+    entryDate: detail.entryDate,
+    currentDate:
+      branchDate(new Date().toISOString(), detail.locationTimezone) ||
+      new Date().toISOString().slice(0, 10),
+    canManageRecords,
+  })
   return {
     ownerEmployee: detail.responsibleEmployee,
     isOnBehalf,
-    onBehalfReasonRequired: isOnBehalf && !onBehalfReasonExempt,
+    onBehalfReasonRequired:
+      access.editMode === 'direct' && isOnBehalf && canManageRecords && !onBehalfReasonExempt,
     canManageRecords,
+    editMode: access.editMode,
+    salePriceVisible: access.salePriceVisible,
+    directEditUntil: access.directEditUntil,
   }
 }
 
@@ -239,6 +255,7 @@ function detailFromRow(row: TransactionRow): TicketingCompletionDetail | null {
           unitSalePrice !== null &&
           (POSTED_OPERATIONAL_STATUSES.has(row.operational_status) ||
             row.payment_status === 'paid'),
+        salePriceVisible: true,
       }
     })
     .sort((left, right) => fareOrder(left.passengerType) - fareOrder(right.passengerType))
@@ -262,6 +279,11 @@ function detailFromRow(row: TransactionRow): TicketingCompletionDetail | null {
     operationalStatus: row.operational_status,
     paymentStatus: row.payment_status,
     paidAt: branchDate(row.paid_at, location.timezone),
+    entryDate:
+      branchDate(row.issued_at, location.timezone) ||
+      row.booking_date ||
+      branchDate(new Date().toISOString(), location.timezone)!,
+    locationTimezone: location.timezone,
     airline: { id: airline.id, iataCode: airline.iata_code, name: airline.name },
     detailsStatus: ticketingDetailsStatus({
       contactPhone: booking.contact_phone,
@@ -299,6 +321,8 @@ async function loadAccessibleDetail(
         operational_status,
         payment_status,
         paid_at,
+        booking_date,
+        issued_at,
         responsible_employee:employees!ticket_transactions_owner_employee_id_fkey(
           id,
           full_name
@@ -404,6 +428,15 @@ function completionError(error: TicketingRpcError) {
     })
   }
   if (error.code === '55000' || hint === 'TICKETING_CORRECTION_REQUIRED') {
+    if (hint === 'TICKETING_DIRECT_EDIT_ALLOWED') {
+      return privateError(
+        'This ticket is still open for direct editing. Refresh and save again.',
+        409,
+        {
+          code: 'DIRECT_EDIT_ALLOWED',
+        },
+      )
+    }
     return privateError('These posted ticket details require an audited correction.', 409, {
       code: 'CORRECTION_REQUIRED',
     })
@@ -433,23 +466,30 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     supabase,
     parsedBookingId.data,
     access.employee.id,
-    canCompleteTicketOnBehalf(access.employee.role),
+    true,
   )
   if (error) return privateError('Unable to load the ticket details right now.', 500)
   if (!detail) return privateError('Ticket record not found.', 404)
 
-  return apiOk(
-    {
-      detail,
-      completionContext: completionContext(
-        detail,
-        access.employee.id,
-        canCompleteTicketOnBehalf(access.employee.role),
-        isSuperAdmin(access.employee.role),
-      ),
-    },
-    PRIVATE_RESPONSE,
+  const context = completionContext(
+    detail,
+    access.employee.id,
+    canCompleteTicketOnBehalf(access.employee.role),
+    isSuperAdmin(access.employee.role),
   )
+  const visibleDetail = context.salePriceVisible
+    ? detail
+    : {
+        ...detail,
+        fares: detail.fares.map((fare) => ({
+          ...fare,
+          unitSalePrice: null,
+          salePriceLocked: true,
+          salePriceVisible: false,
+        })),
+      }
+
+  return apiOk({ detail: visibleDetail, completionContext: context }, PRIVATE_RESPONSE)
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
@@ -489,16 +529,34 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     supabase,
     parsedBookingId.data,
     access.employee.id,
-    allowAdminOnBehalf,
+    true,
   )
   if (initial.error) return privateError('Unable to load the ticket details right now.', 500)
   if (!initial.detail) return privateError('Ticket record not found.', 404)
 
-  if (!allowAdminOnBehalf && initial.detail.detailsStatus === 'complete') {
-    return privateError(
-      'This recorded ticket is locked. Request an amendment for an administrator to make the change.',
-      403,
-      { code: 'AMENDMENT_REQUEST_REQUIRED' },
+  const editContext = completionContext(
+    initial.detail,
+    access.employee.id,
+    allowAdminOnBehalf,
+    isSuperAdmin(access.employee.role),
+  )
+  if (editContext.editMode === 'approval') {
+    const { data, error } = await supabase.rpc(
+      'ticketing_request_booking_detail_change_2026092602',
+      {
+        p_actor_employee_id: access.employee.id,
+        p_booking_id: parsedBookingId.data,
+        p_idempotency_key: idempotencyKey,
+        p_proposed_details: details,
+      },
+    )
+    if (error) return completionError(error)
+    const result = data as { requestId?: string; idempotentReplay?: boolean } | null
+    if (!result?.requestId)
+      return privateError('Ticketing returned an invalid request result.', 500)
+    return apiOk(
+      { mode: 'approval_requested', requestId: result.requestId },
+      { status: result.idempotentReplay ? 200 : 202, ...PRIVATE_RESPONSE },
     )
   }
 
@@ -512,11 +570,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return incoming?.unitSalePrice !== fare.unitSalePrice
   })
   if (lockedSaleChanged) {
-    if (!allowAdminOnBehalf) {
-      return privateError('Only an administrator can amend a recorded sale price.', 403, {
-        code: 'AMENDMENT_REQUEST_REQUIRED',
-      })
-    }
     if (details.fareSales.some((fare) => fare.unitSalePrice === null)) {
       return privateError('Recorded sale prices cannot be cleared.', 400)
     }
@@ -589,6 +642,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   return apiOk(
     {
+      mode: 'saved',
       detail: loaded.detail,
       completionContext: completionContext(
         loaded.detail,

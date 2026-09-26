@@ -293,6 +293,7 @@ export type TicketingLedgerItem = {
   staffFamilyRefundFeeGbp: number
   detailsStatus: (typeof TICKET_DETAILS_STATUSES)[number]
   fares: TicketingLedgerFare[]
+  salePriceVisible: boolean
   createdAt: string
   responsibleEmployee: TicketingAttributionEmployee
   assistantEmployees: TicketingAttributionEmployee[]

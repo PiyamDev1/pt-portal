@@ -260,6 +260,7 @@ function ledgerItem(
   row: TransactionRow,
   actorEmployeeId: string,
   actorName: string,
+  canManageRecords: boolean,
   staffFamilyPolicy: { changeFeeGbp: number; refundFeeGbp: number },
 ): TicketingLedgerItem | null {
   const booking = firstRelated(row.ticket_bookings)
@@ -269,13 +270,15 @@ function ledgerItem(
   if (!booking || booking.archived_at || !airline || !location?.timezone || !attribution)
     return null
 
+  const salePriceVisible =
+    canManageRecords || attribution.responsibleEmployee.id === actorEmployeeId
   const fares: TicketingLedgerFare[] = (row.ticket_passenger_fare_lines || []).map((fare) => ({
     passengerType: fare.passenger_type,
     quantity: fare.quantity,
     unitSupplierCost: fare.unit_supplier_cost_source,
-    unitSalePrice: fare.unit_sale_price_source,
-    unitGrossSalePrice: fare.unit_gross_sale_price_source,
-    unitDiscount: fare.unit_discount_source,
+    unitSalePrice: salePriceVisible ? fare.unit_sale_price_source : null,
+    unitGrossSalePrice: salePriceVisible ? fare.unit_gross_sale_price_source : null,
+    unitDiscount: salePriceVisible ? fare.unit_discount_source : null,
   }))
   const passengers = (row.ticket_transaction_passengers || [])
     .map((allocation) => ({
@@ -324,6 +327,7 @@ function ledgerItem(
           })
         : 'recorded',
     fares,
+    salePriceVisible,
     createdAt: row.created_at,
     ...attribution,
     // Booking attribution identifies the root TK sale. A later DC/R-ER is a
@@ -509,9 +513,6 @@ export async function GET(request: NextRequest) {
           )
         `,
   )
-  if (!canManageAttribution) {
-    transactionsQuery = transactionsQuery.eq('owner_employee_id', access.employee.id)
-  }
   if (search) {
     const escapedSearch = escapeSearch(search)
     transactionsQuery = transactionsQuery.or(
@@ -590,7 +591,15 @@ export async function GET(request: NextRequest) {
   }
   const pageRows = transactionRows.slice(0, limit)
   const items = pageRows
-    .map((row) => ledgerItem(row, access.employee.id, access.employee.fullName, staffFamilyPolicy))
+    .map((row) =>
+      ledgerItem(
+        row,
+        access.employee.id,
+        access.employee.fullName,
+        canManageAttribution,
+        staffFamilyPolicy,
+      ),
+    )
     .filter((item): item is TicketingLedgerItem => Boolean(item))
   const airlines = ((airlinesResult.data || []) as AirlineRow[]).map(airlineOption)
   const employee = employeeResult.data as unknown as EmployeeLocationRow | null

@@ -96,6 +96,11 @@ export function TicketChangeRequestsPanel({
                   {item.requestNotes && (
                     <p className="mt-2 text-sm text-slate-700">{item.requestNotes}</p>
                   )}
+                  {item.requestType === 'amendment' && item.proposedDetails && (
+                    <p className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-900 ring-1 ring-amber-200">
+                      Proposed values ready to compare
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -110,7 +115,7 @@ export function TicketChangeRequestsPanel({
                     ) : (
                       <Trash2 className="h-3.5 w-3.5" />
                     )}
-                    {item.requestType === 'amendment' ? 'Amend record' : 'Delete record'}
+                    {item.requestType === 'amendment' ? 'Review & approve' : 'Delete record'}
                   </button>
                   <button
                     type="button"

@@ -22,6 +22,7 @@ import {
   FileText,
   FileSpreadsheet,
   Home,
+  Link2,
   Menu,
   Settings,
   ShieldCheck,
@@ -168,6 +169,11 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
     title: 'Ticketing menu',
     items: [
       { href: '/dashboard/ticketing', label: 'Ticketing Home', icon: BookOpen },
+      {
+        href: '/dashboard/ticketing/replacement-cases',
+        label: 'Replacement Cases',
+        icon: Link2,
+      },
       {
         href: '/dashboard/ticketing/refund-calculator',
         label: 'Refund Calculator',

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ticketingCompleteTkDetailsSchema,
   ticketingDetailsStatus,
+  ticketingEditAccess,
 } from '@/lib/ticketing/completionContracts'
 
 function validDetails() {
@@ -177,5 +178,51 @@ describe('Ticketing completion contracts', () => {
       }),
     ).toBe('needs_details')
     expect(ticketingDetailsStatus({ ...complete, contactPhone: null })).toBe('needs_details')
+  })
+
+  it('keeps owner edits direct only until the entry month closes', () => {
+    expect(
+      ticketingEditAccess({
+        actorEmployeeId: 'agent-a',
+        ownerEmployeeId: 'agent-a',
+        entryDate: '2026-08-12',
+        currentDate: '2026-08-31',
+        canManageRecords: false,
+      }),
+    ).toMatchObject({
+      editMode: 'direct',
+      salePriceVisible: true,
+      directEditUntil: '2026-08-31',
+    })
+    expect(
+      ticketingEditAccess({
+        actorEmployeeId: 'agent-a',
+        ownerEmployeeId: 'agent-a',
+        entryDate: '2026-08-12',
+        currentDate: '2026-09-01',
+        canManageRecords: false,
+      }).editMode,
+    ).toBe('approval')
+  })
+
+  it('requires approval and hides sale price for another agent while administrators remain direct', () => {
+    expect(
+      ticketingEditAccess({
+        actorEmployeeId: 'agent-b',
+        ownerEmployeeId: 'agent-a',
+        entryDate: '2026-09-10',
+        currentDate: '2026-09-20',
+        canManageRecords: false,
+      }),
+    ).toMatchObject({ editMode: 'approval', isOnBehalf: true, salePriceVisible: false })
+    expect(
+      ticketingEditAccess({
+        actorEmployeeId: 'admin',
+        ownerEmployeeId: 'agent-a',
+        entryDate: '2026-08-10',
+        currentDate: '2026-09-20',
+        canManageRecords: true,
+      }),
+    ).toMatchObject({ editMode: 'direct', salePriceVisible: true })
   })
 })

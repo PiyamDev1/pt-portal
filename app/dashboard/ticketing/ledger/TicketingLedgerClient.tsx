@@ -41,7 +41,9 @@ export function TicketingLedgerClient() {
   const [status, setStatus] = useState('all')
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
   const [selectedPaymentItem, setSelectedPaymentItem] = useState<TicketLedgerItem | null>(null)
-  const [selectedRootPaymentItem, setSelectedRootPaymentItem] = useState<TicketLedgerItem | null>(null)
+  const [selectedRootPaymentItem, setSelectedRootPaymentItem] = useState<TicketLedgerItem | null>(
+    null,
+  )
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<TicketLedgerItem | null>(null)
   const [selectedAttributionItem, setSelectedAttributionItem] = useState<TicketLedgerItem | null>(
     null,
@@ -55,7 +57,9 @@ export function TicketingLedgerClient() {
     item: Pick<TicketLedgerItem, 'bookingId' | 'pnr'>
     requestType: TicketChangeRequestType
   } | null>(null)
-  const [activeAmendmentRequestId, setActiveAmendmentRequestId] = useState<string | null>(null)
+  const [activeAmendmentRequest, setActiveAmendmentRequest] = useState<TicketChangeRequest | null>(
+    null,
+  )
   const [requestRefreshToken, setRequestRefreshToken] = useState(0)
   const [entryType, setEntryType] = useState<'TK' | 'DC' | 'R-ER'>('TK')
 
@@ -244,7 +248,7 @@ export function TicketingLedgerClient() {
         <TicketChangeRequestsPanel
           refreshToken={requestRefreshToken}
           onAmend={(request: TicketChangeRequest) => {
-            setActiveAmendmentRequestId(request.id)
+            setActiveAmendmentRequest(request)
             setSelectedBookingId(request.bookingId)
           }}
           onDelete={(request: TicketChangeRequest) =>
@@ -378,14 +382,15 @@ export function TicketingLedgerClient() {
       <TicketCompletionDrawer
         bookingId={selectedBookingId}
         timezone={payload.context.timezone}
+        proposedDetails={activeAmendmentRequest?.proposedDetails}
         onClose={() => {
           setSelectedBookingId(null)
-          setActiveAmendmentRequestId(null)
+          setActiveAmendmentRequest(null)
         }}
         onSaved={async () => {
-          if (activeAmendmentRequestId) {
-            await reviewTicketChangeRequest(activeAmendmentRequestId, 'fulfilled')
-            setActiveAmendmentRequestId(null)
+          if (activeAmendmentRequest) {
+            await reviewTicketChangeRequest(activeAmendmentRequest.id, 'fulfilled')
+            setActiveAmendmentRequest(null)
             setRequestRefreshToken((current) => current + 1)
           }
           await refresh(false, currentCursor)

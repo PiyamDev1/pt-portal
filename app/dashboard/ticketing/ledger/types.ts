@@ -62,6 +62,7 @@ export type TicketLedgerItem = {
   staffFamilyRefundFeeGbp: number
   detailsStatus?: TicketDetailsStatus
   fares: TicketLedgerFare[]
+  salePriceVisible: boolean
   responsibleEmployee: TicketAttributionEmployee
   assistantEmployees: TicketAttributionEmployee[]
   attributionVersion: number
@@ -169,6 +170,7 @@ export type TicketCompletionFare = {
   unitSupplierCost: string | number | null
   unitSalePrice: string | number | null
   salePriceLocked: boolean
+  salePriceVisible: boolean
 }
 
 export type TicketCompletionPassenger = {
@@ -193,6 +195,8 @@ export type TicketCompletionDetail = {
   operationalStatus: string
   paymentStatus: 'unpaid' | 'part_paid' | 'paid'
   paidAt: string | null
+  entryDate: string
+  locationTimezone: string
   airline: TicketAirlineOption
   responsibleEmployee: TicketAttributionEmployee
   detailsStatus: TicketDetailsStatus
@@ -205,6 +209,9 @@ export type TicketCompletionContext = {
   isOnBehalf: boolean
   onBehalfReasonRequired: boolean
   canManageRecords: boolean
+  editMode: 'direct' | 'approval'
+  salePriceVisible: boolean
+  directEditUntil: string | null
 }
 
 export type TicketRootPaymentStatusInput = {
@@ -225,6 +232,7 @@ export type TicketChangeRequest = {
   requestNotes: string | null
   createdAt: string
   requestedBy: TicketAttributionEmployee
+  proposedDetails: TicketCompletionUpdate | null
 }
 
 export type TicketCompletionLoadResult = {
@@ -246,4 +254,9 @@ export type TicketCompletionUpdate = {
     unitSalePrice: number | null
   }>
   passengers: TicketCompletionPassenger[]
+}
+
+export type TicketCompletionSaveResult = {
+  mode: 'saved' | 'approval_requested'
+  requestId?: string
 }
