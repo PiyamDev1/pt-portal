@@ -98,15 +98,22 @@ begin
     return existing_response || jsonb_build_object('idempotentReplay', true);
   end if;
 
-  select booking, location.timezone
-  into booking_row, booking_timezone
+  select booking
+  into booking_row
   from public.ticket_bookings booking
-  join public.locations location on location.id = booking.location_id
   where booking.id = p_booking_id
     and booking.archived_at is null
   for update of booking;
   if not found then
     raise exception 'Ticket booking not found' using errcode = 'P0002';
+  end if;
+
+  select location.timezone
+  into booking_timezone
+  from public.locations location
+  where location.id = booking_row.location_id;
+  if not found then
+    raise exception 'Ticket booking location not found' using errcode = 'P0002';
   end if;
 
   select transaction.*
