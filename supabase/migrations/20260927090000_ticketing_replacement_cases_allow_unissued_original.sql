@@ -3,21 +3,12 @@ begin;
 do $$
 declare
   function_sql text;
-  original_status_pattern constant text := $pattern$
-    on transaction\.id = nullif\(p_entry #>> '\{original,transactionId\}', ''\)::uuid
-    \s+and transaction\.booking_id = booking\.id
-    \s+and transaction\.service_type = 'TK'
-    \s+and transaction\.parent_transaction_id is null
-    \s+and transaction\.operational_status = 'issued'
-  $pattern$;
-  original_status_replacement constant text := $replacement$
-    on transaction.id = nullif(p_entry #>> '{original,transactionId}', '')::uuid
-    and transaction.booking_id = booking.id
-    and transaction.service_type = 'TK'
-    and transaction.parent_transaction_id is null
-    and transaction.operational_status in ('held', 'issued')
-  $replacement$;
-  match_count integer;
+  original_anchor constant text := 'p_entry #>> ''{original,transactionId}''';
+  original_status_guard constant text := 'transaction.operational_status = ''issued''';
+  original_status_replacement constant text :=
+    'transaction.operational_status in (''held'', ''issued'')';
+  anchor_position integer;
+  status_position integer;
 begin
   select pg_get_functiondef(
     'public.ticketing_create_replacement_case_2026092601(uuid,text,jsonb)'::regprocedure
@@ -27,19 +18,24 @@ begin
     return;
   end if;
 
-  select count(*)
-  into match_count
-  from regexp_matches(function_sql, original_status_pattern, 'gs');
-  if function_sql is null or match_count <> 1 then
+  anchor_position := strpos(function_sql, original_anchor);
+  if function_sql is null or anchor_position = 0 then
     raise exception 'Replacement-case original status guard differs from the reviewed definition'
       using errcode = '55000', hint = 'TICKETING_SCHEMA_DRIFT';
   end if;
 
-  function_sql := regexp_replace(
-    function_sql,
-    original_status_pattern,
-    original_status_replacement,
-    'gs'
+  status_position := strpos(
+    substr(function_sql, anchor_position),
+    original_status_guard
+  );
+  if status_position = 0 then
+    raise exception 'Replacement-case original status guard differs from the reviewed definition'
+      using errcode = '55000', hint = 'TICKETING_SCHEMA_DRIFT';
+  end if;
+  status_position := anchor_position + status_position - 1;
+  function_sql := overlay(
+    function_sql placing original_status_replacement
+    from status_position for length(original_status_guard)
   );
   function_sql := replace(
     function_sql,
