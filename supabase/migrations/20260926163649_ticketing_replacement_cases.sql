@@ -261,13 +261,13 @@ begin
     and transaction.booking_id = booking.id
     and transaction.service_type = 'TK'
     and transaction.parent_transaction_id is null
-    and transaction.operational_status = 'issued'
+    and transaction.operational_status in ('held', 'issued')
   join public.ticket_passenger_fare_lines fare on fare.transaction_id = transaction.id
   where booking.id = nullif(p_entry #>> '{original,bookingId}', '')::uuid
     and booking.archived_at is null
   group by booking.id, booking.version, booking.owner_employee_id, transaction.id;
   if not found then
-    raise exception 'Original issued ticket was not found' using errcode = 'P0002';
+    raise exception 'Original held or issued ticket was not found' using errcode = 'P0002';
   end if;
   if original.incomplete_fare_count > 0 then
     raise exception 'Complete the original supplier cost and sale price first'

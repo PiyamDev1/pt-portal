@@ -171,6 +171,9 @@ function TicketSummary({ ticket }: { ticket: TicketingReplacementLookupItem }) {
           {ticket.passengerCount} ticket{ticket.passengerCount === 1 ? '' : 's'}
         </span>
       </div>
+      <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        {ticket.operationalStatus === 'issued' ? 'Issued ticket' : 'Held / not issued'}
+      </p>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg bg-slate-50 p-2">
           <p className="text-slate-500">Supplier cost</p>
@@ -217,7 +220,7 @@ function PnrLookup({
         ? (payload.items as TicketingReplacementLookupItem[])
         : []
       setResults(items)
-      if (items.length === 0) setError('No issued ticket was found for that PNR.')
+      if (items.length === 0) setError('No held or issued ticket was found for that PNR.')
       if (items.length === 1) {
         onSelect(items[0]!)
         setPnr('')

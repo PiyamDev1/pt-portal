@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const TICKET_REPLACEMENT_CASE_CAPABILITY_VERSION = 2026092601
+export const TICKET_REPLACEMENT_CASE_CAPABILITY_VERSION = 2026092701
 
 export const TICKET_REPLACEMENT_REASONS = [
   'fare_expired_staff_error',
@@ -93,7 +93,8 @@ export type TicketingReplacementLookupItem = {
   salePriceGbp: number
   owner: { id: string; fullName: string }
   airline: { id: string; iataCode: string; name: string }
-  issuedAt: string
+  operationalStatus: 'held' | 'issued'
+  issuedAt: string | null
 }
 
 export type TicketingReplacementCaseItem = {

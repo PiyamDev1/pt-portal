@@ -17,7 +17,8 @@ type LookupRow = {
   ticket_transactions: Array<{
     id: string
     passenger_ticket_count: number
-    issued_at: string
+    operational_status: 'held' | 'issued'
+    issued_at: string | null
     ticket_passenger_fare_lines: Array<{
       supplier_total_gbp: string | number
       sale_total_gbp: string | number
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
     .is('archived_at', null)
     .eq('ticket_transactions.service_type', 'TK')
     .is('ticket_transactions.parent_transaction_id', null)
-    .eq('ticket_transactions.operational_status', 'issued')
+    .in('ticket_transactions.operational_status', ['held', 'issued'])
   if (!canManageTicketingRecords(access.employee.role)) {
     query = query.eq('owner_employee_id', access.employee.id)
   }
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
     const owner = first(row.owner)
     const airline = first(row.airline)
     const transaction = row.ticket_transactions?.[0]
-    if (!owner?.full_name?.trim() || !airline || !transaction?.issued_at) return []
+    if (!owner?.full_name?.trim() || !airline || !transaction) return []
     const fares = transaction.ticket_passenger_fare_lines || []
     return [
       {
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
         salePriceGbp: fares.reduce((total, fare) => total + Number(fare.sale_total_gbp), 0),
         owner: { id: owner.id, fullName: owner.full_name.trim() },
         airline: { id: airline.id, iataCode: airline.iata_code, name: airline.name },
+        operationalStatus: transaction.operational_status,
         issuedAt: transaction.issued_at,
       },
     ]
