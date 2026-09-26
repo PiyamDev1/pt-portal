@@ -207,10 +207,8 @@ $$;
 do $$
 declare
   function_sql text;
-  old_guard text := $guard$
-  if not public.ticketing_actor_is_admin_2026082802(p_actor_employee_id) then
-    raise exception 'Only an active administrator may correct ticket sale prices' using errcode = '42501';
-  end if;$guard$;
+  old_guard_pattern constant text :=
+    'if\s+not\s+public\.ticketing_actor_is_admin_2026082802\(p_actor_employee_id\)\s+then\s+raise\s+exception\s+''Only an active administrator may correct ticket sale prices''\s+using\s+errcode\s*=\s*''42501''\s*;\s*end\s+if\s*;';
   new_guard text := $guard$
   if not public.ticketing_actor_is_admin_2026082802(p_actor_employee_id)
     and not exists (
@@ -236,17 +234,21 @@ declare
     )
   then
     raise exception 'Only the booking owner within the entry month or an administrator may correct ticket sale prices'
-      using errcode = '42501';
+    using errcode = '42501';
   end if;$guard$;
+  old_guard_count integer;
 begin
   function_sql := pg_get_functiondef(
     'public.ticketing_admin_correct_sale_prices(uuid,uuid,bigint,bigint,text,jsonb)'::regprocedure
   );
-  if position(old_guard in function_sql) = 0 then
+  select count(*)
+  into old_guard_count
+  from regexp_matches(function_sql, old_guard_pattern, 'n');
+  if function_sql is null or old_guard_count <> 1 then
     raise exception 'Ticket sale correction authorisation guard did not match'
       using errcode = '55000', hint = 'TICKETING_SCHEMA_DRIFT';
   end if;
-  function_sql := replace(function_sql, old_guard, new_guard);
+  function_sql := regexp_replace(function_sql, old_guard_pattern, new_guard, 'n');
   function_sql := replace(
     function_sql,
     '''ticket_sale_price_admin_corrected''',
