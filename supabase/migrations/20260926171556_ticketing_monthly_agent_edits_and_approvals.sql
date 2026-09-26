@@ -208,9 +208,9 @@ do $$
 declare
   function_sql text;
   old_guard_pattern constant text :=
-    'if\s+not\s+public\.ticketing_actor_is_admin_2026082802\(p_actor_employee_id\)\s+then\s+raise\s+exception\s+''Only an active administrator may correct ticket sale prices''\s+using\s+errcode\s*=\s*''42501''\s*;\s*end\s+if\s*;';
+    'if\s+not\s+public\.(ticketing_actor_is_admin_2026082802|ticketing_actor_can_maintain_2026090202)\(p_actor_employee_id\)\s+then\s+raise\s+exception\s+''Only an active administrator may correct ticket sale prices''\s+using\s+errcode\s*=\s*''42501''\s*;\s*end\s+if\s*;';
   new_guard text := $guard$
-  if not public.ticketing_actor_is_admin_2026082802(p_actor_employee_id)
+  if not public.ticketing_actor_can_maintain_2026090202(p_actor_employee_id)
     and not exists (
       select 1
       from public.ticket_bookings authorised_booking
