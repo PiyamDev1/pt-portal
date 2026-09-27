@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner'
 import {
   calculateReplacementChange,
+  calculateReplacementCommissionDecision,
   calculateReplacementRecovery,
   type TicketingReplacementCase,
   type TicketingReplacementCasePage,
@@ -336,6 +337,19 @@ function CalculationLine({
   )
 }
 
+function commissionCopy(
+  decision: ReturnType<typeof calculateReplacementCommissionDecision>,
+  replacementOwnerName: string,
+) {
+  if (decision.treatment === 'standard_cross_agent') {
+    return `${replacementOwnerName} keeps standard commission because this replacement ticket belongs to a different agent.`
+  }
+  if (decision.treatment === 'original_only_if_profitable') {
+    return `Same agent booked the replacement. They receive the original ticket commission only because the company result is a profit of ${gbp(decision.companyProfitGbp)}.`
+  }
+  return `Same agent booked the replacement, but the company result is a loss of ${gbp(Math.abs(decision.companyProfitGbp))}; no replacement commission is due.`
+}
+
 export function ReplacementCasesClient() {
   const [tab, setTab] = useState<Tab>('entry')
   const [page, setPage] = useState<TicketingReplacementCasePage | null>(null)
@@ -383,6 +397,21 @@ export function ReplacementCasesClient() {
           })
         : null,
     [original, policy, replacementCost, replacements.length],
+  )
+  const previewCommissionDecisions = useMemo(
+    () =>
+      original
+        ? replacements.map((ticket) => ({
+            ticket,
+            decision: calculateReplacementCommissionDecision({
+              originalOwnerId: original.owner.id,
+              replacementOwnerId: ticket.owner.id,
+              originalSaleGbp: original.salePriceGbp,
+              replacementSupplierCostGbp: replacementCost,
+            }),
+          }))
+        : [],
+    [original, replacementCost, replacements],
   )
 
   function clearDraft() {
@@ -704,9 +733,23 @@ export function ReplacementCasesClient() {
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
                     <p className="font-black">Commission instruction recorded</p>
                     <p className="mt-1">
-                      Original agent commission: reverse at review. Replacement ticket agents:
-                      standard commission.
+                      Original ticket commission is reversed at review. Cross-agent replacement
+                      tickets retain standard commission; same-agent replacements receive only the
+                      original commission when that agent booked the replacement and the company
+                      made a profit.
                     </p>
+                    {previewCommissionDecisions.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {previewCommissionDecisions.map(({ ticket, decision }) => (
+                          <div key={ticket.bookingId} className="rounded-lg border border-emerald-200 bg-white/70 p-2">
+                            <p className="font-black text-emerald-950">{ticket.pnr}</p>
+                            <p className="mt-0.5 text-emerald-900">
+                              {commissionCopy(decision, ticket.owner.fullName)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {replacementRecordedSale > 0 ? (
                     <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
@@ -971,6 +1014,15 @@ function ReplacementCaseCard({
     },
   )
   const currentNetPosition = laterTotals.result - item.companyMarginAbsorbedGbp
+  const commissionDecisions = item.items.map((ticket) => ({
+    ticket,
+    decision: calculateReplacementCommissionDecision({
+      originalOwnerId: item.original.owner?.id ?? null,
+      replacementOwnerId: ticket.owner.id,
+      originalSaleGbp: item.original.salePriceGbp,
+      replacementSupplierCostGbp: item.replacementSupplierCostGbp,
+    }),
+  }))
   const changeResult =
     newTicket && validMoney
       ? calculateReplacementChange({
@@ -1151,8 +1203,15 @@ function ReplacementCaseCard({
                   <p className="font-black text-slate-900">{gbp(ticket.supplierCostGbp)}</p>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Issued by {ticket.owner.fullName} · Standard commission
+                  Issued by {ticket.owner.fullName}
                 </p>
+                {commissionDecisions
+                  .filter(({ ticket: candidate }) => candidate.id === ticket.id)
+                  .map(({ decision }) => (
+                    <p key={ticket.id} className="mt-2 text-xs leading-5 text-slate-700">
+                      {commissionCopy(decision, ticket.owner.fullName)}
+                    </p>
+                  ))}
               </div>
             ))}
           </div>

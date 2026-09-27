@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateReplacementChange,
+  calculateReplacementCommissionDecision,
   calculateReplacementRecovery,
   ticketingAppendReplacementChangeSchema,
   ticketingCreateReplacementCaseSchema,
@@ -37,6 +38,36 @@ describe('Ticketing replacement cases', () => {
         customerChargeGbp: 480,
       }),
     ).toBe(378.1)
+  })
+
+  it('keeps cross-agent replacement commission standard', () => {
+    expect(
+      calculateReplacementCommissionDecision({
+        originalOwnerId: EMPLOYEE,
+        replacementOwnerId: '30000000-0000-4000-8000-000000000002',
+        originalSaleGbp: 940,
+        replacementSupplierCostGbp: 1052.59,
+      }),
+    ).toEqual({ treatment: 'standard_cross_agent', companyProfitGbp: -112.59 })
+  })
+
+  it('allows the same agent only the original commission when the replacement is profitable', () => {
+    expect(
+      calculateReplacementCommissionDecision({
+        originalOwnerId: EMPLOYEE,
+        replacementOwnerId: EMPLOYEE,
+        originalSaleGbp: 940,
+        replacementSupplierCostGbp: 900,
+      }),
+    ).toEqual({ treatment: 'original_only_if_profitable', companyProfitGbp: 40 })
+    expect(
+      calculateReplacementCommissionDecision({
+        originalOwnerId: EMPLOYEE,
+        replacementOwnerId: EMPLOYEE,
+        originalSaleGbp: 940,
+        replacementSupplierCostGbp: 1052.59,
+      }),
+    ).toEqual({ treatment: 'none_same_agent_loss', companyProfitGbp: -112.59 })
   })
 
   it('rejects duplicate replacement PNR links and the original as its own replacement', () => {

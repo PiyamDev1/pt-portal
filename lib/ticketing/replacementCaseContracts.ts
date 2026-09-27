@@ -16,6 +16,12 @@ export const TICKET_REPLACEMENT_RECOVERY_POLICIES = [
   'business_absorbs',
 ] as const
 
+export const TICKET_REPLACEMENT_COMMISSION_TREATMENTS = [
+  'standard_cross_agent',
+  'original_only_if_profitable',
+  'none_same_agent_loss',
+] as const
+
 const linkedTicketSchema = z
   .object({
     bookingId: z.string().uuid(),
@@ -122,6 +128,11 @@ export type TicketingReplacementCaseItem = {
   position: number
 }
 
+export type TicketingReplacementCommissionDecision = {
+  treatment: (typeof TICKET_REPLACEMENT_COMMISSION_TREATMENTS)[number]
+  companyProfitGbp: number
+}
+
 export type TicketingReplacementChange = {
   id: string
   replacedItemId: string
@@ -152,6 +163,7 @@ export type TicketingReplacementCase = {
     pnr: string
     salePriceGbp: number
     supplierCostGbp: number
+    owner: { id: string; fullName: string } | null
   }
   responsibleEmployee: { id: string; fullName: string }
   createdBy: { id: string; fullName: string }
@@ -214,4 +226,21 @@ export function calculateReplacementChange(input: {
       (input.customerChargeGbp + input.supplierRefundGbp - input.newSupplierCostGbp) * 100,
     ) / 100
   )
+}
+
+export function calculateReplacementCommissionDecision(input: {
+  originalOwnerId: string | null
+  replacementOwnerId: string
+  originalSaleGbp: number
+  replacementSupplierCostGbp: number
+}): TicketingReplacementCommissionDecision {
+  const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
+  const companyProfitGbp = round(input.originalSaleGbp - input.replacementSupplierCostGbp)
+  if (input.originalOwnerId !== input.replacementOwnerId) {
+    return { treatment: 'standard_cross_agent', companyProfitGbp }
+  }
+  return {
+    treatment: companyProfitGbp > 0 ? 'original_only_if_profitable' : 'none_same_agent_loss',
+    companyProfitGbp,
+  }
 }

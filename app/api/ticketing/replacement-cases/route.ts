@@ -59,7 +59,7 @@ type CaseRow = {
   replacement_commission_treatment: 'standard'
   notes: string | null
   created_at: string
-  original_booking: Related<{ pnr: string }>
+  original_booking: Related<{ pnr: string; owner: Related<EmployeeRow> }>
   responsible_employee: Related<EmployeeRow>
   created_by: Related<EmployeeRow>
   ticket_replacement_case_items: ItemRow[] | null
@@ -83,6 +83,7 @@ function money(value: unknown) {
 
 function replacementCase(row: CaseRow): TicketingReplacementCase | null {
   const originalBooking = first(row.original_booking)
+  const originalOwner = originalBooking ? employee(originalBooking.owner) : null
   const responsibleEmployee = employee(row.responsible_employee)
   const createdBy = employee(row.created_by)
   const amounts = [
@@ -174,6 +175,7 @@ function replacementCase(row: CaseRow): TicketingReplacementCase | null {
       pnr: originalBooking.pnr,
       salePriceGbp: amounts[0]!,
       supplierCostGbp: amounts[1]!,
+      owner: originalOwner,
     },
     responsibleEmployee,
     createdBy,
@@ -209,7 +211,10 @@ export async function GET() {
     original_sale_gbp, original_supplier_cost_gbp, replacement_supplier_cost_gbp,
     supplier_cost_increase_gbp, company_margin_absorbed_gbp, employee_recovery_gbp,
     original_commission_treatment, replacement_commission_treatment, notes, created_at,
-    original_booking:ticket_bookings!ticket_replacement_cases_original_booking_id_fkey(pnr),
+    original_booking:ticket_bookings!ticket_replacement_cases_original_booking_id_fkey(
+      pnr,
+      owner:employees!ticket_bookings_owner_employee_id_fkey(id, full_name)
+    ),
     responsible_employee:employees!ticket_replacement_cases_responsible_employee_id_fkey(id, full_name),
     created_by:employees!ticket_replacement_cases_created_by_employee_id_fkey(id, full_name),
     ticket_replacement_case_items(
