@@ -25,7 +25,9 @@ export type BranchLedgerPayload = {
   incomeGroups: string[]
   expenseGroups: string[]
   items: LedgerItem[]
+  /** @deprecated Cash reconciliation belongs in POS, not the final account overview. */
   cashStart: number
+  /** @deprecated Cash reconciliation belongs in POS, not the final account overview. */
   cashEnd: number
   profitStart: number
   profitEnd: number
@@ -60,8 +62,6 @@ export type BranchLedgerSummary = {
   income: number
   expenses: number
   net: number
-  cashStart: number
-  cashEnd: number
   profitStart: number
   profitEnd: number
   status: LedgerStatus
@@ -171,8 +171,8 @@ export function carryBranchLedger(
       carriedFrom: fromMonth,
       sourceKey: undefined,
     })),
-    cashStart: previous.cashEnd,
-    cashEnd: previous.cashEnd,
+    cashStart: 0,
+    cashEnd: 0,
     profitStart: previous.profitEnd,
     profitEnd: previous.profitEnd,
   }

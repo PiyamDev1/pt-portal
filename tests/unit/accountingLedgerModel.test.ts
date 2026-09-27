@@ -23,8 +23,8 @@ describe('Accounting ledger model', () => {
 
     const carried = carryBranchLedger(current, '2026-09')
 
-    expect(carried.cashStart).toBe(350)
-    expect(carried.cashEnd).toBe(350)
+    expect(carried.cashStart).toBe(0)
+    expect(carried.cashEnd).toBe(0)
     expect(carried.profitStart).toBe(1_240)
     expect(carried.profitEnd).toBe(1_240)
     expect(carried.items[0]).toMatchObject({

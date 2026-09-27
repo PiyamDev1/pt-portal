@@ -311,8 +311,6 @@ export async function GET(request: Request) {
         income: totals.income,
         expenses: totals.expenses,
         net: totals.net,
-        cashStart: sheet.payload.cashStart,
-        cashEnd: sheet.payload.cashEnd,
         profitStart: sheet.payload.profitStart,
         profitEnd: totals.profitEnd,
         status: sheet.status,

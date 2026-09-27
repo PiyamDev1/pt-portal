@@ -49,7 +49,7 @@ function ledgerResponse(): AccountingLedgerResponse {
     sourceItems: [
       {
         id: 'source-2026-09-ticketing',
-        label: 'Ticketing profit',
+        label: 'Ticketing gross margin',
         group: 'Module profit',
         amount: 40,
         kind: 'income',
@@ -63,8 +63,6 @@ function ledgerResponse(): AccountingLedgerResponse {
         income: 40,
         expenses: 0,
         net: 40,
-        cashStart: 100,
-        cashEnd: 150,
         profitStart: 200,
         profitEnd: 240,
         status: 'open',
@@ -74,8 +72,6 @@ function ledgerResponse(): AccountingLedgerResponse {
         income: 75,
         expenses: 25,
         net: 50,
-        cashStart: 500,
-        cashEnd: 550,
         profitStart: 900,
         profitEnd: 950,
         status: 'finalised',
@@ -124,10 +120,12 @@ describe('live Branch Ledger', () => {
     expect(await screen.findByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
     expect((screen.getByLabelText('Select branch') as HTMLSelectElement).value).toBe(BRADFORD_ID)
     expect(screen.getByRole('option', { name: 'Manchester · MAN' })).toBeTruthy()
-    expect(screen.getByText('Ticketing profit')).toBeTruthy()
+    expect(screen.getByText('Ticketing gross margin')).toBeTruthy()
     expect(screen.getByText('Live from ticketing')).toBeTruthy()
     expect(screen.queryByText('Connected modules')).toBeNull()
     expect(screen.queryByText('Prototype')).toBeNull()
+    expect(screen.queryByText('Opening cash')).toBeNull()
+    expect(screen.queryByText('Closing cash')).toBeNull()
   })
 
   it('autosaves a fast manual entry to the live ledger', async () => {
@@ -168,6 +166,8 @@ describe('live Branch Ledger', () => {
       ),
     ).toBeTruthy()
     expect(screen.getByText('Manchester')).toBeTruthy()
+    expect(screen.queryByText('Cash across branches')).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Cash' })).toBeNull()
     expect(screen.getByLabelText('End of month LMS balance')).toBeTruthy()
     expect(screen.getByLabelText('New suppliers name')).toBeTruthy()
     expect(screen.getByLabelText('New banks name')).toBeTruthy()

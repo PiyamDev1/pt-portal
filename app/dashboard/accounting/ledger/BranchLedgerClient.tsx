@@ -840,14 +840,13 @@ export default function BranchLedgerClient() {
       income: totals.income,
       expenses: totals.expenses,
       net: totals.net,
-      cashStart: branchPayload.cashStart,
-      cashEnd: branchPayload.cashEnd,
       profitStart: branchPayload.profitStart,
       profitEnd: totals.profitEnd,
     }
   })
+  const companyIncome = displayedSummaries.reduce((sum, summary) => sum + summary.income, 0)
+  const companyExpenses = displayedSummaries.reduce((sum, summary) => sum + summary.expenses, 0)
   const companyNet = displayedSummaries.reduce((sum, summary) => sum + summary.net, 0)
-  const companyCash = displayedSummaries.reduce((sum, summary) => sum + summary.cashEnd, 0)
 
   return (
     <div className="space-y-5">
@@ -878,7 +877,7 @@ export default function BranchLedgerClient() {
               </div>
               <p className="mt-0.5 text-sm text-slate-500">
                 {view === 'branch'
-                  ? 'Fast monthly entry with live branch and module figures'
+                  ? 'Final monthly overview of branch income, expenses and module margin'
                   : 'All branches plus company-wide LMS, supplier and bank balances'}
               </p>
             </div>
@@ -1014,66 +1013,17 @@ export default function BranchLedgerClient() {
             <SummaryCard label="Total income" value={totals.income} tone="emerald" />
             <SummaryCard label="Total expenses" value={totals.expenses} tone="rose" />
             <SummaryCard
-              label="This month"
+              label="Monthly net result"
               value={totals.net}
               tone={totals.net >= 0 ? 'emerald' : 'rose'}
               detail={totals.net >= 0 ? 'Net profit' : 'Net loss'}
             />
             <SummaryCard
-              label="Closing result"
+              label="Result after month"
               value={totals.profitEnd}
               tone="violet"
-              detail={`Opened at ${GBP.format(branchPayload.profitStart)}`}
+              detail={`Previous result ${GBP.format(branchPayload.profitStart)}`}
             />
-          </section>
-
-          <section className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm sm:grid-cols-3 sm:p-5">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                {selectedBranch.name} cash
-              </p>
-              <p className="mt-1 text-sm font-black">
-                Start and close the actual branch cash position
-              </p>
-            </div>
-            <label>
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                Opening cash
-              </span>
-              <input
-                aria-label={`Start of month ${selectedBranch.name} cash`}
-                type="number"
-                step="0.01"
-                value={branchPayload.cashStart}
-                disabled={branchFinalised}
-                onChange={(event) =>
-                  changeBranch((current) => ({
-                    ...current,
-                    cashStart: money(event.target.value),
-                  }))
-                }
-                className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-right font-mono text-sm font-black text-white outline-none focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                Closing cash
-              </span>
-              <input
-                aria-label={`End of month ${selectedBranch.name} cash`}
-                type="number"
-                step="0.01"
-                value={branchPayload.cashEnd}
-                disabled={branchFinalised}
-                onChange={(event) =>
-                  changeBranch((current) => ({
-                    ...current,
-                    cashEnd: money(event.target.value),
-                  }))
-                }
-                className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-right font-mono text-sm font-black text-white outline-none focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
           </section>
 
           <section className="grid gap-4 2xl:grid-cols-2">
@@ -1115,13 +1065,14 @@ export default function BranchLedgerClient() {
 
       {view === 'company' ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <SummaryCard label="Total branch income" value={companyIncome} tone="emerald" />
+            <SummaryCard label="Total branch expenses" value={companyExpenses} tone="rose" />
             <SummaryCard
               label="All branch net result"
               value={companyNet}
               tone={companyNet >= 0 ? 'emerald' : 'rose'}
             />
-            <SummaryCard label="Cash across branches" value={companyCash} tone="violet" />
             <SummaryCard
               label="LMS closing balance"
               value={companyPayload.lmsEnd}
@@ -1145,14 +1096,13 @@ export default function BranchLedgerClient() {
               </p>
             </header>
             <div className="overflow-x-auto">
-              <table className="min-w-[760px] w-full text-left text-xs">
+              <table className="min-w-[680px] w-full text-left text-xs">
                 <thead className="bg-white text-[10px] font-black uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Branch</th>
                     <th className="px-3 py-3 text-right">Income</th>
                     <th className="px-3 py-3 text-right">Expenses</th>
                     <th className="px-3 py-3 text-right">Net</th>
-                    <th className="px-3 py-3 text-right">Cash</th>
                     <th className="px-5 py-3 text-right">Sheet</th>
                   </tr>
                 </thead>
@@ -1175,9 +1125,6 @@ export default function BranchLedgerClient() {
                         className={`px-3 py-3 text-right font-mono font-black ${summary.net >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}
                       >
                         {GBP.format(summary.net)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-mono font-bold text-slate-700">
-                        {GBP.format(summary.cashEnd)}
                       </td>
                       <td className="px-5 py-3 text-right">
                         <button
