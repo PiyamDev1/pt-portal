@@ -111,6 +111,15 @@ const SOFT_PRICING_BOOTSTRAP: PosBootstrapPayload = {
   loadedAt: '2026-09-10T12:00:00.000Z',
 }
 
+const TRACKED_SOURCE_BOOTSTRAP: PosBootstrapPayload = {
+  ...SOFT_PRICING_BOOTSTRAP,
+  catalogue: SOFT_PRICING_BOOTSTRAP.catalogue.map((service) => ({
+    ...service,
+    trackedSourceType: 'TICKETING',
+    sourceRequired: true,
+  })),
+}
+
 describe('POS preview interactions', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
@@ -307,6 +316,85 @@ describe('POS preview interactions', () => {
     const payload = JSON.parse(String(transactionCall?.[1]?.body)) as Record<string, unknown>
     expect(payload.pricingConfirmed).toBe(true)
     expect(payload).not.toHaveProperty('pricingId')
+  })
+
+  it('links a posted transaction to a selected source record instead of a typed internal id', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/pos/source-options?')) {
+        return {
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            options: [
+              {
+                sourceType: 'TICKETING',
+                namespace: 'ticket_booking',
+                recordId: 'booking-1',
+                displayReference: 'ABC123',
+                title: 'ABC123 · Aisha Khan',
+                detail: 'Ticket booking at this POS branch',
+                status: 'issued · paid',
+                path: '/dashboard/ticketing/ledger?search=ABC123',
+              },
+            ],
+          }),
+        }
+      }
+      if (url === '/api/pos/transactions' && init?.method === 'POST') {
+        return {
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            transactionId: 'transaction-1',
+            reference: 'POS-001',
+            idempotentReplay: false,
+          }),
+        }
+      }
+      if (url === '/api/pos/bootstrap') {
+        return { ok: true, json: vi.fn().mockResolvedValue(TRACKED_SOURCE_BOOTSTRAP) }
+      }
+      return { ok: true, json: vi.fn().mockResolvedValue(EMPTY_LEDGER) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <PosPreviewClient
+        branchName="Test branch"
+        initialLedger={EMPTY_LEDGER}
+        initialBootstrap={TRACKED_SOURCE_BOOTSTRAP}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('TICKETING source search'), {
+      target: { value: 'ABC' },
+    })
+    const option = await screen.findByRole('button', { name: /ABC123.*Aisha Khan/ })
+    fireEvent.click(option)
+
+    expect(screen.getByText('Selected: ABC123')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Open source/ }).getAttribute('href')).toBe(
+      '/dashboard/ticketing/ledger?search=ABC123',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Post transaction' }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/pos/transactions',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    )
+    const transactionCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url) === '/api/pos/transactions' && init?.method === 'POST',
+    )
+    const payload = JSON.parse(String(transactionCall?.[1]?.body)) as {
+      source?: Record<string, unknown>
+    }
+    expect(payload.source).toEqual({
+      type: 'TICKETING',
+      namespace: 'ticket_booking',
+      recordId: 'booking-1',
+      displayReference: 'ABC123',
+    })
   })
 
   it('lets an operator use the post button to reach Open till when no shift is active', () => {

@@ -139,6 +139,8 @@ Availability derives from branch schedules/overrides, active service rules, capa
 | Methods                   | Route                              |
 | ------------------------- | ---------------------------------- |
 | `GET`                     | `/api/accounting/applications`     |
+| `GET`, `POST`             | `/api/accounting/ledger`           |
+| `GET`                     | `/api/accounting/ticketing`        |
 | `GET`, `POST`             | `/api/lms`                         |
 | `GET`                     | `/api/lms/installments`            |
 | `POST`, `PATCH`, `DELETE` | `/api/lms/installment-payment`     |
@@ -158,6 +160,7 @@ Current LMS money/installment mutations require the `20260812` schema capability
 | ------------- | ----------------------------------------------- |
 | `GET`         | `/api/pos/bootstrap`                            |
 | `GET`         | `/api/pos/ledger`                               |
+| `GET`         | `/api/pos/source-options`                       |
 | `POST`        | `/api/pos/transactions`                         |
 | `GET`         | `/api/pos/transactions/[transactionId]/receipt` |
 | `POST`        | `/api/pos/refunds`                              |
@@ -170,7 +173,7 @@ Current LMS money/installment mutations require the `20260812` schema capability
 | `POST`        | `/api/pos/loyalty/lookup`                       |
 | `POST`        | `/api/pos/import`                               |
 
-All POS routes are private and branch-derived. The capability-gated write surface uses strict bounded
+All POS routes are private. Transaction and Ticketing/Package source results are branch-derived; LMS remains company-wide, and Application lookup follows the service's existing staff data scope. The source-options route returns read-only typed references and never mutates the owning module. The capability-gated write surface uses strict bounded
 input, rate limits, retry-safe PostgreSQL functions, forced-RLS tables, append-only audit history, and
 fresh second-factor checks for controlled manager actions. See the [POS API](../api/POS.md).
 

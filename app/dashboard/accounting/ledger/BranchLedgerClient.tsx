@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Check,
   CircleAlert,
+  ExternalLink,
   Landmark,
   LoaderCircle,
   Plus,
@@ -23,12 +24,14 @@ import {
   nextMonth,
   type AccountingLedgerResponse,
   type BranchLedgerPayload,
+  type CompanyLmsLiveSummary,
   type CompanyLedgerPayload,
   type LedgerItem,
   type LedgerKind,
   type LedgerSheet,
   type NamedBalance,
 } from '@/lib/accounting/ledger'
+import type { AccountingSourceSummary } from '@/lib/accounting/sourceFacts'
 
 type LedgerView = 'branch' | 'company'
 type SaveState = 'saved' | 'pending' | 'saving' | 'error'
@@ -139,6 +142,172 @@ function SummaryCard({
   )
 }
 
+function SourceSummaryPanel({ summaries }: { summaries: AccountingSourceSummary[] }) {
+  if (summaries.length === 0) return null
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
+        <h2 className="text-lg font-black text-slate-950">Operational source checks</h2>
+        <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-600">
+          Margin and cash are shown separately. Only sources marked “Included in branch result”
+          affect the profit figures above.
+        </p>
+      </header>
+      <div className="grid gap-3 p-4 lg:grid-cols-3 sm:p-5">
+        {summaries.map((summary) => (
+          <article
+            key={summary.key}
+            className={`rounded-xl border p-4 ${
+              summary.available
+                ? summary.includedInBranchResult
+                  ? 'border-violet-200 bg-violet-50/50'
+                  : 'border-sky-200 bg-sky-50/50'
+                : 'border-amber-200 bg-amber-50'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  {summary.label}
+                </p>
+                <h3 className="mt-1 text-sm font-black text-slate-950">{summary.metricLabel}</h3>
+              </div>
+              <span
+                className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${
+                  summary.includedInBranchResult
+                    ? 'bg-violet-100 text-violet-800'
+                    : 'bg-sky-100 text-sky-800'
+                }`}
+              >
+                {summary.includedInBranchResult ? 'Included in result' : 'Reconciliation only'}
+              </span>
+            </div>
+
+            {summary.available ? (
+              <>
+                <dl className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <dt className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                      In
+                    </dt>
+                    <dd className="mt-1 font-mono font-black text-emerald-800">
+                      {GBP.format(summary.income)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                      Out/cost
+                    </dt>
+                    <dd className="mt-1 font-mono font-black text-rose-800">
+                      {GBP.format(summary.expenses)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                      Net
+                    </dt>
+                    <dd
+                      className={`mt-1 font-mono font-black ${summary.net >= 0 ? 'text-slate-950' : 'text-rose-800'}`}
+                    >
+                      {GBP.format(summary.net)}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-[10px] font-bold text-slate-500">
+                  {summary.count.toLocaleString('en-GB')} source records · {summary.dateBasisLabel}
+                  {summary.excludedCount > 0
+                    ? ` · ${summary.excludedCount.toLocaleString('en-GB')} excluded to avoid overlap`
+                    : ''}
+                </p>
+                <p className="mt-2 text-[10px] leading-4 text-slate-600">{summary.inclusionNote}</p>
+
+                {summary.references.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {summary.references.slice(0, 5).map((reference) => (
+                      <Link
+                        key={reference.id}
+                        href={reference.path}
+                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[9px] font-black text-slate-700 hover:border-violet-300 hover:text-violet-800"
+                      >
+                        {reference.label}
+                      </Link>
+                    ))}
+                    {summary.references.length > 5 || summary.referencesTruncated ? (
+                      <span className="px-1 py-1 text-[9px] font-bold text-slate-400">
+                        More records available in {summary.label}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-3 text-xs font-semibold text-amber-900">
+                {summary.warning || 'This source could not be loaded.'}
+              </p>
+            )}
+
+            <Link
+              href={summary.sourcePath}
+              className="mt-4 inline-flex items-center gap-1 text-[10px] font-black text-violet-800 hover:underline"
+            >
+              Open {summary.label} <ExternalLink className="h-3 w-3" />
+            </Link>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CompanyLmsLivePanel({ summary }: { summary: CompanyLmsLiveSummary }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-100 bg-sky-50 px-4 py-4 sm:px-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">
+            Live company-wide source
+          </p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">LMS receivables now</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">
+            Read directly from LMS. This is not assigned to a branch and does not overwrite the
+            selected month&apos;s manual closing balance.
+          </p>
+        </div>
+        <Link
+          href={summary.sourcePath}
+          className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-black text-sky-800 hover:border-sky-300"
+        >
+          Open LMS <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      </header>
+
+      {summary.available ? (
+        <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            ['Outstanding', GBP.format(summary.totalOutstanding)],
+            ['Active accounts', summary.activeAccounts.toLocaleString('en-GB')],
+            ['Overdue', summary.overdueAccounts.toLocaleString('en-GB')],
+            ['Due in 7 days', summary.dueSoonAccounts.toLocaleString('en-GB')],
+            ['Accounts with loans', summary.totalAccounts.toLocaleString('en-GB')],
+          ].map(([label, value]) => (
+            <div key={label} className="bg-white px-4 py-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                {label}
+              </p>
+              <p className="mt-1 font-mono text-lg font-black text-slate-950">{value}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="px-5 py-4 text-sm font-semibold text-amber-800">
+          {summary.warning || 'The live LMS summary is temporarily unavailable.'}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function CategoryColumn({
   kind,
   groups,
@@ -246,6 +415,12 @@ function CategoryColumn({
                         <p className="mt-0.5 text-[9px] font-black uppercase tracking-wide text-violet-600">
                           Live from {item.sourceKey}
                         </p>
+                        {item.sourceRecordCount !== undefined ? (
+                          <p className="mt-0.5 text-[9px] font-semibold text-violet-700/70">
+                            {item.sourceRecordCount.toLocaleString('en-GB')} records ·{' '}
+                            {item.dateBasisLabel || 'Source date'}
+                          </p>
+                        ) : null}
                       </>
                     ) : (
                       <>
@@ -301,7 +476,19 @@ function CategoryColumn({
                     />
                   )}
                   {item.sourceKey ? (
-                    <span className="text-center text-[9px] font-black text-violet-600">LIVE</span>
+                    item.sourcePath ? (
+                      <Link
+                        href={item.sourcePath}
+                        aria-label={`Open ${item.sourceKey} source`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-violet-700 hover:bg-violet-100"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    ) : (
+                      <span className="text-center text-[9px] font-black text-violet-600">
+                        LIVE
+                      </span>
+                    )
                   ) : (
                     <button
                       type="button"
@@ -1026,6 +1213,8 @@ export default function BranchLedgerClient() {
             />
           </section>
 
+          <SourceSummaryPanel summaries={data.sourceSummaries} />
+
           <section className="grid gap-4 2xl:grid-cols-2">
             <CategoryColumn
               kind="income"
@@ -1087,6 +1276,8 @@ export default function BranchLedgerClient() {
               format="number"
             />
           </section>
+
+          <CompanyLmsLivePanel summary={data.companyLmsSummary} />
 
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <header className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">

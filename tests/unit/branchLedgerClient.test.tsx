@@ -30,6 +30,7 @@ function ledgerResponse(): AccountingLedgerResponse {
         profitStart: 200,
         profitEnd: 240,
         sourceSnapshot: [],
+        sourceSummarySnapshot: [],
       },
     },
     companySheet: {
@@ -49,11 +50,67 @@ function ledgerResponse(): AccountingLedgerResponse {
     sourceItems: [
       {
         id: 'source-2026-09-ticketing',
-        label: 'Ticketing gross margin',
+        label: 'Standalone gross margin',
         group: 'Module profit',
         amount: 40,
         kind: 'income',
         sourceKey: 'ticketing',
+        sourceRecordCount: 1,
+        sourcePath: '/dashboard/accounting/ticketing',
+        metricType: 'commercial_margin',
+        metricLabel: 'Standalone gross margin',
+        dateBasis: 'booking_date',
+        dateBasisLabel: 'Ticket booking date',
+        inclusionNote: 'Includes ticket-owned bookings only.',
+        snapshotVersion: 1,
+      },
+    ],
+    sourceSummaries: [
+      {
+        snapshotVersion: 1,
+        key: 'ticketing',
+        label: 'Ticketing',
+        metricType: 'commercial_margin',
+        metricLabel: 'Standalone gross margin',
+        dateBasis: 'booking_date',
+        dateBasisLabel: 'Ticket booking date',
+        count: 1,
+        excludedCount: 0,
+        income: 140,
+        expenses: 100,
+        net: 40,
+        includedInBranchResult: true,
+        inclusionNote: 'Includes ticket-owned bookings only.',
+        sourcePath: '/dashboard/accounting/ticketing',
+        references: [
+          {
+            id: 'booking-1',
+            label: 'ABC123',
+            path: '/dashboard/ticketing/ledger?search=ABC123',
+          },
+        ],
+        referencesTruncated: false,
+        available: true,
+      },
+      {
+        snapshotVersion: 1,
+        key: 'pos',
+        label: 'POS',
+        metricType: 'cash_movement',
+        metricLabel: 'Cash movement',
+        dateBasis: 'business_date',
+        dateBasisLabel: 'POS business date',
+        count: 2,
+        excludedCount: 0,
+        income: 500,
+        expenses: 100,
+        net: 400,
+        includedInBranchResult: false,
+        inclusionNote: 'Shown for reconciliation only.',
+        sourcePath: '/dashboard/pos',
+        references: [],
+        referencesTruncated: false,
+        available: true,
       },
     ],
     sourceWarnings: [],
@@ -77,6 +134,16 @@ function ledgerResponse(): AccountingLedgerResponse {
         status: 'finalised',
       },
     ],
+    companyLmsSummary: {
+      available: true,
+      totalOutstanding: 1450.5,
+      activeAccounts: 9,
+      overdueAccounts: 2,
+      dueSoonAccounts: 3,
+      totalAccounts: 12,
+      loadedAt: '2026-09-27T10:00:00.000Z',
+      sourcePath: '/dashboard/lms',
+    },
   }
 }
 
@@ -120,8 +187,10 @@ describe('live Branch Ledger', () => {
     expect(await screen.findByRole('heading', { name: 'Branch Ledger' })).toBeTruthy()
     expect((screen.getByLabelText('Select branch') as HTMLSelectElement).value).toBe(BRADFORD_ID)
     expect(screen.getByRole('option', { name: 'Manchester · MAN' })).toBeTruthy()
-    expect(screen.getByText('Ticketing gross margin')).toBeTruthy()
+    expect(screen.getAllByText('Standalone gross margin').length).toBeGreaterThan(0)
     expect(screen.getByText('Live from ticketing')).toBeTruthy()
+    expect(screen.getByText('Cash movement')).toBeTruthy()
+    expect(screen.getByText('Reconciliation only')).toBeTruthy()
     expect(screen.queryByText('Connected modules')).toBeNull()
     expect(screen.queryByText('Prototype')).toBeNull()
     expect(screen.queryByText('Opening cash')).toBeNull()
@@ -160,6 +229,8 @@ describe('live Branch Ledger', () => {
 
     expect(screen.getAllByRole('heading', { name: 'Company Ledger' }).length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'All branches' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'LMS receivables now' })).toBeTruthy()
+    expect(screen.getByText('£1,450.50')).toBeTruthy()
     expect(
       screen.getByText(
         'Calculated from each live branch sheet. There are no duplicate totals to re-enter.',

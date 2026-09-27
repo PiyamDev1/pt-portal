@@ -26,7 +26,16 @@ function currentDateInTimezone(timezone: string) {
   return `${value.year}-${value.month}-${value.day}`
 }
 
-export default async function PosPreviewPage() {
+export default async function PosPreviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string | string[] }>
+}) {
+  const params = await searchParams
+  const requestedSearch = Array.isArray(params.search) ? params.search[0] : params.search
+  const initialSearch = String(requestedSearch || '')
+    .trim()
+    .slice(0, 120)
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -140,6 +149,7 @@ export default async function PosPreviewPage() {
             initialLedger={initialLedger}
             initialBootstrap={initialBootstrap || undefined}
             initialLoadError={initialLoadError}
+            initialSearch={initialSearch}
           />
         </main>
       </div>

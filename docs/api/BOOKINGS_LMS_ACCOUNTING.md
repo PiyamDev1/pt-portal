@@ -856,6 +856,64 @@ the response and the failed source is described in `warnings`.
 Supabase configuration or an unexpected top-level failure. A single source
 query failure is a `200` partial report, not an HTTP error.
 
+## Branch and company ledger
+
+### GET `/api/accounting/ledger`
+
+Loads one accounting month, the selected branch sheet, the company sheet, and
+the all-branch comparison.
+
+**Access:** Active Accounts/Accounting staff or a portal administrator.
+
+**Input:** Required `month=YYYY-MM`; optional branch UUID `locationId`.
+
+**Success:** `200` with open or finalised sheets, optimistic revision numbers,
+branch summaries, and read-only Ticketing, Package, and POS source summaries.
+Each source describes its metric and date basis and contains bounded links to
+the owning records. Standalone Ticketing and projected Package margin are
+included in branch result; POS cash movement is reconciliation-only. A
+finalised sheet returns its stored source snapshot so later operational changes
+do not silently rewrite the closed month. The response also includes the
+current company-wide LMS outstanding balance and account counts as a read-only
+live summary; it does not replace the selected month's manual closing value.
+
+**Errors:** `400` invalid query; `401`/`403` access failure; `404` missing branch;
+`503` missing Accounting capability or unavailable source dependency.
+
+### POST `/api/accounting/ledger`
+
+Saves or finalises a branch or company sheet with optimistic revision checks.
+
+**Access:** Active Accounts/Accounting staff or a portal administrator.
+
+**Input:** Strict JSON up to 512 KiB containing `scope`, `month`, `revision`,
+`finalize`, and the matching branch or company payload. Branch source totals
+are recalculated server-side; caller-provided source snapshots are not trusted.
+
+**Success:** `200` with the saved sheet and incremented revision. Finalising a
+branch stores versioned source metadata and references in the existing JSON
+snapshot. This route does not write to Ticketing, Packages, POS, or LMS.
+
+**Errors:** `400` invalid payload; `401`/`403` access failure; `404` missing
+branch; `409` stale revision; `503` missing capability or unavailable source
+summary while finalising.
+
+### GET `/api/accounting/ticketing`
+
+Builds a calendar-year Ticketing sales, supplier-cost, gross-margin, payment,
+and held-booking report grouped by branch, airline, and month.
+
+**Access:** Active Accounts/Accounting staff or a portal administrator.
+
+**Input:** Optional `year`, branch UUID `branchId` or `all`, and
+`service=all|TK|DC|R-ER`.
+
+**Success:** `200` with report totals, 12 monthly summaries, branch sections,
+airline rows, and bounded ticket details.
+
+**Errors:** `400` invalid year/service; `401`/`403` access failure; `404` missing
+branch; `500` report query failure.
+
 ## Loan management system
 
 ### GET `/api/lms`

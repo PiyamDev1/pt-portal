@@ -26,6 +26,17 @@ export type PosSourceLink = {
   displayReference: string | null
 }
 
+export type PosSourceOption = {
+  sourceType: 'LMS' | 'TICKETING' | 'APPLICATIONS' | 'PACKAGES'
+  namespace: string
+  recordId: string
+  displayReference: string
+  title: string
+  detail: string
+  status: string
+  path: string
+}
+
 export type PosRefundSummary = {
   id: string
   reference: string

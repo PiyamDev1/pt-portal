@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import {
   Fragment,
   useCallback,
@@ -59,6 +60,7 @@ import type {
   PosLoyaltyMember,
   PosLoyaltyVoucher,
   PosMutationResult,
+  PosSourceOption,
 } from '@/lib/pos/contracts'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
@@ -889,12 +891,14 @@ export default function PosPreviewClient({
   initialLedger,
   initialBootstrap,
   initialLoadError = null,
+  initialSearch = '',
 }: {
   branchName: string
   employeeId?: string
   initialLedger?: PosLedgerPayload
   initialBootstrap?: PosBootstrapPayload
   initialLoadError?: string | null
+  initialSearch?: string
 }) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const quickEntryInputRef = useRef<HTMLInputElement>(null)
@@ -905,7 +909,7 @@ export default function PosPreviewClient({
   const loadedLedgerKeyRef = useRef(
     initialLedger ? `${initialLedger.context.period}:${initialLedger.context.date}` : null,
   )
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch)
   const deferredSearch = useDeferredValue(search)
   const [activeView, setActiveView] = useState<PosWorkspaceView>('Daily transactions')
   const [bootstrap, setBootstrap] = useState<PosBootstrapPayload>(
@@ -982,6 +986,13 @@ export default function PosPreviewClient({
   const [externalReference, setExternalReference] = useState('')
   const [transactionNote, setTransactionNote] = useState('')
   const [sourceRecordId, setSourceRecordId] = useState('')
+  const [sourceSearch, setSourceSearch] = useState('')
+  const [sourceNamespace, setSourceNamespace] = useState('')
+  const [selectedSource, setSelectedSource] = useState<PosSourceOption | null>(null)
+  const [sourceOptions, setSourceOptions] = useState<PosSourceOption[]>([])
+  const [sourceLookupState, setSourceLookupState] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle')
   const [selectedPricingId, setSelectedPricingId] = useState('')
   const [outgoingType, setOutgoingType] = useState<OutgoingType | null>(null)
   const [supplierConfirmed, setSupplierConfirmed] = useState(false)
@@ -1105,6 +1116,65 @@ export default function PosPreviewClient({
   const matchingPricingOptions = (liveCatalogueItem?.pricingOptions || []).filter(
     (option) => Math.abs(option.price - Math.abs(numericAmount)) < 0.005,
   )
+
+  useEffect(() => {
+    const sourceType = liveCatalogueItem?.trackedSourceType
+    const query = sourceSearch.trim()
+    if (!liveCatalogueItem?.sourceRequired || !sourceType || query.length < 2) {
+      setSourceOptions([])
+      setSourceLookupState('idle')
+      return
+    }
+    if (sourceRecordId && sourceSearch.trim()) {
+      setSourceOptions([])
+      setSourceLookupState('ready')
+      return
+    }
+    if (selectedSource?.displayReference === query) {
+      setSourceOptions([])
+      setSourceLookupState('ready')
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setSourceLookupState('loading')
+      try {
+        const params = new URLSearchParams({
+          type: sourceType,
+          q: query,
+          catalogueKey,
+        })
+        const response = await fetch(`/api/pos/source-options?${params.toString()}`, {
+          cache: 'no-store',
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        const payload = (await response.json()) as ApiResponse<{ options: PosSourceOption[] }>
+        if (!response.ok || 'error' in payload) {
+          throw new Error('error' in payload ? payload.error : 'Unable to search source records.')
+        }
+        setSourceOptions(payload.options)
+        setSourceLookupState('ready')
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setSourceOptions([])
+        setSourceLookupState('error')
+      }
+    }, 300)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [
+    catalogueKey,
+    liveCatalogueItem?.sourceRequired,
+    liveCatalogueItem?.trackedSourceType,
+    selectedSource,
+    sourceRecordId,
+    sourceSearch,
+  ])
 
   const supplierMatches = useMemo(() => {
     if (!isSupplierPayment) return null
@@ -1460,6 +1530,8 @@ export default function PosPreviewClient({
         )
         setTransactionNote(savedDraft.transactionNote || '')
         setSourceRecordId(savedDraft.sourceRecordId || '')
+        setSourceSearch(savedDraft.sourceDisplayReference || savedDraft.sourceRecordId || '')
+        setSourceNamespace(savedDraft.sourceNamespace || '')
         setExternalReference(savedDraft.externalReference || '')
       }
       const queued = JSON.parse(
@@ -1486,6 +1558,8 @@ export default function PosPreviewClient({
         paymentMethod,
         transactionNote,
         sourceRecordId,
+        sourceDisplayReference: sourceSearch,
+        sourceNamespace,
         externalReference,
       }),
     )
@@ -1497,6 +1571,8 @@ export default function PosPreviewClient({
     name,
     paymentMethod,
     sourceRecordId,
+    sourceNamespace,
+    sourceSearch,
     transactionNote,
   ])
 
@@ -1568,8 +1644,9 @@ export default function PosPreviewClient({
         ? {
             source: {
               type: liveCatalogueItem.trackedSourceType,
+              ...(sourceNamespace ? { namespace: sourceNamespace } : {}),
               recordId: sourceRecordId.trim(),
-              displayReference: sourceRecordId.trim(),
+              displayReference: sourceSearch.trim() || sourceRecordId.trim(),
             },
           }
         : {}),
@@ -1660,7 +1737,7 @@ export default function PosPreviewClient({
       return
     }
     if (liveCatalogueItem?.sourceRequired && !sourceRecordId.trim()) {
-      toast.error('Enter the tracked service reference first.')
+      toast.error('Search for and select the tracked service record first.')
       return
     }
     if (liveCatalogueItem?.noteRequired && transactionNote.trim().length < 3) {
@@ -1676,6 +1753,10 @@ export default function PosPreviewClient({
       setName('')
       setTransactionNote('')
       setSourceRecordId('')
+      setSourceSearch('')
+      setSourceNamespace('')
+      setSelectedSource(null)
+      setSourceOptions([])
       setSupplierSourceName('')
       setExternalReference('')
       setMember(null)
@@ -1777,7 +1858,17 @@ export default function PosPreviewClient({
     toast.success('Ledger height reset')
   }
 
+  function clearSelectedSource() {
+    setSourceRecordId('')
+    setSourceSearch('')
+    setSourceNamespace('')
+    setSelectedSource(null)
+    setSourceOptions([])
+    setSourceLookupState('idle')
+  }
+
   function chooseCategory(category: CategoryPreset, categoryGroupId?: string) {
+    clearSelectedSource()
     setCategoryId(category.id)
     setSelectedTopCategoryKey(category.categoryKey || categoryGroupId || 'other')
     setEntryMode('CUSTOMER_PAYMENT')
@@ -1834,6 +1925,7 @@ export default function PosPreviewClient({
   }
 
   function startSupplierPayment() {
+    clearSelectedSource()
     const firstCategory = supplierPaymentCategories[0] || {
       key: 'ticketing-packages',
       firstServiceKey: 'ticketing',
@@ -3345,17 +3437,102 @@ export default function PosPreviewClient({
                   className={`grid gap-2 ${liveCatalogueItem?.sourceRequired ? 'sm:grid-cols-2' : ''}`}
                 >
                   {liveCatalogueItem?.sourceRequired && (
-                    <label>
-                      <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
-                        {liveCatalogueItem.trackedSourceType} source reference
-                      </span>
-                      <input
-                        value={sourceRecordId}
-                        onChange={(event) => setSourceRecordId(event.target.value)}
-                        placeholder="Required tracked-service record ID/reference"
-                        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-                      />
-                    </label>
+                    <div className="relative">
+                      <label>
+                        <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">
+                          Find {liveCatalogueItem.trackedSourceType} record
+                        </span>
+                        <span className="relative block">
+                          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                          <input
+                            value={sourceSearch}
+                            aria-label={`${liveCatalogueItem.trackedSourceType} source search`}
+                            onChange={(event) => {
+                              setSourceSearch(event.target.value)
+                              setSourceRecordId('')
+                              setSourceNamespace('')
+                              setSelectedSource(null)
+                            }}
+                            placeholder="Search reference, PNR, customer or account"
+                            autoComplete="off"
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-semibold outline-none focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
+                          />
+                        </span>
+                      </label>
+
+                      {sourceLookupState === 'loading' ? (
+                        <p className="mt-1 text-[9px] font-bold text-slate-400">
+                          Searching live records…
+                        </p>
+                      ) : null}
+                      {sourceLookupState === 'error' ? (
+                        <p className="mt-1 text-[9px] font-bold text-rose-700">
+                          Source search is temporarily unavailable.
+                        </p>
+                      ) : null}
+                      {sourceLookupState === 'ready' &&
+                      sourceSearch.trim().length >= 2 &&
+                      !sourceRecordId &&
+                      sourceOptions.length === 0 ? (
+                        <p className="mt-1 text-[9px] font-bold text-slate-500">
+                          No matching source record found.
+                        </p>
+                      ) : null}
+
+                      {sourceOptions.length > 0 && !sourceRecordId ? (
+                        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                          {sourceOptions.map((option) => (
+                            <button
+                              key={`${option.namespace}:${option.recordId}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSource(option)
+                                setSourceRecordId(option.recordId)
+                                setSourceSearch(option.displayReference)
+                                setSourceNamespace(option.namespace)
+                                setSourceOptions([])
+                                if (!name.trim() && option.title.includes(' · ')) {
+                                  setName(option.title.split(' · ').slice(1).join(' · '))
+                                }
+                              }}
+                              className="w-full rounded-lg px-3 py-2 text-left hover:bg-violet-50"
+                            >
+                              <span className="block truncate text-[11px] font-black text-slate-900">
+                                {option.title}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[9px] font-semibold text-slate-500">
+                                {option.detail} · {option.status}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {sourceRecordId ? (
+                        <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
+                          <span className="min-w-0 truncate text-[9px] font-black text-emerald-800">
+                            Selected: {sourceSearch || sourceRecordId}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {selectedSource ? (
+                              <Link
+                                href={selectedSource.path}
+                                className="inline-flex items-center gap-0.5 text-[9px] font-black text-sky-800 underline"
+                              >
+                                Open source <ArrowUpRight className="h-3 w-3" />
+                              </Link>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={clearSelectedSource}
+                              className="text-[9px] font-black text-emerald-800 underline"
+                            >
+                              Change
+                            </button>
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
                   )}
                   <label data-pos-tour="note">
                     <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">

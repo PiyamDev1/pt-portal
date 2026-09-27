@@ -1,3 +1,10 @@
+import type {
+  AccountingDateBasis,
+  AccountingMetricType,
+  AccountingSourceKey,
+  AccountingSourceSummary,
+} from '@/lib/accounting/sourceFacts'
+
 export type LedgerKind = 'income' | 'expense'
 export type LedgerScope = 'branch' | 'company'
 export type LedgerStatus = 'open' | 'finalised'
@@ -9,7 +16,16 @@ export type LedgerItem = {
   amount: number
   kind: LedgerKind
   carriedFrom?: string
-  sourceKey?: 'ticketing' | 'packages' | 'pos'
+  sourceKey?: AccountingSourceKey
+  sourceRecordCount?: number
+  excludedRecordCount?: number
+  sourcePath?: string
+  metricType?: AccountingMetricType
+  metricLabel?: string
+  dateBasis?: AccountingDateBasis
+  dateBasisLabel?: string
+  inclusionNote?: string
+  snapshotVersion?: 1
 }
 
 export type NamedBalance = {
@@ -32,6 +48,7 @@ export type BranchLedgerPayload = {
   profitStart: number
   profitEnd: number
   sourceSnapshot: LedgerItem[]
+  sourceSummarySnapshot: AccountingSourceSummary[]
 }
 
 export type CompanyLedgerPayload = {
@@ -67,6 +84,18 @@ export type BranchLedgerSummary = {
   status: LedgerStatus
 }
 
+export type CompanyLmsLiveSummary = {
+  available: boolean
+  totalOutstanding: number
+  activeAccounts: number
+  overdueAccounts: number
+  dueSoonAccounts: number
+  totalAccounts: number
+  loadedAt: string
+  sourcePath: string
+  warning?: string
+}
+
 export type AccountingLedgerResponse = {
   month: string
   branches: LedgerBranch[]
@@ -74,8 +103,10 @@ export type AccountingLedgerResponse = {
   branchSheet: LedgerSheet<BranchLedgerPayload>
   companySheet: LedgerSheet<CompanyLedgerPayload>
   sourceItems: LedgerItem[]
+  sourceSummaries: AccountingSourceSummary[]
   sourceWarnings: string[]
   branchSummaries: BranchLedgerSummary[]
+  companyLmsSummary: CompanyLmsLiveSummary
 }
 
 export const DEFAULT_INCOME_GROUPS = [
@@ -106,6 +137,7 @@ export function emptyBranchLedger(): BranchLedgerPayload {
     profitStart: 0,
     profitEnd: 0,
     sourceSnapshot: [],
+    sourceSummarySnapshot: [],
   }
 }
 

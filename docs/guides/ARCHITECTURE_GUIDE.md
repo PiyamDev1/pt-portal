@@ -1,6 +1,6 @@
 # Architecture Guide
 
-Last verified against the repository: August 13, 2026.
+Last verified against the repository: September 27, 2026.
 
 ## System shape
 
@@ -23,19 +23,20 @@ The portal normally deploys to Vercel. Supabase and storage are external service
 
 ## Repository boundaries
 
-| Path                  | Ownership                                                                   |
-| --------------------- | --------------------------------------------------------------------------- |
-| `app/`                | Pages, route handlers, feature-local components, and domain types           |
-| `components/`         | Shared app-native dialog/modal primitives                                   |
-| `hooks/`              | Live reusable React hooks                                                   |
-| `lib/`                | Shared domain, auth, security, storage, and integration logic               |
-| `types/`              | Linked Supabase snapshot, pending-migration overlay, and compatibility view |
-| `scripts/migrations/` | Ordered, durable database history                                           |
-| `scripts/ci/`         | CI ratchets and PostgreSQL integration runners                              |
-| `tests/unit/`         | Vitest route, domain, and component tests                                   |
-| `tests/integration/`  | PostgreSQL fixtures and behavioral assertions                               |
-| `tests/smoke/`        | Authenticated Playwright browser flows                                      |
-| `docs/`               | Active guides plus labeled historical/supporting material                   |
+| Path                   | Ownership                                                                   |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `app/`                 | Pages, route handlers, feature-local components, and domain types           |
+| `components/`          | Shared app-native dialog/modal primitives                                   |
+| `hooks/`               | Live reusable React hooks                                                   |
+| `lib/`                 | Shared domain, auth, security, storage, and integration logic               |
+| `types/`               | Linked Supabase snapshot, pending-migration overlay, and compatibility view |
+| `scripts/migrations/`  | Established ordered database history                                        |
+| `supabase/migrations/` | Newer Supabase CLI migration history; currently a second migration tree     |
+| `scripts/ci/`          | CI ratchets and PostgreSQL integration runners                              |
+| `tests/unit/`          | Vitest route, domain, and component tests                                   |
+| `tests/integration/`   | PostgreSQL fixtures and behavioral assertions                               |
+| `tests/smoke/`         | Authenticated Playwright browser flows                                      |
+| `docs/`                | Active guides plus labeled historical/supporting material                   |
 
 Keep a helper feature-local until more than one consumer needs it. Shared server code should be framework-light where practical. Prefer direct `@/lib/...` imports over expanding global barrels.
 
@@ -106,7 +107,7 @@ Return `401` for an invalid session, `403` for a known identity without the requ
 
 Supabase provides Auth and PostgreSQL. RLS remains a defense layer for authenticated clients. Server-only service clients perform privileged work only behind the route authorization boundary.
 
-Migrations are executable source of truth. Runtime setup endpoints may report whether a schema marker/function is present; they must not create production schema. `portal_schema_versions` identifies capabilities required by newer LMS/security routes.
+Migrations are executable source of truth. The repository currently contains both `scripts/migrations/` and `supabase/migrations/`; neither directory should be assumed to contain the complete current history until the migration-source decision in `plan.md` is resolved. Runtime setup endpoints may report whether a schema marker/function is present; they must not create production schema. `portal_schema_versions` identifies capabilities required by newer LMS/security routes.
 
 The checked-in `types/supabase.generated.ts` is the last linked-project schema snapshot. `types/supabase.ts` defines the current `Database` as that snapshot plus a narrow overlay for committed migrations that have not yet appeared in regeneration. `getStrictSupabaseClient()` uses this combined current contract; `getSupabaseClient()` keeps a permissive compatibility payload shape while older callers are migrated. Regenerate types after deploying migrations with `npm run types:supabase`, then remove overlay entries that the new snapshot now contains.
 
@@ -115,9 +116,11 @@ Use PostgreSQL functions for atomic multi-record invariants. LMS ledger writes a
 ## Feature domains
 
 - Applications: NADRA, Pakistani passport drafts/submissions, GB passports, visas, notes, assignments, status history, complaints, refunds, custody, and receipts.
-- Accounting/LMS: application reports, customer accounts, ledger entries, fees, payments, installments, notes, methods, audit, and statements.
+- Accounting: branch and company ledger sheets, manual adjustments, finalised snapshots, Ticketing and Package commercial summaries, POS cash reconciliation summaries, source metadata, and drill-through links. Operational modules retain ownership of their records; POS cash is not treated as additional profit.
+- LMS: company-wide customer accounts, ledger entries, fees, payments, installments, notes, methods, audit, and statements.
 - Bookings: branch/service schedules, availability, appointments, drafts, waitlist, reminders, attendance, no-shows, preferences, export/report, and audit history.
-- Ticketing: UI-only module shell for the future Refund Calculator, Ticketing Ledger, upcoming flights, and mark/review/finalise schedule-change flow. No ticketing persistence or API integration is active yet.
+- Ticketing: persisted bookings and transactions, passenger fares, refunds, vouchers, fare adjustments/checks, supplier bills, flight monitoring, schedule-change workflows, staff sales ledgers, accounting reports, and package reconciliation.
+- POS: branch-derived tills and shifts, transactions/tenders, refunds, cash movements, supplier balances, reconciliation, loyalty, reporting, and typed source links to Ticketing, Packages, Applications, and LMS.
 - Travel packages: quote/share/selection, operational folders, groups, reservations, passengers, documents, invoices, payments/refunds/installments, vouchers, responsibilities, workflow risks, migration, and customer portals. See [Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
 - Staff/operations: settings, roles/departments, security, notices, issue reports, server control, timeclock devices/events/manual codes, training, and Frappe transfer.
 

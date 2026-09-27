@@ -32,6 +32,21 @@ Before the POS capability is available, it returns the legacy branch ledger as r
 
 **Errors:** `400` for invalid filters; `401`/`403` for access failure; `500` for a private load failure.
 
+### GET `/api/pos/source-options`
+
+**Access:** Any active staff member assigned to a branch.
+
+**Input:** Required tracked source `type`, a bounded search `q` of at least two characters, and the POS
+`catalogueKey`. Ticketing and Package results are restricted to the employee's branch. LMS results are
+company-wide. Application results use the selected service namespace.
+
+**Success:** `200` with a bounded list of read-only typed source references containing the owning
+record ID, human-readable reference, status, and module path. Selecting one only links the later POS
+transaction; it does not modify the owning record.
+
+**Errors:** `400` for an invalid query; `401`/`403` for access or branch failure; `429` for rate
+limiting; `503` when source records cannot be searched.
+
 ### POST `/api/pos/transactions`
 
 **Access:** Any active branch employee with POS posting access.

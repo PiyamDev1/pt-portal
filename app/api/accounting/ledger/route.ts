@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireAccountingAccess, type AccountingAccessResult } from '@/lib/accounting/access'
 import { ACCOUNTING_PRIVATE_RESPONSE } from '@/lib/accounting/api'
+import { loadCompanyLmsLiveSummary } from '@/lib/accounting/companySources'
 import {
   branchTotals,
   carryBranchLedger,
@@ -18,10 +20,16 @@ import {
   type LedgerSheet,
 } from '@/lib/accounting/ledger'
 import {
+  legacyLedgerItemsToSourceSummaries,
   loadBranchModuleResults,
   moduleResultsToLedgerItems,
   moduleResultWarnings,
 } from '@/lib/accounting/ledgerSources'
+import {
+  ACCOUNTING_DATE_BASES,
+  ACCOUNTING_METRIC_TYPES,
+  ACCOUNTING_SOURCE_KEYS,
+} from '@/lib/accounting/sourceFacts'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +51,53 @@ const manualItemSchema = z
   .strict()
 
 const sourceItemSchema = manualItemSchema
-  .extend({ sourceKey: z.enum(['ticketing', 'packages', 'pos']) })
+  .extend({
+    sourceKey: z.enum(ACCOUNTING_SOURCE_KEYS),
+    sourceRecordCount: z.number().int().min(0).max(1_000_000).optional(),
+    excludedRecordCount: z.number().int().min(0).max(1_000_000).optional(),
+    sourcePath: z
+      .string()
+      .regex(/^\/dashboard\/\S{0,280}$/)
+      .optional(),
+    metricType: z.enum(ACCOUNTING_METRIC_TYPES).optional(),
+    metricLabel: nameSchema.optional(),
+    dateBasis: z.enum(ACCOUNTING_DATE_BASES).optional(),
+    dateBasisLabel: nameSchema.optional(),
+    inclusionNote: z.string().trim().min(1).max(500).optional(),
+    snapshotVersion: z.literal(1).optional(),
+  })
+  .strict()
+
+const sourceReferenceSchema = z
+  .object({
+    id: identifierSchema,
+    label: z.string().trim().min(1).max(200),
+    path: z.string().regex(/^\/dashboard\/\S{0,280}$/),
+  })
+  .strict()
+
+const sourceSummarySchema = z
+  .object({
+    snapshotVersion: z.literal(1).optional().default(1),
+    key: z.enum(ACCOUNTING_SOURCE_KEYS),
+    label: nameSchema,
+    metricType: z.enum(ACCOUNTING_METRIC_TYPES),
+    metricLabel: nameSchema,
+    dateBasis: z.enum(ACCOUNTING_DATE_BASES),
+    dateBasisLabel: nameSchema,
+    count: z.number().int().min(0).max(1_000_000),
+    excludedCount: z.number().int().min(0).max(1_000_000),
+    income: moneySchema,
+    expenses: moneySchema,
+    net: moneySchema,
+    includedInBranchResult: z.boolean(),
+    inclusionNote: z.string().trim().min(1).max(500),
+    sourcePath: z.string().regex(/^\/dashboard\/\S{0,280}$/),
+    references: z.array(sourceReferenceSchema).max(25),
+    referencesTruncated: z.boolean(),
+    available: z.boolean(),
+    warning: z.string().trim().min(1).max(500).optional(),
+  })
   .strict()
 
 const branchPayloadSchema = z
@@ -57,6 +111,7 @@ const branchPayloadSchema = z
     profitStart: moneySchema,
     profitEnd: moneySchema,
     sourceSnapshot: z.array(sourceItemSchema).max(20),
+    sourceSummarySnapshot: z.array(sourceSummarySchema).max(3).optional().default([]),
   })
   .strict()
 
@@ -264,7 +319,7 @@ export async function GET(request: Request) {
 
   const priorMonth = previousMonth(parsed.data.month)
   const sourceSupabase = getServiceSupabaseClient()
-  const [sheetResult, sourceResults] = await Promise.all([
+  const [sheetResult, sourceResults, companyLmsSummary] = await Promise.all([
     access.supabase
       .from('accounting_ledger_sheets')
       .select('id, scope, location_id, month_start, status, payload, revision, updated_at')
@@ -274,6 +329,7 @@ export async function GET(request: Request) {
       branches.map((branch) => branch.id),
       parsed.data.month,
     ),
+    loadCompanyLmsLiveSummary(sourceSupabase),
   ])
   if (sheetResult.error) {
     return databaseFailure(sheetResult.error, 'Unable to load the Branch Ledger.')
@@ -298,6 +354,12 @@ export async function GET(request: Request) {
       selectedSheet.status === 'finalised'
         ? selectedSheet.payload.sourceSnapshot
         : moduleResultsToLedgerItems(parsed.data.month, selectedSources)
+    const sourceSummaries =
+      selectedSheet.status === 'finalised'
+        ? selectedSheet.payload.sourceSummarySnapshot.length > 0
+          ? selectedSheet.payload.sourceSummarySnapshot
+          : legacyLedgerItemsToSourceSummaries(selectedSheet.payload.sourceSnapshot)
+        : selectedSources
 
     const branchSummaries = branches.map((branch) => {
       const sheet = resolvedBranches.get(branch.id)!
@@ -324,9 +386,11 @@ export async function GET(request: Request) {
       branchSheet: selectedSheet,
       companySheet: resolveCompanySheet(currentRows, previousRows, priorMonth),
       sourceItems,
+      sourceSummaries,
       sourceWarnings:
         selectedSheet.status === 'finalised' ? [] : moduleResultWarnings(selectedSources),
       branchSummaries,
+      companyLmsSummary,
     }
     return apiOk(response, ACCOUNTING_PRIVATE_RESPONSE)
   } catch (error) {
@@ -346,8 +410,10 @@ export async function POST(request: Request) {
   const access = await requireAccountingAccess()
   if (!access.authorized) return access.response
 
-  const parsed = saveSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
+  const { data: input, error: bodyError } = await parseBodyWithSchema(request, saveSchema, {
+    maxBytes: 512 * 1024,
+  })
+  if (bodyError || !input) {
     return apiError('The ledger changes are invalid.', 400, {}, ACCOUNTING_PRIVATE_RESPONSE)
   }
 
@@ -356,7 +422,6 @@ export async function POST(request: Request) {
     return databaseFailure(capability.error, 'The live Branch Ledger is not ready.')
   }
 
-  const input = parsed.data
   if (input.scope === 'branch') {
     const locationResult = await access.supabase
       .from('locations')
@@ -391,6 +456,7 @@ export async function POST(request: Request) {
     const sourceSnapshot = input.finalize
       ? moduleResultsToLedgerItems(input.month, branchSources)
       : []
+    const sourceSummarySnapshot = input.finalize ? branchSources : []
     const totals = branchTotals(
       input.payload,
       sourceSnapshot.length
@@ -401,6 +467,7 @@ export async function POST(request: Request) {
       ...input.payload,
       profitEnd: totals.profitEnd,
       sourceSnapshot,
+      sourceSummarySnapshot,
     }
   }
 
