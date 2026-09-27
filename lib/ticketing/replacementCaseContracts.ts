@@ -29,6 +29,20 @@ const linkedTicketSchema = z
   })
   .strict()
 
+const moneySchema = z
+  .number()
+  .finite()
+  .min(0)
+  .max(99_999_999.99)
+  .refine(
+    (value) => Math.abs(value - Math.round(value * 100) / 100) <= 0.000_000_1,
+    'Use no more than two decimal places.',
+  )
+
+const replacementTicketSchema = linkedTicketSchema.extend({
+  agentCommissionGbp: moneySchema.default(0),
+})
+
 export const ticketingCreateReplacementCaseSchema = z
   .object({
     original: linkedTicketSchema.extend({
@@ -37,7 +51,7 @@ export const ticketingCreateReplacementCaseSchema = z
     responsibleEmployeeId: z.string().uuid(),
     reason: z.enum(TICKET_REPLACEMENT_REASONS),
     recoveryPolicy: z.enum(TICKET_REPLACEMENT_RECOVERY_POLICIES),
-    replacements: z.array(linkedTicketSchema).min(1).max(8),
+    replacements: z.array(replacementTicketSchema).min(1).max(8),
     notes: z.string().trim().min(1).max(2_000).nullable(),
   })
   .strict()
@@ -58,16 +72,6 @@ export const ticketingCreateReplacementCaseSchema = z
       })
     }
   })
-
-const moneySchema = z
-  .number()
-  .finite()
-  .min(0)
-  .max(99_999_999.99)
-  .refine(
-    (value) => Math.abs(value - Math.round(value * 100) / 100) <= 0.000_000_1,
-    'Use no more than two decimal places.',
-  )
 
 export const ticketingAppendReplacementChangeSchema = z
   .object({
@@ -125,6 +129,7 @@ export type TicketingReplacementCaseItem = {
   supplierCostGbp: number
   salePriceGbp: number
   owner: { id: string; fullName: string }
+  agentCommissionGbp: number
   position: number
 }
 
@@ -233,10 +238,17 @@ export function calculateReplacementCommissionDecision(input: {
   replacementOwnerId: string
   originalSaleGbp: number
   replacementSupplierCostGbp: number
+  crossAgentFeesGbp?: number
 }): TicketingReplacementCommissionDecision {
   const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
-  const companyProfitGbp = round(input.originalSaleGbp - input.replacementSupplierCostGbp)
-  if (input.originalOwnerId !== input.replacementOwnerId) {
+  const crossAgentFeesGbp = input.crossAgentFeesGbp ?? 0
+  const isCrossAgent = input.originalOwnerId !== input.replacementOwnerId
+  const companyProfitGbp = round(
+    input.originalSaleGbp -
+      input.replacementSupplierCostGbp -
+      (isCrossAgent ? crossAgentFeesGbp : 0),
+  )
+  if (isCrossAgent) {
     return { treatment: 'standard_cross_agent', companyProfitGbp }
   }
   return {

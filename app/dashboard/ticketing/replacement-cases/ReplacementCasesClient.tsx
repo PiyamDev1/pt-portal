@@ -357,6 +357,7 @@ export function ReplacementCasesClient() {
   const [error, setError] = useState('')
   const [original, setOriginal] = useState<TicketingReplacementLookupItem | null>(null)
   const [replacements, setReplacements] = useState<TicketingReplacementLookupItem[]>([])
+  const [replacementAgentFees, setReplacementAgentFees] = useState<Record<string, string>>({})
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState('')
   const [reason, setReason] = useState<keyof typeof REASON_LABELS>('fare_expired_staff_error')
   const [policy, setPolicy] = useState<keyof typeof POLICY_LABELS>('above_customer_sale')
@@ -385,6 +386,11 @@ export function ReplacementCasesClient() {
   }, [load])
 
   const replacementCost = replacements.reduce((sum, ticket) => sum + ticket.supplierCostGbp, 0)
+  const crossAgentFees = replacements.reduce((sum, ticket) => {
+    if (!original || ticket.owner.id === original.owner.id) return sum
+    const fee = Number(replacementAgentFees[ticket.bookingId] || 0)
+    return sum + (Number.isFinite(fee) && fee >= 0 ? fee : 0)
+  }, 0)
   const replacementRecordedSale = replacements.reduce((sum, ticket) => sum + ticket.salePriceGbp, 0)
   const preview = useMemo(
     () =>
@@ -408,15 +414,17 @@ export function ReplacementCasesClient() {
               replacementOwnerId: ticket.owner.id,
               originalSaleGbp: original.salePriceGbp,
               replacementSupplierCostGbp: replacementCost,
+              crossAgentFeesGbp: crossAgentFees,
             }),
           }))
         : [],
-    [original, replacementCost, replacements],
+    [crossAgentFees, original, replacementCost, replacements],
   )
 
   function clearDraft() {
     setOriginal(null)
     setReplacements([])
+    setReplacementAgentFees({})
     setResponsibleEmployeeId('')
     setReason('fare_expired_staff_error')
     setPolicy('above_customer_sale')
@@ -449,6 +457,7 @@ export function ReplacementCasesClient() {
             replacements: replacements.map((ticket) => ({
               bookingId: ticket.bookingId,
               transactionId: ticket.transactionId,
+              agentCommissionGbp: Number(replacementAgentFees[ticket.bookingId] || 0),
             })),
             notes: notes.trim() || null,
           }),
@@ -608,14 +617,37 @@ export function ReplacementCasesClient() {
                       {replacements.map((ticket) => (
                         <div key={ticket.bookingId} className="relative">
                           <TicketSummary ticket={ticket} />
+                          <label className="mt-2 block rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] font-bold text-amber-900">
+                            Agent fee / commission on this ticket (if cross-agent)
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={replacementAgentFees[ticket.bookingId] || ''}
+                              onChange={(event) =>
+                                setReplacementAgentFees((current) => ({
+                                  ...current,
+                                  [ticket.bookingId]: event.target.value,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-sm font-black text-slate-950"
+                              placeholder="0.00"
+                              aria-label={`Agent fee for ${ticket.pnr}`}
+                            />
+                          </label>
                           <button
                             type="button"
                             aria-label={`Remove ${ticket.pnr}`}
-                            onClick={() =>
+                            onClick={() => {
                               setReplacements((current) =>
                                 current.filter((item) => item.bookingId !== ticket.bookingId),
                               )
-                            }
+                              setReplacementAgentFees((current) => {
+                                const next = { ...current }
+                                delete next[ticket.bookingId]
+                                return next
+                              })
+                            }}
                             className="absolute right-2 top-2 rounded-lg bg-white p-2 text-red-700 shadow-sm ring-1 ring-slate-200"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -729,6 +761,7 @@ export function ReplacementCasesClient() {
                       value={gbp(preview.employeeRecoveryGbp)}
                       tone="rose"
                     />
+                    <Stat label="Cross-agent fees" value={gbp(crossAgentFees)} tone="amber" />
                   </div>
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
                     <p className="font-black">Commission instruction recorded</p>
@@ -1014,6 +1047,13 @@ function ReplacementCaseCard({
     },
   )
   const currentNetPosition = laterTotals.result - item.companyMarginAbsorbedGbp
+  const savedCrossAgentFees = item.items.reduce(
+    (sum, ticket) =>
+      item.original.owner && ticket.owner.id !== item.original.owner.id
+        ? sum + ticket.agentCommissionGbp
+        : sum,
+    0,
+  )
   const commissionDecisions = item.items.map((ticket) => ({
     ticket,
     decision: calculateReplacementCommissionDecision({
@@ -1021,6 +1061,7 @@ function ReplacementCaseCard({
       replacementOwnerId: ticket.owner.id,
       originalSaleGbp: item.original.salePriceGbp,
       replacementSupplierCostGbp: item.replacementSupplierCostGbp,
+      crossAgentFeesGbp: savedCrossAgentFees,
     }),
   }))
   const changeResult =
@@ -1104,6 +1145,7 @@ function ReplacementCaseCard({
             <Stat label="Cost increase" value={gbp(item.supplierCostIncreaseGbp)} tone="amber" />
             <Stat label="Business absorbs" value={gbp(item.companyMarginAbsorbedGbp)} />
             <Stat label="Employee recovery" value={gbp(item.employeeRecoveryGbp)} tone="rose" />
+            <Stat label="Cross-agent fees" value={gbp(savedCrossAgentFees)} tone="amber" />
           </div>
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1141,6 +1183,11 @@ function ReplacementCaseCard({
                     label="Original margin"
                     expression={`${gbp(item.original.salePriceGbp)} − ${gbp(item.original.supplierCostGbp)}`}
                     result={Math.max(item.original.salePriceGbp - item.original.supplierCostGbp, 0)}
+                  />
+                  <CalculationLine
+                    label="Net company result for commission"
+                    expression={`${gbp(item.original.salePriceGbp)} − ${gbp(item.replacementSupplierCostGbp)} − ${gbp(savedCrossAgentFees)} cross-agent fees`}
+                    result={item.original.salePriceGbp - item.replacementSupplierCostGbp - savedCrossAgentFees}
                   />
                 </div>
               </li>

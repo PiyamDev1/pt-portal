@@ -58,6 +58,7 @@ type CaseRow = {
   original_commission_treatment: 'reverse'
   replacement_commission_treatment: 'standard'
   notes: string | null
+  request_payload: Record<string, unknown> | null
   created_at: string
   original_booking: Related<{ pnr: string; owner: Related<EmployeeRow> }>
   responsible_employee: Related<EmployeeRow>
@@ -107,6 +108,18 @@ function replacementCase(row: CaseRow): TicketingReplacementCase | null {
       const owner = employee(item.owner)
       const supplierCostGbp = money(item.supplier_cost_gbp)
       const salePriceGbp = money(item.sale_price_gbp)
+      const requestedReplacement = Array.isArray(row.request_payload?.replacements)
+        ? (row.request_payload.replacements as unknown[]).find(
+            (value: unknown) =>
+              value &&
+              typeof value === 'object' &&
+              (value as Record<string, unknown>).bookingId === item.booking_id,
+          )
+        : null
+      const agentCommissionGbp =
+        requestedReplacement && typeof requestedReplacement === 'object'
+          ? money((requestedReplacement as Record<string, unknown>).agentCommissionGbp) ?? 0
+          : 0
       return owner && supplierCostGbp !== null && salePriceGbp !== null
         ? {
             id: item.id,
@@ -116,6 +129,7 @@ function replacementCase(row: CaseRow): TicketingReplacementCase | null {
             supplierCostGbp,
             salePriceGbp,
             owner,
+            agentCommissionGbp,
             position: Number(item.position),
           }
         : null
@@ -210,7 +224,7 @@ export async function GET() {
     original_booking_id, original_transaction_id,
     original_sale_gbp, original_supplier_cost_gbp, replacement_supplier_cost_gbp,
     supplier_cost_increase_gbp, company_margin_absorbed_gbp, employee_recovery_gbp,
-    original_commission_treatment, replacement_commission_treatment, notes, created_at,
+    original_commission_treatment, replacement_commission_treatment, notes, request_payload, created_at,
     original_booking:ticket_bookings!ticket_replacement_cases_original_booking_id_fkey(
       pnr,
       owner:employees!ticket_bookings_owner_employee_id_fkey(id, full_name)

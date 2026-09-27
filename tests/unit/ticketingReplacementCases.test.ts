@@ -47,8 +47,9 @@ describe('Ticketing replacement cases', () => {
         replacementOwnerId: '30000000-0000-4000-8000-000000000002',
         originalSaleGbp: 940,
         replacementSupplierCostGbp: 1052.59,
+        crossAgentFeesGbp: 20,
       }),
-    ).toEqual({ treatment: 'standard_cross_agent', companyProfitGbp: -112.59 })
+    ).toEqual({ treatment: 'standard_cross_agent', companyProfitGbp: -132.59 })
   })
 
   it('allows the same agent only the original commission when the replacement is profitable', () => {
