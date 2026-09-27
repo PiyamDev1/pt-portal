@@ -63,7 +63,7 @@ describe('Accounting ledger model', () => {
     expect(payload.items).toHaveLength(1)
   })
 
-  it('treats expected package commission as a cost before importing package profit', () => {
+  it('treats expected package commission as projected income', () => {
     expect(
       packageReservationLedgerAmounts({
         booked_cost_total: 700,
@@ -73,6 +73,6 @@ describe('Accounting ledger model', () => {
         customer_refund_total: 25,
         commission_expected_total: 75,
       }),
-    ).toEqual({ income: 925, expenses: 675, net: 250 })
+    ).toEqual({ income: 1_000, expenses: 600, net: 400 })
   })
 })

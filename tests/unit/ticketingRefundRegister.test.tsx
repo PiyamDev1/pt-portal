@@ -45,12 +45,23 @@ function refundPage() {
       },
     ],
     nextCursor: null,
-    context: { canManage: false, canConfirm: true },
+    context: { canManage: false, canConfirm: true, isSuperAdmin: false },
   }
 }
 
 describe('Refund register confirmation', () => {
   afterEach(() => vi.unstubAllGlobals())
+
+  it('loads an accounting deep link with its PNR filter already applied', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json(refundPage()))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<RefundRegister initialPnr=" abc 123 " />)
+
+    await screen.findByText('Provisional')
+    expect(screen.getByLabelText('PNR')).toHaveProperty('value', 'ABC123')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('pnr=ABC123')
+  })
 
   it('lets the responsible agent confirm a finalised provisional Refund', async () => {
     const fetchMock = vi

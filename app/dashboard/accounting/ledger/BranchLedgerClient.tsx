@@ -219,6 +219,9 @@ function SourceSummaryPanel({ summaries }: { summaries: AccountingSourceSummary[
                   {summary.excludedCount > 0
                     ? ` · ${summary.excludedCount.toLocaleString('en-GB')} excluded to avoid overlap`
                     : ''}
+                  {summary.adjustmentCount > 0
+                    ? ` · ${summary.adjustmentCount.toLocaleString('en-GB')} confirmed refund ${summary.adjustmentCount === 1 ? 'adjustment' : 'adjustments'}`
+                    : ''}
                 </p>
                 <p className="mt-2 text-[10px] leading-4 text-slate-600">{summary.inclusionNote}</p>
 

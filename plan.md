@@ -19,6 +19,10 @@ The first safe financial-reporting slice is implemented in the application layer
 - POS staff search for and select Ticketing, Package, Application, or LMS records instead of typing internal database IDs.
 - Company Ledger shows the current company-wide LMS outstanding balance and active/overdue/due-soon account counts without copying them into a branch or monthly close.
 - Focused tests cover the double-counting rule, Accounting presentation, persisted source metadata, and POS source selection.
+- Confirmed Ticketing refunds now replace the original margin through a confirmation-month adjustment; provisional, voided, package-owned, and unresolved refund results remain excluded.
+- Package projected margin now treats expected commission as income and reuses the canonical shared-transport calculation so invoice-reference rows are not counted twice.
+- Accounting refund links open the Refund Register with the relevant PNR filter already applied.
+- The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
 
@@ -316,7 +320,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 
 - [x] Agree the reporting fact fields and metric lenses.
 - [x] Document branch versus company scope.
-- [ ] Document inclusion rules for refunds, cancellations, reversals, and expected commission.
+- [x] Document inclusion rules for refunds, cancellations, reversals, and expected commission.
 - [ ] Decide the canonical migration source.
 
 ### Phase 1: low-risk read-only links

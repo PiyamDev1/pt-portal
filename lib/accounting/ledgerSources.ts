@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LedgerItem } from '@/lib/accounting/ledger'
 import {
+  getReservationCalculationLine,
+  type ReservationCalculationSource,
+} from '@/lib/packageReservationFinancials'
+import {
   ACCOUNTING_SOURCE_REFERENCE_LIMIT,
   type AccountingSourceKey,
   type AccountingSourceReference,
@@ -17,23 +21,53 @@ type FareRow = {
 type TicketRow = {
   id: string
   ticket_bookings:
-    | { id: string; location_id: string; commission_scope: string; pnr: string | null }
-    | Array<{ id: string; location_id: string; commission_scope: string; pnr: string | null }>
+    | {
+        id: string
+        location_id: string
+        commission_scope: string
+        operational_status: string
+        pnr: string | null
+      }
+    | Array<{
+        id: string
+        location_id: string
+        commission_scope: string
+        operational_status: string
+        pnr: string | null
+      }>
     | null
   ticket_passenger_fare_lines: FareRow[] | null
 }
 
-type PackageReservationRow = {
-  booked_cost_total: number | string | null
-  sold_price_total: number | string | null
-  discount_total: number | string | null
-  supplier_refund_total: number | string | null
-  customer_refund_total: number | string | null
-  commission_expected_total: number | string | null
+type TicketRefundRow = {
+  id: string
+  pnr: string
+  status: string
+  commission_scope: string
+  original_sale_price_gbp: number | string | null
+  original_supplier_cost_gbp: number | string | null
+  actual_company_result_gbp: number | string | null
+  ticket_bookings: RelatedTicketBooking
 }
 
+type RelatedTicketBooking =
+  | { id: string; location_id: string; archived_at: string | null }
+  | Array<{ id: string; location_id: string; archived_at: string | null }>
+  | null
+
+type PackageReservationRow = ReservationCalculationSource & { id: string }
+
+type PackageFinancialAmounts = Pick<
+  ReservationCalculationSource,
+  | 'booked_cost_total'
+  | 'sold_price_total'
+  | 'discount_total'
+  | 'commission_expected_total'
+  | 'supplier_refund_total'
+  | 'customer_refund_total'
+>
+
 type PackageRow = PackageReservationRow & {
-  id: string
   title: string
   travel_packages:
     | { id: string; location_id: string; package_reference: string | null }
@@ -67,11 +101,11 @@ const SOURCE_CONFIG: Record<
     label: 'Ticketing',
     metricType: 'commercial_margin',
     metricLabel: 'Standalone gross margin',
-    dateBasis: 'booking_date',
-    dateBasisLabel: 'Ticket booking date',
+    dateBasis: 'booking_and_refund_confirmation_dates',
+    dateBasisLabel: 'Booking date; confirmed refund date for adjustments',
     includedInBranchResult: true,
     inclusionNote:
-      'Includes ticket-owned bookings only. Package-owned and unresolved bookings are excluded to prevent duplicate package profit.',
+      'Includes issued standalone ticket margin and confirmed refund adjustments. Held, provisional, voided, package-owned and unresolved records are excluded.',
     sourcePath: '/dashboard/accounting/ticketing',
   },
   packages: {
@@ -82,7 +116,7 @@ const SOURCE_CONFIG: Record<
     dateBasisLabel: 'Reservation creation date',
     includedInBranchResult: true,
     inclusionNote:
-      'Projected result uses reservation sale, booked cost, discounts, refunds and expected commission.',
+      'Projected result is sale less discounts, customer refunds and booked cost, plus supplier refunds and expected commission income. Shared transport uses the canonical package allocation.',
     sourcePath: '/dashboard/packages',
   },
   pos: {
@@ -119,6 +153,7 @@ function emptySource(key: AccountingSourceKey): AccountingSourceSummary {
     key,
     ...SOURCE_CONFIG[key],
     count: 0,
+    adjustmentCount: 0,
     excludedCount: 0,
     income: 0,
     expenses: 0,
@@ -155,15 +190,24 @@ function addReference(source: AccountingSourceSummary, reference: AccountingSour
   source.references.push(reference)
 }
 
-export function packageReservationLedgerAmounts(reservation: PackageReservationRow) {
+export function packageReservationLedgerAmounts(reservation: PackageFinancialAmounts) {
   const income =
     amount(reservation.sold_price_total) -
     amount(reservation.discount_total) -
-    amount(reservation.customer_refund_total)
-  const expenses =
-    amount(reservation.booked_cost_total) -
-    amount(reservation.supplier_refund_total) +
+    amount(reservation.customer_refund_total) +
     amount(reservation.commission_expected_total)
+  const expenses = amount(reservation.booked_cost_total) - amount(reservation.supplier_refund_total)
+  return { income, expenses, net: income - expenses }
+}
+
+function calculationLineLedgerAmounts(
+  reservation: PackageReservationRow,
+  reservations: PackageReservationRow[],
+) {
+  const line = getReservationCalculationLine(reservation, reservations)
+  if (!line.included) return null
+  const income = line.sold - line.discount - line.customerRefund + line.commission
+  const expenses = line.booked - line.supplierRefund
   return { income, expenses, net: income - expenses }
 }
 
@@ -180,20 +224,29 @@ export async function loadBranchModuleResults(
 
   const startDate = `${month}-01`
   const endDate = monthEnd(month)
-  const [ticketingResult, packagesResult, posResult] = await Promise.all([
+  const [ticketingResult, ticketRefundResult, packagesResult, posResult] = await Promise.all([
     supabase
       .from('ticket_transactions')
       .select(
-        'id, ticket_bookings!inner(id, location_id, archived_at, commission_scope, pnr), ticket_passenger_fare_lines(sale_total_gbp, supplier_total_gbp)',
+        'id, ticket_bookings!inner(id, location_id, archived_at, commission_scope, operational_status, pnr), ticket_passenger_fare_lines(sale_total_gbp, supplier_total_gbp)',
       )
       .in('ticket_bookings.location_id', locationIds)
       .is('ticket_bookings.archived_at', null)
       .gte('booking_date', startDate)
       .lt('booking_date', endDate),
     supabase
+      .from('ticket_refunds')
+      .select(
+        'id, pnr, status, commission_scope, original_sale_price_gbp, original_supplier_cost_gbp, actual_company_result_gbp, ticket_bookings!inner(id, location_id, archived_at)',
+      )
+      .in('ticket_bookings.location_id', locationIds)
+      .is('ticket_bookings.archived_at', null)
+      .gte('confirmed_correct_at', `${startDate}T00:00:00.000Z`)
+      .lt('confirmed_correct_at', `${endDate}T00:00:00.000Z`),
+    supabase
       .from('travel_package_reservations')
       .select(
-        'id, title, booked_cost_total, sold_price_total, discount_total, supplier_refund_total, customer_refund_total, commission_expected_total, travel_packages!inner(id, location_id, package_reference)',
+        'id, title, reservation_type, metadata, quote_id, group_member_id, booked_cost_total, sold_price_total, discount_total, supplier_refund_total, customer_refund_total, commission_expected_total, travel_packages!inner(id, location_id, package_reference)',
       )
       .in('travel_packages.location_id', locationIds)
       .gte('created_at', `${startDate}T00:00:00.000Z`)
@@ -207,19 +260,22 @@ export async function loadBranchModuleResults(
   ])
 
   for (const [locationId, sources] of results) {
-    if (ticketingResult.error) sources[0] = failedSource('ticketing')
+    if (ticketingResult.error || ticketRefundResult.error) sources[0] = failedSource('ticketing')
     if (packagesResult.error) sources[1] = failedSource('packages')
     if (posResult.error) sources[2] = failedSource('pos')
     results.set(locationId, sources)
   }
 
-  if (!ticketingResult.error) {
+  if (!ticketingResult.error && !ticketRefundResult.error) {
     for (const row of (ticketingResult.data || []) as TicketRow[]) {
       const booking = relatedTicketBooking(row)
       const locationId = relatedTicketLocation(row)
       const source = locationId ? results.get(locationId)?.[0] : null
       if (!source || !booking) continue
-      if (booking.commission_scope !== 'ticket') {
+      if (
+        booking.commission_scope !== 'ticket' ||
+        !['issued', 'cancelled', 'part_refunded', 'refunded'].includes(booking.operational_status)
+      ) {
         source.excludedCount += 1
         continue
       }
@@ -237,16 +293,59 @@ export async function loadBranchModuleResults(
       source.expenses = roundMoney(source.expenses)
       source.net = roundMoney(source.income - source.expenses)
     }
+
+    for (const row of (ticketRefundResult.data || []) as TicketRefundRow[]) {
+      const booking = Array.isArray(row.ticket_bookings)
+        ? row.ticket_bookings[0]
+        : row.ticket_bookings
+      const source = booking ? results.get(booking.location_id)?.[0] : null
+      if (!source || !booking) continue
+      if (
+        row.commission_scope !== 'ticket' ||
+        row.status === 'voided' ||
+        row.actual_company_result_gbp === null
+      ) {
+        source.excludedCount += 1
+        continue
+      }
+      const originalMargin =
+        amount(row.original_sale_price_gbp) - amount(row.original_supplier_cost_gbp)
+      const adjustment = roundMoney(amount(row.actual_company_result_gbp) - originalMargin)
+      source.count += 1
+      source.adjustmentCount += 1
+      addReference(source, {
+        id: row.id,
+        label: `${row.pnr} refund`,
+        path: `/dashboard/ticketing/refund-calculator?pnr=${encodeURIComponent(row.pnr)}`,
+      })
+      if (adjustment >= 0) source.income += adjustment
+      else source.expenses += Math.abs(adjustment)
+      source.net = roundMoney(source.income - source.expenses)
+    }
   }
 
   if (!packagesResult.error) {
-    for (const row of (packagesResult.data || []) as PackageRow[]) {
+    const rows = (packagesResult.data || []) as PackageRow[]
+    const rowsByPackage = new Map<string, PackageRow[]>()
+    for (const row of rows) {
+      const packageRow = Array.isArray(row.travel_packages)
+        ? row.travel_packages[0]
+        : row.travel_packages
+      if (!packageRow) continue
+      rowsByPackage.set(packageRow.id, [...(rowsByPackage.get(packageRow.id) || []), row])
+    }
+
+    for (const row of rows) {
       const packageRow = Array.isArray(row.travel_packages)
         ? row.travel_packages[0]
         : row.travel_packages
       const source = packageRow ? results.get(packageRow.location_id)?.[1] : null
       if (!source || !packageRow) continue
-      const amounts = packageReservationLedgerAmounts(row)
+      const amounts = calculationLineLedgerAmounts(row, rowsByPackage.get(packageRow.id) || [row])
+      if (!amounts) {
+        source.excludedCount += 1
+        continue
+      }
       source.count += 1
       addReference(source, {
         id: row.id,
@@ -321,6 +420,7 @@ export function legacyLedgerItemsToSourceSummaries(items: LedgerItem[]) {
     if (!item.sourceKey) return []
     const summary = emptySource(item.sourceKey)
     summary.count = item.sourceRecordCount || 0
+    summary.adjustmentCount = 0
     summary.excludedCount = item.excludedRecordCount || 0
     summary.income = item.kind === 'income' ? item.amount : 0
     summary.expenses = item.kind === 'expense' ? item.amount : 0

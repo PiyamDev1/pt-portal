@@ -216,12 +216,17 @@ function RefundEventForm({
   )
 }
 
-export function RefundRegister() {
+function normalizePnrFilter(value: string) {
+  return value.trim().toUpperCase().replace(/\s+/g, '').slice(0, 20)
+}
+
+export function RefundRegister({ initialPnr = '' }: { initialPnr?: string }) {
+  const normalizedInitialPnr = normalizePnrFilter(initialPnr)
   const [items, setItems] = useState<TicketingRefundItem[]>([])
-  const [pnr, setPnr] = useState('')
+  const [pnr, setPnr] = useState(normalizedInitialPnr)
   const [status, setStatus] = useState<TicketingRefundStatus | ''>('')
   const [applied, setApplied] = useState<{ pnr: string; status: TicketingRefundStatus | '' }>({
-    pnr: '',
+    pnr: normalizedInitialPnr,
     status: '',
   })
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -265,12 +270,12 @@ export function RefundRegister() {
   )
 
   useEffect(() => {
-    void load({ pnr: '', status: '' })
-  }, [load])
+    void load({ pnr: normalizedInitialPnr, status: '' })
+  }, [load, normalizedInitialPnr])
 
   const apply = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const filters = { pnr: pnr.trim().toUpperCase().replace(/\s+/g, ''), status }
+    const filters = { pnr: normalizePnrFilter(pnr), status }
     setPnr(filters.pnr)
     setApplied(filters)
     void load(filters)

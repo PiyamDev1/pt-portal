@@ -871,11 +871,16 @@ the all-branch comparison.
 branch summaries, and read-only Ticketing, Package, and POS source summaries.
 Each source describes its metric and date basis and contains bounded links to
 the owning records. Standalone Ticketing and projected Package margin are
-included in branch result; POS cash movement is reconciliation-only. A
+included in branch result; POS cash movement is reconciliation-only. Ticketing
+uses booking-date margin plus confirmation-date adjustments that replace the
+original margin with a confirmed refund result. Package projected margin treats
+expected commission as income and counts canonical shared transport once. A
 finalised sheet returns its stored source snapshot so later operational changes
 do not silently rewrite the closed month. The response also includes the
 current company-wide LMS outstanding balance and account counts as a read-only
 live summary; it does not replace the selected month's manual closing value.
+See [Accounting Reporting Rules](../guides/ACCOUNTING_REPORTING_RULES.md) for the
+complete inclusion, exclusion, refund, and date-basis rules.
 
 **Errors:** `400` invalid query; `401`/`403` access failure; `404` missing branch;
 `503` missing Accounting capability or unavailable source dependency.

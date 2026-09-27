@@ -11,16 +11,20 @@ type WorkspaceTab = 'refund' | 'replacement'
 export function TicketingRefundReplacementWorkspace({
   isSuperAdmin,
   initialTab = 'refund',
+  initialPnr = '',
 }: {
   isSuperAdmin: boolean
   initialTab?: WorkspaceTab
+  initialPnr?: string
 }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab)
 
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#4b0f16] via-[#8b1e2d] to-slate-900 p-5 text-white shadow-xl shadow-red-950/15 md:p-7">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-red-100">Ticketing adjustments</p>
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-red-100">
+          Ticketing adjustments
+        </p>
         <h1 className="mt-2 text-3xl font-black tracking-tight">Refunds & replacements</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-red-50/85 md:text-base">
           Start with a refund or cancellation. Switch to Replacement Cases when new tickets,
@@ -47,7 +51,9 @@ export function TicketingRefundReplacementWorkspace({
           </span>
           <span>
             <span className="block text-sm font-black">Refund</span>
-            <span className={`block text-xs ${activeTab === 'refund' ? 'text-red-100' : 'text-slate-500'}`}>
+            <span
+              className={`block text-xs ${activeTab === 'refund' ? 'text-red-100' : 'text-slate-500'}`}
+            >
               Cancellation, refund or exchange
             </span>
           </span>
@@ -67,7 +73,9 @@ export function TicketingRefundReplacementWorkspace({
           </span>
           <span>
             <span className="block text-sm font-black">Replacement Cases</span>
-            <span className={`block text-xs ${activeTab === 'replacement' ? 'text-red-100' : 'text-slate-500'}`}>
+            <span
+              className={`block text-xs ${activeTab === 'replacement' ? 'text-red-100' : 'text-slate-500'}`}
+            >
               Multi-ticket loss and later changes
             </span>
           </span>
@@ -77,7 +85,7 @@ export function TicketingRefundReplacementWorkspace({
       {activeTab === 'refund' ? (
         <div className="space-y-8">
           <TicketCancellationCalculator isSuperAdmin={isSuperAdmin} />
-          <RefundRegister />
+          <RefundRegister initialPnr={initialPnr} />
         </div>
       ) : (
         <ReplacementCasesClient />

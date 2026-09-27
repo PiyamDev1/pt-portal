@@ -1,5 +1,19 @@
 import type { TravelPackageReservation } from '@/app/types/packages'
 
+export type ReservationCalculationSource = Pick<
+  TravelPackageReservation,
+  | 'reservation_type'
+  | 'metadata'
+  | 'quote_id'
+  | 'group_member_id'
+  | 'booked_cost_total'
+  | 'sold_price_total'
+  | 'discount_total'
+  | 'commission_expected_total'
+  | 'supplier_refund_total'
+  | 'customer_refund_total'
+>
+
 export type ReservationCalculationRole = 'standard' | 'group_main_transport' | 'invoice_reference'
 
 export type ReservationCalculationLine = {
@@ -17,7 +31,7 @@ function roundReservationMoney(value: number) {
   return Math.round(Math.max(0, value) * 100) / 100
 }
 
-export function isGroupMainTransportReservation(reservation: TravelPackageReservation) {
+export function isGroupMainTransportReservation(reservation: ReservationCalculationSource) {
   return (
     reservation.reservation_type === 'transport' &&
     reservation.metadata?.sharedGroupTransport === true &&
@@ -25,7 +39,7 @@ export function isGroupMainTransportReservation(reservation: TravelPackageReserv
   )
 }
 
-export function isSharedTransportInvoiceReference(reservation: TravelPackageReservation) {
+export function isSharedTransportInvoiceReference(reservation: ReservationCalculationSource) {
   return (
     reservation.reservation_type === 'transport' &&
     reservation.metadata?.sharedGroupTransport === true &&
@@ -35,8 +49,8 @@ export function isSharedTransportInvoiceReference(reservation: TravelPackageRese
 }
 
 export function getGroupMainTransportDerivedSold(
-  reservation: TravelPackageReservation,
-  reservations: TravelPackageReservation[],
+  reservation: ReservationCalculationSource,
+  reservations: ReservationCalculationSource[],
 ) {
   if (!isGroupMainTransportReservation(reservation)) {
     return Number(reservation.sold_price_total || 0)
@@ -49,8 +63,8 @@ export function getGroupMainTransportDerivedSold(
 }
 
 export function getSharedTransportReferenceBookedCost(
-  reference: TravelPackageReservation,
-  reservations: TravelPackageReservation[],
+  reference: ReservationCalculationSource,
+  reservations: ReservationCalculationSource[],
 ) {
   if (!isSharedTransportInvoiceReference(reference)) {
     return Number(reference.booked_cost_total || 0)
@@ -93,8 +107,8 @@ export function getSharedTransportReferenceBookedCost(
 }
 
 export function getReservationCalculationLine(
-  reservation: TravelPackageReservation,
-  reservations: TravelPackageReservation[],
+  reservation: ReservationCalculationSource,
+  reservations: ReservationCalculationSource[],
 ): ReservationCalculationLine {
   if (isSharedTransportInvoiceReference(reservation)) {
     return {
@@ -144,7 +158,7 @@ export function getReservationCalculationLine(
   }
 }
 
-export function getReservationCalculationTotals(reservations: TravelPackageReservation[]) {
+export function getReservationCalculationTotals(reservations: ReservationCalculationSource[]) {
   return reservations.reduce(
     (totals, reservation) => {
       const line = getReservationCalculationLine(reservation, reservations)

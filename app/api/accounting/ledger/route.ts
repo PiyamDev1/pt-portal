@@ -86,6 +86,7 @@ const sourceSummarySchema = z
     dateBasis: z.enum(ACCOUNTING_DATE_BASES),
     dateBasisLabel: nameSchema,
     count: z.number().int().min(0).max(1_000_000),
+    adjustmentCount: z.number().int().min(0).max(1_000_000).optional().default(0),
     excludedCount: z.number().int().min(0).max(1_000_000),
     income: moneySchema,
     expenses: moneySchema,

@@ -9,7 +9,7 @@ export const ACCOUNTING_METRIC_TYPES = [
 export type AccountingMetricType = (typeof ACCOUNTING_METRIC_TYPES)[number]
 
 export const ACCOUNTING_DATE_BASES = [
-  'booking_date',
+  'booking_and_refund_confirmation_dates',
   'reservation_created_at',
   'business_date',
 ] as const
@@ -36,6 +36,7 @@ export type AccountingSourceSummary = {
   dateBasis: AccountingDateBasis
   dateBasisLabel: string
   count: number
+  adjustmentCount: number
   excludedCount: number
   income: number
   expenses: number
