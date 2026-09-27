@@ -18,7 +18,8 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { Clock3, History, Keyboard, Users } from 'lucide-react'
+import Link from 'next/link'
+import { Clock3, History, Keyboard, TrendingUp, Users } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import TimeclockClient from './client'
@@ -82,6 +83,13 @@ export default async function TimeclockPage() {
   const canSeeManualEntry = isManager || canUseMaintenanceTools
   const quickLinks = [
     {
+      href: '/dashboard/my-performance?view=attendance',
+      title: 'My Performance',
+      description: 'See recorded hours alongside your completed work.',
+      icon: TrendingUp,
+      tone: 'border-violet-100 bg-violet-50 text-violet-700 md:bg-white md:text-slate-800',
+    },
+    {
       href: '/dashboard/timeclock/history',
       title: 'My punches',
       description: 'Review your recent timeclock activity.',
@@ -124,39 +132,60 @@ export default async function TimeclockPage() {
           showBack={true}
         />
 
-        <main className="timeclock-mobile-surface mx-auto w-full max-w-4xl flex-grow px-3 py-4 md:p-6">
-          <section className="timeclock-mobile-hero mb-4 rounded-[1.75rem] bg-gradient-to-br from-[#5c111d] via-[#8b1d2c] to-[#2f3033] p-4 text-white shadow-xl shadow-red-950/15 md:mb-6 md:rounded-none md:bg-none md:p-0 md:text-slate-800 md:shadow-none">
-            <div className="flex items-start gap-3">
-              <span className="timeclock-mobile-hero-icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 md:hidden">
-                <Clock3 className="h-5 w-5" />
-              </span>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Timeclock</h1>
-                <p className="timeclock-mobile-hero-copy mt-1 text-sm leading-5 text-white/80 md:text-base md:text-slate-500">
-                  Scan the QR code on the device to clock in or out. Managers can also open manual
-                  entry for team access and self-punch fallback.
-                </p>
+        <main className="timeclock-mobile-surface mx-auto w-full max-w-5xl flex-grow px-3 py-4 md:p-6">
+          <section className="timeclock-mobile-hero animate-enter-fade-up relative mb-5 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#4b0f16] via-[#7b1926] to-[#252830] p-5 text-white shadow-xl shadow-red-950/15 sm:p-7 md:mb-6">
+            <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-red-300/20 blur-3xl" />
+            <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+              <div className="flex items-start gap-3">
+                <span className="timeclock-mobile-hero-icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
+                  <Clock3 className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-red-100">
+                    Attendance hub
+                  </p>
+                  <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                    Clock in with confidence
+                  </h1>
+                  <p className="timeclock-mobile-hero-copy mt-2 max-w-2xl text-sm leading-6 text-white/80">
+                    Scan the device QR code or use a manual code. Your completed punches flow into
+                    My Performance and remain reviewable in the evidence trail.
+                  </p>
+                </div>
+              </div>
+              <div className="relative flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-wide text-red-100/80">
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
+                  Secure scan
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
+                  Location-aware
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
+                  Audit-friendly
+                </span>
               </div>
             </div>
           </section>
 
-          <div className="timeclock-mobile-links mb-5 grid grid-cols-1 gap-3 md:mb-6 md:grid-cols-2 md:gap-4">
+          <div className="timeclock-mobile-links mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 md:mb-6 md:gap-4">
             {quickLinks.map((link) => {
               const Icon = link.icon
               return (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
-                  className={`${link.tone} timeclock-mobile-link flex min-h-[84px] flex-row items-center justify-start gap-3 rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md md:min-h-0 md:flex-col md:items-start md:justify-start md:gap-0 md:p-4 md:text-left`}
+                  className={`${link.tone} timeclock-mobile-link ui-tap animate-enter-fade-up flex min-h-[92px] flex-row items-center justify-start gap-3 rounded-2xl border p-4 text-left shadow-sm hover:border-red-300 hover:shadow-md md:min-h-0 md:flex-col md:items-start md:justify-start md:gap-0 md:p-4 md:text-left`}
                 >
-                  <Icon className="h-6 w-6 shrink-0 md:mb-2 md:h-6 md:w-6" />
+                  <span className="mb-0 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 md:mb-3">
+                    <Icon className="h-5 w-5 md:h-6 md:w-6" />
+                  </span>
                   <div>
-                    <h2 className="text-base font-semibold md:text-lg">{link.title}</h2>
+                    <h2 className="text-base font-black md:text-lg">{link.title}</h2>
                     <p className="timeclock-mobile-link-description mt-1 text-sm text-slate-600 md:text-slate-500">
                       {link.description}
                     </p>
                   </div>
-                </a>
+                </Link>
               )
             })}
           </div>

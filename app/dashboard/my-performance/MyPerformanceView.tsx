@@ -7,6 +7,7 @@ import {
   CalendarCheck2,
   CheckCircle2,
   ChevronDown,
+  Clock3,
   FileCheck2,
   HandHelping,
   Info,
@@ -217,6 +218,18 @@ export default function MyPerformanceView({
   const current = analytics.current
   const previous = analytics.previous
   const attendance = analytics.attendance
+  const hourlyRate = data.commission.profile?.configuration?.compensation.hourlyRate ?? null
+  const hourlyCurrency =
+    data.commission.profile?.configuration?.compensation.salaryCurrency ||
+    data.commission.profile?.configuration?.compensation.currency ||
+    data.commission.compensation.currency
+  const clockedPayContext =
+    hourlyRate && hourlyRate > 0 ? (hourlyRate * attendance.current.workedMinutes) / 60 : null
+  const hourlyMoney = new Intl.NumberFormat(hourlyCurrency === 'PKR' ? 'en-PK' : 'en-GB', {
+    style: 'currency',
+    currency: hourlyCurrency,
+    minimumFractionDigits: 2,
+  })
 
   return (
     <div className="space-y-7">
@@ -508,6 +521,38 @@ export default function MyPerformanceView({
                     : 'No unmatched punches in the six-month window'
                 }
               />
+            </div>
+          )}
+
+          {data.attendanceReady && (
+            <div className="mt-4 flex flex-col gap-4 rounded-2xl border border-red-100 bg-gradient-to-r from-red-50 via-white to-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b1e2d] shadow-sm">
+                  <Clock3 className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b1e2d]">
+                    Time-clock + earnings context
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-900">
+                    {hourlyRate && hourlyRate > 0
+                      ? `${hourlyMoney.format(hourlyRate)} per recorded hour`
+                      : 'No hourly pay configured for this plan'}
+                  </p>
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                    {clockedPayContext !== null
+                      ? `${hourlyMoney.format(clockedPayContext)} of hourly context for ${hours(attendance.current.workedMinutes)} recorded this period.`
+                      : 'Ask an administrator to add an optional hourly rate if this plan should show clocked-pay context.'}{' '}
+                    This is informational, not a payslip.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={performancePeriodHref('earnings', selectedPeriod)}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-xs font-black text-[#8b1e2d] transition hover:-translate-y-0.5 hover:bg-red-50"
+              >
+                View earnings <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           )}
 

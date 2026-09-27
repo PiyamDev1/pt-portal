@@ -906,6 +906,31 @@ function AgreementEditor({
                   className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
                 />
               </label>
+              <label className="text-xs font-bold text-emerald-900">
+                Hourly pay (optional ·{' '}
+                {draft.compensation.salaryCurrency || draft.compensation.currency || 'currency'})
+                <DraftNumberInput
+                  min="0"
+                  max="1000000000"
+                  step="0.01"
+                  value={draft.compensation.hourlyRate ?? 0}
+                  onValueChange={(hourlyRate) =>
+                    setDraft({
+                      ...draft,
+                      compensation: {
+                        ...draft.compensation,
+                        hourlyRate: hourlyRate > 0 ? hourlyRate : null,
+                      },
+                    })
+                  }
+                  aria-label="Optional hourly pay"
+                  className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-black text-slate-900"
+                />
+                <span className="mt-1 block text-[11px] font-medium leading-5 text-emerald-800">
+                  Used as a read-only time-clock and performance context. It does not replace the
+                  monthly salary or create payroll entries.
+                </span>
+              </label>
             </div>
             {[draft.compensation.currency, draft.compensation.salaryCurrency]
               .filter(Boolean)
@@ -1757,6 +1782,25 @@ function ProfileSummary({
           ).format(config.compensation.monthlySalary)}
           /month
         </span>
+      </div>
+      <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
+        <span className="text-slate-500">Hourly pay context</span>
+        <span className="text-right font-black text-slate-800">
+          {config.compensation.hourlyRate && config.compensation.hourlyRate > 0
+            ? `${moneyFormatter(
+                config.compensation.salaryCurrency || config.compensation.currency,
+              ).format(config.compensation.hourlyRate)} / hour`
+            : 'Not configured'}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm sm:col-span-2">
+        <span className="text-slate-500">Attendance context</span>
+        <Link
+          href="/dashboard/timeclock/team"
+          className="inline-flex items-center gap-1.5 font-black text-[#8b1e2d] transition hover:text-[#5f111d]"
+        >
+          Review team punches <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 text-sm">
         <span className="text-slate-500">Confirmed ticket refunds</span>

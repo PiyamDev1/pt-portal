@@ -96,10 +96,10 @@ export default async function TimeclockTeamPage() {
 
         <main className="max-w-6xl mx-auto p-6 w-full flex-grow space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">Team Timeclock</h1>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Team punches</h1>
             <p className="text-slate-500">
-              Review timeclock punches for your reports, or across the site if you have maintenance
-              access.
+              Review the attendance evidence for your reports, or across the site if you have
+              maintenance access.
             </p>
           </div>
           <TimeclockTeamClient />

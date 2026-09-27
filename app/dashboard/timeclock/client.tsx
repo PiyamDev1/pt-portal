@@ -5,6 +5,8 @@
  */
 'use client'
 
+import Link from 'next/link'
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardPen, Info } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import { ScanSuccessPopup } from './components/ScanSuccessPopup'
@@ -453,11 +455,15 @@ export default function TimeclockClient() {
           setMessage('')
         }}
       />
-      <div className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
+      <div className="animate-enter-fade-up animate-enter-delay-1 space-y-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[1.75rem] md:p-6">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Manual Entry</h2>
-          <p className="text-sm text-slate-500">
-            Enter 8-digit code. Hyphen is added automatically.
+          <div className="flex items-center gap-2 text-[#8b1e2d]">
+            <ClipboardPen className="h-4 w-4" />
+            <p className="text-xs font-black uppercase tracking-[0.16em]">Fallback method</p>
+          </div>
+          <h2 className="mt-1 text-xl font-black text-slate-900">Enter a manual code</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Enter the 8-digit code from the device. Hyphens are added automatically.
           </p>
         </div>
         <input
@@ -472,35 +478,56 @@ export default function TimeclockClient() {
           }}
           maxLength={256}
           inputMode="numeric"
-          className="timeclock-manual-code w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg font-semibold tracking-[0.2em] text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 md:rounded-lg md:px-3 md:py-2 md:text-left md:text-sm md:font-normal md:tracking-normal"
+          className="timeclock-manual-code w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg font-black tracking-[0.2em] text-slate-700 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-2 focus:ring-red-100 md:px-3 md:py-2 md:text-left md:text-sm md:tracking-normal"
           placeholder="1234-5678"
         />
-        <p className="text-xs text-slate-500">
+        <p className="flex items-start gap-2 text-xs leading-5 text-slate-500">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
           You can still paste full QR payload text here if needed.
         </p>
         <button
           type="button"
           onClick={() => handleSubmit()}
           disabled={showSuccessPopup || isCooldownActive || status === 'submitting'}
-          className={`timeclock-manual-submit min-h-11 w-full rounded-xl px-4 py-2 text-sm font-semibold text-white md:w-auto md:rounded-lg ${showSuccessPopup || isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}
+          className={`ui-tap timeclock-manual-submit min-h-11 w-full rounded-xl px-4 py-2 text-sm font-black text-white md:w-auto ${showSuccessPopup || isCooldownActive || status === 'submitting' ? 'cursor-not-allowed bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'}`}
         >
           {isCooldownActive ? `Wait ${cooldownSeconds}s` : 'Submit Code'}
         </button>
       </div>
-      <div className="space-y-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
-        <h2 className="text-lg font-semibold text-slate-800">Status</h2>
+      <div className="animate-enter-fade-up animate-enter-delay-2 space-y-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[1.75rem] md:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
+              Live feedback
+            </p>
+            <h2 className="mt-1 text-xl font-black text-slate-900">Punch status</h2>
+          </div>
+          {status === 'success' ? (
+            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+          ) : status === 'error' ? (
+            <AlertTriangle className="h-6 w-6 text-red-600" />
+          ) : (
+            <Info className="h-6 w-6 text-slate-400" />
+          )}
+        </div>
         <p
-          className={`timeclock-status-message rounded-2xl px-3 py-2 text-sm md:rounded-none md:p-0 ${status === 'error' ? 'bg-red-50 text-red-600 md:bg-transparent' : status === 'success' ? 'bg-emerald-50 text-emerald-700 md:bg-transparent' : 'bg-slate-50 text-slate-600 md:bg-transparent'}`}
+          className={`timeclock-status-message rounded-xl px-3 py-2.5 text-sm font-bold ${status === 'error' ? 'bg-red-50 text-red-700' : status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-600'}`}
         >
           {message || 'Waiting for scan.'}
         </p>
         {result && (
-          <div className="text-xs text-slate-500 space-y-1">
+          <div className="space-y-1 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
             <p>Event ID: {result.eventId}</p>
             <p>Event: {result.eventType || 'PUNCH'}</p>
             <p>Recorded: {result.scannedAt}</p>
           </div>
         )}
+        <Link
+          href="/dashboard/timeclock/history"
+          className="ui-tap inline-flex items-center gap-2 text-xs font-black text-[#8b1e2d] hover:text-[#5f111d]"
+        >
+          Review my punches <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
     </div>
   )

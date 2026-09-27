@@ -75,8 +75,8 @@ export default async function TimeclockHistoryPage() {
 
         <main className="max-w-5xl mx-auto p-6 w-full flex-grow space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">My Timeclock</h1>
-            <p className="text-slate-500">Review your recent timeclock punches.</p>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">My punches</h1>
+            <p className="text-slate-500">Review the attendance evidence used by My Performance.</p>
           </div>
           <TimeclockHistoryClient />
         </main>

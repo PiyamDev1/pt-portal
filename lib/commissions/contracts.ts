@@ -520,9 +520,14 @@ export const commissionProfileSchema = z
         currency: commissionCurrencyCodeSchema.default('GBP'),
         salaryCurrency: commissionCurrencyCodeSchema.nullable().default(null),
         monthlySalary: z.number().finite().min(0).max(1_000_000_000).default(0),
+        // Optional context for hourly workers and time-clock reporting. This is
+        // intentionally separate from the monthly salary used by the current
+        // Commission calculation engine until an hourly payroll policy is
+        // explicitly enabled.
+        hourlyRate: z.number().finite().min(0).max(1_000_000_000).nullable().default(null),
       })
       .strict()
-      .default({ currency: 'GBP', salaryCurrency: null, monthlySalary: 0 }),
+      .default({ currency: 'GBP', salaryCurrency: null, monthlySalary: 0, hourlyRate: null }),
     ticketRefundCommission: z
       .object({ treatment: z.enum(['retain', 'reverse_original']).default('retain') })
       .strict()
@@ -1014,7 +1019,7 @@ export function createDefaultCommissionProfile(employeeId = ''): CommissionProfi
     assistanceScope: { mode: 'all', employeeIds: [], agentRates: [] },
     applicationRouting: { mode: 'self', recipientEmployeeId: null },
     ticketTierOptions: { includeDateChanges: false },
-    compensation: { currency: 'GBP', salaryCurrency: null, monthlySalary: 0 },
+    compensation: { currency: 'GBP', salaryCurrency: null, monthlySalary: 0, hourlyRate: null },
     ticketRefundCommission: { treatment: 'retain' },
     monthlyBonus: {
       enabled: false,
@@ -1045,6 +1050,7 @@ export function profileNeedsWholeMonths(profile: CommissionProfileInput) {
     Object.values(profile.services).some(
       (rate) => Boolean(rate.currency) && rate.currency !== 'GBP',
     ) ||
-    profile.compensation.monthlySalary > 0
+    profile.compensation.monthlySalary > 0 ||
+    (profile.compensation.hourlyRate !== null && profile.compensation.hourlyRate > 0)
   )
 }

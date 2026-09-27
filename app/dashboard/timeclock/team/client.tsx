@@ -5,6 +5,16 @@
  */
 'use client'
 
+import Link from 'next/link'
+import {
+  AlertCircle,
+  ArrowRight,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  RefreshCw,
+  Users,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TeamAdjustmentModal } from './components/TeamAdjustmentModal'
 import { TeamEventsTable } from './components/TeamEventsTable'
@@ -360,6 +370,36 @@ export default function TimeclockTeamClient() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  const teamSummary = useMemo(() => {
+    const dailyTotals = calculateDailyTotals(events)
+    const totalMinutes = dailyTotals.reduce((sum, item) => sum + item.totalMinutes, 0)
+    const employeeIds = new Set(
+      events.map((event) => event.employee_id).filter((id): id is string => Boolean(id)),
+    )
+    const adjusted = events.filter((event) => Boolean(event.adjusted_at)).length
+    const unmatched = events.reduce((count, event) => {
+      const value = (event.punch_type || event.event_type || '').toUpperCase()
+      const knownPunch = [
+        'IN',
+        'OUT',
+        'CLOCK_IN',
+        'CLOCK_OUT',
+        'PUNCH_IN',
+        'PUNCH_OUT',
+        'CHECK_IN',
+        'CHECK_OUT',
+      ].includes(value)
+      return count + (knownPunch ? 0 : 1)
+    }, 0)
+    return {
+      totalMinutes,
+      employeeCount: employeeIds.size,
+      adjusted,
+      unmatched,
+      dailyCount: dailyTotals.length,
+    }
+  }, [events])
+
   const applyPreset = (preset: 'today' | 'last7' | 'last30' | 'clear') => {
     setPage(1)
     if (preset === 'clear') {
@@ -499,32 +539,130 @@ export default function TimeclockTeamClient() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-      <TeamFiltersBar
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        selectedEmployee={selectedEmployee}
-        employees={employees}
-        setDateFrom={setDateFrom}
-        setDateTo={setDateTo}
-        setSelectedEmployee={setSelectedEmployee}
-        setPage={setPage}
-        applyPreset={applyPreset}
-        onApply={() => loadEvents(1)}
-        onExport={handleExport}
-      />
+    <div className="space-y-5">
+      <section className="animate-enter-fade-up relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#4b0f16] via-[#7b1926] to-[#252830] px-5 py-6 text-white shadow-xl shadow-red-950/15 sm:px-7 sm:py-7">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-red-300/20 blur-3xl" />
+        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+          <div>
+            <div className="flex items-center gap-2 text-red-100">
+              <Users className="h-4 w-4" />
+              <p className="text-xs font-black uppercase tracking-[0.2em]">Manager workspace</p>
+            </div>
+            <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">Team punches</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-red-50/80">
+              A calm, auditable view of the people and hours in your reporting scope. Use the
+              filters below to review a shift or export the current view.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/my-performance?view=attendance"
+            className="ui-tap inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-xs font-black text-white backdrop-blur hover:bg-white/20"
+          >
+            My Performance <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
 
-      {loading && <p className="text-sm text-slate-500">Loading events...</p>}
-      {!loading && error && <p className="text-sm text-red-600">{error}</p>}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Team punch summary">
+        <article className="animate-enter-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+              Punches in view
+            </p>
+            <CalendarDays className="h-4 w-4 text-[#8b1e2d]" />
+          </div>
+          <p className="mt-2 text-2xl font-black text-slate-950">{total.toLocaleString('en-GB')}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {events.length.toLocaleString('en-GB')} loaded on this page
+          </p>
+        </article>
+        <article className="animate-enter-fade-up animate-enter-delay-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+              Recorded hours
+            </p>
+            <Clock3 className="h-4 w-4 text-blue-600" />
+          </div>
+          <p className="mt-2 text-2xl font-black text-slate-950">
+            {formatDuration(teamSummary.totalMinutes)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {teamSummary.dailyCount} employee-days with pairs
+          </p>
+        </article>
+        <article className="animate-enter-fade-up animate-enter-delay-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+              People represented
+            </p>
+            <Users className="h-4 w-4 text-emerald-600" />
+          </div>
+          <p className="mt-2 text-2xl font-black text-slate-950">{teamSummary.employeeCount}</p>
+          <p className="mt-1 text-xs text-slate-500">Visible in the current page</p>
+        </article>
+        <article className="animate-enter-fade-up animate-enter-delay-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+              Audit signals
+            </p>
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+          </div>
+          <p className="mt-2 text-2xl font-black text-slate-950">{teamSummary.adjusted}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Adjusted punches
+            {teamSummary.unmatched > 0 ? ` · ${teamSummary.unmatched} unclassified` : ''}
+          </p>
+        </article>
+      </section>
+
+      <section className="animate-enter-fade-up animate-enter-delay-1 rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <TeamFiltersBar
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          selectedEmployee={selectedEmployee}
+          employees={employees}
+          setDateFrom={setDateFrom}
+          setDateTo={setDateTo}
+          setSelectedEmployee={setSelectedEmployee}
+          setPage={setPage}
+          applyPreset={applyPreset}
+          onApply={() => loadEvents(1)}
+          onExport={handleExport}
+        />
+      </section>
+
+      {loading && (
+        <div className="animate-enter-fade-up flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-sm font-bold text-slate-500 shadow-sm">
+          <RefreshCw className="h-4 w-4 animate-spin text-[#8b1e2d]" /> Loading team punches...
+        </div>
+      )}
+      {!loading && error && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => loadEvents(page)}
+            className="ui-tap inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-[#8b1e2d]"
+          >
+            Try again <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
       {!loading && !error && events.length === 0 && (
-        <p className="text-sm text-slate-500">No punches recorded yet.</p>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+          <CheckCircle2 className="mx-auto h-7 w-7 text-slate-300" />
+          <p className="mt-3 font-black text-slate-700">No punches in this view</p>
+          <p className="mt-1 text-xs">Try a wider date range or choose all employees.</p>
+        </div>
       )}
 
       {!loading && !error && events.length > 0 && (
-        <>
+        <section className="animate-enter-fade-up animate-enter-delay-2 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {selectedEmployee && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h3 className="text-sm font-semibold text-blue-900 mb-3">📊 Employee Time Summary</h3>
+            <div className="mb-5 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-white p-4">
+              <h3 className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-blue-900">
+                Employee time summary
+              </h3>
               {(() => {
                 const dailyTotals = calculateDailyTotals(events)
                 const employeeData = dailyTotals.filter((dt) => dt.employeeId === selectedEmployee)
@@ -538,30 +676,40 @@ export default function TimeclockTeamClient() {
 
                 return (
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-white p-3 rounded border border-blue-100">
-                        <div className="text-xs text-blue-600 font-medium">Total Hours</div>
-                        <div className="text-lg font-bold text-blue-900">{totalHours}</div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl border border-blue-100 bg-white p-3">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-blue-600">
+                          Total hours
+                        </div>
+                        <div className="mt-1 text-lg font-black text-blue-900">{totalHours}</div>
                       </div>
-                      <div className="bg-white p-3 rounded border border-blue-100">
-                        <div className="text-xs text-blue-600 font-medium">Working Days</div>
-                        <div className="text-lg font-bold text-blue-900">{employeeData.length}</div>
+                      <div className="rounded-xl border border-blue-100 bg-white p-3">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-blue-600">
+                          Working days
+                        </div>
+                        <div className="mt-1 text-lg font-black text-blue-900">
+                          {employeeData.length}
+                        </div>
                       </div>
-                      <div className="bg-white p-3 rounded border border-blue-100">
-                        <div className="text-xs text-blue-600 font-medium">Avg Hours/Day</div>
-                        <div className="text-lg font-bold text-blue-900">
+                      <div className="rounded-xl border border-blue-100 bg-white p-3">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-blue-600">
+                          Average / day
+                        </div>
+                        <div className="mt-1 text-lg font-black text-blue-900">
                           {(totalMinutes / (employeeData.length * 60)).toFixed(2)}
                         </div>
                       </div>
                     </div>
                     {employeeData.length > 1 && (
                       <div className="mt-3 pt-3 border-t border-blue-100">
-                        <p className="text-xs text-blue-700 font-medium mb-2">Daily Breakdown:</p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        <p className="mb-2 text-xs font-black uppercase tracking-wide text-blue-700">
+                          Daily breakdown
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
                           {employeeData.map((dt) => (
                             <div
                               key={dt.date}
-                              className="bg-white p-2 rounded text-xs border border-blue-100"
+                              className="rounded-xl border border-blue-100 bg-white p-2 text-xs"
                             >
                               <div className="font-medium text-blue-900">{dt.date}</div>
                               <div className="text-blue-600">{formatDuration(dt.totalMinutes)}</div>
@@ -577,9 +725,9 @@ export default function TimeclockTeamClient() {
           )}
 
           {!selectedEmployee && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <h3 className="text-sm font-semibold text-amber-900 mb-3">
-                👥 Employee Totals Summary
+            <div className="mb-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-4">
+              <h3 className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-amber-900">
+                Employee totals
               </h3>
               {(() => {
                 const employeeTotals = calculateEmployeeTotals(events)
@@ -593,19 +741,19 @@ export default function TimeclockTeamClient() {
                   .slice(0, 10)
 
                 return (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
                     {sortedEmployees.map(([employeeId, totalMinutes]) => {
                       const dailyTotals = calculateDailyTotals(events)
                       const employeeInfo = dailyTotals.find((dt) => dt.employeeId === employeeId)
                       return (
                         <div
                           key={employeeId}
-                          className="bg-white p-3 rounded border border-amber-100"
+                          className="rounded-xl border border-amber-100 bg-white p-3"
                         >
-                          <div className="text-xs text-amber-600 font-medium truncate">
+                          <div className="truncate text-[11px] font-black uppercase tracking-wide text-amber-600">
                             {employeeInfo?.employeeName || 'Unknown'}
                           </div>
-                          <div className="text-lg font-bold text-amber-900">
+                          <div className="mt-1 text-lg font-black text-amber-900">
                             {(totalMinutes / 60).toFixed(1)}h
                           </div>
                         </div>
@@ -627,7 +775,7 @@ export default function TimeclockTeamClient() {
             getEffectiveRecordedTime={getEffectiveRecordedTime}
             onOpenAdjustment={openAdjustmentDialog}
           />
-        </>
+        </section>
       )}
 
       {editingEvent && (
@@ -648,9 +796,9 @@ export default function TimeclockTeamClient() {
       )}
 
       {!loading && !error && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4">
-          <div className="text-sm text-slate-500">
-            Page {page} of {totalPages} - {total} total
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs font-bold text-slate-500">
+            Page {page} of {totalPages} - {total} total punches
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -661,7 +809,7 @@ export default function TimeclockTeamClient() {
                 loadEvents(nextPage)
               }}
               disabled={page === 1}
-              className="px-3 py-1.5 rounded border border-slate-200 text-sm text-slate-700 disabled:opacity-40"
+              className="ui-tap rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40"
             >
               Prev
             </button>
@@ -673,7 +821,7 @@ export default function TimeclockTeamClient() {
                 loadEvents(nextPage)
               }}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 rounded border border-slate-200 text-sm text-slate-700 disabled:opacity-40"
+              className="ui-tap rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40"
             >
               Next
             </button>
@@ -683,9 +831,9 @@ export default function TimeclockTeamClient() {
                 setPage(1)
                 setPageSize(parseInt(event.target.value, 10))
               }}
-              className="px-2 py-1.5 rounded border border-slate-200 text-sm text-slate-700"
+              className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-black text-slate-700"
             >
-              {[10, 25, 50, 100].map((size) => (
+              {[10, 25, 50, 100, 200].map((size) => (
                 <option key={size} value={size}>
                   {size} / page
                 </option>
