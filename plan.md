@@ -21,6 +21,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Focused tests cover the double-counting rule, Accounting presentation, persisted source metadata, and POS source selection.
 - Confirmed Ticketing refunds now replace the original margin through a confirmation-month adjustment; provisional, voided, package-owned, and unresolved refund results remain excluded.
 - Package projected margin now treats expected commission as income and reuses the canonical shared-transport calculation so invoice-reference rows are not counted twice.
+- A versioned Package financial summary now supplies reservation UI totals, invoice recalculation, and Accounting with one formula for sale, cost, discounts, refunds, expected/received commission, payments, balance, projected margin, and date basis.
 - Accounting refund links open the Refund Register with the relevant PNR filter already applied.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
@@ -335,7 +336,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 
 - [ ] Extract the shared booking service.
 - [ ] Add the Applications summary endpoint and shared view model.
-- [ ] Create the Package financial summary.
+- [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
 - [ ] Add live Company Ledger summaries for company-wide positions. LMS is complete; supplier and bank sources remain pending.
 - [ ] Introduce the dashboard work queue.
 

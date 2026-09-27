@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LedgerItem } from '@/lib/accounting/ledger'
+import { createPackageFinancialSummary } from '@/lib/packageFinancialSummary'
 import {
   getReservationCalculationLine,
   type ReservationCalculationSource,
@@ -191,13 +192,32 @@ function addReference(source: AccountingSourceSummary, reference: AccountingSour
 }
 
 export function packageReservationLedgerAmounts(reservation: PackageFinancialAmounts) {
-  const income =
-    amount(reservation.sold_price_total) -
-    amount(reservation.discount_total) -
-    amount(reservation.customer_refund_total) +
-    amount(reservation.commission_expected_total)
-  const expenses = amount(reservation.booked_cost_total) - amount(reservation.supplier_refund_total)
-  return { income, expenses, net: income - expenses }
+  const summary = createPackageFinancialSummary(
+    {
+      soldAmount: reservation.sold_price_total,
+      bookedCost: reservation.booked_cost_total,
+      discountAmount: reservation.discount_total,
+      customerRefundAmount: reservation.customer_refund_total,
+      supplierRefundAmount: reservation.supplier_refund_total,
+      expectedCommissionAmount: reservation.commission_expected_total,
+    },
+    'reservation_created_at',
+  )
+  return packageSummaryLedgerAmounts(summary)
+}
+
+function packageSummaryLedgerAmounts(summary: {
+  netSoldAmount: number
+  netBookedCost: number
+  expectedCommissionAmount: number
+  projectedMargin: number
+}) {
+  const operatingIncome = summary.netSoldAmount + summary.expectedCommissionAmount
+  return {
+    income: roundMoney(Math.max(0, operatingIncome) + Math.max(0, -summary.netBookedCost)),
+    expenses: roundMoney(Math.max(0, summary.netBookedCost) + Math.max(0, -operatingIncome)),
+    net: summary.projectedMargin,
+  }
 }
 
 function calculationLineLedgerAmounts(
@@ -206,9 +226,20 @@ function calculationLineLedgerAmounts(
 ) {
   const line = getReservationCalculationLine(reservation, reservations)
   if (!line.included) return null
-  const income = line.sold - line.discount - line.customerRefund + line.commission
-  const expenses = line.booked - line.supplierRefund
-  return { income, expenses, net: income - expenses }
+  return packageSummaryLedgerAmounts(
+    createPackageFinancialSummary(
+      {
+        soldAmount: line.sold,
+        bookedCost: line.booked,
+        discountAmount: line.discount,
+        customerRefundAmount: line.customerRefund,
+        supplierRefundAmount: line.supplierRefund,
+        expectedCommissionAmount: line.commission,
+        receivedCommissionAmount: line.receivedCommission,
+      },
+      'reservation_created_at',
+    ),
+  )
 }
 
 export async function loadBranchModuleResults(

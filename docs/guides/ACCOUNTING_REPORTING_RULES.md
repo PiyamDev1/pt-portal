@@ -50,7 +50,7 @@ projected package margin =
 
 Expected commission is projected income, not a cost or settled cash. The summary uses reservation creation date as its current reporting date basis.
 
-Shared group transport uses the canonical package calculation in `lib/packageReservationFinancials.ts`. The physical main reservation is counted once; invoice-reference allocation rows are excluded as separate profit lines. Their discounts, refunds, and expected commission are folded into the main calculation where required.
+`lib/packageFinancialSummary.ts` owns this versioned formula for Package UI, invoice recalculation, and Accounting. Shared group transport uses the canonical reservation calculation in `lib/packageReservationFinancials.ts`. The physical main reservation is counted once; invoice-reference allocation rows are excluded as separate profit lines. Their discounts, refunds, and expected commission are folded into the main calculation where required.
 
 ## POS
 

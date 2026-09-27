@@ -418,6 +418,7 @@ export default function PackageOperationsWorkspace({
     () => calculatePackagePaymentSummary(visiblePayments),
     [visiblePayments],
   )
+  const packagePaymentSummary = useMemo(() => calculatePackagePaymentSummary(payments), [payments])
   const selectedFamilyInvoice =
     selectedPaymentFamily && invoice?.quote_id === selectedPaymentFamily.quoteId ? invoice : null
   const reservationSaleTotal = (quoteId?: string) =>
@@ -437,8 +438,11 @@ export default function PackageOperationsWorkspace({
   const selectedFamilyReservationTotal = selectedPaymentFamily
     ? reservationSaleTotal(selectedPaymentFamily.quoteId)
     : 0
-  const calculationTotals = getReservationCalculationTotals(reservations)
-  const groupReservationTotal = Math.max(0, calculationTotals.sold - calculationTotals.discount)
+  const calculationTotals = getReservationCalculationTotals(
+    reservations,
+    packagePaymentSummary.netPaid,
+  )
+  const groupReservationTotal = Math.max(0, calculationTotals.netSold)
   const reservationDiscountTotal = selectedPaymentFamily
     ? reservations
         .filter((reservation) => reservation.quote_id === selectedPaymentFamily.quoteId)
@@ -454,6 +458,7 @@ export default function PackageOperationsWorkspace({
       (reservation) =>
         !selectedPaymentFamily || reservation.quote_id === selectedPaymentFamily.quoteId,
     )?.currency || paymentSummary.currency
+  const packageCurrency = reservations[0]?.currency || invoice?.currency || 'GBP'
 
   useEffect(() => {
     if (groupFamilies.length === 0) {
@@ -1818,7 +1823,7 @@ export default function PackageOperationsWorkspace({
 
                     {commissionReadiness && (
                       <>
-                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                           <div className="bg-white/70 p-2">
                             <p className="text-[10px] font-bold uppercase opacity-70">Passengers</p>
                             <p className="mt-1 text-lg font-black">
@@ -1837,6 +1842,14 @@ export default function PackageOperationsWorkspace({
                             <p className="text-[10px] font-bold uppercase opacity-70">References</p>
                             <p className="mt-1 text-lg font-black">
                               {commissionReadiness.invoiceReferenceRowCount}
+                            </p>
+                          </div>
+                          <div className="bg-white/70 p-2">
+                            <p className="text-[10px] font-bold uppercase opacity-70">
+                              Projected margin
+                            </p>
+                            <p className="mt-1 text-sm font-black">
+                              {formatMoney(calculationTotals.projectedMargin, packageCurrency)}
                             </p>
                           </div>
                         </div>

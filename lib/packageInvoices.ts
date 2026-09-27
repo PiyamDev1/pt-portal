@@ -6,6 +6,10 @@ import type {
   TravelPackageReservationItem,
   TravelPackageReservationType,
 } from '@/app/types/packages'
+import {
+  createPackageFinancialSummary,
+  roundPackageFinancialMoney,
+} from '@/lib/packageFinancialSummary'
 
 export const PACKAGE_INVOICE_LINE_TYPES: Array<{
   value: TravelPackageInvoiceLineType
@@ -25,9 +29,7 @@ export const PACKAGE_INVOICE_LINE_TYPE_VALUES = new Set(
 )
 
 export function roundPackageInvoiceMoney(value: unknown) {
-  const number = Number(value ?? 0)
-  if (!Number.isFinite(number)) return 0
-  return Math.round(number * 100) / 100
+  return roundPackageFinancialMoney(value)
 }
 
 export function createPackageInvoiceNumber(packageReference: string) {
@@ -67,7 +69,7 @@ export function calculatePackageInvoiceTotals(
       | 'total_booked_cost'
       | 'expected_commission'
       | 'received_commission'
-    >
+    > & { metadata?: Record<string, unknown> | null }
   >,
   totalPaid = 0,
 ) {
@@ -86,23 +88,51 @@ export function calculatePackageInvoiceTotals(
   const receivedCommissionTotal = roundPackageInvoiceMoney(
     lines.reduce((total, line) => total + Number(line.received_commission || 0), 0),
   )
-  const paid = roundPackageInvoiceMoney(totalPaid)
-  const totalSold = roundPackageInvoiceMoney(subtotalSold - discountTotal)
-  const balanceDue = roundPackageInvoiceMoney(totalSold - paid)
-  const projectedMargin = roundPackageInvoiceMoney(
-    totalSold - totalBookedCost + expectedCommissionTotal,
+  const customerRefundTotal = roundPackageInvoiceMoney(
+    lines.reduce(
+      (total, line) =>
+        line.metadata?.refundKind === 'customer'
+          ? total + Math.abs(Math.min(0, Number(line.total_sold_price || 0)))
+          : total,
+      0,
+    ),
+  )
+  const supplierRefundTotal = roundPackageInvoiceMoney(
+    lines.reduce(
+      (total, line) =>
+        line.metadata?.refundKind === 'supplier'
+          ? total + Math.abs(Math.min(0, Number(line.total_booked_cost || 0)))
+          : total,
+      0,
+    ),
+  )
+  const summary = createPackageFinancialSummary(
+    {
+      soldAmount: subtotalSold + customerRefundTotal,
+      bookedCost: totalBookedCost + supplierRefundTotal,
+      discountAmount: discountTotal,
+      customerRefundAmount: customerRefundTotal,
+      supplierRefundAmount: supplierRefundTotal,
+      expectedCommissionAmount: expectedCommissionTotal,
+      receivedCommissionAmount: receivedCommissionTotal,
+      paidAmount: totalPaid,
+    },
+    'invoice_created_at',
   )
 
   return {
     subtotalSold,
     discountTotal,
-    totalSold,
-    totalPaid: paid,
-    balanceDue,
+    totalSold: summary.netSoldAmount,
+    totalPaid: summary.paidAmount,
+    balanceDue: summary.balanceAmount,
     totalBookedCost,
-    projectedMargin,
+    projectedMargin: summary.projectedMargin,
     expectedCommissionTotal,
     receivedCommissionTotal,
+    customerRefundTotal,
+    supplierRefundTotal,
+    financialSummary: summary,
   }
 }
 

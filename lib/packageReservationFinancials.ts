@@ -1,4 +1,8 @@
 import type { TravelPackageReservation } from '@/app/types/packages'
+import {
+  createPackageFinancialSummary,
+  type PackageFinancialSummary,
+} from '@/lib/packageFinancialSummary'
 
 export type ReservationCalculationSource = Pick<
   TravelPackageReservation,
@@ -12,7 +16,8 @@ export type ReservationCalculationSource = Pick<
   | 'commission_expected_total'
   | 'supplier_refund_total'
   | 'customer_refund_total'
->
+> &
+  Partial<Pick<TravelPackageReservation, 'commission_received_total'>>
 
 export type ReservationCalculationRole = 'standard' | 'group_main_transport' | 'invoice_reference'
 
@@ -23,6 +28,7 @@ export type ReservationCalculationLine = {
   sold: number
   discount: number
   commission: number
+  receivedCommission: number
   supplierRefund: number
   customerRefund: number
 }
@@ -118,6 +124,7 @@ export function getReservationCalculationLine(
       sold: 0,
       discount: 0,
       commission: 0,
+      receivedCommission: 0,
       supplierRefund: 0,
       customerRefund: 0,
     }
@@ -138,6 +145,9 @@ export function getReservationCalculationLine(
       commission:
         Number(reservation.commission_expected_total || 0) +
         references.reduce((total, item) => total + Number(item.commission_expected_total || 0), 0),
+      receivedCommission:
+        Number(reservation.commission_received_total || 0) +
+        references.reduce((total, item) => total + Number(item.commission_received_total || 0), 0),
       supplierRefund:
         Number(reservation.supplier_refund_total || 0) +
         references.reduce((total, item) => total + Number(item.supplier_refund_total || 0), 0),
@@ -153,42 +163,87 @@ export function getReservationCalculationLine(
     sold: Number(reservation.sold_price_total || 0),
     discount: Number(reservation.discount_total || 0),
     commission: Number(reservation.commission_expected_total || 0),
+    receivedCommission: Number(reservation.commission_received_total || 0),
     supplierRefund: Number(reservation.supplier_refund_total || 0),
     customerRefund: Number(reservation.customer_refund_total || 0),
   }
 }
 
-export function getReservationCalculationTotals(reservations: ReservationCalculationSource[]) {
-  return reservations.reduce(
-    (totals, reservation) => {
+export function getReservationCalculationTotals(
+  reservations: ReservationCalculationSource[],
+  paidAmount = 0,
+) {
+  const summary = getPackageReservationFinancialSummary(reservations, paidAmount)
+  return {
+    version: summary.version,
+    dateBasis: summary.dateBasis,
+    soldAmount: summary.soldAmount,
+    bookedCost: summary.bookedCost,
+    discountAmount: summary.discountAmount,
+    expectedCommissionAmount: summary.expectedCommissionAmount,
+    receivedCommissionAmount: summary.receivedCommissionAmount,
+    paidAmount: summary.paidAmount,
+    booked: summary.netBookedCost,
+    sold: roundReservationMoney(summary.soldAmount - summary.customerRefundAmount),
+    discount: summary.discountAmount,
+    commission: summary.expectedCommissionAmount,
+    receivedCommission: summary.receivedCommissionAmount,
+    supplierRefund: summary.supplierRefundAmount,
+    customerRefund: summary.customerRefundAmount,
+    netSold: summary.netSoldAmount,
+    projectedMargin: summary.projectedMargin,
+    balance: summary.balanceAmount,
+    calculationRows: summary.calculationRows,
+    referenceRows: summary.referenceRows,
+  }
+}
+
+export type PackageReservationFinancialSummary = PackageFinancialSummary & {
+  calculationRows: number
+  referenceRows: number
+}
+
+export function getPackageReservationFinancialSummary(
+  reservations: ReservationCalculationSource[],
+  paidAmount = 0,
+): PackageReservationFinancialSummary {
+  const totals = reservations.reduce(
+    (result, reservation) => {
       const line = getReservationCalculationLine(reservation, reservations)
       if (!line.included) {
-        totals.referenceRows += 1
-        return totals
+        result.referenceRows += 1
+        return result
       }
-      totals.calculationRows += 1
-      totals.booked += Math.max(0, line.booked - line.supplierRefund)
-      totals.sold += Math.max(0, line.sold - line.customerRefund)
-      totals.discount += line.discount
-      totals.commission += line.commission
-      totals.supplierRefund += line.supplierRefund
-      totals.customerRefund += line.customerRefund
-      return totals
+      result.calculationRows += 1
+      result.soldAmount += line.sold
+      result.bookedCost += line.booked
+      result.discountAmount += line.discount
+      result.customerRefundAmount += line.customerRefund
+      result.supplierRefundAmount += line.supplierRefund
+      result.expectedCommissionAmount += line.commission
+      result.receivedCommissionAmount += line.receivedCommission
+      return result
     },
     {
-      booked: 0,
-      sold: 0,
-      discount: 0,
-      commission: 0,
-      supplierRefund: 0,
-      customerRefund: 0,
+      soldAmount: 0,
+      bookedCost: 0,
+      discountAmount: 0,
+      customerRefundAmount: 0,
+      supplierRefundAmount: 0,
+      expectedCommissionAmount: 0,
+      receivedCommissionAmount: 0,
       calculationRows: 0,
       referenceRows: 0,
     },
   )
+  return {
+    ...createPackageFinancialSummary({ ...totals, paidAmount }, 'reservation_created_at'),
+    calculationRows: totals.calculationRows,
+    referenceRows: totals.referenceRows,
+  }
 }
 
 export function getPackageReservationSaleTotal(reservations: TravelPackageReservation[]) {
   const totals = getReservationCalculationTotals(reservations)
-  return roundReservationMoney(totals.sold - totals.discount)
+  return roundReservationMoney(totals.netSold)
 }

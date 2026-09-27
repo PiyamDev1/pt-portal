@@ -921,8 +921,8 @@ export default function PackageOverviewClient({
     [packageFolder?.selected_quote_snapshot, reservations],
   )
   const reservationTotals = useMemo(() => {
-    return getReservationCalculationTotals(reservations)
-  }, [reservations])
+    return getReservationCalculationTotals(reservations, invoice?.total_paid || 0)
+  }, [invoice?.total_paid, reservations])
   const quoteSourceCostSummary = useMemo(() => {
     const summaries = new Map<
       TravelPackageReservationType,
@@ -947,12 +947,10 @@ export default function PackageOverviewClient({
       return summary ? [{ ...summary, label: option.label }] : []
     })
   }, [reservations])
-  const bookedSoldDifference =
-    reservationTotals.sold - reservationTotals.discount - reservationTotals.booked
-  const profitBeforeAgentCommission = bookedSoldDifference + reservationTotals.commission
+  const profitBeforeAgentCommission = reservationTotals.projectedMargin
   const agentCommissionDeduction = getPackageAgentCommissionDeduction(agentCommissionAllocations)
   const estimatedMargin = profitBeforeAgentCommission - agentCommissionDeduction
-  const netReservationSold = reservationTotals.sold - reservationTotals.discount
+  const netReservationSold = reservationTotals.netSold
   const quoteReservationPrefills = useMemo<QuoteReservationPrefill[]>(() => {
     if (!selectedCombination) return []
     const servicePassengers = selectedCombination.servicePassengers
@@ -3534,6 +3532,12 @@ Please enter the access code and accept the data handling terms before downloadi
                       Net after discount: {formatMoney(netReservationSold, reservationCurrency)}
                     </p>
                   )}
+                  {invoice && (
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Paid {formatMoney(reservationTotals.paidAmount, reservationCurrency)} · Balance{' '}
+                      {formatMoney(reservationTotals.balance, reservationCurrency)}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Discounts</p>
@@ -3542,10 +3546,17 @@ Please enter the access code and accept the data handling terms before downloadi
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Supplier commission</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">
+                    Expected supplier commission
+                  </p>
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(reservationTotals.commission, reservationCurrency)}
                   </p>
+                  {reservationTotals.receivedCommission > 0 && (
+                    <p className="mt-1 text-xs font-bold text-emerald-700">
+                      Received {formatMoney(reservationTotals.receivedCommission, reservationCurrency)}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                   <p className="text-xs font-bold uppercase text-amber-800">

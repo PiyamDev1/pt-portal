@@ -38,6 +38,17 @@ describe('package invoice helpers', () => {
     expect(totals.balanceDue).toBe(850)
     expect(totals.projectedMargin).toBe(280)
     expect(totals.receivedCommissionTotal).toBe(10)
+    expect(totals.financialSummary).toMatchObject({
+      version: 1,
+      dateBasis: 'invoice_created_at',
+      soldAmount: 1200,
+      bookedCost: 900,
+      discountAmount: 50,
+      paidAmount: 300,
+      netSoldAmount: 1150,
+      balanceAmount: 850,
+      projectedMargin: 280,
+    })
   })
 
   it('creates invoice lines from reservation items when present', () => {
@@ -122,6 +133,15 @@ describe('package invoice helpers', () => {
     })
     expect(totals.totalSold).toBe(100)
     expect(totals.totalBookedCost).toBe(200)
+    expect(totals.financialSummary).toMatchObject({
+      soldAmount: 1300,
+      bookedCost: 1000,
+      customerRefundAmount: 1200,
+      supplierRefundAmount: 800,
+      netSoldAmount: 100,
+      netBookedCost: 200,
+      projectedMargin: -100,
+    })
   })
 
   it('uses the stored per-passenger shared transport cost allocation on a family invoice', () => {

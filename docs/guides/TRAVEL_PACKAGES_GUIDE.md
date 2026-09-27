@@ -33,6 +33,19 @@ For linked flight choices, keep the main flight and its journey legs together. T
 
 Reservations cover flight, hotel, visa, transport, and other services. Reservation items retain booked cost, sold price, discount, commission, supplier references, dates, and status. Customer visibility is off by default.
 
+`lib/packageFinancialSummary.ts` owns the versioned Package financial formula used by reservation totals, Accounting, and invoice recalculation. Its summary keeps the gross sold amount and booked cost separate from discounts, customer refunds, supplier refunds, expected/received supplier commission, customer payments, balance, and projected margin. Reservation summaries use `reservation_created_at` as their reporting date basis; invoice summaries use `invoice_created_at`.
+
+```text
+net sold = sold - discounts - customer refunds
+net booked cost = booked cost - supplier refunds
+balance = net sold - customer payments
+projected margin = net sold - net booked cost + expected supplier commission
+```
+
+Received supplier commission is reported separately and does not get added again to projected margin when it is already represented by the expected commission total. Shared group transport is reduced to one physical calculation row; family invoice-reference rows feed that row's sale, discount, refund, and commission values without becoming duplicate Package profit.
+
+The Package reservation header shows the resulting sale, cost, discount, commission, payment, balance, and projected-margin values. The Commission readiness panel reuses the same projected margin for staff context, but its readiness state remains the authoritative database result; the display does not decide whether Commission can be processed.
+
 Invoices are derived from non-cancelled reservations/items and can be adjusted through explicit customer-visible or internal lines. Releasing an invoice stores a customer snapshot; later amendments create a new version rather than changing what was already released invisibly.
 
 Payments support deposits, payments, previous-package account credits, refunds, chargebacks, and commission. Account credit requires the previous package/refund reference. Refund records are positive movements so the original sale and booked-cost history remain auditable. Package payment and invoice totals are recalculated after financial mutations.

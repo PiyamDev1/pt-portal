@@ -75,4 +75,17 @@ describe('Accounting ledger model', () => {
       }),
     ).toEqual({ income: 1_000, expenses: 600, net: 400 })
   })
+
+  it('keeps package income and cost directions readable when refunds exceed their source values', () => {
+    expect(
+      packageReservationLedgerAmounts({
+        booked_cost_total: 100,
+        sold_price_total: 100,
+        discount_total: 0,
+        supplier_refund_total: 150,
+        customer_refund_total: 125,
+        commission_expected_total: 0,
+      }),
+    ).toEqual({ income: 50, expenses: 25, net: 25 })
+  })
 })
