@@ -19,6 +19,7 @@ import { cookies } from 'next/headers'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { FILTER_OPTIONS } from './constants'
 
 const LMSClient = dynamic(() => import('./client'), {
   loading: () => (
@@ -26,7 +27,16 @@ const LMSClient = dynamic(() => import('./client'), {
   ),
 })
 
-export default async function LMSPage() {
+export default async function LMSPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string | string[] }>
+}) {
+  const params = await searchParams
+  const requestedFilter = Array.isArray(params.filter) ? params.filter[0] : params.filter
+  const initialFilter = FILTER_OPTIONS.includes(requestedFilter as (typeof FILTER_OPTIONS)[number])
+    ? (requestedFilter as (typeof FILTER_OPTIONS)[number])
+    : 'active'
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -72,7 +82,7 @@ export default async function LMSPage() {
             </p>
           </div>
 
-          <LMSClient currentUserId={session?.user?.id ?? ''} />
+          <LMSClient currentUserId={session?.user?.id ?? ''} initialFilter={initialFilter} />
         </main>
       </div>
     </DashboardClientWrapper>

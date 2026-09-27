@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { BookingStatus } from '@/app/types/bookings'
 
 const BookingsClient = dynamic(() => import('./BookingsClient'), {
   loading: () => (
@@ -20,7 +21,16 @@ interface BranchLocationOption {
   appointments_enabled?: boolean | null
 }
 
-export default async function BookingsDashboard() {
+export default async function BookingsDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string | string[] }>
+}) {
+  const params = await searchParams
+  const requestedStatus = Array.isArray(params.status) ? params.status[0] : params.status
+  const initialStatus = Object.values(BookingStatus).includes(requestedStatus as BookingStatus)
+    ? (requestedStatus as BookingStatus)
+    : 'all'
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -88,6 +98,7 @@ export default async function BookingsDashboard() {
           isAdmin={isAdmin}
           userLocationId={effectiveUserLocationId}
           branchLocations={branchLocations}
+          initialStatus={initialStatus}
         />
       </div>
     </DashboardClientWrapper>

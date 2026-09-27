@@ -69,12 +69,14 @@ interface BookingsClientProps {
   isAdmin: boolean
   userLocationId: string | null
   branchLocations: BranchLocationOption[]
+  initialStatus?: 'all' | BookingStatus
 }
 
 export default function BookingsClient({
   isAdmin,
   userLocationId,
   branchLocations,
+  initialStatus = 'all',
 }: BookingsClientProps) {
   const today = useMemo(() => {
     const d = new Date()
@@ -100,7 +102,7 @@ export default function BookingsClient({
   const [showSettings, setShowSettings] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<'all' | BookingSource>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>(initialStatus)
   const [serviceFilter, setServiceFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')

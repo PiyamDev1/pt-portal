@@ -143,7 +143,9 @@ export function TicketingDashboard() {
         </div>
       </section>
 
-      <FlightMonitoringPanel />
+      <section id="flight-monitoring" className="scroll-mt-6">
+        <FlightMonitoringPanel />
+      </section>
     </div>
   )
 }

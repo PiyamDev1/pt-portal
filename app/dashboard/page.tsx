@@ -16,6 +16,7 @@ import Link from 'next/link'
 import { LayoutDashboard } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from './client-wrapper'
+import { DashboardAttentionQueue } from './DashboardAttentionQueue'
 import { DashboardModuleIcon } from './DashboardModuleIcon'
 import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 import { DashboardModulesClient } from './DashboardModulesClient'
@@ -27,6 +28,8 @@ import {
   type DashboardModule,
 } from '@/lib/dashboardModules'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadDashboardWorkQueue } from '@/lib/dashboard/workQueue.server'
+import type { DashboardWorkQueue } from '@/lib/dashboard/workQueue'
 
 type DepartmentMembership = {
   departments?: { name?: string | null } | Array<{ name?: string | null }> | null
@@ -40,9 +43,11 @@ const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
 function MobileDashboard({
   modules,
   userName,
+  workQueue,
 }: {
   modules: DashboardModule[]
   userName?: string | null
+  workQueue: DashboardWorkQueue
 }) {
   const primaryModules = modules.filter((moduleItem) => MOBILE_PRIMARY_IDS.has(moduleItem.id))
   const workspaceModules = modules.filter((moduleItem) => !MOBILE_PRIMARY_IDS.has(moduleItem.id))
@@ -64,6 +69,10 @@ function MobileDashboard({
         <p className="mt-3 text-sm leading-5 text-red-50/85">
           Open a workspace quickly, or pin your most-used pages to the navigation bar.
         </p>
+      </div>
+
+      <div className="mt-6">
+        <DashboardAttentionQueue queue={workQueue} />
       </div>
 
       <div className="mt-6">
@@ -137,11 +146,13 @@ function DesktopDashboard({
   userName,
   roleName,
   branchName,
+  workQueue,
 }: {
   modules: DashboardModule[]
   userName?: string | null
   roleName?: string | null
   branchName?: string | null
+  workQueue: DashboardWorkQueue
 }) {
   return (
     <section className="platform-desktop-only space-y-5">
@@ -169,7 +180,10 @@ function DesktopDashboard({
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_21rem] gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <DashboardModulesClient modules={modules} />
+        <div className="space-y-5">
+          <DashboardAttentionQueue queue={workQueue} />
+          <DashboardModulesClient modules={modules} />
+        </div>
         <NoticeBoardClient showMobilePopup={false} />
       </div>
     </section>
@@ -204,7 +218,7 @@ export default async function Dashboard() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
+    .select('full_name, roles(name), locations(id, name, branch_code)')
     .eq('id', session.user.id)
     .single()
 
@@ -229,6 +243,14 @@ export default async function Dashboard() {
       (moduleItem.id !== 'commissions' &&
         canAccessDashboardModule(moduleItem, role?.name, departmentNames)),
   )
+  const workQueue = await loadDashboardWorkQueue({
+    userSupabase: supabase,
+    serviceSupabase,
+    visibleModuleIds: visibleModules.map((moduleItem) => moduleItem.id),
+    employeeId: session.user.id,
+    locationId: location?.id || null,
+    locationName: location?.name || null,
+  })
 
   return (
     <DashboardClientWrapper>
@@ -242,12 +264,17 @@ export default async function Dashboard() {
 
         <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
           <BackupCodesReminder userId={session.user.id} />
-          <MobileDashboard modules={visibleModules} userName={employee?.full_name} />
+          <MobileDashboard
+            modules={visibleModules}
+            userName={employee?.full_name}
+            workQueue={workQueue}
+          />
           <DesktopDashboard
             modules={visibleModules}
             userName={employee?.full_name}
             roleName={role?.name}
             branchName={location?.name}
+            workQueue={workQueue}
           />
           <NoticeBoardClient showDesktopRail={false} />
         </main>

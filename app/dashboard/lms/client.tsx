@@ -30,6 +30,7 @@ import { FILTER_OPTIONS, STATUS_COLORS } from './constants'
 
 interface LMSClientProps {
   currentUserId: string
+  initialFilter?: (typeof FILTER_OPTIONS)[number]
 }
 
 /**
@@ -40,11 +41,11 @@ interface LMSClientProps {
  * The filter state is memoized to ensure stable references across renders.
  * Combined with the ref-based approach in useLmsData, this prevents infinite refresh loops.
  */
-function LMSClientInner({ currentUserId }: LMSClientProps) {
+function LMSClientInner({ currentUserId, initialFilter = 'active' }: LMSClientProps) {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
-  const [filter, setFilter] = useState('active')
+  const [filter, setFilter] = useState<(typeof FILTER_OPTIONS)[number]>(initialFilter)
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({})
 
   // Memoize filter to ensure stable reference

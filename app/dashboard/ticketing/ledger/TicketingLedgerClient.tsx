@@ -26,7 +26,13 @@ import type {
   TicketLedgerPayload,
 } from './types'
 
-export function TicketingLedgerClient({ initialSearch = '' }: { initialSearch?: string }) {
+export function TicketingLedgerClient({
+  initialSearch = '',
+  initialStatus = 'all',
+}: {
+  initialSearch?: string
+  initialStatus?: string
+}) {
   const [payload, setPayload] = useState<TicketLedgerPayload | null>(null)
   const [loadError, setLoadError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -38,7 +44,7 @@ export function TicketingLedgerClient({ initialSearch = '' }: { initialSearch?: 
   const [pageNumber, setPageNumber] = useState(1)
   const [currentTimeMs, setCurrentTimeMs] = useState(0)
   const [search, setSearch] = useState(initialSearch)
-  const [status, setStatus] = useState('all')
+  const [status, setStatus] = useState(initialStatus)
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
   const [selectedPaymentItem, setSelectedPaymentItem] = useState<TicketLedgerItem | null>(null)
   const [selectedRootPaymentItem, setSelectedRootPaymentItem] = useState<TicketLedgerItem | null>(
