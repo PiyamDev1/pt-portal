@@ -68,12 +68,26 @@ export const ticketingAppendReplacementChangeSchema = z
     expectedVersion: z.number().int().positive().safe(),
     replacedItemId: z.string().uuid(),
     replacement: linkedTicketSchema,
+    airlineCancellationFeeGbp: moneySchema.default(0),
+    airlinePredictedRefundGbp: moneySchema.optional(),
     supplierRefundGbp: moneySchema,
     supplierAdminFeeGbp: moneySchema,
     customerChargeGbp: moneySchema,
     notes: z.string().trim().min(1).max(2_000).nullable(),
   })
   .strict()
+  .superRefine((value, context) => {
+    if (value.airlinePredictedRefundGbp === undefined) return
+    const expectedNetRefund =
+      value.airlinePredictedRefundGbp - value.airlineCancellationFeeGbp - value.supplierAdminFeeGbp
+    if (expectedNetRefund < 0 || Math.abs(expectedNetRefund - value.supplierRefundGbp) > 0.001) {
+      context.addIssue({
+        code: 'custom',
+        path: ['supplierRefundGbp'],
+        message: 'Net supplier refund must equal the predicted refund less the listed fees.',
+      })
+    }
+  })
 
 export type TicketingCreateReplacementCaseInput = z.output<
   typeof ticketingCreateReplacementCaseSchema
@@ -114,6 +128,8 @@ export type TicketingReplacementChange = {
   newBookingId: string
   newTransactionId: string
   newPnr: string
+  airlineCancellationFeeGbp: number
+  airlinePredictedRefundGbp: number
   supplierRefundGbp: number
   supplierAdminFeeGbp: number
   newSupplierCostGbp: number

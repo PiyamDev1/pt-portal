@@ -36,6 +36,7 @@ type ChangeRow = {
   new_supplier_cost_gbp: string | number
   customer_charge_gbp: string | number
   incremental_result_gbp: string | number
+  request_payload: Record<string, unknown> | null
   notes: string | null
   created_at: string
   servicing_employee: Related<EmployeeRow>
@@ -74,7 +75,8 @@ function employee(value: Related<EmployeeRow>) {
   return row?.id && row.full_name?.trim() ? { id: row.id, fullName: row.full_name.trim() } : null
 }
 
-function money(value: string | number) {
+function money(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
   const amount = Number(value)
   return Number.isFinite(amount) ? amount : null
 }
@@ -129,6 +131,14 @@ function replacementCase(row: CaseRow): TicketingReplacementCase | null {
         change.customer_charge_gbp,
         change.incremental_result_gbp,
       ].map(money)
+      const requestPayload =
+        change.request_payload && typeof change.request_payload === 'object'
+          ? change.request_payload
+          : {}
+      const airlineCancellationFeeGbp = money(requestPayload.airlineCancellationFeeGbp) ?? 0
+      const airlinePredictedRefundGbp =
+        money(requestPayload.airlinePredictedRefundGbp) ??
+        (changeAmounts[0] ?? 0) + (changeAmounts[1] ?? 0) + airlineCancellationFeeGbp
       return servicingEmployee && changeAmounts.every((value) => value !== null)
         ? {
             id: change.id,
@@ -136,6 +146,8 @@ function replacementCase(row: CaseRow): TicketingReplacementCase | null {
             newBookingId: change.new_booking_id,
             newTransactionId: change.new_transaction_id,
             newPnr: change.new_pnr,
+            airlineCancellationFeeGbp,
+            airlinePredictedRefundGbp,
             supplierRefundGbp: changeAmounts[0]!,
             supplierAdminFeeGbp: changeAmounts[1]!,
             newSupplierCostGbp: changeAmounts[2]!,
@@ -207,7 +219,7 @@ export async function GET() {
     ticket_replacement_case_changes(
       id, replaced_item_id, new_booking_id, new_transaction_id, new_pnr,
       supplier_refund_gbp, supplier_admin_fee_gbp, new_supplier_cost_gbp,
-      customer_charge_gbp, incremental_result_gbp, notes, created_at,
+      customer_charge_gbp, incremental_result_gbp, request_payload, notes, created_at,
       servicing_employee:employees!ticket_replacement_case_changes_servicing_employee_id_fkey(id, full_name)
     )
   `)

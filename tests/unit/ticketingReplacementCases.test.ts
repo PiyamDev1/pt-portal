@@ -83,4 +83,38 @@ describe('Ticketing replacement cases', () => {
       }).success,
     ).toBe(true)
   })
+
+  it('accepts the refund story fields used to explain a later change', () => {
+    const result = ticketingAppendReplacementChangeSchema.safeParse({
+      expectedVersion: 1,
+      replacedItemId: '40000000-0000-4000-8000-000000000001',
+      replacement: {
+        bookingId: REPLACEMENT_BOOKING,
+        transactionId: REPLACEMENT_TRANSACTION,
+      },
+      airlinePredictedRefundGbp: 574,
+      airlineCancellationFeeGbp: 0,
+      supplierRefundGbp: 564,
+      supplierAdminFeeGbp: 10,
+      customerChargeGbp: 480,
+      notes: null,
+    })
+    expect(result.success).toBe(true)
+    expect(
+      ticketingAppendReplacementChangeSchema.safeParse({
+        expectedVersion: 1,
+        replacedItemId: '40000000-0000-4000-8000-000000000001',
+        replacement: {
+          bookingId: REPLACEMENT_BOOKING,
+          transactionId: REPLACEMENT_TRANSACTION,
+        },
+        airlinePredictedRefundGbp: 574,
+        airlineCancellationFeeGbp: 0,
+        supplierRefundGbp: 600,
+        supplierAdminFeeGbp: 10,
+        customerChargeGbp: 480,
+        notes: null,
+      }).success,
+    ).toBe(false)
+  })
 })

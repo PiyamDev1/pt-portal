@@ -913,17 +913,44 @@ function ReplacementCaseCard({
   const [changeOpen, setChangeOpen] = useState(false)
   const [replacedItemId, setReplacedItemId] = useState(item.items[0]?.id || '')
   const [newTicket, setNewTicket] = useState<TicketingReplacementLookupItem | null>(null)
-  const [supplierRefund, setSupplierRefund] = useState('')
+  const [airlineCancellationFee, setAirlineCancellationFee] = useState('')
+  const [airlinePredictedRefund, setAirlinePredictedRefund] = useState('')
   const [supplierAdmin, setSupplierAdmin] = useState('')
   const [customerCharge, setCustomerCharge] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const changeKey = useRef(newKey('replacement-change'))
   const selectedItem = item.items.find((candidate) => candidate.id === replacedItemId)
-  const refund = Number(supplierRefund)
+  const cancellationFee = Number(airlineCancellationFee)
+  const predictedRefund = Number(airlinePredictedRefund)
   const admin = Number(supplierAdmin)
   const charge = Number(customerCharge)
-  const validMoney = [refund, admin, charge].every((value) => Number.isFinite(value) && value >= 0)
+  const refund = Math.max(predictedRefund - cancellationFee - admin, 0)
+  const validMoney =
+    [predictedRefund, cancellationFee, admin, charge].every(
+      (value) => Number.isFinite(value) && value >= 0,
+    ) && predictedRefund >= cancellationFee + admin
+  const laterTotals = item.changes.reduce(
+    (totals, change) => ({
+      predictedRefund: totals.predictedRefund + change.airlinePredictedRefundGbp,
+      cancellationFee: totals.cancellationFee + change.airlineCancellationFeeGbp,
+      supplierAdmin: totals.supplierAdmin + change.supplierAdminFeeGbp,
+      supplierRefund: totals.supplierRefund + change.supplierRefundGbp,
+      customerCharge: totals.customerCharge + change.customerChargeGbp,
+      newCost: totals.newCost + change.newSupplierCostGbp,
+      result: totals.result + change.incrementalResultGbp,
+    }),
+    {
+      predictedRefund: 0,
+      cancellationFee: 0,
+      supplierAdmin: 0,
+      supplierRefund: 0,
+      customerCharge: 0,
+      newCost: 0,
+      result: 0,
+    },
+  )
+  const currentNetPosition = laterTotals.result - item.companyMarginAbsorbedGbp
   const changeResult =
     newTicket && validMoney
       ? calculateReplacementChange({
@@ -946,6 +973,8 @@ function ReplacementCaseCard({
             expectedVersion: item.version,
             replacedItemId: selectedItem.id,
             replacement: { bookingId: newTicket.bookingId, transactionId: newTicket.transactionId },
+            airlineCancellationFeeGbp: cancellationFee,
+            airlinePredictedRefundGbp: predictedRefund,
             supplierRefundGbp: refund,
             supplierAdminFeeGbp: admin,
             customerChargeGbp: charge,
@@ -1004,6 +1033,57 @@ function ReplacementCaseCard({
             <Stat label="Business absorbs" value={gbp(item.companyMarginAbsorbedGbp)} />
             <Stat label="Employee recovery" value={gbp(item.employeeRecoveryGbp)} tone="rose" />
           </div>
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  Case story
+                </p>
+                <h4 className="mt-1 text-base font-black text-slate-950">
+                  From the original booking to the current position
+                </h4>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-black ${
+                  currentNetPosition >= 0
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                {currentNetPosition >= 0
+                  ? 'Later events recovered the exposure'
+                  : 'Exposure remains'}{' '}
+                {gbp(Math.abs(currentNetPosition))}
+              </span>
+            </div>
+            <ol className="mt-4 grid gap-3 lg:grid-cols-3">
+              <li className="rounded-xl border border-white bg-white p-3 shadow-sm">
+                <p className="text-xs font-black text-[#8b1e2d]">1 · Original booking</p>
+                <p className="mt-1 text-sm leading-5 text-slate-700">
+                  Customer sale {gbp(item.original.salePriceGbp)} against supplier cost{' '}
+                  {gbp(item.original.supplierCostGbp)}. The original margin was{' '}
+                  {gbp(Math.max(item.original.salePriceGbp - item.original.supplierCostGbp, 0))}.
+                </p>
+              </li>
+              <li className="rounded-xl border border-white bg-white p-3 shadow-sm">
+                <p className="text-xs font-black text-[#8b1e2d]">2 · Replacement recorded</p>
+                <p className="mt-1 text-sm leading-5 text-slate-700">
+                  Replacement cost became {gbp(item.replacementSupplierCostGbp)}, an increase of{' '}
+                  {gbp(item.supplierCostIncreaseGbp)}. Employee recovery is{' '}
+                  {gbp(item.employeeRecoveryGbp)} and the business absorbs{' '}
+                  {gbp(item.companyMarginAbsorbedGbp)}.
+                </p>
+              </li>
+              <li className="rounded-xl border border-white bg-white p-3 shadow-sm">
+                <p className="text-xs font-black text-[#8b1e2d]">3 · Current position</p>
+                <p className="mt-1 text-sm leading-5 text-slate-700">
+                  {item.changes.length === 0
+                    ? 'No later cancellation or date-change event has been recorded.'
+                    : `Later changes currently net ${gbp(laterTotals.result)} after refunds, new ticket costs and customer charges.`}
+                </p>
+              </li>
+            </ol>
+          </section>
           <div className="grid gap-2 md:grid-cols-2">
             {item.items.map((ticket) => (
               <div key={ticket.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1033,8 +1113,34 @@ function ReplacementCaseCard({
               <p className="mt-1 text-sm font-black text-violet-900">
                 Incremental result {gbp(change.incrementalResultGbp)}
               </p>
+              <p className="mt-2 text-xs leading-5 text-slate-700">
+                Airline predicted refund {gbp(change.airlinePredictedRefundGbp)} · cancellation fee{' '}
+                {gbp(change.airlineCancellationFeeGbp)} · supplier admin fee{' '}
+                {gbp(change.supplierAdminFeeGbp)} · customer charge {gbp(change.customerChargeGbp)}.
+              </p>
             </div>
           ))}
+          {item.changes.length > 0 && (
+            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-800">
+                Later-event financial story
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <Stat label="Airline predicted refunds" value={gbp(laterTotals.predictedRefund)} />
+                <Stat label="Airline cancellation fees" value={gbp(laterTotals.cancellationFee)} />
+                <Stat label="Supplier admin fees" value={gbp(laterTotals.supplierAdmin)} />
+                <Stat label="Net supplier refunds" value={gbp(laterTotals.supplierRefund)} />
+                <Stat label="Customer charges" value={gbp(laterTotals.customerCharge)} />
+                <Stat label="New ticket costs" value={gbp(laterTotals.newCost)} />
+              </div>
+              <p className="mt-3 text-sm leading-5 text-emerald-950">
+                These later events currently change the case by {gbp(laterTotals.result)} after
+                refunds, new ticket costs and customer charges. Compared with the original business
+                absorption of {gbp(item.companyMarginAbsorbedGbp)}, the current position is{' '}
+                {gbp(currentNetPosition)}.
+              </p>
+            </section>
+          )}
           <button
             type="button"
             onClick={() => setChangeOpen((value) => !value)}
@@ -1076,10 +1182,20 @@ function ReplacementCaseCard({
                   )}
                 </div>
                 <label className="text-xs font-bold text-slate-700">
-                  Supplier refund (£)
+                  Airline predicted refund (£)
                   <input
-                    value={supplierRefund}
-                    onChange={(event) => setSupplierRefund(event.target.value)}
+                    value={airlinePredictedRefund}
+                    onChange={(event) => setAirlinePredictedRefund(event.target.value)}
+                    inputMode="decimal"
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                    placeholder="0.00"
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-700">
+                  Airline cancellation fee (£)
+                  <input
+                    value={airlineCancellationFee}
+                    onChange={(event) => setAirlineCancellationFee(event.target.value)}
                     inputMode="decimal"
                     className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"
                     placeholder="0.00"
@@ -1105,6 +1221,25 @@ function ReplacementCaseCard({
                     placeholder="0.00"
                   />
                 </label>
+                <div className="rounded-xl border border-violet-200 bg-white p-3 text-xs text-slate-700">
+                  <p className="font-black text-slate-950">
+                    Net supplier refund used in the result
+                  </p>
+                  <p className="mt-1 text-lg font-black text-violet-900">
+                    {Number.isFinite(refund) && refund >= 0 ? gbp(refund) : '—'}
+                  </p>
+                  <p className="mt-1 leading-5">
+                    Predicted refund minus airline cancellation fee and supplier admin fee.
+                  </p>
+                  {Number.isFinite(predictedRefund) &&
+                    Number.isFinite(cancellationFee) &&
+                    Number.isFinite(admin) &&
+                    predictedRefund < cancellationFee + admin && (
+                      <p className="mt-2 font-bold text-red-700">
+                        Fees cannot be greater than the predicted refund.
+                      </p>
+                    )}
+                </div>
                 <label className="text-xs font-bold text-slate-700">
                   Notes (optional)
                   <input
