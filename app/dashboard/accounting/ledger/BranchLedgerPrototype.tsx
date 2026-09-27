@@ -28,6 +28,7 @@ type LedgerItem = {
   amount: number
   kind: LedgerKind
   carriedFrom?: string
+  sourceKey?: SourceSummary['key']
 }
 type NamedBalance = {
   id: string
@@ -79,13 +80,36 @@ type SourceSummaryPayload = {
   sourceOfTruth: string
 }
 
+function sourceLedgerItems(payload: SourceSummaryPayload | null): LedgerItem[] {
+  if (!payload) return []
+  return payload.sources.flatMap((source) => {
+    if (!source.available || source.net === null || Math.abs(source.net) < 0.005) return []
+    const positive = source.net > 0
+    return [
+      {
+        id: `source-${payload.month}-${source.key}`,
+        label: `${source.label} profit (imported)`,
+        group: positive ? 'Module profit' : 'Module losses / costs',
+        amount: Math.abs(source.net),
+        kind: positive ? 'income' : 'expense',
+        sourceKey: source.key,
+      },
+    ]
+  })
+}
+
 const GBP = new Intl.NumberFormat('en-GB', {
   style: 'currency',
   currency: 'GBP',
   minimumFractionDigits: 2,
 })
 const BRANCHES = ['Manchester', 'Bradford', 'Birmingham']
-const INCOME_GROUPS = ['Commissions & transfers', 'Document & travel services', 'Other income']
+const INCOME_GROUPS = [
+  'Commissions & transfers',
+  'Document & travel services',
+  'Other income',
+  'Module profit',
+]
 const EXPENSE_GROUPS = [
   'Operating costs',
   'Premises & finance',
@@ -93,6 +117,7 @@ const EXPENSE_GROUPS = [
   'Professional & statutory',
   'People',
   'Donations & other',
+  'Module losses / costs',
 ]
 const SUPPLIER_SUGGESTIONS = [
   'Ria',
@@ -129,7 +154,15 @@ function monthKey(label: string) {
   return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`
 }
 
-function SourceActivityPanel({ branch, month }: { branch: string; month: string }) {
+function SourceActivityPanel({
+  branch,
+  month,
+  onPayload,
+}: {
+  branch: string
+  month: string
+  onPayload: (payload: SourceSummaryPayload | null) => void
+}) {
   const [payload, setPayload] = useState<SourceSummaryPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -139,6 +172,7 @@ function SourceActivityPanel({ branch, month }: { branch: string; month: string 
     if (!period) return
     setLoading(true)
     setError('')
+    onPayload(null)
     try {
       const response = await fetch(
         `/api/accounting/ledger/source-summary?branch=${encodeURIComponent(branch)}&month=${period}`,
@@ -148,14 +182,17 @@ function SourceActivityPanel({ branch, month }: { branch: string; month: string 
         error?: string
       }
       if (!response.ok) throw new Error(data.error || 'Unable to load module activity.')
-      setPayload(data as SourceSummaryPayload)
+      const nextPayload = data as SourceSummaryPayload
+      setPayload(nextPayload)
+      onPayload(nextPayload)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load module activity.')
       setPayload(null)
+      onPayload(null)
     } finally {
       setLoading(false)
     }
-  }, [branch, period])
+  }, [branch, onPayload, period])
 
   useEffect(() => {
     void load()
@@ -170,8 +207,8 @@ function SourceActivityPanel({ branch, month }: { branch: string; month: string 
           </p>
           <h2 className="mt-1 text-lg font-black text-slate-950">Connected modules</h2>
           <p className="mt-1 text-xs text-slate-600">
-            {branch} · {month}. These figures come from the source modules and are not copied into
-            manual ledger items.
+            {branch} · {month}. Net module results appear in the ledger above as read-only imported
+            rows, never as editable manual entries.
           </p>
         </div>
         <button
@@ -976,25 +1013,44 @@ function CategorySheet({
                   className="grid grid-cols-[minmax(0,1fr)_104px_42px] items-center gap-2 px-4 py-2.5 sm:px-5"
                 >
                   <div className="min-w-0">
-                    <InlineText
-                      label={'Edit ' + item.label + ' name'}
-                      value={item.label}
-                      disabled={finalized}
-                      onSave={(label) => onUpdateItem(item.id, { label })}
-                      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                    />
+                    {item.sourceKey ? (
+                      <p className="truncate px-1 py-0.5 text-xs font-black text-violet-900">
+                        {item.label}
+                      </p>
+                    ) : (
+                      <InlineText
+                        label={'Edit ' + item.label + ' name'}
+                        value={item.label}
+                        disabled={finalized}
+                        onSave={(label) => onUpdateItem(item.id, { label })}
+                        className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold text-slate-900 outline-none hover:border-slate-200 hover:bg-slate-50 focus:border-amber-300 focus:bg-amber-50 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                      />
+                    )}
+                    {item.sourceKey && (
+                      <span className="mt-1 inline-flex rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-violet-800">
+                        Imported from {item.sourceKey}
+                      </span>
+                    )}
                     {item.carriedFrom && (
                       <span className="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-800">
                         Carried forward · not yet edited
                       </span>
                     )}
                   </div>
-                  <InlineAmount
-                    item={item}
-                    disabled={finalized}
-                    onSave={(amount) => onUpdateItem(item.id, { amount })}
-                  />
-                  <span className={'text-right text-[10px] font-black ' + actionTone}>Auto</span>
+                  {item.sourceKey ? (
+                    <span className="px-2 text-right font-mono text-xs font-black text-violet-900">
+                      {GBP.format(item.amount)}
+                    </span>
+                  ) : (
+                    <InlineAmount
+                      item={item}
+                      disabled={finalized}
+                      onSave={(amount) => onUpdateItem(item.id, { amount })}
+                    />
+                  )}
+                  <span className={'text-right text-[10px] font-black ' + actionTone}>
+                    {item.sourceKey ? 'Source' : 'Auto'}
+                  </span>
                 </div>
               ))}
               <BlankEntry
@@ -1046,11 +1102,17 @@ export default function BranchLedgerPrototype() {
     ),
   )
   const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
+  const [sourcePayload, setSourcePayload] = useState<SourceSummaryPayload | null>(null)
   const currentMonth = months[currentMonthIndex]
-  const incomeItems = currentMonth.items.filter((item) => item.kind === 'income')
-  const expenseItems = currentMonth.items.filter((item) => item.kind === 'expense')
+  const importedItems = ledgerView === 'branch' ? sourceLedgerItems(sourcePayload) : []
+  const ledgerItems = [...currentMonth.items, ...importedItems]
+  const incomeItems = ledgerItems.filter((item) => item.kind === 'income')
+  const expenseItems = ledgerItems.filter((item) => item.kind === 'expense')
   const incomeTotal = incomeItems.reduce((sum, item) => sum + item.amount, 0)
   const expenseTotal = expenseItems.reduce((sum, item) => sum + item.amount, 0)
+  const handleSourcePayload = useCallback((payload: SourceSummaryPayload | null) => {
+    setSourcePayload(payload)
+  }, [])
 
   function switchMode(mode: ViewMode) {
     setViewMode(mode)
@@ -1255,7 +1317,7 @@ export default function BranchLedgerPrototype() {
               <p className="text-sm font-black">Branch Ledger UI preview</p>
               <p className="text-xs text-amber-800">
                 Add items under your own categories, then carry the finished sheet into the next
-                month
+                month. Module profits are added automatically as read-only income rows.
               </p>
             </div>
           </div>
@@ -1477,7 +1539,11 @@ export default function BranchLedgerPrototype() {
             finalized={currentMonth.finalized}
             onUpdate={updatePosition}
           />
-          <SourceActivityPanel branch={selectedBranch} month={currentMonth.label} />
+          <SourceActivityPanel
+            branch={selectedBranch}
+            month={currentMonth.label}
+            onPayload={handleSourcePayload}
+          />
         </>
       ) : (
         <div className="space-y-4">

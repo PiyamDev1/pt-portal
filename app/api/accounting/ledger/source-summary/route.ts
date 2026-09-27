@@ -29,6 +29,14 @@ type FareRow = {
   unit_sale_price_source: number | string | null
   unit_supplier_cost_source: number | string | null
 }
+type PackageReservationRow = {
+  booked_cost_total: number | string | null
+  sold_price_total: number | string | null
+  discount_total: number | string | null
+  supplier_refund_total: number | string | null
+  customer_refund_total: number | string | null
+  commission_expected_total: number | string | null
+}
 
 function firstDayAfter(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
@@ -95,7 +103,9 @@ export async function GET(request: Request) {
     ticketingPromise,
     supabase
       .from('travel_packages')
-      .select('id')
+      .select(
+        'id, travel_package_reservations(booked_cost_total, sold_price_total, discount_total, supplier_refund_total, customer_refund_total, commission_expected_total)',
+      )
       .eq('location_id', locationId)
       .gte('created_at', `${startDate}T00:00:00.000Z`)
       .lt('created_at', `${endDate}T00:00:00.000Z`),
@@ -138,12 +148,51 @@ export async function GET(request: Request) {
         key: 'packages',
         label: 'Packages',
         count: (packagesResult.data || []).length,
-        income: null,
-        expenses: null,
-        net: null,
+        income: (() => {
+          let total = 0
+          for (const packageRow of (packagesResult.data || []) as Array<{
+            travel_package_reservations: PackageReservationRow[] | null
+          }>) {
+            for (const reservation of packageRow.travel_package_reservations || []) {
+              total +=
+                numberValue(reservation.sold_price_total) -
+                numberValue(reservation.discount_total) -
+                numberValue(reservation.customer_refund_total)
+            }
+          }
+          return total
+        })(),
+        expenses: (() => {
+          let total = 0
+          for (const packageRow of (packagesResult.data || []) as Array<{
+            travel_package_reservations: PackageReservationRow[] | null
+          }>) {
+            for (const reservation of packageRow.travel_package_reservations || []) {
+              total += numberValue(reservation.booked_cost_total) - numberValue(reservation.supplier_refund_total)
+            }
+          }
+          return total
+        })(),
+        net: (() => {
+          let total = 0
+          for (const packageRow of (packagesResult.data || []) as Array<{
+            travel_package_reservations: PackageReservationRow[] | null
+          }>) {
+            for (const reservation of packageRow.travel_package_reservations || []) {
+              total +=
+                numberValue(reservation.sold_price_total) -
+                numberValue(reservation.discount_total) -
+                numberValue(reservation.customer_refund_total) -
+                numberValue(reservation.booked_cost_total) +
+                numberValue(reservation.supplier_refund_total) +
+                numberValue(reservation.commission_expected_total)
+            }
+          }
+          return total
+        })(),
         href: '/dashboard/packages',
         available: true,
-        note: 'Package activity count; package financials remain in the package source records.',
+        note: 'Package profit before agent commission, from reservation financials.',
       }
 
   const pos: SourceSummary = posResult.error
@@ -180,7 +229,8 @@ export async function GET(request: Request) {
       branch: { id: locationResult.data.id, name: locationResult.data.name, branchCode: locationResult.data.branch_code },
       month,
       sources: [ticketing, packages, pos, lms],
-      sourceOfTruth: 'Operational modules remain the source of truth; these figures are read-only accounting reporting.',
+      sourceOfTruth:
+        'Operational modules remain the source of truth; the Branch Ledger represents their net result as read-only imported income or expense rows.',
     },
     ACCOUNTING_PRIVATE_RESPONSE,
   )
