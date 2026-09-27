@@ -51,11 +51,11 @@ export default function AccountingPage() {
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-slate-900">Branch Ledger</h3>
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-800">
-                  Preview
+                  Live
                 </span>
               </div>
               <p className="mt-1 text-sm text-slate-500">
-                Explore branch income, expenses and monthly results
+                Live branch income, expenses, module profit and company balances
               </p>
             </div>
             <ArrowRight className="h-5 w-5 shrink-0 text-emerald-600 transition group-hover:translate-x-1 group-hover:text-emerald-800" />
@@ -112,7 +112,10 @@ export default function AccountingPage() {
       </section>
 
       <section aria-labelledby="accounting-sources-title">
-        <h2 id="accounting-sources-title" className="mb-3 text-xs font-black uppercase text-slate-500">
+        <h2
+          id="accounting-sources-title"
+          className="mb-3 text-xs font-black uppercase text-slate-500"
+        >
           Operational sources
         </h2>
         <div className="grid max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
