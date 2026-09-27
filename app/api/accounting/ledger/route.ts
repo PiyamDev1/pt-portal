@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireAccountingAccess, type AccountingAccessResult } from '@/lib/accounting/access'
 import { ACCOUNTING_PRIVATE_RESPONSE } from '@/lib/accounting/api'
 import {
@@ -262,13 +263,14 @@ export async function GET(request: Request) {
   }
 
   const priorMonth = previousMonth(parsed.data.month)
+  const sourceSupabase = getServiceSupabaseClient()
   const [sheetResult, sourceResults] = await Promise.all([
     access.supabase
       .from('accounting_ledger_sheets')
       .select('id, scope, location_id, month_start, status, payload, revision, updated_at')
       .in('month_start', [firstDay(parsed.data.month), firstDay(priorMonth)]),
     loadBranchModuleResults(
-      access.supabase,
+      sourceSupabase,
       branches.map((branch) => branch.id),
       parsed.data.month,
     ),
@@ -373,7 +375,11 @@ export async function POST(request: Request) {
 
   let payload: BranchLedgerPayload | CompanyLedgerPayload = input.payload
   if (input.scope === 'branch') {
-    const sources = await loadBranchModuleResults(access.supabase, [input.locationId], input.month)
+    const sources = await loadBranchModuleResults(
+      getServiceSupabaseClient(),
+      [input.locationId],
+      input.month,
+    )
     const branchSources = sources.get(input.locationId) || []
     const warnings = moduleResultWarnings(branchSources)
     if (input.finalize && warnings.length > 0) {

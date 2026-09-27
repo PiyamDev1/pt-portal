@@ -1,7 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LedgerItem } from '@/lib/accounting/ledger'
-import type { AccountingAccessResult } from '@/lib/accounting/access'
 
-type SupabaseLike = Extract<AccountingAccessResult, { authorized: true }>['supabase']
+type SupabaseLike = SupabaseClient
 
 type SourceKey = NonNullable<LedgerItem['sourceKey']>
 
@@ -17,16 +17,12 @@ type SourceResult = {
 }
 
 type FareRow = {
-  quantity: number | string | null
-  unit_sale_price_source: number | string | null
-  unit_supplier_cost_source: number | string | null
+  sale_total_gbp: number | string | null
+  supplier_total_gbp: number | string | null
 }
 
 type TicketRow = {
-  ticket_bookings:
-    | { owner_employee_id: string | null }
-    | Array<{ owner_employee_id: string | null }>
-    | null
+  ticket_bookings: { location_id: string } | Array<{ location_id: string }> | null
   ticket_passenger_fare_lines: FareRow[] | null
 }
 
@@ -54,6 +50,10 @@ function amount(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
 function monthEnd(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
   const next = new Date(Date.UTC(year, monthNumber, 1))
@@ -72,9 +72,9 @@ function failedSource(key: SourceKey, label: string): SourceResult {
   }
 }
 
-function relatedOwner(row: TicketRow) {
+function relatedTicketLocation(row: TicketRow) {
   const related = row.ticket_bookings
-  return Array.isArray(related) ? related[0]?.owner_employee_id : related?.owner_employee_id
+  return Array.isArray(related) ? related[0]?.location_id : related?.location_id
 }
 
 export function packageReservationLedgerAmounts(reservation: PackageReservationRow) {
@@ -106,35 +106,16 @@ export async function loadBranchModuleResults(
 
   const startDate = `${month}-01`
   const endDate = monthEnd(month)
-  const employeesResult = await supabase
-    .from('employees')
-    .select('id, location_id')
-    .in('location_id', locationIds)
-    .eq('is_active', true)
-
-  const employees = (employeesResult.data || []) as Array<{
-    id: string
-    location_id: string | null
-  }>
-  const locationByEmployee = new Map(
-    employees
-      .filter((employee) => employee.location_id)
-      .map((employee) => [employee.id, employee.location_id as string]),
-  )
-  const employeeIds = [...locationByEmployee.keys()]
-
   const [ticketingResult, packagesResult, posResult] = await Promise.all([
-    employeeIds.length
-      ? supabase
-          .from('ticket_transactions')
-          .select(
-            'id, ticket_bookings!inner(owner_employee_id, archived_at), ticket_passenger_fare_lines(quantity, unit_sale_price_source, unit_supplier_cost_source)',
-          )
-          .in('ticket_bookings.owner_employee_id', employeeIds)
-          .is('ticket_bookings.archived_at', null)
-          .gte('booking_date', startDate)
-          .lt('booking_date', endDate)
-      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from('ticket_transactions')
+      .select(
+        'id, ticket_bookings!inner(location_id, archived_at), ticket_passenger_fare_lines(sale_total_gbp, supplier_total_gbp)',
+      )
+      .in('ticket_bookings.location_id', locationIds)
+      .is('ticket_bookings.archived_at', null)
+      .gte('booking_date', startDate)
+      .lt('booking_date', endDate),
     supabase
       .from('travel_package_reservations')
       .select(
@@ -152,26 +133,25 @@ export async function loadBranchModuleResults(
   ])
 
   for (const [locationId, sources] of results) {
-    if (employeesResult.error || ticketingResult.error)
-      sources[0] = failedSource('ticketing', 'Ticketing')
+    if (ticketingResult.error) sources[0] = failedSource('ticketing', 'Ticketing')
     if (packagesResult.error) sources[1] = failedSource('packages', 'Packages')
     if (posResult.error) sources[2] = failedSource('pos', 'POS')
     results.set(locationId, sources)
   }
 
-  if (!employeesResult.error && !ticketingResult.error) {
+  if (!ticketingResult.error) {
     for (const row of (ticketingResult.data || []) as TicketRow[]) {
-      const ownerId = relatedOwner(row)
-      const locationId = ownerId ? locationByEmployee.get(ownerId) : null
+      const locationId = relatedTicketLocation(row)
       const source = locationId ? results.get(locationId)?.[0] : null
       if (!source) continue
       source.count += 1
       for (const fare of row.ticket_passenger_fare_lines || []) {
-        const quantity = amount(fare.quantity)
-        source.income += quantity * amount(fare.unit_sale_price_source)
-        source.expenses += quantity * amount(fare.unit_supplier_cost_source)
+        source.income += amount(fare.sale_total_gbp)
+        source.expenses += amount(fare.supplier_total_gbp)
       }
-      source.net = source.income - source.expenses
+      source.income = roundMoney(source.income)
+      source.expenses = roundMoney(source.expenses)
+      source.net = roundMoney(source.income - source.expenses)
     }
   }
 
@@ -208,10 +188,14 @@ export function moduleResultsToLedgerItems(month: string, sources: SourceResult[
   return sources.flatMap<LedgerItem>((source) => {
     if (!source.available || Math.abs(source.net) < 0.005) return []
     const positive = source.net > 0
+    const label =
+      source.key === 'ticketing'
+        ? `Ticketing gross ${positive ? 'margin' : 'loss'}`
+        : `${source.label} ${positive ? 'profit' : 'loss'}`
     return [
       {
         id: `source-${month}-${source.key}`,
-        label: `${source.label} ${positive ? 'profit' : 'loss'}`,
+        label,
         group: positive ? 'Module profit' : 'Module losses / costs',
         amount: Math.abs(source.net),
         kind: positive ? 'income' : 'expense',

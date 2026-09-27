@@ -51,7 +51,7 @@ describe('Accounting ledger model', () => {
     const totals = branchTotals(payload, [
       {
         id: 'source-ticketing',
-        label: 'Ticketing profit',
+        label: 'Ticketing gross margin',
         group: 'Module profit',
         amount: 240,
         kind: 'income',

@@ -5,11 +5,8 @@ import {
   ChartNoAxesColumnIncreasing,
   FileSpreadsheet,
   FileText,
-  GraduationCap,
-  Package,
   Settings2,
   Ticket,
-  WalletCards,
 } from 'lucide-react'
 
 export const metadata = {
@@ -78,6 +75,27 @@ export default function AccountingPage() {
           </Link>
 
           <Link
+            href="/dashboard/accounting/ticketing"
+            className="group flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <Ticket className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-slate-900">Ticketing</h3>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-800">
+                  Live
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Monthly sales, supplier costs and gross margin by branch and airline
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-700" />
+          </Link>
+
+          <Link
             href="/dashboard/accounting/pos-configuration"
             className="group flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
           >
@@ -108,59 +126,6 @@ export default function AccountingPage() {
             </div>
             <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-700" />
           </Link>
-        </div>
-      </section>
-
-      <section aria-labelledby="accounting-sources-title">
-        <h2
-          id="accounting-sources-title"
-          className="mb-3 text-xs font-black uppercase text-slate-500"
-        >
-          Operational sources
-        </h2>
-        <div className="grid max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              title: 'Ticketing',
-              description: 'Ticket sales, supplier costs and refunds feed branch reporting.',
-              href: '/dashboard/ticketing',
-              icon: Ticket,
-            },
-            {
-              title: 'Packages',
-              description: 'Package reservations and customer payments remain source-owned.',
-              href: '/dashboard/packages',
-              icon: Package,
-            },
-            {
-              title: 'POS',
-              description: 'Till income, expenses and supplier movements by branch.',
-              href: '/dashboard/pos',
-              icon: WalletCards,
-            },
-            {
-              title: 'LMS',
-              description: 'Company-wide customer and company balances live in Company Ledger.',
-              href: '/dashboard/lms',
-              icon: GraduationCap,
-            },
-          ].map((source) => {
-            const Icon = source.icon
-            return (
-              <Link
-                key={source.title}
-                href={source.href}
-                className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-violet-300 hover:shadow-md"
-              >
-                <Icon className="h-5 w-5 text-violet-700" />
-                <h3 className="mt-3 font-black text-slate-900">{source.title}</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{source.description}</p>
-                <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-black text-violet-700 group-hover:text-violet-900">
-                  Open source module <ArrowRight className="h-3 w-3" />
-                </span>
-              </Link>
-            )
-          })}
         </div>
       </section>
     </div>
