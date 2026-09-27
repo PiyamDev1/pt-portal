@@ -96,6 +96,29 @@ export type CompanyLmsLiveSummary = {
   warning?: string
 }
 
+export type CompanySupplierBalance = {
+  id: string
+  name: string
+  balance: number
+  locationCount: number
+  settlementMode: 'DEPOSIT_ACCOUNT' | 'PAY_ON_DEMAND' | 'UNKNOWN'
+  isActive: boolean
+}
+
+export type CompanySupplierLiveSummary = {
+  available: boolean
+  netBalance: number
+  heldBalance: number
+  amountDue: number
+  suppliersWithBalance: number
+  depositAccountCount: number
+  locationsWithActivity: number
+  suppliers: CompanySupplierBalance[]
+  loadedAt: string
+  sourcePath: string
+  warning?: string
+}
+
 export type AccountingLedgerResponse = {
   month: string
   branches: LedgerBranch[]
@@ -107,6 +130,7 @@ export type AccountingLedgerResponse = {
   sourceWarnings: string[]
   branchSummaries: BranchLedgerSummary[]
   companyLmsSummary: CompanyLmsLiveSummary
+  companySupplierSummary: CompanySupplierLiveSummary
 }
 
 export const DEFAULT_INCOME_GROUPS = [

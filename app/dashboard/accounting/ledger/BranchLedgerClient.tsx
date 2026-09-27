@@ -26,6 +26,7 @@ import {
   type BranchLedgerPayload,
   type CompanyLmsLiveSummary,
   type CompanyLedgerPayload,
+  type CompanySupplierLiveSummary,
   type LedgerItem,
   type LedgerKind,
   type LedgerSheet,
@@ -311,6 +312,105 @@ function CompanyLmsLivePanel({ summary }: { summary: CompanyLmsLiveSummary }) {
   )
 }
 
+function CompanySupplierLivePanel({ summary }: { summary: CompanySupplierLiveSummary }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-4 sm:px-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+            Live company-wide source
+          </p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">Supplier balances now</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">
+            POS supplier balance entries aggregated across every branch. Positive balances are
+            company funds held with suppliers; negative balances are amounts due. This does not
+            overwrite the selected month&apos;s manual supplier controls.
+          </p>
+        </div>
+        <Link
+          href={summary.sourcePath}
+          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-800 hover:border-emerald-300"
+        >
+          Open POS <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      </header>
+
+      {summary.available ? (
+        <>
+          <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              ['Held with suppliers', GBP.format(summary.heldBalance)],
+              ['Amount due', GBP.format(summary.amountDue)],
+              ['Net position', GBP.format(summary.netBalance)],
+              ['Suppliers with balance', summary.suppliersWithBalance.toLocaleString('en-GB')],
+              ['Branches with activity', summary.locationsWithActivity.toLocaleString('en-GB')],
+            ].map(([label, value]) => (
+              <div key={label} className="bg-white px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  {label}
+                </p>
+                <p className="mt-1 font-mono text-lg font-black text-slate-950">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {summary.suppliers.length > 0 ? (
+            <div className="overflow-x-auto border-t border-slate-200">
+              <table className="min-w-[620px] w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3">Supplier</th>
+                    <th className="px-5 py-3">Mode</th>
+                    <th className="px-5 py-3 text-right">Branches</th>
+                    <th className="px-5 py-3 text-right">Live balance</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {summary.suppliers.slice(0, 8).map((supplier) => (
+                    <tr key={supplier.id}>
+                      <td className="px-5 py-3 font-bold text-slate-900">{supplier.name}</td>
+                      <td className="px-5 py-3 text-slate-500">
+                        {supplier.settlementMode === 'DEPOSIT_ACCOUNT'
+                          ? 'Deposit account'
+                          : supplier.settlementMode === 'PAY_ON_DEMAND'
+                            ? 'Pay on demand'
+                            : 'Unclassified'}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-600">
+                        {supplier.locationCount}
+                      </td>
+                      <td
+                        className={`px-5 py-3 text-right font-mono font-black ${
+                          supplier.balance < 0 ? 'text-rose-700' : 'text-emerald-800'
+                        }`}
+                      >
+                        {GBP.format(supplier.balance)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {summary.suppliers.length > 8 ? (
+                <p className="border-t border-slate-100 px-5 py-3 text-[11px] font-semibold text-slate-500">
+                  {summary.suppliers.length - 8} more supplier accounts are available in POS.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+              No supplier deposit balances are currently recorded.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="px-5 py-4 text-sm font-semibold text-amber-800">
+          {summary.warning || 'The live supplier summary is temporarily unavailable.'}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function CategoryColumn({
   kind,
   groups,
@@ -588,11 +688,13 @@ function CategoryColumn({
 
 function BalanceList({
   title,
+  description,
   balances,
   disabled,
   onChange,
 }: {
   title: string
+  description?: string
   balances: NamedBalance[]
   disabled: boolean
   onChange: (balances: NamedBalance[]) => void
@@ -612,7 +714,9 @@ function BalanceList({
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <header className="border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">
         <h3 className="text-sm font-black text-slate-950">{title}</h3>
-        <p className="mt-0.5 text-[11px] text-slate-500">Opening and closing company balance</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">
+          {description || 'Opening and closing company balance'}
+        </p>
       </header>
       <div className="divide-y divide-slate-100">
         {balances.length === 0 ? (
@@ -1068,7 +1172,7 @@ export default function BranchLedgerClient() {
               <p className="mt-0.5 text-sm text-slate-500">
                 {view === 'branch'
                   ? 'Final monthly overview of branch income, expenses and module margin'
-                  : 'All branches plus company-wide LMS, supplier and bank balances'}
+                  : 'All branches plus live company-wide LMS and suppliers, with manual bank controls'}
               </p>
             </div>
           </div>
@@ -1281,6 +1385,7 @@ export default function BranchLedgerClient() {
           </section>
 
           <CompanyLmsLivePanel summary={data.companyLmsSummary} />
+          <CompanySupplierLivePanel summary={data.companySupplierSummary} />
 
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <header className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
@@ -1388,12 +1493,14 @@ export default function BranchLedgerClient() {
             </div>
             <BalanceList
               title="Suppliers"
+              description="Manual month-end control; compare with the live POS supplier balances above"
               balances={companyPayload.suppliers}
               disabled={companyFinalised}
               onChange={(suppliers) => changeCompany((current) => ({ ...current, suppliers }))}
             />
             <BalanceList
               title="Banks"
+              description="Manual only until named bank account balances have a trustworthy source"
               balances={companyPayload.banks}
               disabled={companyFinalised}
               onChange={(banks) => changeCompany((current) => ({ ...current, banks }))}

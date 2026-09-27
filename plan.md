@@ -6,7 +6,7 @@ Scope: whole PT Portal repository, including dashboard modules, API routes, shar
 
 This plan is based on a static audit of the current repository. It proposes architecture and implementation work; it does not authorise cross-module writes, a new event bus, or a replacement accounting system.
 
-## Progress update — 27 September 2026
+## Progress update — 28 September 2026
 
 The first safe financial-reporting slice is implemented in the application layer without a database migration:
 
@@ -18,12 +18,14 @@ The first safe financial-reporting slice is implemented in the application layer
 - Ticketing and POS pages accept source-search deep links.
 - POS staff search for and select Ticketing, Package, Application, or LMS records instead of typing internal database IDs.
 - Company Ledger shows the current company-wide LMS outstanding balance and active/overdue/due-soon account counts without copying them into a branch or monthly close.
+- Company Ledger now also aggregates live POS supplier balances across every branch while keeping monthly supplier controls separate; named bank balances remain manual because no trustworthy bank-account source exists yet.
 - Focused tests cover the double-counting rule, Accounting presentation, persisted source metadata, and POS source selection.
 - Confirmed Ticketing refunds now replace the original margin through a confirmation-month adjustment; provisional, voided, package-owned, and unresolved refund results remain excluded.
 - Package projected margin now treats expected commission as income and reuses the canonical shared-transport calculation so invoice-reference rows are not counted twice.
 - A versioned Package financial summary now supplies reservation UI totals, invoice recalculation, and Accounting with one formula for sale, cost, discounts, refunds, expected/received commission, payments, balance, projected margin, and date basis.
 - Accounting refund links open the Refund Register with the relevant PNR filter already applied.
 - The dashboard now has a permission-aware, read-only Attention Centre for branch Bookings, Ticketing deadlines/schedule changes, and company-wide LMS overdue/due-soon totals, with deep links back to each owning module and explicit unavailable-source warnings.
+- Applications now has one RLS-aware summary model and endpoint for service counts, recent work, status follow-up, supported document markers, and creation-date aging; the same model feeds its hub and dashboard Attention Centre item.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -343,7 +345,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 - [ ] Extract the shared booking service.
 - [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
-- [ ] Add live Company Ledger summaries for company-wide positions. LMS is complete; supplier and bank sources remain pending.
+- [ ] Add live Company Ledger summaries for company-wide positions. LMS and supplier summaries are complete; named bank balances remain pending until a trustworthy bank-account source exists.
 - [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, and Applications, including source links and unavailable-provider handling.
 - [ ] Expand the dashboard work queue to Packages, POS, Frappe, Training, and Admin after each module exposes a trustworthy attention summary.
 

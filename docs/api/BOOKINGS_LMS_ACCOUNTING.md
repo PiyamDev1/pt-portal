@@ -877,8 +877,11 @@ original margin with a confirmed refund result. Package projected margin treats
 expected commission as income and counts canonical shared transport once. A
 finalised sheet returns its stored source snapshot so later operational changes
 do not silently rewrite the closed month. The response also includes the
-current company-wide LMS outstanding balance and account counts as a read-only
-live summary; it does not replace the selected month's manual closing value.
+current company-wide LMS outstanding balance and account counts plus POS
+supplier balances aggregated across all branches as read-only live summaries.
+Neither summary replaces the selected month's manual closing controls. Named
+bank balances remain manual because the portal does not yet have a trustworthy
+bank-account balance source.
 See [Accounting Reporting Rules](../guides/ACCOUNTING_REPORTING_RULES.md) for the
 complete inclusion, exclusion, refund, and date-basis rules.
 

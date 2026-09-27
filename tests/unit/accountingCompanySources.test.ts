@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadCompanyLmsLiveSummary } from '@/lib/accounting/companySources'
+import {
+  loadCompanyLmsLiveSummary,
+  loadCompanySupplierLiveSummary,
+} from '@/lib/accounting/companySources'
 
 describe('Accounting company-wide live sources', () => {
   it('reads global LMS totals without turning them into branch values', async () => {
@@ -46,6 +49,125 @@ describe('Accounting company-wide live sources', () => {
       available: false,
       totalOutstanding: 0,
       warning: 'The live LMS company summary could not be loaded.',
+    })
+  })
+
+  it('aggregates supplier deposit positions across branches without copying them into a branch', async () => {
+    const tableData: Record<string, { data: unknown[] | null; error: unknown }> = {
+      pos_supplier_profiles: {
+        data: [
+          {
+            supplier_vendor_id: 'supplier-1',
+            is_active: true,
+            settlement_mode: 'DEPOSIT_ACCOUNT',
+            supplier_vendors: { name: 'Supplier One' },
+          },
+          {
+            supplier_vendor_id: 'supplier-2',
+            is_active: true,
+            settlement_mode: 'PAY_ON_DEMAND',
+            supplier_vendors: { name: 'Supplier Two' },
+          },
+        ],
+        error: null,
+      },
+      pos_supplier_balance_entries: {
+        data: [
+          {
+            supplier_vendor_id: 'supplier-1',
+            location_id: 'branch-a',
+            balance_delta: '1000.00',
+            supplier_vendors: { name: 'Supplier One' },
+          },
+          {
+            supplier_vendor_id: 'supplier-1',
+            location_id: 'branch-b',
+            balance_delta: 500,
+            supplier_vendors: { name: 'Supplier One' },
+          },
+          {
+            supplier_vendor_id: 'supplier-1',
+            location_id: 'branch-a',
+            balance_delta: -200,
+            supplier_vendors: { name: 'Supplier One' },
+          },
+          {
+            supplier_vendor_id: 'supplier-2',
+            location_id: 'branch-b',
+            balance_delta: -50,
+            supplier_vendors: { name: 'Supplier Two' },
+          },
+        ],
+        error: null,
+      },
+    }
+    const from = vi.fn((table: string) => ({
+      select: vi.fn(() => {
+        const query = {
+          order: vi.fn(() => query),
+          range: vi.fn(() => Promise.resolve(tableData[table])),
+        }
+        return query
+      }),
+    }))
+
+    const summary = await loadCompanySupplierLiveSummary(
+      { from } as never,
+      '2026-09-28T10:00:00.000Z',
+    )
+
+    expect(from).toHaveBeenCalledWith('pos_supplier_profiles')
+    expect(from).toHaveBeenCalledWith('pos_supplier_balance_entries')
+    expect(summary).toMatchObject({
+      available: true,
+      netBalance: 1250,
+      heldBalance: 1300,
+      amountDue: 50,
+      suppliersWithBalance: 2,
+      depositAccountCount: 1,
+      locationsWithActivity: 2,
+      sourcePath: '/dashboard/pos',
+    })
+    expect(summary.suppliers).toEqual([
+      expect.objectContaining({
+        id: 'supplier-1',
+        name: 'Supplier One',
+        balance: 1300,
+        locationCount: 2,
+      }),
+      expect.objectContaining({
+        id: 'supplier-2',
+        name: 'Supplier Two',
+        balance: -50,
+        locationCount: 1,
+      }),
+    ])
+  })
+
+  it('keeps the manual company controls available when live supplier data fails', async () => {
+    const from = vi.fn((table: string) => ({
+      select: vi.fn(() => {
+        const query = {
+          order: vi.fn(() => query),
+          range: vi.fn(() =>
+            Promise.resolve(
+              table === 'pos_supplier_profiles'
+                ? { data: null, error: { code: '42P01' } }
+                : { data: [], error: null },
+            ),
+          ),
+        }
+        return query
+      }),
+    }))
+
+    const summary = await loadCompanySupplierLiveSummary({ from } as never)
+
+    expect(summary).toMatchObject({
+      available: false,
+      netBalance: 0,
+      suppliers: [],
+      warning: 'The live company-wide supplier balance summary could not be loaded.',
     })
   })
 })

@@ -155,7 +155,7 @@ Availability derives from branch schedules/overrides, active service rules, capa
 
 Current LMS money/installment mutations require the `20260812` schema capability and execute through service-role-only atomic PostgreSQL functions. Apply `scripts/migrations/20260812_update_lms_installments_atomically.sql` after the main secure LMS migration so batch due-date/amount edits also commit as one transaction. Retryable operations use idempotency keys; account pagination is global at the database layer. Routes fail when required schema capabilities are absent rather than falling back to partial multi-write behavior.
 
-The Accounting ledger reports standalone Ticketing margin, confirmation-date adjustments for confirmed refund outcomes, projected Package margin with expected commission as income, and POS cash movement for reconciliation only. Shared Package transport is counted once through its canonical calculation. See [Accounting Reporting Rules](../guides/ACCOUNTING_REPORTING_RULES.md).
+The Accounting ledger reports standalone Ticketing margin, confirmation-date adjustments for confirmed refund outcomes, projected Package margin with expected commission as income, and POS cash movement for reconciliation only. Its Company Ledger includes read-only company-wide LMS receivables and POS supplier balances; named bank balances remain manual until a trustworthy bank-account source exists. Shared Package transport is counted once through its canonical calculation. See [Accounting Reporting Rules](../guides/ACCOUNTING_REPORTING_RULES.md).
 
 ## POS daily transactions
 

@@ -146,6 +146,35 @@ function ledgerResponse(): AccountingLedgerResponse {
       loadedAt: '2026-09-27T10:00:00.000Z',
       sourcePath: '/dashboard/lms',
     },
+    companySupplierSummary: {
+      available: true,
+      netBalance: 1750,
+      heldBalance: 2000,
+      amountDue: 250,
+      suppliersWithBalance: 2,
+      depositAccountCount: 3,
+      locationsWithActivity: 2,
+      suppliers: [
+        {
+          id: 'supplier-1',
+          name: 'Example Supplier',
+          balance: 2000,
+          locationCount: 2,
+          settlementMode: 'DEPOSIT_ACCOUNT',
+          isActive: true,
+        },
+        {
+          id: 'supplier-2',
+          name: 'Supplier Due',
+          balance: -250,
+          locationCount: 1,
+          settlementMode: 'UNKNOWN',
+          isActive: false,
+        },
+      ],
+      loadedAt: '2026-09-27T10:00:00.000Z',
+      sourcePath: '/dashboard/pos',
+    },
   }
 }
 
@@ -232,7 +261,9 @@ describe('live Branch Ledger', () => {
     expect(screen.getAllByRole('heading', { name: 'Company Ledger' }).length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'All branches' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'LMS receivables now' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Supplier balances now' })).toBeTruthy()
     expect(screen.getByText('£1,450.50')).toBeTruthy()
+    expect(screen.getAllByText('£2,000.00').length).toBeGreaterThan(0)
     expect(
       screen.getByText(
         'Calculated from each live branch sheet. There are no duplicate totals to re-enter.',
@@ -244,6 +275,9 @@ describe('live Branch Ledger', () => {
     expect(screen.getByLabelText('End of month LMS balance')).toBeTruthy()
     expect(screen.getByLabelText('New suppliers name')).toBeTruthy()
     expect(screen.getByLabelText('New banks name')).toBeTruthy()
+    expect(
+      screen.getByText('Manual only until named bank account balances have a trustworthy source'),
+    ).toBeTruthy()
   })
 
   it('shows the migration name when the live database update is missing', async () => {

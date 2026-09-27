@@ -116,7 +116,7 @@ Use PostgreSQL functions for atomic multi-record invariants. LMS ledger writes a
 ## Feature domains
 
 - Applications: NADRA, Pakistani passport drafts/submissions, GB passports, visas, notes, assignments, status history, complaints, refunds, custody, and receipts.
-- Accounting: branch and company ledger sheets, manual adjustments, finalised snapshots, Ticketing and Package commercial summaries, POS cash reconciliation summaries, source metadata, and drill-through links. Operational modules retain ownership of their records; POS cash is not treated as additional profit. See [Accounting Reporting Rules](ACCOUNTING_REPORTING_RULES.md).
+- Accounting: branch and company ledger sheets, manual adjustments, finalised snapshots, Ticketing and Package commercial summaries, POS cash reconciliation summaries, company-wide LMS receivables and POS supplier balances, source metadata, and drill-through links. Operational modules retain ownership of their records; POS cash is not treated as additional profit, and live company summaries do not overwrite monthly controls. See [Accounting Reporting Rules](ACCOUNTING_REPORTING_RULES.md).
 - LMS: company-wide customer accounts, ledger entries, fees, payments, installments, notes, methods, audit, and statements.
 - Bookings: branch/service schedules, availability, appointments, drafts, waitlist, reminders, attendance, no-shows, preferences, export/report, and audit history.
 - Ticketing: persisted bookings and transactions, passenger fares, refunds, vouchers, fare adjustments/checks, supplier bills, flight monitoring, schedule-change workflows, staff sales ledgers, accounting reports, and package reconciliation.

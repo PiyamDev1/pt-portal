@@ -4,7 +4,10 @@ import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireAccountingAccess, type AccountingAccessResult } from '@/lib/accounting/access'
 import { ACCOUNTING_PRIVATE_RESPONSE } from '@/lib/accounting/api'
-import { loadCompanyLmsLiveSummary } from '@/lib/accounting/companySources'
+import {
+  loadCompanyLmsLiveSummary,
+  loadCompanySupplierLiveSummary,
+} from '@/lib/accounting/companySources'
 import {
   branchTotals,
   carryBranchLedger,
@@ -320,18 +323,21 @@ export async function GET(request: Request) {
 
   const priorMonth = previousMonth(parsed.data.month)
   const sourceSupabase = getServiceSupabaseClient()
-  const [sheetResult, sourceResults, companyLmsSummary] = await Promise.all([
-    access.supabase
-      .from('accounting_ledger_sheets')
-      .select('id, scope, location_id, month_start, status, payload, revision, updated_at')
-      .in('month_start', [firstDay(parsed.data.month), firstDay(priorMonth)]),
-    loadBranchModuleResults(
-      sourceSupabase,
-      branches.map((branch) => branch.id),
-      parsed.data.month,
-    ),
-    loadCompanyLmsLiveSummary(sourceSupabase),
-  ])
+  const [sheetResult, sourceResults, companyLmsSummary, companySupplierSummary] = await Promise.all(
+    [
+      access.supabase
+        .from('accounting_ledger_sheets')
+        .select('id, scope, location_id, month_start, status, payload, revision, updated_at')
+        .in('month_start', [firstDay(parsed.data.month), firstDay(priorMonth)]),
+      loadBranchModuleResults(
+        sourceSupabase,
+        branches.map((branch) => branch.id),
+        parsed.data.month,
+      ),
+      loadCompanyLmsLiveSummary(sourceSupabase),
+      loadCompanySupplierLiveSummary(sourceSupabase),
+    ],
+  )
   if (sheetResult.error) {
     return databaseFailure(sheetResult.error, 'Unable to load the Branch Ledger.')
   }
@@ -392,6 +398,7 @@ export async function GET(request: Request) {
         selectedSheet.status === 'finalised' ? [] : moduleResultWarnings(selectedSources),
       branchSummaries,
       companyLmsSummary,
+      companySupplierSummary,
     }
     return apiOk(response, ACCOUNTING_PRIVATE_RESPONSE)
   } catch (error) {
