@@ -1,17 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Building2,
   CalendarDays,
   Check,
+  ExternalLink,
   FileSpreadsheet,
   Landmark,
   LockKeyhole,
   Plus,
   ReceiptText,
+  RefreshCw,
   ShieldCheck,
   WalletCards,
 } from 'lucide-react'
@@ -59,6 +61,23 @@ type LedgerMonth = {
   position: FinancialPosition
 }
 type Categories = Record<LedgerKind, string[]>
+type SourceSummary = {
+  key: 'ticketing' | 'packages' | 'pos' | 'lms'
+  label: string
+  count: number | null
+  income: number | null
+  expenses: number | null
+  net: number | null
+  href: string
+  available: boolean
+  note: string
+}
+type SourceSummaryPayload = {
+  branch: { id: string; name: string; branchCode: string | null }
+  month: string
+  sources: SourceSummary[]
+  sourceOfTruth: string
+}
 
 const GBP = new Intl.NumberFormat('en-GB', {
   style: 'currency',
@@ -102,6 +121,115 @@ function nextMonthLabel(label: string) {
   const date = new Date(label.slice(0, -5) + ' 1, ' + label.slice(-4))
   date.setMonth(date.getMonth() + 1)
   return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
+function monthKey(label: string) {
+  const parsed = new Date(`${label} 1`)
+  if (Number.isNaN(parsed.valueOf())) return ''
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`
+}
+
+function SourceActivityPanel({ branch, month }: { branch: string; month: string }) {
+  const [payload, setPayload] = useState<SourceSummaryPayload | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const period = monthKey(month)
+
+  const load = useCallback(async () => {
+    if (!period) return
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch(
+        `/api/accounting/ledger/source-summary?branch=${encodeURIComponent(branch)}&month=${period}`,
+        { cache: 'no-store' },
+      )
+      const data = (await response.json().catch(() => ({}))) as Partial<SourceSummaryPayload> & {
+        error?: string
+      }
+      if (!response.ok) throw new Error(data.error || 'Unable to load module activity.')
+      setPayload(data as SourceSummaryPayload)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to load module activity.')
+      setPayload(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [branch, period])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
+      <header className="flex flex-col justify-between gap-3 border-b border-violet-100 bg-violet-50 px-5 py-4 sm:flex-row sm:items-center">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-700">
+            Read-only source activity
+          </p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">Connected modules</h2>
+          <p className="mt-1 text-xs text-slate-600">
+            {branch} · {month}. These figures come from the source modules and are not copied into
+            manual ledger items.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 hover:bg-violet-100 disabled:opacity-60"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+      </header>
+      {error ? (
+        <div className="p-5 text-sm font-semibold text-rose-700">{error}</div>
+      ) : loading && !payload ? (
+        <div className="p-5 text-sm text-slate-500">Loading Ticketing, Packages, POS and LMS…</div>
+      ) : (
+        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+          {(payload?.sources || []).map((source) => (
+            <div key={source.key} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-black text-slate-950">{source.label}</p>
+                <Link
+                  href={source.href}
+                  className="rounded-md p-1 text-slate-400 hover:bg-white hover:text-violet-700"
+                  aria-label={`Open ${source.label}`}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              {!source.available ? (
+                <p className="mt-3 text-xs leading-5 text-slate-500">{source.note}</p>
+              ) : (
+                <>
+                  <p className="mt-3 text-2xl font-black text-slate-950">
+                    {source.count?.toLocaleString('en-GB') || '0'}
+                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    source records
+                  </p>
+                  {source.net !== null ? (
+                    <p className={`mt-2 text-sm font-black ${source.net < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                      {GBP.format(source.net)} net
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{source.note}</p>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {payload?.sourceOfTruth ? (
+        <p className="border-t border-violet-100 px-5 py-3 text-[11px] leading-5 text-violet-900">
+          {payload.sourceOfTruth}
+        </p>
+      ) : null}
+    </section>
+  )
 }
 
 function BlankEntry({
@@ -1349,6 +1477,7 @@ export default function BranchLedgerPrototype() {
             finalized={currentMonth.finalized}
             onUpdate={updatePosition}
           />
+          <SourceActivityPanel branch={selectedBranch} month={currentMonth.label} />
         </>
       ) : (
         <div className="space-y-4">
