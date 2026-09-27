@@ -7,33 +7,21 @@ import {
   PlaneTakeoff,
   TicketX,
   ArrowRight,
-  Link2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { FlightMonitoringPanel } from './FlightMonitoringPanel'
 
 const TICKETING_MODULES = [
   {
-    title: 'Replacement Cases',
+    title: 'Refunds & replacements',
     description:
-      'Link multiple replacement tickets, calculate responsibility and record later changes separately.',
-    icon: Link2,
-    tone: 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-red-50',
-    iconTone: 'bg-rose-100 text-rose-800',
-    href: '/dashboard/ticketing/replacement-cases',
-    available: true,
-    actionLabel: 'Open guided workflow',
-  },
-  {
-    title: 'Refund Calculator',
-    description:
-      'Calculate a safe customer refund or apply its value to a replacement ticket without hiding company costs.',
+      'Start with a refund, then switch to Replacement Cases when new tickets, responsibility or later exchanges need to be tracked.',
     icon: Calculator,
     tone: 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50',
     iconTone: 'bg-amber-100 text-amber-800',
     href: '/dashboard/ticketing/refund-calculator',
     available: true,
-    actionLabel: 'Open calculator',
+    actionLabel: 'Open adjustments',
   },
   {
     title: 'My Sales Ledger',
@@ -101,11 +89,11 @@ export function TicketingDashboard() {
             </h2>
           </div>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-            5 tools available
+            4 tools available
           </span>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {TICKETING_MODULES.map((moduleItem) => {
             const Icon = moduleItem.icon
             return (

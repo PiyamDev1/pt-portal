@@ -1,22 +1,18 @@
 import type { Metadata } from 'next'
 import { isSuperAdmin } from '@/lib/auth/superAdmin'
 import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
-import { TicketCancellationCalculator } from './TicketCancellationCalculator'
-import { RefundRegister } from './RefundRegister'
+import { TicketingRefundReplacementWorkspace } from '../TicketingRefundReplacementWorkspace'
 
 export const metadata: Metadata = {
-  title: 'Ticket Cancellation Calculator - PT Portal',
+  title: 'Refunds & Replacements - PT Portal',
   description:
-    'Preview ticket cancellation charges, customer refunds and safe replacement-ticket adjustments',
+    'Handle ticket refunds, cancellations, exchanges and multi-ticket replacement cases',
 }
 
 export default async function RefundCalculatorPage() {
   const access = await requireTicketingAccess()
   const superAdmin = access.authorized && isSuperAdmin(access.employee.role)
   return (
-    <div className="space-y-8">
-      <TicketCancellationCalculator isSuperAdmin={superAdmin} />
-      <RefundRegister />
-    </div>
+    <TicketingRefundReplacementWorkspace isSuperAdmin={superAdmin} />
   )
 }

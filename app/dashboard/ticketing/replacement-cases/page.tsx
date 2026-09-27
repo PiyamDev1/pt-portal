@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
-import { ReplacementCasesClient } from './ReplacementCasesClient'
+import { requireTicketingAccess } from '@/lib/ticketing/apiAuth'
+import { isSuperAdmin } from '@/lib/auth/superAdmin'
+import { TicketingRefundReplacementWorkspace } from '../TicketingRefundReplacementWorkspace'
 
 export const metadata: Metadata = {
-  title: 'Replacement Cases - PT Portal',
-  description: 'Guided multi-ticket replacement and later-change records',
+  title: 'Refunds & Replacements - PT Portal',
+  description: 'Refund and replacement workflows for ticketing adjustments',
 }
 
-export default function TicketReplacementCasesPage() {
-  return <ReplacementCasesClient />
+export default async function TicketReplacementCasesPage() {
+  const access = await requireTicketingAccess()
+  const superAdmin = access.authorized && isSuperAdmin(access.employee.role)
+  return <TicketingRefundReplacementWorkspace isSuperAdmin={superAdmin} initialTab="replacement" />
 }
