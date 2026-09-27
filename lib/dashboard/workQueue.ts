@@ -2,7 +2,7 @@ export type DashboardAttentionSeverity = 'critical' | 'warning' | 'info'
 
 export type DashboardAttentionItem = {
   id: string
-  moduleId: 'bookings' | 'ticketing' | 'lms'
+  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications'
   moduleLabel: string
   severity: DashboardAttentionSeverity
   title: string
@@ -36,6 +36,16 @@ export type LmsQueueSnapshot = {
   loadedAt: string
 }
 
+export type ApplicationsQueueSnapshot = {
+  available: boolean
+  partial: boolean
+  attentionCount: number
+  statusFollowUpCount: number
+  missingDocumentsCount: number
+  stalledCount: number
+  oldestAttentionAt: string | null
+}
+
 export type DashboardWorkQueue = {
   generatedAt: string
   items: DashboardAttentionItem[]
@@ -48,6 +58,7 @@ type BuildDashboardWorkQueueInput = {
   bookings?: BookingQueueSnapshot
   ticketing?: TicketingQueueSnapshot
   lms?: LmsQueueSnapshot
+  applications?: ApplicationsQueueSnapshot
 }
 
 const SEVERITY_ORDER: Record<DashboardAttentionSeverity, number> = {
@@ -67,6 +78,10 @@ function validDate(value: string | null | undefined, fallback: string) {
 
 function isWithinHours(value: string, generatedAt: string, hours: number) {
   return new Date(value).getTime() <= new Date(generatedAt).getTime() + hours * 60 * 60 * 1000
+}
+
+function isOlderThanDays(value: string, generatedAt: string, days: number) {
+  return new Date(value).getTime() < new Date(generatedAt).getTime() - days * 24 * 60 * 60 * 1000
 }
 
 function plural(count: number, singular: string, pluralValue = `${singular}s`) {
@@ -183,6 +198,60 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           dateLabel: 'Checked',
           reference: 'LMS · active accounts',
           href: '/dashboard/lms?filter=active',
+        })
+      }
+    }
+  }
+
+  if (visibleModules.has('applications')) {
+    if (!input.applications?.available) {
+      unavailableProviders.push('Applications')
+    } else {
+      if (input.applications.partial) unavailableProviders.push('Applications (partial)')
+
+      const count = safeCount(input.applications.attentionCount)
+      if (count > 0) {
+        const date = validDate(input.applications.oldestAttentionAt, input.generatedAt)
+        const detailParts = (
+          [
+            [
+              safeCount(input.applications.statusFollowUpCount),
+              'status follow-up',
+              'status follow-ups',
+            ],
+            [
+              safeCount(input.applications.missingDocumentsCount),
+              'record with no linked documents',
+              'records with no linked documents',
+            ],
+            [
+              safeCount(input.applications.stalledCount),
+              'record over 7 days',
+              'records over 7 days',
+            ],
+          ] as Array<[number, string, string]>
+        )
+          .filter(([partCount]) => partCount > 0)
+          .map(
+            ([partCount, singular, pluralValue]) =>
+              `${partCount} ${plural(partCount, singular, pluralValue)}`,
+          )
+
+        items.push({
+          id: 'applications-attention',
+          moduleId: 'applications',
+          moduleLabel: 'Applications',
+          severity: isOlderThanDays(date, input.generatedAt, 14) ? 'critical' : 'warning',
+          title: `${count} ${plural(count, 'application')} need review`,
+          detail:
+            detailParts.length > 0
+              ? `${detailParts.join(', ')}.`
+              : 'Application records flagged by the shared summary.',
+          count,
+          date,
+          dateLabel: 'Oldest record',
+          reference: 'Applications - shared summary',
+          href: '/dashboard/applications#attention',
         })
       }
     }

@@ -250,6 +250,7 @@ export default async function Dashboard() {
     employeeId: session.user.id,
     locationId: location?.id || null,
     locationName: location?.name || null,
+    roleName: role?.name || '',
   })
 
   return (

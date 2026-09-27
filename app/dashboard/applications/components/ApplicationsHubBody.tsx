@@ -6,24 +6,15 @@
  */
 
 import Link from 'next/link'
+import type {
+  ApplicationAgingBreakdown,
+  ApplicationSourceKey,
+  ApplicationSummaryRecord,
+} from '@/lib/applications/summary'
 
-type ServiceKey = 'nadra' | 'pak-passport' | 'gb-passport' | 'visa'
-
-type NormRecord = {
-  id: string
-  applicantName: string
-  service: ServiceKey
-  serviceLabel: string
-  status: string
-  createdAt: string
-  trackingNumber: string
-}
-
-type AgingBreakdown = {
-  zeroToTwo: number
-  threeToSeven: number
-  eightPlus: number
-}
+type ServiceKey = ApplicationSourceKey
+type NormRecord = ApplicationSummaryRecord
+type AgingBreakdown = ApplicationAgingBreakdown
 
 type ServiceMetric = {
   total: number
@@ -208,7 +199,19 @@ function ServiceCard({
   )
 }
 
-function ActivityRow({ item }: { item: NormRecord }) {
+const ATTENTION_LABELS = {
+  status_follow_up: 'Status follow-up',
+  missing_documents: 'No linked documents',
+  stalled: 'Over 7 days',
+} as const
+
+function ActivityRow({
+  item,
+  showAttentionReasons = false,
+}: {
+  item: NormRecord
+  showAttentionReasons?: boolean
+}) {
   const tag = SERVICE_TAG[item.service]
   const badge = STATUS_BADGE[item.status] || 'bg-slate-50 text-slate-600 border-slate-200'
   return (
@@ -223,6 +226,11 @@ function ActivityRow({ item }: { item: NormRecord }) {
           </span>
           <span className="text-[11px] text-slate-500 truncate">{item.serviceLabel}</span>
         </div>
+        {showAttentionReasons && item.attentionReasons.length > 0 && (
+          <p className="mt-1 text-[10px] font-medium text-amber-700">
+            {item.attentionReasons.map((reason) => ATTENTION_LABELS[reason]).join(' · ')}
+          </p>
+        )}
       </div>
       <div className="flex flex-col items-end gap-0.5 shrink-0">
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge}`}>
@@ -373,7 +381,10 @@ export function ApplicationsHubBody({
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div
+          id="attention"
+          className="scroll-mt-24 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+        >
           <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60 flex justify-between items-center">
             <h2 className="font-bold text-slate-700 text-sm">Needs Attention</h2>
             {grandAttention > 0 ? (
@@ -394,7 +405,11 @@ export function ApplicationsHubBody({
               </div>
             ) : (
               attentionRecords.map((item, i) => (
-                <ActivityRow key={`attn-${item.service}-${item.id}-${i}`} item={item} />
+                <ActivityRow
+                  key={`attn-${item.service}-${item.id}-${i}`}
+                  item={item}
+                  showAttentionReasons
+                />
               ))
             )}
           </div>

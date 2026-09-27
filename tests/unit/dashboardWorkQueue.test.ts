@@ -132,4 +132,51 @@ describe('dashboard work queue', () => {
 
     expect(queue.items).toEqual([])
   })
+
+  it('adds one de-duplicated Applications item linked to the shared attention view', () => {
+    const queue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['applications'],
+      applications: {
+        available: true,
+        partial: false,
+        attentionCount: 4,
+        statusFollowUpCount: 3,
+        missingDocumentsCount: 2,
+        stalledCount: 1,
+        oldestAttentionAt: '2026-09-10T09:00:00.000Z',
+      },
+    })
+
+    expect(queue.unavailableProviders).toEqual([])
+    expect(queue.items).toEqual([
+      expect.objectContaining({
+        id: 'applications-attention',
+        moduleId: 'applications',
+        severity: 'critical',
+        count: 4,
+        detail: '3 status follow-ups, 2 records with no linked documents, 1 record over 7 days.',
+        href: '/dashboard/applications#attention',
+      }),
+    ])
+  })
+
+  it('shows partial Applications data without presenting it as all clear', () => {
+    const queue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['applications'],
+      applications: {
+        available: true,
+        partial: true,
+        attentionCount: 0,
+        statusFollowUpCount: 0,
+        missingDocumentsCount: 0,
+        stalledCount: 0,
+        oldestAttentionAt: null,
+      },
+    })
+
+    expect(queue.items).toEqual([])
+    expect(queue.unavailableProviders).toEqual(['Applications (partial)'])
+  })
 })

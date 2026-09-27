@@ -62,6 +62,7 @@ Password login accepts a bounded normalized email/password body, applies IP and 
 | `GET`                   | `/api/nadra/status-history`          |
 | `POST`                  | `/api/nadra/update-status`           |
 | `GET`, `POST`, `DELETE` | `/api/applications/notes-read`       |
+| `GET`                   | `/api/applications/summary`          |
 | `POST`                  | `/api/passports/pak/add-application` |
 | `GET`, `POST`           | `/api/passports/pak/drafts`          |
 | `POST`                  | `/api/passports/pak/manage-record`   |

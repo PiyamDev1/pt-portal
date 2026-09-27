@@ -1,10 +1,33 @@
 # Applications, Passports, Visas, Documents, and Issue Reports API
 
-Last verified against source: August 12, 2026.
+Last verified against source: September 28, 2026.
 
 All routes in this document return JSON unless an entry explicitly describes a
 stream or redirect. Staff routes authenticate with the Supabase session cookie.
 IDs are opaque strings; clients should not infer their format.
+
+## Shared application summary
+
+### GET `/api/applications/summary`
+
+**Access:** Active authenticated staff. Source rows are loaded through the
+caller's authenticated Supabase client, so existing row-level security remains
+authoritative.
+
+**Input:** None.
+
+**Success:** `200` with private `no-store` caching. The response contains
+`generatedAt`, `ageBasis: "created_at"`, aggregate `totals`, per-service
+`sources`, up to 18 newest `recent` records, up to 32 oldest-first
+`attentionItems`, and bounded `warnings` for unavailable sources. NADRA,
+Pakistani Passport, GB Passport, and Visa keep their own status rules and
+tables. Attention reasons are `status_follow_up`, `missing_documents`, and
+`stalled`; each application contributes at most once to the attention total.
+Missing-document checks currently apply only to Pakistani Passport records
+with the supported linked parent-application marker.
+
+**Errors:** `401` no valid session; `403` missing or inactive employee profile;
+`500` session verification or summary failure. Database details are not exposed.
 
 ## Application note-read state
 

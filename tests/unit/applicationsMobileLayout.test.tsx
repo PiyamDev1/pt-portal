@@ -62,6 +62,7 @@ describe('ApplicationsHubBody mobile composition', () => {
 
     expect(container.querySelector('.applications-service-grid')).toBeTruthy()
     expect(container.querySelectorAll('.applications-service-card')).toHaveLength(2)
+    expect(container.querySelector('#attention')?.textContent).toContain('Needs Attention')
     expect(screen.getAllByText('Open')).toHaveLength(2)
     expect(screen.getAllByText('Open Module')).toHaveLength(2)
   })

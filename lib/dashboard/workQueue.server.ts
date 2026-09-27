@@ -3,7 +3,14 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadCompanyLmsLiveSummary } from '@/lib/accounting/companySources'
 import {
+  APPLICATION_SOURCE_KEYS,
+  getApplicationSourceVisibility,
+  totalVisibleApplicationMetrics,
+} from '@/lib/applications/summary'
+import { loadApplicationSummary } from '@/lib/applications/summary.server'
+import {
   buildDashboardWorkQueue,
+  type ApplicationsQueueSnapshot,
   type BookingQueueSnapshot,
   type DashboardWorkQueue,
   type LmsQueueSnapshot,
@@ -17,6 +24,7 @@ type LoadDashboardWorkQueueInput = {
   employeeId: string
   locationId: string | null
   locationName: string | null
+  roleName: string
   now?: Date
 }
 
@@ -148,12 +156,53 @@ async function loadLmsQueueSnapshot(supabase: SupabaseClient): Promise<LmsQueueS
   }
 }
 
+async function loadApplicationsQueueSnapshot(
+  supabase: SupabaseClient,
+  generatedAt: string,
+  roleName: string,
+): Promise<ApplicationsQueueSnapshot> {
+  try {
+    const summary = await loadApplicationSummary(supabase, generatedAt)
+    const visibility = getApplicationSourceVisibility(roleName)
+    const visibleSources = APPLICATION_SOURCE_KEYS.filter((source) => visibility[source])
+    const availableSourceCount = APPLICATION_SOURCE_KEYS.filter(
+      (source) => visibility[source] && summary.sources[source].available,
+    ).length
+    const totals = totalVisibleApplicationMetrics(summary, visibility)
+    const oldestAttentionAt =
+      summary.attentionItems.find(
+        (record) =>
+          visibility[record.service] && Number.isFinite(new Date(record.createdAt).getTime()),
+      )?.createdAt || null
+
+    return {
+      available: availableSourceCount > 0,
+      partial: availableSourceCount > 0 && availableSourceCount < visibleSources.length,
+      attentionCount: totals.attention,
+      statusFollowUpCount: totals.statusFollowUp,
+      missingDocumentsCount: totals.missingDocuments,
+      stalledCount: totals.stalled,
+      oldestAttentionAt,
+    }
+  } catch {
+    return {
+      available: false,
+      partial: false,
+      attentionCount: 0,
+      statusFollowUpCount: 0,
+      missingDocumentsCount: 0,
+      stalledCount: 0,
+      oldestAttentionAt: null,
+    }
+  }
+}
+
 export async function loadDashboardWorkQueue(
   input: LoadDashboardWorkQueueInput,
 ): Promise<DashboardWorkQueue> {
   const generatedAt = (input.now || new Date()).toISOString()
   const visibleModuleIds = new Set(input.visibleModuleIds)
-  const [bookings, ticketing, lms] = await Promise.all([
+  const [bookings, ticketing, lms, applications] = await Promise.all([
     visibleModuleIds.has('bookings')
       ? loadBookingQueueSnapshot(
           input.userSupabase,
@@ -166,6 +215,9 @@ export async function loadDashboardWorkQueue(
       ? loadTicketingQueueSnapshot(input.serviceSupabase, input.employeeId, generatedAt)
       : undefined,
     visibleModuleIds.has('lms') ? loadLmsQueueSnapshot(input.serviceSupabase) : undefined,
+    visibleModuleIds.has('applications')
+      ? loadApplicationsQueueSnapshot(input.userSupabase, generatedAt, input.roleName)
+      : undefined,
   ])
 
   return buildDashboardWorkQueue({
@@ -174,5 +226,6 @@ export async function loadDashboardWorkQueue(
     bookings,
     ticketing,
     lms,
+    applications,
   })
 }

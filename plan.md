@@ -218,10 +218,15 @@ The NADRA, Pakistani Passport, GB Passport, and Visa areas repeat status, histor
 
 Create:
 
-- one read-only application summary endpoint for counts, recent records, attention items, and aging;
+- [x] one read-only application summary endpoint for counts, recent records, attention items, and aging;
 - shared UI primitives for applicant identity, status history, notes, documents, receipts, and amount display;
-- service adapters that map each service's own statuses and tables to the shared view model;
+- [x] service adapters that map each service's own statuses and tables to the shared summary view model;
 - one receipt contract, including Visa, with idempotent generation.
+
+The shared summary now powers the Applications Hub and its dashboard Attention Centre provider.
+It keeps source records under existing RLS, reports partial-source failures without treating them as
+an all-clear result, and distinguishes status follow-up, supported Pakistani Passport document
+markers, and creation-date aging without double-counting one application.
 
 Do not merge the underlying service schemas.
 
@@ -336,11 +341,11 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 ### Phase 2: duplicate workflow reduction
 
 - [ ] Extract the shared booking service.
-- [ ] Add the Applications summary endpoint and shared view model.
+- [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
 - [ ] Add live Company Ledger summaries for company-wide positions. LMS is complete; supplier and bank sources remain pending.
-- [x] Introduce the first dashboard work queue providers for Bookings, Ticketing, and LMS, including source links and unavailable-provider handling.
-- [ ] Expand the dashboard work queue to Applications, Packages, POS, Frappe, Training, and Admin after each module exposes a trustworthy attention summary.
+- [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, and Applications, including source links and unavailable-provider handling.
+- [ ] Expand the dashboard work queue to Packages, POS, Frappe, Training, and Admin after each module exposes a trustworthy attention summary.
 
 ### Phase 3: maintainability and consistency
 
