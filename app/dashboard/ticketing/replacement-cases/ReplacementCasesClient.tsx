@@ -316,6 +316,26 @@ function Stat({ label, value, tone = 'slate' }: { label: string; value: string; 
   )
 }
 
+function CalculationLine({
+  label,
+  expression,
+  result,
+}: {
+  label: string
+  expression: string
+  result: number
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-xs font-black text-slate-800">{label}</p>
+        <p className="text-sm font-black text-slate-950">{gbp(result)}</p>
+      </div>
+      <p className="mt-1 font-mono text-[11px] leading-5 text-slate-500">{expression}</p>
+    </div>
+  )
+}
+
 export function ReplacementCasesClient() {
   const [tab, setTab] = useState<Tab>('entry')
   const [page, setPage] = useState<TicketingReplacementCasePage | null>(null)
@@ -1064,6 +1084,13 @@ function ReplacementCaseCard({
                   {gbp(item.original.supplierCostGbp)}. The original margin was{' '}
                   {gbp(Math.max(item.original.salePriceGbp - item.original.supplierCostGbp, 0))}.
                 </p>
+                <div className="mt-3">
+                  <CalculationLine
+                    label="Original margin"
+                    expression={`${gbp(item.original.salePriceGbp)} − ${gbp(item.original.supplierCostGbp)}`}
+                    result={Math.max(item.original.salePriceGbp - item.original.supplierCostGbp, 0)}
+                  />
+                </div>
               </li>
               <li className="rounded-xl border border-white bg-white p-3 shadow-sm">
                 <p className="text-xs font-black text-[#8b1e2d]">2 · Replacement recorded</p>
@@ -1073,6 +1100,29 @@ function ReplacementCaseCard({
                   {gbp(item.employeeRecoveryGbp)} and the business absorbs{' '}
                   {gbp(item.companyMarginAbsorbedGbp)}.
                 </p>
+                <div className="mt-3 space-y-2">
+                  <CalculationLine
+                    label="Supplier-cost increase"
+                    expression={`${gbp(item.replacementSupplierCostGbp)} − ${gbp(item.original.supplierCostGbp)}`}
+                    result={item.supplierCostIncreaseGbp}
+                  />
+                  <CalculationLine
+                    label="Employee recovery"
+                    expression={
+                      item.recoveryPolicy === 'above_customer_sale'
+                        ? `max(${gbp(item.replacementSupplierCostGbp)} − ${gbp(item.original.salePriceGbp)}, 0)`
+                        : item.recoveryPolicy === 'full_cost_increase'
+                          ? `max(${gbp(item.replacementSupplierCostGbp)} − ${gbp(item.original.supplierCostGbp)}, 0)`
+                          : 'business absorbs the increase'
+                    }
+                    result={item.employeeRecoveryGbp}
+                  />
+                  <CalculationLine
+                    label="Business absorbed"
+                    expression={`${gbp(item.supplierCostIncreaseGbp)} − ${gbp(item.employeeRecoveryGbp)}`}
+                    result={item.companyMarginAbsorbedGbp}
+                  />
+                </div>
               </li>
               <li className="rounded-xl border border-white bg-white p-3 shadow-sm">
                 <p className="text-xs font-black text-[#8b1e2d]">3 · Current position</p>
@@ -1081,6 +1131,15 @@ function ReplacementCaseCard({
                     ? 'No later cancellation or date-change event has been recorded.'
                     : `Later changes currently net ${gbp(laterTotals.result)} after refunds, new ticket costs and customer charges.`}
                 </p>
+                {item.changes.length > 0 && (
+                  <div className="mt-3">
+                    <CalculationLine
+                      label="Current position"
+                      expression={`${gbp(laterTotals.result)} − ${gbp(item.companyMarginAbsorbedGbp)} (original absorbed margin)`}
+                      result={currentNetPosition}
+                    />
+                  </div>
+                )}
               </li>
             </ol>
           </section>
@@ -1118,6 +1177,13 @@ function ReplacementCaseCard({
                 {gbp(change.airlineCancellationFeeGbp)} · supplier admin fee{' '}
                 {gbp(change.supplierAdminFeeGbp)} · customer charge {gbp(change.customerChargeGbp)}.
               </p>
+              <div className="mt-3">
+                <CalculationLine
+                  label="Later-event calculation"
+                  expression={`${gbp(change.supplierRefundGbp)} + ${gbp(change.customerChargeGbp)} − ${gbp(change.newSupplierCostGbp)}`}
+                  result={change.incrementalResultGbp}
+                />
+              </div>
             </div>
           ))}
           {item.changes.length > 0 && (
@@ -1132,6 +1198,18 @@ function ReplacementCaseCard({
                 <Stat label="Net supplier refunds" value={gbp(laterTotals.supplierRefund)} />
                 <Stat label="Customer charges" value={gbp(laterTotals.customerCharge)} />
                 <Stat label="New ticket costs" value={gbp(laterTotals.newCost)} />
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <CalculationLine
+                  label="Net supplier refunds"
+                  expression={`${gbp(laterTotals.predictedRefund)} − ${gbp(laterTotals.cancellationFee)} − ${gbp(laterTotals.supplierAdmin)}`}
+                  result={laterTotals.supplierRefund}
+                />
+                <CalculationLine
+                  label="Later-event result"
+                  expression={`${gbp(laterTotals.supplierRefund)} + ${gbp(laterTotals.customerCharge)} − ${gbp(laterTotals.newCost)}`}
+                  result={laterTotals.result}
+                />
               </div>
               <p className="mt-3 text-sm leading-5 text-emerald-950">
                 These later events currently change the case by {gbp(laterTotals.result)} after
