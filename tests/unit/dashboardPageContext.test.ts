@@ -71,4 +71,34 @@ describe('loadDashboardPageContext', () => {
     expect(mocks.redirect).toHaveBeenCalledWith('/login')
     expect(supabase.from).not.toHaveBeenCalled()
   })
+
+  it('uses the authenticated display name when the employee profile has no name', async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { full_name: null, roles: null, locations: null },
+    })
+    const eq = vi.fn(() => ({ single }))
+    const select = vi.fn(() => ({ eq }))
+    const supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: {
+            user: {
+              id: 'employee-2',
+              user_metadata: { full_name: '  Omar Ali  ' },
+            },
+          },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => ({ select })),
+    }
+    mocks.getRouteSupabaseClient.mockResolvedValue(supabase)
+
+    await expect(loadDashboardPageContext()).resolves.toMatchObject({
+      userId: 'employee-2',
+      employeeName: 'Omar Ali',
+      role: undefined,
+      location: undefined,
+    })
+  })
 })

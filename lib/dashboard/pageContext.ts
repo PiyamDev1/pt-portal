@@ -40,11 +40,15 @@ export async function loadDashboardPageContext() {
   const employee = data as EmployeePageContextRow | null
   const role = firstRelated(employee?.roles)
   const location = firstRelated(employee?.locations)
+  const authDisplayName =
+    typeof user.user_metadata?.full_name === 'string'
+      ? user.user_metadata.full_name.trim()
+      : undefined
 
   return {
     supabase,
     userId: user.id,
-    employeeName: employee?.full_name || undefined,
+    employeeName: employee?.full_name || authDisplayName || undefined,
     role: role?.name || undefined,
     location: location || undefined,
   }

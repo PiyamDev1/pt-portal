@@ -1,11 +1,8 @@
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
 import type { PackageEmployeeOption, PackageLocationOption } from './packageOverviewTypes'
 import PackageOverviewClient from './PackageOverviewClient'
-import { getPackagePageHeader } from '../packagePageHeader'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 
 export const metadata = {
   title: 'Package Folder - PT Portal',
@@ -18,37 +15,8 @@ export default async function TravelPackageFolderPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) redirect('/login')
-
-  const header = await getPackagePageHeader(
-    supabase,
-    session.user.id,
-    session.user.user_metadata?.full_name,
-  )
+  const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
+  const currentUserRole = role || 'Employee'
   const [{ data: employeeRows }, { data: locationRows }] = await Promise.all([
     supabase
       .from('employees')
@@ -64,10 +32,10 @@ export default async function TravelPackageFolderPage({
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 text-slate-950">
         <PageHeader
-          employeeName={header.employeeName}
-          role={header.role}
-          location={header.location}
-          userId={session.user.id}
+          employeeName={employeeName}
+          role={currentUserRole}
+          location={location}
+          userId={userId}
         />
 
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
