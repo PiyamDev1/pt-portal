@@ -29,6 +29,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - POS now exposes a branch-scoped, current-month reconciliation summary to the dashboard using the same latest-event rule as its ledger and reports; cash and supplier-direct remittances stay outside that queue, and its deep link opens the filtered monthly ledger.
 - Settings-authorised staff now receive one Frappe HRMS integration-health item for durable database failures and conflicts; it links to the existing Maintenance panel without pinging Frappe or triggering sync work from the dashboard.
 - Each employee now receives one de-duplicated Training item for incomplete, overdue, due-soon, expired, or expiring enrolments/certificates, using only their active-course records and linking back to Training.
+- Packages now shares its Action centre predicates with the dashboard, combining urgent active folders, selected standalone quotations, and expired standalone links while leaving grouped quotations in their group workflow.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -349,8 +350,8 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 - [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
 - [ ] Add live Company Ledger summaries for company-wide positions. LMS and supplier summaries are complete; named bank balances remain pending until a trustworthy bank-account source exists.
-- [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, Applications, POS, Frappe HRMS, and Training, including source links and unavailable-provider handling.
-- [ ] Expand the dashboard work queue to Packages and Admin after each module exposes a trustworthy attention summary.
+- [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, Applications, Packages, POS, Frappe HRMS, and Training, including source links and unavailable-provider handling.
+- [ ] Expand the dashboard work queue to Admin after it exposes a trustworthy attention summary.
 
 ### Phase 3: maintainability and consistency
 

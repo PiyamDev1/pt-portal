@@ -33,6 +33,13 @@ import {
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
 } from '@/lib/packageQuote'
+import {
+  isActivePackageFolder,
+  isExpiredPackageQuoteToClear,
+  isPackageFolderNeedingAttention,
+  isPackageFolderOverdue,
+  isPackageQuoteReadyForConversion,
+} from '@/lib/packages/attentionSummary'
 
 type PackagesDashboardClientProps = {
   currentUserId: string
@@ -239,21 +246,11 @@ function getPackageOperationalSortValue(packageFolder: TravelPackageFolder) {
   return { riskRank, overdueRank, departure, updated }
 }
 
-function isActivePackage(packageFolder: TravelPackageFolder) {
-  return !['archived', 'cancelled', 'returned', 'closed'].includes(packageFolder.status)
-}
-
 function getPackageDueLabel(packageFolder: TravelPackageFolder) {
   if (!packageFolder.next_action_due_at) return 'No follow-up date'
   const dueAt = Date.parse(packageFolder.next_action_due_at)
   if (!Number.isFinite(dueAt)) return 'No follow-up date'
   return `${dueAt < Date.now() ? 'Overdue' : 'Due'} ${formatDate(packageFolder.next_action_due_at)}`
-}
-
-function isPackageOverdue(packageFolder: TravelPackageFolder) {
-  if (!packageFolder.next_action_due_at) return false
-  const dueAt = Date.parse(packageFolder.next_action_due_at)
-  return Number.isFinite(dueAt) && dueAt < Date.now()
 }
 
 function tabMatchesPackage(activeTab: MainTab, packageFolder: TravelPackageFolder) {
@@ -273,7 +270,7 @@ function tabMatchesPackage(activeTab: MainTab, packageFolder: TravelPackageFolde
       'documents_pending',
     ].includes(packageFolder.status)
   }
-  return isActivePackage(packageFolder)
+  return isActivePackageFolder(packageFolder)
 }
 
 export default function PackagesDashboardClient({ currentUserRole }: PackagesDashboardClientProps) {
@@ -366,7 +363,7 @@ export default function PackagesDashboardClient({ currentUserRole }: PackagesDas
   )
 
   const activePackages = useMemo(
-    () => packages.filter((packageFolder) => isActivePackage(packageFolder)),
+    () => packages.filter((packageFolder) => isActivePackageFolder(packageFolder)),
     [packages],
   )
 
@@ -471,31 +468,19 @@ export default function PackagesDashboardClient({ currentUserRole }: PackagesDas
   }, [activeTab, packages, searchTerm])
 
   const selectedQuotesReadyToConvert = useMemo(
-    () =>
-      standaloneQuotes.filter((quote) => Boolean(quote.selected_at) && !quote.converted_package_id),
+    () => standaloneQuotes.filter(isPackageQuoteReadyForConversion),
     [standaloneQuotes],
   )
 
   const expiredQuotesToClear = useMemo(
-    () =>
-      standaloneQuotes.filter(
-        (quote) =>
-          isPackageQuoteExpired(quote.expires_at) &&
-          !quote.converted_package_id &&
-          quote.status !== 'archived' &&
-          !quote.selected_at,
-      ),
+    () => standaloneQuotes.filter((quote) => isExpiredPackageQuoteToClear(quote)),
     [standaloneQuotes],
   )
 
   const packagesNeedingAttention = useMemo(
     () =>
       activePackages
-        .filter(
-          (packageFolder) =>
-            isPackageOverdue(packageFolder) ||
-            ['medium', 'high', 'critical'].includes(packageFolder.risk_level),
-        )
+        .filter((packageFolder) => isPackageFolderNeedingAttention(packageFolder))
         .sort((left, right) => {
           const leftValue = getPackageOperationalSortValue(left)
           const rightValue = getPackageOperationalSortValue(right)
@@ -861,7 +846,9 @@ export default function PackagesDashboardClient({ currentUserRole }: PackagesDas
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <span
                           className={`text-xs font-black ${
-                            isPackageOverdue(packageFolder) ? 'text-red-700' : 'text-slate-600'
+                            isPackageFolderOverdue(packageFolder)
+                              ? 'text-red-700'
+                              : 'text-slate-600'
                           }`}
                         >
                           {getPackageDueLabel(packageFolder)}

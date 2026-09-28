@@ -274,4 +274,34 @@ describe('dashboard work queue', () => {
       }),
     ])
   })
+
+  it('adds one Packages item from the shared Action centre rules', () => {
+    const queue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['packages'],
+      packages: {
+        available: true,
+        attentionCount: 4,
+        packageCount: 2,
+        overduePackageCount: 1,
+        criticalPackageCount: 1,
+        highRiskPackageCount: 0,
+        selectedQuoteCount: 1,
+        expiredQuoteCount: 1,
+        oldestAttentionAt: '2026-09-20T09:00:00.000Z',
+      },
+    })
+
+    expect(queue.items).toEqual([
+      expect.objectContaining({
+        id: 'packages-attention',
+        moduleId: 'packages',
+        severity: 'critical',
+        count: 4,
+        detail:
+          '2 package follow-ups, 1 customer selection, 1 expired customer link. Package follow-ups include 1 overdue package, 1 critical-risk package.',
+        href: '/dashboard/packages',
+      }),
+    ])
+  })
 })

@@ -15,11 +15,13 @@ import {
   type DashboardWorkQueue,
   type FrappeQueueSnapshot,
   type LmsQueueSnapshot,
+  type PackageQueueSnapshot,
   type PosQueueSnapshot,
   type TicketingQueueSnapshot,
   type TrainingQueueSnapshot,
 } from '@/lib/dashboard/workQueue'
 import { loadFrappeAttentionSummary } from '@/lib/integrations/frappe/attentionSummary.server'
+import { loadPackageAttentionSummary } from '@/lib/packages/attentionSummary.server'
 import { loadPosReconciliationAttentionSummary } from '@/lib/pos/reconciliationSummary.server'
 import { loadTrainingAttentionSummary } from '@/lib/training/attentionSummary.server'
 
@@ -217,6 +219,13 @@ async function loadPosQueueSnapshot(
   })
 }
 
+async function loadPackageQueueSnapshot(
+  supabase: SupabaseClient,
+  generatedAt: string,
+): Promise<PackageQueueSnapshot> {
+  return loadPackageAttentionSummary(supabase, generatedAt)
+}
+
 async function loadFrappeQueueSnapshot(supabase: SupabaseClient): Promise<FrappeQueueSnapshot> {
   return loadFrappeAttentionSummary(supabase)
 }
@@ -238,30 +247,34 @@ export async function loadDashboardWorkQueue(
 ): Promise<DashboardWorkQueue> {
   const generatedAt = (input.now || new Date()).toISOString()
   const visibleModuleIds = new Set(input.visibleModuleIds)
-  const [bookings, ticketing, lms, applications, pos, frappe, training] = await Promise.all([
-    visibleModuleIds.has('bookings')
-      ? loadBookingQueueSnapshot(
-          input.userSupabase,
-          input.locationId,
-          input.locationName,
-          generatedAt,
-        )
-      : undefined,
-    visibleModuleIds.has('ticketing')
-      ? loadTicketingQueueSnapshot(input.serviceSupabase, input.employeeId, generatedAt)
-      : undefined,
-    visibleModuleIds.has('lms') ? loadLmsQueueSnapshot(input.serviceSupabase) : undefined,
-    visibleModuleIds.has('applications')
-      ? loadApplicationsQueueSnapshot(input.userSupabase, generatedAt, input.roleName)
-      : undefined,
-    visibleModuleIds.has('pos')
-      ? loadPosQueueSnapshot(input.serviceSupabase, input, generatedAt)
-      : undefined,
-    visibleModuleIds.has('settings') ? loadFrappeQueueSnapshot(input.serviceSupabase) : undefined,
-    visibleModuleIds.has('training')
-      ? loadTrainingQueueSnapshot(input.userSupabase, input, generatedAt)
-      : undefined,
-  ])
+  const [bookings, ticketing, lms, applications, packages, pos, frappe, training] =
+    await Promise.all([
+      visibleModuleIds.has('bookings')
+        ? loadBookingQueueSnapshot(
+            input.userSupabase,
+            input.locationId,
+            input.locationName,
+            generatedAt,
+          )
+        : undefined,
+      visibleModuleIds.has('ticketing')
+        ? loadTicketingQueueSnapshot(input.serviceSupabase, input.employeeId, generatedAt)
+        : undefined,
+      visibleModuleIds.has('lms') ? loadLmsQueueSnapshot(input.serviceSupabase) : undefined,
+      visibleModuleIds.has('applications')
+        ? loadApplicationsQueueSnapshot(input.userSupabase, generatedAt, input.roleName)
+        : undefined,
+      visibleModuleIds.has('packages')
+        ? loadPackageQueueSnapshot(input.userSupabase, generatedAt)
+        : undefined,
+      visibleModuleIds.has('pos')
+        ? loadPosQueueSnapshot(input.serviceSupabase, input, generatedAt)
+        : undefined,
+      visibleModuleIds.has('settings') ? loadFrappeQueueSnapshot(input.serviceSupabase) : undefined,
+      visibleModuleIds.has('training')
+        ? loadTrainingQueueSnapshot(input.userSupabase, input, generatedAt)
+        : undefined,
+    ])
 
   return buildDashboardWorkQueue({
     generatedAt,
@@ -270,6 +283,7 @@ export async function loadDashboardWorkQueue(
     ticketing,
     lms,
     applications,
+    packages,
     pos,
     frappe,
     training,

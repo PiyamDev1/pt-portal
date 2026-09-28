@@ -2,7 +2,15 @@ export type DashboardAttentionSeverity = 'critical' | 'warning' | 'info'
 
 export type DashboardAttentionItem = {
   id: string
-  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications' | 'pos' | 'settings' | 'training'
+  moduleId:
+    | 'bookings'
+    | 'ticketing'
+    | 'lms'
+    | 'applications'
+    | 'packages'
+    | 'pos'
+    | 'settings'
+    | 'training'
   moduleLabel: string
   severity: DashboardAttentionSeverity
   title: string
@@ -55,6 +63,18 @@ export type PosQueueSnapshot = {
   branchName: string
 }
 
+export type PackageQueueSnapshot = {
+  available: boolean
+  attentionCount: number
+  packageCount: number
+  overduePackageCount: number
+  criticalPackageCount: number
+  highRiskPackageCount: number
+  selectedQuoteCount: number
+  expiredQuoteCount: number
+  oldestAttentionAt: string | null
+}
+
 export type FrappeQueueSnapshot = {
   available: boolean
   outboxDeadLetterCount: number
@@ -89,6 +109,7 @@ type BuildDashboardWorkQueueInput = {
   ticketing?: TicketingQueueSnapshot
   lms?: LmsQueueSnapshot
   applications?: ApplicationsQueueSnapshot
+  packages?: PackageQueueSnapshot
   pos?: PosQueueSnapshot
   frappe?: FrappeQueueSnapshot
   training?: TrainingQueueSnapshot
@@ -285,6 +306,62 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           dateLabel: 'Oldest record',
           reference: 'Applications - shared summary',
           href: '/dashboard/applications#attention',
+        })
+      }
+    }
+  }
+
+  if (visibleModules.has('packages')) {
+    if (!input.packages?.available) {
+      unavailableProviders.push('Packages')
+    } else {
+      const count = safeCount(input.packages.attentionCount)
+      if (count > 0) {
+        const packageCount = safeCount(input.packages.packageCount)
+        const overdueCount = safeCount(input.packages.overduePackageCount)
+        const criticalCount = safeCount(input.packages.criticalPackageCount)
+        const highRiskCount = safeCount(input.packages.highRiskPackageCount)
+        const selectedQuoteCount = safeCount(input.packages.selectedQuoteCount)
+        const expiredQuoteCount = safeCount(input.packages.expiredQuoteCount)
+        const categoryParts = (
+          [
+            [packageCount, 'package follow-up', 'package follow-ups'],
+            [selectedQuoteCount, 'customer selection', 'customer selections'],
+            [expiredQuoteCount, 'expired customer link', 'expired customer links'],
+          ] as Array<[number, string, string]>
+        )
+          .filter(([partCount]) => partCount > 0)
+          .map(
+            ([partCount, singular, pluralValue]) =>
+              `${partCount} ${plural(partCount, singular, pluralValue)}`,
+          )
+        const urgentParts = (
+          [
+            [overdueCount, 'overdue package', 'overdue packages'],
+            [criticalCount, 'critical-risk package', 'critical-risk packages'],
+            [highRiskCount, 'high-risk package', 'high-risk packages'],
+          ] as Array<[number, string, string]>
+        )
+          .filter(([partCount]) => partCount > 0)
+          .map(
+            ([partCount, singular, pluralValue]) =>
+              `${partCount} ${plural(partCount, singular, pluralValue)}`,
+          )
+
+        items.push({
+          id: 'packages-attention',
+          moduleId: 'packages',
+          moduleLabel: 'Packages',
+          severity: criticalCount > 0 ? 'critical' : 'warning',
+          title: `${count} package ${plural(count, 'item')} ${count === 1 ? 'needs' : 'need'} attention`,
+          detail: `${categoryParts.join(', ')}.${
+            urgentParts.length > 0 ? ` Package follow-ups include ${urgentParts.join(', ')}.` : ''
+          }`,
+          count,
+          date: validDate(input.packages.oldestAttentionAt, input.generatedAt),
+          dateLabel: 'Oldest signal',
+          reference: 'Packages · Action centre',
+          href: '/dashboard/packages',
         })
       }
     }
