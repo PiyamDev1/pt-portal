@@ -37,6 +37,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Booking slot/person/contact rules and audit/email persistence are now shared by staff routes, availability, the booking UI, and customer appointments; caller-specific access and grants remain at their boundaries.
 - The desktop Attention Centre now sits directly below the Notice Board in the dashboard rail, while mobile keeps its compact launcher flow and notice popup.
 - Settings navigation is now grouped by Security, People & HR, Operations, Pricing, and Maintenance through one role-aware component instead of repeated tab buttons.
+- NADRA, passport, and passport-draft document workspaces now use one canonical application DocumentHub import, the shared server Supabase client, and PageHeader back navigation instead of rebuilding those primitives per page.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -375,8 +376,13 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract the role-aware Settings navigation from the content client.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
+  - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
+  - [x] Route NADRA, passport, and passport-draft workspaces through one application DocumentHub entry point and PageHeader return control.
+  - [ ] Consolidate the remaining Package document presentation and add the missing cross-service receipt contract, including Visa.
 - [x] Reorganise Settings navigation by Security, People & HR, Operations, Pricing, and Maintenance without changing role access.
 - [ ] Centralise page context and capability loading.
+  - [x] Reuse the shared authenticated server Supabase client across application document pages.
+  - [ ] Replace remaining dashboard page-local session, employee, branch, role, and capability loaders incrementally.
 - [ ] Modernise legacy API handlers incrementally.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 

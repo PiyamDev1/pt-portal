@@ -37,6 +37,22 @@ describe('PageHeader', () => {
     expect(links[1].previousElementSibling?.textContent).toContain('Bradford')
   })
 
+  it('uses an explicit document-workspace return destination when supplied', () => {
+    mocks.pathname = '/dashboard/applications/passports/documents/application-1'
+    render(
+      <PageHeader
+        employeeName="Amina"
+        role="Admin"
+        location={{ name: 'Bradford' }}
+        backHref="/dashboard/applications/passports"
+        backLabel="Pakistani Passports"
+      />,
+    )
+
+    const backLink = screen.getByRole('link', { name: 'Back to Pakistani Passports' })
+    expect(backLink.getAttribute('href')).toBe('/dashboard/applications/passports')
+  })
+
   it('keeps mobile settings navigation available to Super Admins', () => {
     mocks.pathname = '/dashboard/settings'
     render(<PageHeader employeeName="Amina" role="Super Admin" location={{ name: 'Bradford' }} />)

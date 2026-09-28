@@ -3,13 +3,12 @@
  * Per-draft document management before official tracking exists.
  */
 
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import { DocumentHub } from '@/app/dashboard/applications/nadra/components/DocumentHub'
+import { ApplicationDocumentHub } from '@/app/dashboard/applications/components/ApplicationDocumentHub'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export const metadata: Metadata = {
@@ -29,19 +28,7 @@ export default async function PassportDraftDocumentsPage({
   const { draftId } = await params
   const decodedDraftId = decodeURIComponent(draftId || '').toUpperCase()
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
+  const supabase = await getRouteSupabaseClient()
 
   const {
     data: { session },
@@ -80,28 +67,13 @@ export default async function PassportDraftDocumentsPage({
           location={location}
           userId={session.user.id}
           showBack={true}
+          backHref="/dashboard/applications/passports/drafts"
+          backLabel="Passport Drafts"
         />
 
         <main className="flex-1 max-w-7xl mx-auto p-6 w-full">
-          <div className="mb-6">
-            <a
-              href="/dashboard/applications/passports/drafts"
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium mb-4"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Back to Passport Drafts
-            </a>
-          </div>
-
           <div className="min-h-[calc(100vh-280px)] rounded-lg">
-            <DocumentHub
+            <ApplicationDocumentHub
               familyHeadId={draft.draft_id}
               familyHeadName={draft.applicant_name || 'Applicant'}
               customSubtitle={`Draft ${draft.draft_id} - ${draft.applicant_name || 'Applicant'}`}

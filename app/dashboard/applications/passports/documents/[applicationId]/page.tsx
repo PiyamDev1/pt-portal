@@ -5,12 +5,11 @@
  * Route: /dashboard/applications/passports/documents/[applicationId]
  */
 
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import { DocumentHub } from '@/app/dashboard/applications/nadra/components/DocumentHub'
+import { ApplicationDocumentHub } from '@/app/dashboard/applications/components/ApplicationDocumentHub'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -27,19 +26,7 @@ interface PassportDocumentsPageProps {
 export default async function PassportDocumentsPage({ params }: PassportDocumentsPageProps) {
   const { applicationId } = await params
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
+  const supabase = await getRouteSupabaseClient()
 
   const {
     data: { session },
@@ -93,28 +80,13 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
           location={location}
           userId={session.user.id}
           showBack={true}
+          backHref="/dashboard/applications/passports"
+          backLabel="Pakistani Passports"
         />
 
         <main className="flex-1 max-w-7xl mx-auto p-6 w-full">
-          <div className="mb-6">
-            <a
-              href="/dashboard/applications/passports"
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium mb-4"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Back to Pakistani Passports
-            </a>
-          </div>
-
           <div className="min-h-[calc(100vh-280px)] rounded-lg">
-            <DocumentHub
+            <ApplicationDocumentHub
               familyHeadId={applicationId}
               familyHeadName={applicantName}
               customSubtitle={`Manage documents for ${applicantName}`}

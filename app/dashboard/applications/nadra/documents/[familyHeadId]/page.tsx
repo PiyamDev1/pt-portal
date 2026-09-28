@@ -6,13 +6,12 @@
  * Route: /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
-import { DocumentHub } from '../../components/DocumentHub'
+import { ApplicationDocumentHub } from '@/app/dashboard/applications/components/ApplicationDocumentHub'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -29,20 +28,7 @@ interface NadraDocumentsPageProps {
 export default async function NadraDocumentsPage({ params }: NadraDocumentsPageProps) {
   const { familyHeadId } = await params
 
-  // Initialize Supabase client
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
+  const supabase = await getRouteSupabaseClient()
 
   // Check authentication
   const {
@@ -86,31 +72,15 @@ export default async function NadraDocumentsPage({ params }: NadraDocumentsPageP
           location={location}
           userId={session.user.id}
           showBack={true}
+          backHref="/dashboard/applications/nadra"
+          backLabel="Nadra Services"
         />
 
         {/* Main Content */}
         <main className="flex-1 max-w-7xl mx-auto p-6 w-full">
-          {/* Breadcrumb/Back Button */}
-          <div className="mb-6">
-            <a
-              href="/dashboard/applications/nadra"
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium mb-4"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Back to Nadra Services
-            </a>
-          </div>
-
           {/* Document Hub */}
           <div className="min-h-[calc(100vh-280px)] rounded-lg">
-            <DocumentHub
+            <ApplicationDocumentHub
               familyHeadId={familyHeadId}
               familyHeadName={familyHeadFullName}
               showStatus={true}
