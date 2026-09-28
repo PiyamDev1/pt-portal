@@ -18,7 +18,7 @@ import {
   storeBookingAuditEvent,
   storeBookingEmailAttempt,
 } from '@/lib/bookingPersistence'
-import { releaseBookingCapacity, reserveBookingCapacity } from '@/lib/bookingCapacity'
+import { closeBookingWithCapacity, rescheduleBookingWithCapacity } from '@/lib/bookingLifecycle'
 import {
   extractUtcTimeHHMMSS,
   getServicePersonUnits,
@@ -458,20 +458,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       updates.reschedule_count = Math.max(0, Number(existing.reschedule_count ?? 0)) + 1
     }
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      if (isSchemaError(error)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
     const shouldReserveCapacity =
       nextStatus !== BookingStatus.CANCELLED &&
       nextStatus !== BookingStatus.COMPLETED &&
@@ -479,40 +465,65 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         existing.status === BookingStatus.CANCELLED ||
         existing.status === BookingStatus.COMPLETED)
 
-    if (nextStatus === BookingStatus.CANCELLED || nextStatus === BookingStatus.COMPLETED) {
-      await releaseBookingCapacity(supabase, id)
-    } else if (shouldReserveCapacity) {
-      const capacityReservation = await reserveBookingCapacity(supabase, {
-        bookingId: id,
-        locationId: existing.location_id,
-        startTime: nextStartISO,
-        occupiedUntil: nextOccupiedUntilISO,
-        capacity: resolvedCapacity,
-      })
+    const updateBooking = () =>
+      supabase.from('bookings').update(updates).eq('id', id).select().single()
 
-      if (!capacityReservation.success) {
-        await supabase
-          .from('bookings')
-          .update({
-            status: existing.status,
-            customer_name: existing.customer_name,
-            customer_phone: existing.customer_phone,
-            customer_email: existing.customer_email,
-            service_id: existing.service_id,
-            person_count: existing.person_count,
-            tags: existing.tags,
-            start_time: existing.start_time,
-            end_time: existing.end_time,
-            notes: existing.notes,
-            last_rescheduled_at: existing.last_rescheduled_at,
-            reschedule_count: existing.reschedule_count,
-          })
-          .eq('id', id)
+    let data
+    if (nextStatus === BookingStatus.CANCELLED || nextStatus === BookingStatus.COMPLETED) {
+      const closure = await closeBookingWithCapacity(supabase, {
+        bookingId: id,
+        updateBooking,
+      })
+      if (!closure.success) {
+        if (isSchemaError(closure.error)) {
+          return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
+        }
         return NextResponse.json(
-          { error: capacityReservation.error || 'No available staff for this time slot' },
-          { status: 409 },
+          { error: closure.error?.message || 'Failed to update booking' },
+          { status: 500 },
         )
       }
+      data = closure.data
+    } else if (shouldReserveCapacity) {
+      const reschedule = await rescheduleBookingWithCapacity(supabase, {
+        nextCapacity: {
+          bookingId: id,
+          locationId: existing.location_id,
+          startTime: nextStartISO,
+          occupiedUntil: nextOccupiedUntilISO,
+          capacity: resolvedCapacity,
+        },
+        updateBooking,
+      })
+
+      if (!reschedule.success) {
+        if (reschedule.stage === 'capacity') {
+          return NextResponse.json(
+            { error: reschedule.error || 'No available staff for this time slot' },
+            { status: 409 },
+          )
+        }
+        if (isSchemaError(reschedule.error)) {
+          return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
+        }
+        return NextResponse.json(
+          { error: reschedule.error?.message || 'Failed to update booking' },
+          { status: 500 },
+        )
+      }
+      data = reschedule.data
+    } else {
+      const update = await updateBooking()
+      if (update.error || !update.data) {
+        if (isSchemaError(update.error)) {
+          return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
+        }
+        return NextResponse.json(
+          { error: update.error?.message || 'Failed to update booking' },
+          { status: 500 },
+        )
+      }
+      data = update.data
     }
 
     const { data: location } = await supabase

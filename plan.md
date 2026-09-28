@@ -35,6 +35,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Packages now shares its Action centre predicates with the dashboard, combining urgent active folders, selected standalone quotations, and expired standalone links while leaving grouped quotations in their group workflow.
 - Admin now surfaces role-scoped staff approvals and unresolved issue reports as separate Settings links; Maintenance Admin proposals remain self-scoped, and issue-report visibility matches the Master/Super Admin UI.
 - Booking slot/person/contact rules and audit/email persistence are now shared by staff routes, availability, the booking UI, and customer appointments; caller-specific access and grants remain at their boundaries.
+- Booking creation, rescheduling, and cancellation now use one lifecycle orchestrator across staff and customer callers; failed capacity moves restore the previous reservation window, and failed creations remove their provisional booking.
 - The desktop Attention Centre now sits directly below the Notice Board in the dashboard rail, while mobile keeps its compact launcher flow and notice popup.
 - Settings navigation is now grouped by Security, People & HR, Operations, Pricing, and Maintenance through one role-aware component instead of repeated tab buttons.
 - NADRA, passport, and passport-draft document workspaces now use one canonical application DocumentHub import, the shared server Supabase client, and PageHeader back navigation instead of rebuilding those primitives per page.
@@ -361,10 +362,10 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 
 ### Phase 2: duplicate workflow reduction
 
-- [ ] Complete the shared booking service.
+- [x] Complete the shared booking service.
   - [x] Share slot policy, capacity RPCs, idempotency, notification state, and audit persistence.
   - [x] Reuse person/contact normalization across staff and customer appointment callers.
-  - [ ] Consolidate creation, rescheduling, and cancellation orchestration behind caller-specific access boundaries.
+  - [x] Consolidate creation, rescheduling, and cancellation orchestration behind caller-specific access boundaries.
 - [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
 - [ ] Add live Company Ledger summaries for company-wide positions.

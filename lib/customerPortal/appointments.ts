@@ -2,7 +2,11 @@ import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-import { reserveBookingCapacity, releaseBookingCapacity } from '@/lib/bookingCapacity'
+import {
+  closeBookingWithCapacity,
+  createBookingWithCapacity,
+  rescheduleBookingWithCapacity,
+} from '@/lib/bookingLifecycle'
 import {
   customerPortalAccessEmailBlock,
   defaultTemplate,
@@ -434,46 +438,50 @@ export async function createCustomerAppointment(input: {
     slot.service_id,
     slot.location_id,
   )
-  const { data: booking, error: bookingError } = await service
-    .from('bookings')
-    .insert({
-      location_id: slot.location_id,
-      customer_name: input.contactName,
-      customer_phone: input.contactPhone,
-      customer_email: input.contactEmail,
-      service_id: slot.service_id,
-      person_count: input.groupSize,
-      start_time: slot.starts_at,
-      end_time: slot.ends_at,
-      status: 'confirmed',
-      source: 'website',
-      customer_subject: input.customerSubject ?? null,
-      tags: ['customer-portal'],
-    })
-    .select('id,customer_public_reference,customer_guest_code')
-    .single()
-  if (bookingError || !booking) {
+  const creation = await createBookingWithCapacity(service, {
+    createBooking: () =>
+      service
+        .from('bookings')
+        .insert({
+          location_id: slot.location_id,
+          customer_name: input.contactName,
+          customer_phone: input.contactPhone,
+          customer_email: input.contactEmail,
+          service_id: slot.service_id,
+          person_count: input.groupSize,
+          start_time: slot.starts_at,
+          end_time: slot.ends_at,
+          status: 'confirmed',
+          source: 'website',
+          customer_subject: input.customerSubject ?? null,
+          tags: ['customer-portal'],
+        })
+        .select('id,customer_public_reference,customer_guest_code')
+        .single(),
+    capacityFor: (booking) => ({
+      bookingId: booking.id,
+      locationId: slot.location_id,
+      startTime: slot.starts_at,
+      occupiedUntil: slot.occupied_until,
+      capacity: slot.capacity,
+    }),
+    rollbackBooking: (booking) => service.from('bookings').delete().eq('id', booking.id),
+  })
+  if (!creation.success && creation.stage === 'create') {
     throw new CustomerIntegrationError(
       'service_unavailable',
       'Appointment could not be created.',
       503,
     )
   }
-  const reservation = await reserveBookingCapacity(service, {
-    bookingId: booking.id,
-    locationId: slot.location_id,
-    startTime: slot.starts_at,
-    occupiedUntil: slot.occupied_until,
-    capacity: slot.capacity,
-  })
-  if (!reservation.success) {
-    await service.from('bookings').delete().eq('id', booking.id)
+  if (!creation.success) {
     throw new CustomerIntegrationError(
       'conflict',
       'That time was just taken. Choose another time.',
       409,
     )
   }
+  const booking = creation.data
   await storeBookingAuditEvent(service, {
     booking_id: booking.id,
     location_id: slot.location_id,
@@ -822,20 +830,24 @@ export async function updateCustomerAppointment(input: {
     )
   }
   if (input.action === 'cancel') {
-    const { data: updated, error: updateError } = await service
-      .from('bookings')
-      .update({ status: 'cancelled', customer_cancelled_at: new Date().toISOString() })
-      .eq('id', booking.id)
-      .eq('customer_version', input.expectedVersion)
-      .select('id')
-      .maybeSingle()
-    if (updateError || !updated)
+    const cancellation = await closeBookingWithCapacity(service, {
+      bookingId: booking.id,
+      updateBooking: () =>
+        service
+          .from('bookings')
+          .update({ status: 'cancelled', customer_cancelled_at: new Date().toISOString() })
+          .eq('id', booking.id)
+          .eq('customer_version', input.expectedVersion)
+          .select('id')
+          .maybeSingle(),
+    })
+    if (!cancellation.success) {
       throw new CustomerIntegrationError(
         'conflict',
         'The appointment changed. Refresh and try again.',
         409,
       )
-    await releaseBookingCapacity(service, booking.id)
+    }
     await storeBookingAuditEvent(service, {
       booking_id: booking.id,
       location_id: booking.location_id,
@@ -914,27 +926,6 @@ export async function updateCustomerAppointment(input: {
     capacity = Math.max(1, settings?.concurrent_staff ?? 1)
   }
 
-  if (input.slotPublicId || nextGroupSize !== booking.person_count) {
-    const reservation = await reserveBookingCapacity(service, {
-      bookingId: booking.id,
-      locationId: booking.location_id,
-      startTime: startsAt,
-      occupiedUntil,
-      capacity,
-    })
-    if (!reservation.success) {
-      await reserveBookingCapacity(service, {
-        bookingId: booking.id,
-        locationId: booking.location_id,
-        startTime: booking.start_time,
-        occupiedUntil: new Date(
-          Date.parse(booking.end_time) + Math.max(0, bookingService.buffer_minutes) * 60_000,
-        ).toISOString(),
-        capacity,
-      })
-      throw new CustomerIntegrationError('conflict', 'That time is no longer available.', 409)
-    }
-  }
   const changes: Record<string, unknown> = {
     customer_name: input.contactName ?? booking.customer_name,
     customer_phone: input.contactPhone ?? booking.customer_phone,
@@ -948,19 +939,43 @@ export async function updateCustomerAppointment(input: {
       ? (booking.reschedule_count ?? 0) + 1
       : booking.reschedule_count,
   }
-  const { data: updated, error: updateError } = await service
-    .from('bookings')
-    .update(changes)
-    .eq('id', booking.id)
-    .eq('customer_version', input.expectedVersion)
-    .select('id')
-    .maybeSingle()
-  if (updateError || !updated) {
-    throw new CustomerIntegrationError(
-      'conflict',
-      'The appointment changed. Refresh and try again.',
-      409,
-    )
+
+  const updateBooking = () =>
+    service
+      .from('bookings')
+      .update(changes)
+      .eq('id', booking.id)
+      .eq('customer_version', input.expectedVersion)
+      .select('id')
+      .maybeSingle()
+
+  if (input.slotPublicId || nextGroupSize !== booking.person_count) {
+    const reschedule = await rescheduleBookingWithCapacity(service, {
+      nextCapacity: {
+        bookingId: booking.id,
+        locationId: booking.location_id,
+        startTime: startsAt,
+        occupiedUntil,
+        capacity,
+      },
+      updateBooking,
+    })
+    if (!reschedule.success) {
+      const message =
+        reschedule.stage === 'capacity'
+          ? 'That time is no longer available.'
+          : 'The appointment changed. Refresh and try again.'
+      throw new CustomerIntegrationError('conflict', message, 409)
+    }
+  } else {
+    const { data: updated, error: updateError } = await updateBooking()
+    if (updateError || !updated) {
+      throw new CustomerIntegrationError(
+        'conflict',
+        'The appointment changed. Refresh and try again.',
+        409,
+      )
+    }
   }
   await storeBookingAuditEvent(service, {
     booking_id: booking.id,

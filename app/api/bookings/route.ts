@@ -28,7 +28,7 @@ import {
   storeBookingAuditEvent,
   storeBookingEmailAttempt,
 } from '@/lib/bookingPersistence'
-import { reserveBookingCapacity } from '@/lib/bookingCapacity'
+import { createBookingWithCapacity } from '@/lib/bookingLifecycle'
 import {
   extractUtcTimeHHMMSS,
   getServicePersonUnits,
@@ -742,27 +742,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { data: newBooking, error: insertError } = await supabase
-      .from('bookings')
-      .insert({
-        location_id,
-        customer_name,
-        customer_phone,
-        customer_email,
-        service_id,
-        person_count: personCount,
-        tags,
-        notes,
-        start_time,
-        end_time: computedEndTime,
-        status: BookingStatus.PENDING,
-        source,
-      })
-      .select()
-      .single()
+    const creation = await createBookingWithCapacity(supabase, {
+      createBooking: () =>
+        supabase
+          .from('bookings')
+          .insert({
+            location_id,
+            customer_name,
+            customer_phone,
+            customer_email,
+            service_id,
+            person_count: personCount,
+            tags,
+            notes,
+            start_time,
+            end_time: computedEndTime,
+            status: BookingStatus.PENDING,
+            source,
+          })
+          .select()
+          .single(),
+      capacityFor: (booking) => ({
+        bookingId: booking.id,
+        locationId: location_id,
+        startTime: start_time,
+        occupiedUntil: occupied_until,
+        capacity: resolvedCapacity,
+      }),
+      rollbackBooking: (booking) => supabase.from('bookings').delete().eq('id', booking.id),
+    })
 
-    if (insertError || !newBooking) {
-      if (isSchemaError(insertError)) {
+    if (!creation.success) {
+      if (creation.stage === 'create' && isSchemaError(creation.error)) {
         return NextResponse.json(
           {
             success: false,
@@ -771,6 +782,17 @@ export async function POST(request: NextRequest) {
           { status: 503 },
         )
       }
+
+      if (creation.stage === 'capacity') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: creation.error || 'No available staff for this time slot',
+          } as CreateBookingResponse,
+          { status: 409 },
+        )
+      }
+
       return NextResponse.json(
         {
           success: false,
@@ -780,24 +802,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const capacityReservation = await reserveBookingCapacity(supabase, {
-      bookingId: newBooking.id,
-      locationId: location_id,
-      startTime: start_time,
-      occupiedUntil: occupied_until,
-      capacity: resolvedCapacity,
-    })
-
-    if (!capacityReservation.success) {
-      await supabase.from('bookings').delete().eq('id', newBooking.id)
-      return NextResponse.json(
-        {
-          success: false,
-          error: capacityReservation.error || 'No available staff for this time slot',
-        } as CreateBookingResponse,
-        { status: 409 },
-      )
-    }
+    const newBooking = creation.data
 
     const { data: location } = await supabase
       .from('locations')
