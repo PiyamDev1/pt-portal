@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { loadEmployeeDepartmentNames } from '@/lib/auth/departmentMemberships'
 import type { StaffSession } from '@/lib/auth/staffSession'
 import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { formatIsoDateInTimezone } from '@/lib/dateFormatter'
@@ -34,10 +35,7 @@ export default async function PosPreviewPage({
   const { supabase, userId, userEmail, employeeEmail, employeeName, role, location } =
     await loadDashboardPageContext()
 
-  const { data: memberships } = await supabase
-    .from('employee_departments')
-    .select('departments(name)')
-    .eq('employee_id', userId)
+  const { departmentNames } = await loadEmployeeDepartmentNames(supabase, userId)
 
   const timezone = location?.timezone || 'Europe/London'
   const currentDate = formatIsoDateInTimezone(new Date(), timezone)
@@ -59,16 +57,6 @@ export default async function PosPreviewPage({
     : undefined
   let initialLoadError: string | null = null
   let initialLedger: PosLedgerPayload
-  const departmentNames = (
-    (memberships || []) as unknown as Array<{
-      departments: { name?: string | null } | Array<{ name?: string | null }> | null
-    }>
-  )
-    .map((membership) => {
-      const departments = membership.departments
-      return Array.isArray(departments) ? departments[0]?.name : departments?.name
-    })
-    .filter((name): name is string => Boolean(name))
   const access: StaffSession = {
     user: { id: userId, email: userEmail || employeeEmail || '' },
     employee: {

@@ -25,17 +25,10 @@ import {
   type DashboardModule,
 } from '@/lib/dashboardModules'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadEmployeeDepartmentNames } from '@/lib/auth/departmentMemberships'
 import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { loadDashboardWorkQueue } from '@/lib/dashboard/workQueue.server'
 import type { DashboardWorkQueue } from '@/lib/dashboard/workQueue'
-
-type DepartmentMembership = {
-  departments?: { name?: string | null } | Array<{ name?: string | null }> | null
-}
-
-function relatedDepartmentName(value: DepartmentMembership['departments']) {
-  return Array.isArray(value) ? value[0]?.name : value?.name
-}
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
 function MobileDashboard({
@@ -193,18 +186,12 @@ function DesktopDashboard({
 export default async function Dashboard() {
   const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
   const serviceSupabase = getServiceSupabaseClient()
-  const [{ data: canManageCommission }, { data: departmentMemberships }] = await Promise.all([
+  const [{ data: canManageCommission }, { departmentNames }] = await Promise.all([
     serviceSupabase.rpc('commission_actor_can_manage_2026082901', {
       p_employee_id: userId,
     }),
-    serviceSupabase
-      .from('employee_departments')
-      .select('departments(name)')
-      .eq('employee_id', userId),
+    loadEmployeeDepartmentNames(serviceSupabase, userId),
   ])
-  const departmentNames = ((departmentMemberships || []) as DepartmentMembership[])
-    .map((membership) => relatedDepartmentName(membership.departments))
-    .filter((name): name is string => Boolean(name))
   const visibleModules = DASHBOARD_MODULES.filter(
     (moduleItem) =>
       (moduleItem.id === 'commissions' && canManageCommission === true) ||

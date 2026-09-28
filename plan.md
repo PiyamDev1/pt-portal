@@ -43,6 +43,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Training, Frappe Transfer, LMS, and Pricing now share the verified dashboard page context; LMS also consistently redirects signed-out requests before rendering.
 - All Package dashboard, group, folder, quotation, sales, and migration routes now share the verified dashboard context instead of maintaining a second Package-only header loader.
 - The dashboard hub, Bookings, POS, and Settings now use that same verified context; the final page-local session, employee, role, and location loaders are removed while module-specific capability queries remain with their owners.
+- Dashboard, POS, and API staff-session checks now share one current-employee department-membership adapter; each caller still supplies its correctly scoped client and decides whether lookup failure hides optional features or fails access closed.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -385,14 +386,14 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Route NADRA, passport, and passport-draft workspaces through one application DocumentHub entry point and PageHeader return control.
   - [ ] Consolidate the remaining Package document presentation and add the missing cross-service receipt contract, including Visa.
 - [x] Reorganise Settings navigation by Security, People & HR, Operations, Pricing, and Maintenance without changing role access.
-- [ ] Centralise page context and capability loading.
+- [x] Centralise shared page context and reusable capability loading.
   - [x] Reuse the shared authenticated server Supabase client across application document pages.
   - [x] Centralise authenticated session, employee, role, and location context across all Applications server pages.
   - [x] Centralise verified user and PageHeader context across all Timeclock server pages.
   - [x] Centralise verified user and PageHeader context across Training, Frappe Transfer, LMS, and Pricing.
   - [x] Remove duplicated Package auth/header setup across dashboard, group, folder, quotation, sales, and migration routes.
   - [x] Replace the remaining dashboard page-local session, employee, branch, and role loaders; keep specialised capability queries module-owned until a shared contract is justified.
-  - [ ] Consolidate only genuinely shared capability adapters, such as current-employee department names, without moving module-specific authorisation into generic page context.
+  - [x] Consolidate current-employee department-name loading without moving module-specific authorisation into generic page context.
 - [ ] Modernise legacy API handlers incrementally.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 

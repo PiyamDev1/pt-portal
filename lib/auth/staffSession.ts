@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadEmployeeDepartmentNames } from '@/lib/auth/departmentMemberships'
 
 type RelatedName = { name?: string | null }
 
@@ -10,10 +11,6 @@ type EmployeeRow = {
   full_name?: string | null
   is_active?: boolean | null
   roles?: RelatedName | RelatedName[] | null
-}
-
-type DepartmentMembershipRow = {
-  departments?: RelatedName | RelatedName[] | null
 }
 
 export type StaffSession = {
@@ -108,10 +105,10 @@ export async function requireStaffSession(
     let departments: string[] = []
     const allowedDepartments = (options.departments || []).map(normalizeAccessName)
     if (options.includeDepartments || allowedDepartments.length > 0) {
-      const { data: memberships, error: membershipError } = await serviceClient
-        .from('employee_departments')
-        .select('departments(name)')
-        .eq('employee_id', user.id)
+      const { departmentNames, error: membershipError } = await loadEmployeeDepartmentNames(
+        serviceClient,
+        user.id,
+      )
 
       if (membershipError) {
         return {
@@ -123,9 +120,7 @@ export async function requireStaffSession(
         }
       }
 
-      departments = ((memberships || []) as DepartmentMembershipRow[])
-        .map((membership) => relatedName(membership.departments))
-        .filter((name): name is string => Boolean(name))
+      departments = departmentNames
 
       if (
         allowedDepartments.length > 0 &&
