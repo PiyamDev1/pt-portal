@@ -19,7 +19,6 @@ import {
   ArrowUpRight,
   BadgePoundSterling,
   Banknote,
-  BarChart3,
   Building2,
   CalendarDays,
   Check,
@@ -33,17 +32,13 @@ import {
   Filter,
   HelpCircle,
   Landmark,
-  LayoutDashboard,
   Pencil,
   Plane,
   ReceiptText,
-  RefreshCcw,
   RotateCcw,
   ScanBarcode,
   Search,
-  ShieldCheck,
   Sparkles,
-  Store,
   TicketPercent,
   UserRound,
   WalletCards,
@@ -62,8 +57,14 @@ import type {
   PosMutationResult,
   PosSourceOption,
 } from '@/lib/pos/contracts'
+import { formatMoney, formatSignedMoney } from '@/lib/pos/format'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
+import {
+  PosSummaryStrip,
+  PosWorkspaceMobileNavigation,
+  PosWorkspaceNavigation,
+} from './PosWorkspaceChrome'
 
 type IconComponent = ComponentType<{ className?: string }>
 type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split'
@@ -764,17 +765,6 @@ const SUPPLIERS = [
   { name: 'Al Haram Travel', area: 'Packages', balance: 2150 },
 ]
 
-const NAV_ITEMS: Array<{ label: PosWorkspaceView; icon: IconComponent; managerOnly?: boolean }> = [
-  { label: 'Daily transactions', icon: LayoutDashboard },
-  { label: 'Open till', icon: Store },
-  { label: 'Closeout', icon: ShieldCheck },
-  { label: 'Cash management', icon: Coins },
-  { label: 'Refunds & corrections', icon: RotateCcw },
-  { label: 'Reports', icon: BarChart3 },
-  { label: 'Unreconciled', icon: RefreshCcw },
-  { label: 'Import history', icon: FileText, managerOnly: true },
-]
-
 const FILTERS = ['All', 'Cash', 'Card', 'Bank', 'Outgoing'] as const
 const SORTS = ['Supplier', 'Newest'] as const
 const NADRA_SERVICE_IDS = ['nicop-cnic', 'poc', 'frc', 'crc', 'poa']
@@ -790,17 +780,6 @@ const EMPTY_LEDGER_SUMMARY: PosLedgerSummary = {
 
 function isNadraCategory(categoryId: string) {
   return NADRA_SERVICE_IDS.includes(categoryId)
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('en-GB', {
-    style: 'currency',
-    currency: 'GBP',
-  }).format(Math.abs(value))
-}
-
-function formatSignedMoney(value: number) {
-  return `${value < 0 ? '−' : '+'}${formatMoney(value)}`
 }
 
 function formatLedgerDate(date: string, includeYear = false) {
@@ -850,39 +829,6 @@ function statusTone(status: string) {
   if (status === 'Supplier payment') return 'bg-blue-50 text-blue-700 ring-blue-600/10'
   if (status === 'Transfer') return 'bg-yellow-50 text-yellow-800 ring-yellow-600/10'
   return 'bg-slate-100 text-slate-700 ring-slate-600/10'
-}
-
-function SummaryCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string
-  value: string
-  detail: string
-  icon: IconComponent
-  tone: string
-}) {
-  return (
-    <article className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-            {label}
-          </p>
-          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
-            <p className="text-lg font-black tracking-tight text-slate-950">{value}</p>
-            <p className="text-[10px] text-slate-500">{detail}</p>
-          </div>
-        </div>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-          <Icon className="h-4 w-4" />
-        </span>
-      </div>
-    </article>
-  )
 }
 
 export default function PosPreviewClient({
@@ -2117,112 +2063,20 @@ export default function PosPreviewClient({
         </div>
       </section>
 
-      <section data-pos-tour="summaries" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} cash net`}
-          value={formatSignedMoney(displayedLedgerSummary.cashNet)}
-          detail="Posted cash tenders"
-          icon={Banknote}
-          tone="bg-emerald-50 text-emerald-700"
-        />
-        <SummaryCard
-          label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} card net`}
-          value={formatSignedMoney(displayedLedgerSummary.cardNet)}
-          detail={`${displayedLedgerSummary.unreconciledCount} unreconciled tender${displayedLedgerSummary.unreconciledCount === 1 ? '' : 's'}`}
-          icon={CreditCard}
-          tone="bg-blue-50 text-blue-700"
-        />
-        <SummaryCard
-          label={`${ledgerPeriod === 'month' ? 'Month' : 'Day'} bank net`}
-          value={formatSignedMoney(displayedLedgerSummary.bankNet)}
-          detail="Recorded bank tenders"
-          icon={Landmark}
-          tone="bg-violet-50 text-violet-700"
-        />
-        <SummaryCard
-          label="Net movement"
-          value={formatSignedMoney(displayedLedgerSummary.netMovement)}
-          detail={`${formatMoney(displayedLedgerSummary.moneyIn)} in · ${formatMoney(displayedLedgerSummary.moneyOut)} out`}
-          icon={Coins}
-          tone="bg-amber-50 text-amber-700"
-        />
-      </section>
+      <PosSummaryStrip period={ledgerPeriod} summary={displayedLedgerSummary} />
 
-      <label className="block xl:hidden">
-        <span className="sr-only">POS workspace section</span>
-        <select
-          aria-label="POS workspace section"
-          value={activeView}
-          onChange={(event) => setActiveView(event.target.value as PosWorkspaceView)}
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800 shadow-sm"
-        >
-          {NAV_ITEMS.filter((item) => !item.managerOnly || bootstrap.permissions.canManage).map(
-            (item) => (
-              <option key={item.label}>{item.label}</option>
-            ),
-          )}
-        </select>
-      </label>
+      <PosWorkspaceMobileNavigation
+        activeView={activeView}
+        canManage={bootstrap.permissions.canManage}
+        onChange={setActiveView}
+      />
 
       <div className="grid items-start gap-3 xl:grid-cols-[4rem_minmax(0,1fr)_15rem]">
-        <aside
-          data-pos-tour="workspace-nav"
-          className="group/posnav order-1 z-20 hidden w-16 overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm transition-[width,box-shadow] duration-200 hover:w-52 hover:shadow-xl focus-within:w-52 xl:block"
-        >
-          <div className="flex h-12 items-center border-b border-slate-200 bg-slate-950 px-4 text-white">
-            <PosRegisterIcon className="h-5 w-5 shrink-0" />
-            <div className="ml-3 whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/posnav:opacity-100 group-focus-within/posnav:opacity-100">
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
-                POS menu
-              </p>
-              <p className="text-xs font-black">Workspace</p>
-            </div>
-          </div>
-          <nav className="space-y-1 p-2" aria-label="POS navigation">
-            {NAV_ITEMS.filter((item) => !item.managerOnly || bootstrap.permissions.canManage).map(
-              (item) => {
-                const Icon = item.icon
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    data-pos-tour={
-                      item.label === 'Daily transactions'
-                        ? 'nav-daily-transactions'
-                        : item.label === 'Open till'
-                          ? 'nav-open-till'
-                          : item.label === 'Closeout'
-                            ? 'nav-closeout'
-                            : item.label === 'Cash management'
-                              ? 'nav-cash-management'
-                              : item.label === 'Refunds & corrections'
-                                ? 'nav-refunds-corrections'
-                                : item.label === 'Reports'
-                                  ? 'nav-reports'
-                                  : item.label === 'Unreconciled'
-                                    ? 'nav-unreconciled'
-                                    : item.label === 'Import history'
-                                      ? 'nav-import-history'
-                                      : undefined
-                    }
-                    onClick={() => setActiveView(item.label)}
-                    title={item.label}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
-                      activeView === item.label
-                        ? 'bg-red-50 text-[#8b1e2d]'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    <span className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/posnav:opacity-100 group-focus-within/posnav:opacity-100">
-                      {item.label}
-                    </span>
-                  </button>
-                )
-              },
-            )}
-          </nav>
-        </aside>
+        <PosWorkspaceNavigation
+          activeView={activeView}
+          canManage={bootstrap.permissions.canManage}
+          onChange={setActiveView}
+        />
 
         <aside
           data-pos-tour="categories"
