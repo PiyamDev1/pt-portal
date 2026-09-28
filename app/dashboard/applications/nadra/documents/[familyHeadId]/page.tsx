@@ -6,12 +6,11 @@
  * Route: /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
-import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import { ApplicationDocumentHub } from '@/app/dashboard/applications/components/ApplicationDocumentHub'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -28,22 +27,7 @@ interface NadraDocumentsPageProps {
 export default async function NadraDocumentsPage({ params }: NadraDocumentsPageProps) {
   const { familyHeadId } = await params
 
-  const supabase = await getRouteSupabaseClient()
-
-  // Check authentication
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) {
-    redirect('/login')
-  }
-
-  // Fetch employee data
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
-    .single()
+  const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
 
   // Fetch family head data (document owner) - family heads are in applicants table
   const { data: familyHead } = await supabase
@@ -57,9 +41,6 @@ export default async function NadraDocumentsPage({ params }: NadraDocumentsPageP
     notFound()
   }
 
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-
   const familyHeadFullName = `${familyHead.first_name} ${familyHead.last_name}`
 
   return (
@@ -67,10 +48,10 @@ export default async function NadraDocumentsPage({ params }: NadraDocumentsPageP
       <div className="min-h-screen bg-slate-50 flex flex-col">
         {/* Page Header */}
         <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
+          employeeName={employeeName}
+          role={role}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
           backHref="/dashboard/applications/nadra"
           backLabel="Nadra Services"

@@ -15,41 +15,16 @@
  *
  * @module app/dashboard/applications/passports/page
  */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ClipboardList } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import PakPassportClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 
 export default async function PakPassportPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
-    .single()
+  const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
 
   // Fetch Hierarchy: App -> Applicant -> Passport Details
   const { data: applications } = await supabase
@@ -142,17 +117,14 @@ export default async function PakPassportPage() {
     }
   }
 
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
         <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
+          employeeName={employeeName}
+          role={role}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6">
@@ -173,7 +145,7 @@ export default async function PakPassportPage() {
           </div>
           <PakPassportClient
             initialApplications={applications || []}
-            currentUserId={session.user.id}
+            currentUserId={userId}
             documentCounts={documentCounts}
           />
         </main>

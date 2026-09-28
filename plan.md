@@ -38,6 +38,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - The desktop Attention Centre now sits directly below the Notice Board in the dashboard rail, while mobile keeps its compact launcher flow and notice popup.
 - Settings navigation is now grouped by Security, People & HR, Operations, Pricing, and Maintenance through one role-aware component instead of repeated tab buttons.
 - NADRA, passport, and passport-draft document workspaces now use one canonical application DocumentHub import, the shared server Supabase client, and PageHeader back navigation instead of rebuilding those primitives per page.
+- The Applications hub, service pages, and document workspaces now load their authenticated client and PageHeader identity through one shared dashboard page context instead of repeating session, employee, role, and location setup.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -382,6 +383,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 - [x] Reorganise Settings navigation by Security, People & HR, Operations, Pricing, and Maintenance without changing role access.
 - [ ] Centralise page context and capability loading.
   - [x] Reuse the shared authenticated server Supabase client across application document pages.
+  - [x] Centralise authenticated session, employee, role, and location context across all Applications server pages.
   - [ ] Replace remaining dashboard page-local session, employee, branch, role, and capability loaders incrementally.
 - [ ] Modernise legacy API handlers incrementally.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
