@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => {
     if (table === 'nadra_status_history') return { insert: historyInsert }
     return {}
   })
-  const createClient = vi.fn(() => ({ from }))
-  return { servicesEq, servicesUpdate, historyInsert, from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { servicesEq, servicesUpdate, historyInsert, from, getServiceSupabaseClient }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { POST } from '@/app/api/nadra/update-status/route'
 
@@ -29,7 +31,7 @@ describe('POST /api/nadra/update-status', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockImplementation((table: string) => {
       if (table === 'nadra_services') return { update: mocks.servicesUpdate }
       if (table === 'nadra_status_history') return { insert: mocks.historyInsert }

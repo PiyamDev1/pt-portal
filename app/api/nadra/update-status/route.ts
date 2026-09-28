@@ -4,58 +4,40 @@
  * POST /api/nadra/update-status
  *
  * Updates the processing status of a NADRA application and appends a row
- * to nadra_status_history. Valid statuses include: New, Processing,
- * Ready for Collection, Collected, Rejected, Cancelled.
- *
- * Request Body: { applicationId: string, status: string, notes?: string }
- * Response Success (200): { updatedApplicationId }
- * Response Errors: 400 Missing fields | 500 DB error
- *
- * Authentication: Service role key
+ * to nadra_status_history.
  */
-import { createClient } from '@supabase/supabase-js'
-import { apiError, apiOk } from '@/lib/api/http'
-import { toErrorMessage } from '@/lib/api/error'
-import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
-import { requireStaffSession } from '@/lib/auth/staffSession'
 import { z } from 'zod'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
 const updateStatusSchema = z.object({
   nadraId: z.string({ error: 'Missing Nadra ID' }).trim().min(1, 'Missing Nadra ID').max(200),
   status: z.string().trim().min(1, 'Status is required').max(100),
 })
 
-export async function POST(request) {
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    // Use service role key to bypass RLS policies if necessary
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
-
+    const supabase = getServiceSupabaseClient()
     const { data: body, error: bodyError } = await parseBodyWithSchema(
       request,
       updateStatusSchema,
       { maxBytes: 8 * 1024 },
     )
     if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+
     const { nadraId, status } = body
     const userId = access.user.id
+    const { error } = await supabase.from('nadra_services').update({ status }).eq('id', nadraId)
 
-    const { error } = await supabase
-      .from('nadra_services')
-      .update({ status: status })
-      .eq('id', nadraId)
+    if (error) throw new Error(error.message || 'Failed to update status')
 
-    if (error) {
-      throw new Error(error.message || 'Failed to update status')
-    }
-
-    // Insert status history record
     const { error: historyError } = await supabase.from('nadra_status_history').insert({
       nadra_service_id: nadraId,
       new_status: status,
@@ -76,7 +58,6 @@ export async function POST(request) {
 
     return apiOk({ updatedNadraId: nadraId, status })
   } catch (error) {
-    const errorMessage = toErrorMessage(error, 'Failed to update status')
-    return apiError(errorMessage, 500)
+    return apiError(toErrorMessage(error, 'Failed to update status'), 500)
   }
 }

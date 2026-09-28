@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => {
     return {}
   })
 
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     single,
@@ -26,11 +26,13 @@ const mocks = vi.hoisted(() => {
     update,
     historyInsert,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { POST } from '@/app/api/passports/pak/update-status/route'
 
@@ -47,7 +49,7 @@ describe('POST /api/passports/pak/update-status', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
 
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockImplementation((table: string) => {
       if (table === 'pakistani_passport_applications')
         return { select: mocks.select, update: mocks.update }

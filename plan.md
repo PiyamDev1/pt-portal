@@ -44,6 +44,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - All Package dashboard, group, folder, quotation, sales, and migration routes now share the verified dashboard context instead of maintaining a second Package-only header loader.
 - The dashboard hub, Bookings, POS, and Settings now use that same verified context; the final page-local session, employee, role, and location loaders are removed while module-specific capability queries remain with their owners.
 - Dashboard, POS, and API staff-session checks now share one current-employee department-membership adapter; each caller still supplies its correctly scoped client and decides whether lookup failure hides optional features or fails access closed.
+- NADRA, Pakistani Passport, and Visa status mutations now use typed route handlers, bounded Zod request parsing, verified staff identity, and the shared server-only Supabase client instead of ad hoc JavaScript clients.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -395,6 +396,9 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Replace the remaining dashboard page-local session, employee, branch, and role loaders; keep specialised capability queries module-owned until a shared contract is justified.
   - [x] Consolidate current-employee department-name loading without moving module-specific authorisation into generic page context.
 - [ ] Modernise legacy API handlers incrementally.
+  - [x] Convert the dedicated NADRA, Pakistani Passport, and Visa status mutation routes to typed handlers with shared request and service-client boundaries.
+  - [ ] Separate and modernise the combined GB Passport update/status handler, then convert the application status-history readers.
+  - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 
 ## Verification requirements

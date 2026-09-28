@@ -4,28 +4,27 @@
  *
  * @module app/api/passports/pak/update-status
  */
-
-import { createClient } from '@supabase/supabase-js'
-import { apiError, apiOk } from '@/lib/api/http'
-import { toErrorMessage } from '@/lib/api/error'
-import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
-import { requireStaffSession } from '@/lib/auth/staffSession'
 import { z } from 'zod'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
-// CONFIG: Map UI Status -> Database Status
-// If your DB fails on "Processing", change the right side to "In Progress"
 const DB_STATUS_MAP = {
   'Pending Submission': 'Pending Submission',
   'Biometrics Taken': 'Biometrics Taken',
-  Processing: 'Processing', // If DB error persists, change this to: 'In Progress'
+  Processing: 'Processing',
   Approved: 'Approved',
   'Passport Arrived': 'Passport Arrived',
   Collected: 'Collected',
   Cancelled: 'Cancelled',
-}
+} as const
 
-const ALLOWED_PASSPORT_STATUSES = new Set(Object.keys(DB_STATUS_MAP))
+type PassportStatus = keyof typeof DB_STATUS_MAP
+
+const ALLOWED_PASSPORT_STATUSES = new Set<string>(Object.keys(DB_STATUS_MAP))
 const updatePassportStatusSchema = z.object({
   passportId: z.string().trim().min(1).max(200),
   status: z.string().trim().min(1).max(100),
@@ -35,55 +34,53 @@ const updatePassportStatusSchema = z.object({
   isRefunded: z.boolean().optional(),
 })
 
-export async function POST(request) {
+type PassportStatusUpdate = {
+  status: (typeof DB_STATUS_MAP)[PassportStatus]
+  employee_id: string
+  new_passport_number?: string
+  is_old_passport_returned?: boolean
+  is_refunded?: boolean
+  refunded_at?: string | null
+}
+
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
-
+    const supabase = getServiceSupabaseClient()
     const { data: body, error: bodyError } = await parseBodyWithSchema(
       request,
       updatePassportStatusSchema,
       { maxBytes: 16 * 1024 },
     )
     if (bodyError || !body) return apiError(bodyError || 'Missing passportId or status', 400)
-    const { passportId, status, newPassportNo, isCollected, oldPassportReturned, isRefunded } = body
-    const userId = access.user.id
 
-    if (!passportId || !status) {
-      return apiError('Missing passportId or status', 400)
-    }
+    const { passportId, status, newPassportNo, oldPassportReturned, isRefunded } = body
+    const userId = access.user.id
 
     if (!ALLOWED_PASSPORT_STATUSES.has(status)) {
       return apiError(`Invalid status: ${status}`, 400)
     }
 
-    // 1. Resolve DB Status (fallback to provided status)
-    const dbStatus = DB_STATUS_MAP[status]
-
-    // 2. Prepare Update Object
-    const updateData = {
-      status: dbStatus,
+    const passportStatus = status as PassportStatus
+    const updateData: PassportStatusUpdate = {
+      status: DB_STATUS_MAP[passportStatus],
       employee_id: userId,
     }
 
-    // Add optional fields if they exist
     if (newPassportNo !== undefined) updateData.new_passport_number = newPassportNo
-    if (oldPassportReturned !== undefined) updateData.is_old_passport_returned = oldPassportReturned
+    if (oldPassportReturned !== undefined) {
+      updateData.is_old_passport_returned = oldPassportReturned
+    }
     if (isRefunded !== undefined) {
-      updateData.is_refunded = !!isRefunded
+      updateData.is_refunded = isRefunded
       updateData.refunded_at = isRefunded ? new Date().toISOString() : null
     }
 
-    // 3. Validation for Collection
-    if (status === 'Collected') {
-      let hasNumber = !!newPassportNo
+    if (passportStatus === 'Collected') {
+      let hasNumber = Boolean(newPassportNo)
 
-      // If number not provided in this request, check if it exists in DB
       if (!hasNumber) {
         const { data } = await supabase
           .from('pakistani_passport_applications')
@@ -98,32 +95,28 @@ export async function POST(request) {
       }
     }
 
-    // 4. Perform Update
     const { error } = await supabase
       .from('pakistani_passport_applications')
       .update(updateData)
       .eq('id', passportId)
 
-    if (error) {
-      throw new Error(`Database Error: ${error.message}`)
-    }
+    if (error) throw new Error(`Database Error: ${error.message}`)
 
-    // 5. Log History
     await supabase.from('pakistani_passport_status_history').insert({
       passport_application_id: passportId,
-      new_status: status, // Log the readable UI status
+      new_status: passportStatus,
       changed_by: userId,
     })
 
     await tryGenerateReceiptForStatusTrigger({
       serviceType: 'pk_passport',
       serviceRecordId: passportId,
-      status,
-      isRefunded: !!isRefunded,
+      status: passportStatus,
+      isRefunded: Boolean(isRefunded),
       generatedBy: userId || null,
     })
 
-    return apiOk({ updatedPassportId: passportId, status })
+    return apiOk({ updatedPassportId: passportId, status: passportStatus })
   } catch (error) {
     return apiError(toErrorMessage(error, 'Failed to update passport status'), 500)
   }
