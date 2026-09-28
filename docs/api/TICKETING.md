@@ -751,3 +751,91 @@ is due.
 
 **Errors:** Cron authentication is `401`/`503`; missing Ticketing capability is `503`; an unexpected
 claim/processing failure is `500`.
+
+## Replacement cases
+
+### GET `/api/ticketing/replacement-cases`
+
+**Access:** Authenticated Ticketing staff. Managers see team cases; other
+staff see only cases they created or are responsible for.
+
+**Input:** No body or query fields.
+
+**Success:** `200` private payload `{ items, context }` with up to 100 newest
+cases, original/replacement ticket economics, later changes, responsible staff,
+and `{ employeeId, canManageTeam, employees }` for the workspace.
+
+**Errors:** `401`/`403` Ticketing access denied; `503` replacement capability
+not installed; `500` case or employee data unavailable.
+
+### POST `/api/ticketing/replacement-cases`
+
+**Access:** Authenticated Ticketing staff; limited to 40 saves per 15 minutes
+per user/IP. Requires `Idempotency-Key` of at most 200 characters.
+
+**Input:** Strict JSON `{ original, responsibleEmployeeId, reason,
+recoveryPolicy, replacements, notes }`. `original` carries booking/transaction
+UUIDs and expected booking version; one to eight unique replacement tickets
+carry booking/transaction UUIDs and non-negative agent commission. Reason and
+recovery policy use the supported enums; notes are null or at most 2,000
+characters.
+
+**Success:** `201` with the created case result, or `200` for an exact
+idempotent replay. The database links original/replacement facts and records
+the recovery and commission treatment atomically.
+
+**Errors:** `400` invalid tickets/economics/key; `401`/`403` access denied;
+`409` version, duplicate link, or idempotency conflict; `429` rate limit; `503`
+capability missing; `500` save failure.
+
+### GET `/api/ticketing/replacement-cases/lookup`
+
+**Access:** Authenticated Ticketing staff. Non-manager results are restricted
+to tickets owned by the current employee.
+
+**Input:** Query `pnr`, normalized to 3 to 12 uppercase letters/digits and
+matched exactly.
+
+**Success:** `200` private payload `{ items }` with up to five active Held or
+Issued normal-ticket matches, including booking/transaction IDs and version,
+passengers, supplier/sale totals, owner, airline, status, and issue date.
+
+**Errors:** `400` invalid PNR; `401`/`403` access denied; `500` lookup failed.
+
+### POST `/api/ticketing/replacement-cases/[caseId]/changes`
+
+**Access:** Authenticated Ticketing staff; limited to 50 saves per 15 minutes
+per user/IP. Requires `Idempotency-Key`.
+
+**Input:** UUID `caseId` and strict JSON `{ expectedVersion, replacedItemId,
+replacement, airlineCancellationFeeGbp, airlinePredictedRefundGbp?,
+supplierRefundGbp, supplierAdminFeeGbp, customerChargeGbp, notes }`. Monetary
+values are non-negative with at most two decimals; if predicted refund is
+given, its net after fees must equal supplier refund.
+
+**Success:** `201` with the appended change result, or `200` for an exact
+idempotent replay. The change and recalculated case economics are atomic.
+
+**Errors:** `400` invalid case/change/key; `401`/`403` access denied; `409`
+version, linked-ticket, or idempotency conflict; `429` rate limit; `500` save
+failure.
+
+## Direct payment status
+
+### PATCH `/api/ticketing/ledger/[bookingId]/payment-status`
+
+**Access:** Authenticated Ticketing staff; limited to 90 updates per 15
+minutes per user/IP. Requires `Idempotency-Key`.
+
+**Input:** UUID `bookingId` and strict JSON `{ expectedBookingVersion,
+expectedTransactionVersion, paymentStatus, paidAt }`. Status is `unpaid`,
+`part_paid`, or `paid`; only `paid` accepts and requires a valid `YYYY-MM-DD`
+paid date.
+
+**Success:** `200` private payload with updated booking/transaction IDs,
+versions, payment status/date, `changed`, and `idempotentReplay`.
+
+**Errors:** `400` invalid payment/key; `401`/`403` access denied; `404` ticket
+not found; `409` version or idempotency conflict (current versions may be
+returned); `429` rate limit; `503` database capability missing; `500` invalid
+or failed database response.

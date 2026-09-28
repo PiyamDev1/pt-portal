@@ -362,7 +362,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 - [ ] Reorganise Settings by user goal.
 - [ ] Centralise page context and capability loading.
 - [ ] Modernise legacy API handlers incrementally.
-- [ ] Add migration replay and documentation checks to CI.
+- [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 
 ## Verification requirements
 

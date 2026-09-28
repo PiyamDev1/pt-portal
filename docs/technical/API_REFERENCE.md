@@ -1,6 +1,6 @@
 # API Route Inventory
 
-Last verified against `app/api/**/route.{ts,js}`: August 28, 2026.
+Last verified against `app/api/**/route.{ts,js}`: September 28, 2026.
 
 This compact reference inventories every current API route and records cross-cutting contracts. The [detailed API documentation](../api/README.md) provides field-level access, input, success, error, side-effect, and example contracts for every exported handler. The route implementation, its schemas, and focused tests remain authoritative when a deployment has moved ahead of these documents.
 
@@ -31,6 +31,50 @@ These endpoints do not use an ordinary staff cookie and must not be made broader
 | Physical timeclock device routes | Device-specific signature/secret, nonce/replay, timestamp, and active-device checks as defined by the route                                             |
 | `/api/cron/*`                    | Exact `Authorization: Bearer <CRON_SECRET>`; missing configuration returns `503`, invalid/absent bearer returns `401`; `x-vercel-cron` alone is ignored |
 | Document migration worker        | `DOCUMENT_MIGRATION_CRON_TOKEN` when configured, otherwise `CRON_SECRET`; accepts the matching bearer, `x-migration-token`, or bounded body token       |
+
+## Customer portal integration
+
+These routes require the signed server-to-server customer integration
+contract. Browser clients never receive the integration secret, and customer
+access grants use opaque aliases rather than internal staff record IDs.
+
+| Methods        | Route                                                                     |
+| -------------- | ------------------------------------------------------------------------- |
+| `POST`         | `/api/integrations/customer/v1/accounts/deactivate`                       |
+| `POST`         | `/api/integrations/customer/v1/applications/lookup`                       |
+| `POST`         | `/api/integrations/customer/v1/applications/link/request-otp`             |
+| `POST`         | `/api/integrations/customer/v1/applications/link/verify-otp`              |
+| `DELETE`       | `/api/integrations/customer/v1/applications/[applicationId]/unlink`       |
+| `GET`          | `/api/integrations/customer/v1/appointments/catalog`                      |
+| `POST`         | `/api/integrations/customer/v1/appointments/available-dates`              |
+| `POST`         | `/api/integrations/customer/v1/appointments/availability`                 |
+| `POST`         | `/api/integrations/customer/v1/appointments`                              |
+| `GET`, `PATCH` | `/api/integrations/customer/v1/appointments/[reference]`                  |
+| `POST`         | `/api/integrations/customer/v1/appointments/sync`                         |
+| `POST`         | `/api/integrations/customer/v1/appointments/claim-code`                   |
+| `POST`         | `/api/integrations/customer/v1/appointments/claim/request-otp`            |
+| `POST`         | `/api/integrations/customer/v1/appointments/claim/verify-otp`             |
+| `POST`         | `/api/integrations/customer/v1/appointments/manage/exchange`              |
+| `POST`         | `/api/integrations/customer/v1/loyalty/onboarding`                        |
+| `POST`         | `/api/integrations/customer/v1/loyalty/referrals/validate`                |
+| `POST`         | `/api/integrations/customer/v1/loyalty/summary`                           |
+| `POST`         | `/api/integrations/customer/v1/loyalty/vouchers/issue`                    |
+| `POST`         | `/api/integrations/customer/v1/trips/tickets`                             |
+| `POST`         | `/api/integrations/customer/v1/trips/access`                              |
+| `POST`         | `/api/integrations/customer/v1/trips/legacy/exchange`                     |
+| `GET`          | `/api/integrations/customer/v1/trips/[tripId]`                            |
+| `GET`          | `/api/integrations/customer/v1/trips/[tripId]/documents/[documentId]`     |
+| `POST`         | `/api/integrations/customer/v1/trips/link/request-otp`                    |
+| `POST`         | `/api/integrations/customer/v1/trips/link/verify-otp`                     |
+| `DELETE`       | `/api/integrations/customer/v1/trips/[tripId]/unlink`                     |
+| `POST`         | `/api/integrations/customer/v1/trips/[tripId]/invitations`                |
+| `DELETE`       | `/api/integrations/customer/v1/trips/[tripId]/invitations/[invitationId]` |
+| `POST`         | `/api/integrations/customer/v1/trips/invitations/accept`                  |
+
+Lookup/read routes remain side-effect free except for bounded audit/access
+facts. Linking, appointment changes, invitations, unlinking, voucher issuance,
+and account deactivation require idempotency and preserve the source module as
+operational authority.
 
 ## Authentication and account security
 
@@ -137,25 +181,42 @@ Availability derives from branch schedules/overrides, active service rules, capa
 
 ## LMS and accounting
 
-| Methods                   | Route                              |
-| ------------------------- | ---------------------------------- |
-| `GET`                     | `/api/accounting/applications`     |
-| `GET`, `POST`             | `/api/accounting/ledger`           |
-| `GET`                     | `/api/accounting/ticketing`        |
-| `GET`, `POST`             | `/api/lms`                         |
-| `GET`                     | `/api/lms/installments`            |
-| `POST`, `PATCH`, `DELETE` | `/api/lms/installment-payment`     |
-| `POST`                    | `/api/lms/skip-installment`        |
-| `POST`                    | `/api/lms/update-installments`     |
-| `POST`                    | `/api/lms/delete-installment-plan` |
-| `GET`, `POST`, `DELETE`   | `/api/lms/notes`                   |
-| `GET`, `POST`             | `/api/lms/audit-logs`              |
-| `GET`                     | `/api/lms/payment-methods`         |
-| `POST`                    | `/api/lms/seed-service-categories` |
+| Methods                   | Route                                    |
+| ------------------------- | ---------------------------------------- |
+| `GET`                     | `/api/accounting/applications`           |
+| `GET`, `POST`             | `/api/accounting/ledger`                 |
+| `GET`                     | `/api/accounting/ticketing`              |
+| `POST`                    | `/api/accounting/pos-configuration/logo` |
+| `GET`, `POST`             | `/api/lms`                               |
+| `GET`                     | `/api/lms/installments`                  |
+| `POST`, `PATCH`, `DELETE` | `/api/lms/installment-payment`           |
+| `POST`                    | `/api/lms/skip-installment`              |
+| `POST`                    | `/api/lms/update-installments`           |
+| `POST`                    | `/api/lms/delete-installment-plan`       |
+| `GET`, `POST`, `DELETE`   | `/api/lms/notes`                         |
+| `GET`, `POST`             | `/api/lms/audit-logs`                    |
+| `GET`                     | `/api/lms/payment-methods`               |
+| `POST`                    | `/api/lms/seed-service-categories`       |
 
 Current LMS money/installment mutations require the `20260812` schema capability and execute through service-role-only atomic PostgreSQL functions. Apply `scripts/migrations/20260812_update_lms_installments_atomically.sql` after the main secure LMS migration so batch due-date/amount edits also commit as one transaction. Retryable operations use idempotency keys; account pagination is global at the database layer. Routes fail when required schema capabilities are absent rather than falling back to partial multi-write behavior.
 
 The Accounting ledger reports standalone Ticketing margin, confirmation-date adjustments for confirmed refund outcomes, projected Package margin with expected commission as income, and POS cash movement for reconciliation only. Its Company Ledger includes read-only company-wide LMS receivables and POS supplier balances; named bank balances remain manual until a trustworthy bank-account source exists. Shared Package transport is counted once through its canonical calculation. See [Accounting Reporting Rules](../guides/ACCOUNTING_REPORTING_RULES.md).
+
+## Loyalty and Member Service
+
+| Methods | Route                                 |
+| ------- | ------------------------------------- |
+| `GET`   | `/api/loyalty`                        |
+| `GET`   | `/api/loyalty/[memberId]`             |
+| `POST`  | `/api/loyalty/[memberId]/adjustments` |
+| `PATCH` | `/api/loyalty/program`                |
+| `POST`  | `/api/loyalty/walk-ins/lookup`        |
+| `POST`  | `/api/loyalty/walk-ins`               |
+
+The Loyalty workspace is administrative; Member Service lookup/consume is
+available to active staff and uses configured branch windows plus annual rank
+allowances. Adjustments and programme changes are audited, bounded, and
+idempotent where they mutate balances.
 
 ## POS daily transactions
 
@@ -174,6 +235,8 @@ The Accounting ledger reports standalone Ticketing margin, confirmation-date adj
 | `POST`        | `/api/pos/reconciliation`                       |
 | `GET`         | `/api/pos/reports`                              |
 | `POST`        | `/api/pos/loyalty/lookup`                       |
+| `POST`        | `/api/pos/loyalty/vouchers/lookup`              |
+| `GET`         | `/api/pos/logos/[logoKey]`                      |
 | `POST`        | `/api/pos/import`                               |
 
 All POS routes are private. Transaction and Ticketing/Package source results are branch-derived; LMS remains company-wide, and Application lookup follows the service's existing staff data scope. The source-options route returns read-only typed references and never mutates the owning module. The capability-gated write surface uses strict bounded
@@ -270,6 +333,7 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 | -------------- | ------------------------------------------------------------------ |
 | `GET`, `POST`  | `/api/ticketing/ledger`                                            |
 | `GET`, `PATCH` | `/api/ticketing/ledger/[bookingId]`                                |
+| `PATCH`        | `/api/ticketing/ledger/[bookingId]/payment-status`                 |
 | `DELETE`       | `/api/ticketing/ledger/[bookingId]/archive`                        |
 | `POST`         | `/api/ticketing/ledger/[bookingId]/requests`                       |
 | `GET`          | `/api/ticketing/requests`                                          |
@@ -285,6 +349,9 @@ The staff QR-scan route validates the authenticated user and signed device QR pa
 | `POST`         | `/api/ticketing/fare-checks`                                       |
 | `GET`, `POST`  | `/api/ticketing/refunds`                                           |
 | `POST`         | `/api/ticketing/refunds/[refundId]/events`                         |
+| `GET`, `POST`  | `/api/ticketing/replacement-cases`                                 |
+| `GET`          | `/api/ticketing/replacement-cases/lookup`                          |
+| `POST`         | `/api/ticketing/replacement-cases/[caseId]/changes`                |
 | `GET`          | `/api/ticketing/flight-monitor`                                    |
 | `POST`         | `/api/ticketing/flight-monitor/[sectorId]/schedule-change`         |
 | `GET`, `PATCH` | `/api/admin/ticketing/flight-api`                                  |
@@ -437,8 +504,9 @@ Admin route names include legacy verbs and are not a promise of REST semantics. 
 | `GET`   | `/api/cron/ticketing/time-limits`                    | Daily 05:00 UTC           |
 | `GET`   | `/api/cron/ticketing/flight-monitor`                 | Daily 05:30 UTC           |
 | `GET`   | `/api/cron/commissions/process`                      | Daily 05:45 UTC           |
+| `GET`   | `/api/cron/loyalty/bonuses`                          | Daily 06:15 UTC           |
 
-All eight routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Commission scheduled work is attributed to the audited system worker, not an employee. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
+All nine routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Commission scheduled work is attributed to the audited system worker, not an employee. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
 
 ## Updating this reference
 

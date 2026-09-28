@@ -40,7 +40,7 @@ function maskNonLinkContent(source) {
   const withoutComments = source.replace(/<!--[\s\S]*?-->/g, (match) =>
     match.replace(/[^\n]/g, ' '),
   )
-  const lines = withoutComments.split('\n')
+  const lines = withoutComments.split(/\r?\n/u)
   let fence = null
 
   return lines
@@ -107,7 +107,7 @@ function extractDestinations(source) {
   const maskedSource = maskNonLinkContent(source)
   const destinations = []
 
-  for (const [index, line] of maskedSource.split('\n').entries()) {
+  for (const [index, line] of maskedSource.split(/\r?\n/u).entries()) {
     for (const destination of extractInlineDestinations(line)) {
       destinations.push({ destination, line: index + 1 })
     }
@@ -155,7 +155,7 @@ function githubHeadingSlug(rawHeading) {
 
 function collectHeadingAnchors(source) {
   const withoutComments = source.replace(/<!--[\s\S]*?-->/g, '')
-  const lines = withoutComments.split('\n')
+  const lines = withoutComments.split(/\r?\n/u)
   const anchors = new Set()
   const slugCounts = new Map()
   let fence = null

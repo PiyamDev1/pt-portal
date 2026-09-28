@@ -1,6 +1,6 @@
 # Detailed API Documentation
 
-Last verified against `app/api/**/route.{ts,js}`: August 23, 2026.
+Last verified against `app/api/**/route.{ts,js}`: September 28, 2026.
 
 This directory is the field-level HTTP contract for PT-Portal. The compact
 [API Reference](../technical/API_REFERENCE.md) remains the route inventory;
@@ -14,7 +14,10 @@ errors, side effects, and examples for every exported handler.
 - [Ticketing operations](TICKETING.md)
 - [Commission policy and shadow processing](COMMISSIONS.md)
 - [Packages, customer portals, groups, and pricing](PACKAGES.md)
-- [Customer portal normal-ticket trips](CUSTOMER_INTEGRATION_TICKETS.md)
+- [Customer portal accounts, applications, and loyalty](CUSTOMER_INTEGRATION_ACCOUNTS.md)
+- [Customer portal appointments](CUSTOMER_INTEGRATION_APPOINTMENTS.md)
+- [Customer portal Ticketing and Package trips](CUSTOMER_INTEGRATION_TICKETS.md)
+- [Staff Loyalty, Member Service, and POS media](LOYALTY_POS.md)
 - [Applications, passports, visas, documents, and issue reports](APPLICATIONS_DOCUMENTS.md)
 - [Timeclock, Frappe, HR, training, and dashboard services](TIMECLOCK_INTEGRATIONS.md)
 
