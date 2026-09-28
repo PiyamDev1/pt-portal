@@ -892,6 +892,7 @@ export default function PosPreviewClient({
   initialBootstrap,
   initialLoadError = null,
   initialSearch = '',
+  initialStatusFilter = '',
 }: {
   branchName: string
   employeeId?: string
@@ -899,6 +900,7 @@ export default function PosPreviewClient({
   initialBootstrap?: PosBootstrapPayload
   initialLoadError?: string | null
   initialSearch?: string
+  initialStatusFilter?: string
 }) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const quickEntryInputRef = useRef<HTMLInputElement>(null)
@@ -942,9 +944,9 @@ export default function PosPreviewClient({
     },
   )
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(Boolean(initialStatusFilter))
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
   const [outgoingFilter, setOutgoingFilter] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
   const [tillFilter, setTillFilter] = useState('')

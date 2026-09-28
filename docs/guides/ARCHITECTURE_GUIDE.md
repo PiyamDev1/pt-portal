@@ -1,6 +1,6 @@
 # Architecture Guide
 
-Last verified against the repository: September 27, 2026.
+Last verified against the repository: September 28, 2026.
 
 ## System shape
 
@@ -66,6 +66,8 @@ Native `window.alert`, `window.confirm`, and `window.prompt` are not application
 Dashboard return controls follow the route hierarchy, not browser history. The shared `PageHeader` uses `getDashboardParentNavigation()` from `lib/navigation/dashboardNavigation.ts` to show a parent-directory link on every non-root dashboard page. For example, Pakistani Passports returns to the Applications hub even if the user arrived from a notification, refresh, or unrelated cached page.
 
 Deep routes whose immediate URL directory is not itself a page have explicit mappings, including application documents, passport drafts, LMS statements, package groups, and package quotation modes. New dashboard routes should either sit beneath a real index page or add an explicit parent rule and regression case. Use `backHref`/`backLabel` only when a page needs to override the central route map. Do not use `router.back()` or `window.history` for portal direction controls.
+
+The dashboard Attention Centre composes small read-only summaries from Bookings, Ticketing, LMS, Applications, and POS. Each provider retains its own scope and rules, reports unavailable data explicitly, and links back to the owning workflow. The POS provider is branch-scoped and current-month only; it resolves the latest reconciliation event for each non-cash tender, excludes supplier-direct remittances, and opens the matching filtered monthly ledger. The queue never copies source records or performs cross-module writes.
 
 ## Authentication and authorization
 

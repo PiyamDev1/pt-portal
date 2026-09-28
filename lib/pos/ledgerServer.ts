@@ -16,6 +16,7 @@ import type {
   PosRefundSummary,
   PosSourceLink,
 } from '@/lib/pos/contracts'
+import { isPosTenderUnreconciled, resolvePosTenderReconciliation } from '@/lib/pos/reconciliation'
 import { getPosSchemaStatus, loadPosEmployeeContext } from '@/lib/pos/server'
 import { hasPosSchemaCapability } from '@/lib/pos/schemaCapability'
 
@@ -204,15 +205,8 @@ function formatTime(createdAt: string, timezone: string) {
   }).format(date)
 }
 
-function latestReconciliation(tender: PosTenderRow) {
-  return [...(tender.pos_reconciliation_events || [])].sort(
-    (left, right) =>
-      right.created_at.localeCompare(left.created_at) || Number(right.id) - Number(left.id),
-  )[0]
-}
-
 function mapTender(tender: PosTenderRow, direction: 'IN' | 'OUT'): PosLedgerTender {
-  const latest = latestReconciliation(tender)
+  const reconciliation = resolvePosTenderReconciliation(tender)
   const amount = numberValue(tender.amount)
   return {
     id: tender.id,
@@ -224,8 +218,8 @@ function mapTender(tender: PosTenderRow, direction: 'IN' | 'OUT'): PosLedgerTend
     methodCode: tender.payment_method,
     amount,
     direction,
-    reconciliationStatus: latest?.status || tender.reconciliation_status,
-    externalReference: latest?.external_reference || tender.external_reference,
+    reconciliationStatus: reconciliation.status,
+    externalReference: reconciliation.externalReference,
     destination: tender.destination,
     cashImpact: tender.payment_method === 'CASH' ? amount * (direction === 'OUT' ? -1 : 1) : 0,
   }
@@ -272,11 +266,7 @@ function mapPosTransaction(
     .reduce((sum, refund) => sum + refund.amount, 0)
   const amountPaid = numberValue(row.amount_paid)
   const corrected = Boolean(row.pos_corrections?.length)
-  const hasPendingTender = tenders.some(
-    (tender) =>
-      tender.destination !== 'SUPPLIER_DIRECT' &&
-      !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus),
-  )
+  const hasPendingTender = tenders.some(isPosTenderUnreconciled)
   const status = corrected
     ? 'Corrected'
     : refunded >= amountPaid && amountPaid > 0
@@ -457,11 +447,7 @@ export function summarizePosLedgerItems(items: PosLedgerTransaction[]): PosLedge
         summary.cardNet += signedAmount
       if (tender.destination !== 'SUPPLIER_DIRECT' && tender.method === 'Bank')
         summary.bankNet += signedAmount
-      if (
-        tender.destination !== 'SUPPLIER_DIRECT' &&
-        !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus)
-      )
-        summary.unreconciledCount += 1
+      if (isPosTenderUnreconciled(tender)) summary.unreconciledCount += 1
     }
   }
   return summary
@@ -488,15 +474,7 @@ function passesFilters(item: PosLedgerTransaction, filters: PosLedgerFilters) {
   if (filters.status === 'REFUNDED' && item.status !== 'Refunded') return false
   if (filters.status === 'PARTIALLY_REFUNDED' && item.status !== 'Partially refunded') return false
   if (filters.status === 'CORRECTED' && item.status !== 'Corrected') return false
-  if (
-    filters.status === 'UNRECONCILED' &&
-    !item.tenders.some(
-      (tender) =>
-        tender.destination !== 'SUPPLIER_DIRECT' &&
-        !['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus),
-    )
-  )
-    return false
+  if (filters.status === 'UNRECONCILED' && !item.tenders.some(isPosTenderUnreconciled)) return false
   if (filters.status === 'POSTED' && item.status !== 'Posted') return false
   return true
 }

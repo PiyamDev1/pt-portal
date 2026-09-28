@@ -179,4 +179,33 @@ describe('dashboard work queue', () => {
     expect(queue.items).toEqual([])
     expect(queue.unavailableProviders).toEqual(['Applications (partial)'])
   })
+
+  it('adds one branch POS item using the source reconciliation summary', () => {
+    const queue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['pos'],
+      pos: {
+        available: true,
+        unresolvedCount: 3,
+        failedCount: 1,
+        oldestUnresolvedAt: '2026-09-20T09:00:00.000Z',
+        month: '2026-09',
+        branchName: 'Bradford',
+      },
+    })
+
+    expect(queue.unavailableProviders).toEqual([])
+    expect(queue.items).toEqual([
+      expect.objectContaining({
+        id: 'pos-reconciliation',
+        moduleId: 'pos',
+        severity: 'critical',
+        count: 3,
+        detail:
+          '1 tender failed reconciliation. Current-month cash and supplier-direct remittances are excluded.',
+        reference: 'POS Â· Bradford Â· 2026-09',
+        href: '/dashboard/pos?period=month&status=UNRECONCILED',
+      }),
+    ])
+  })
 })

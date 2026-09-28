@@ -14,8 +14,10 @@ import {
   type BookingQueueSnapshot,
   type DashboardWorkQueue,
   type LmsQueueSnapshot,
+  type PosQueueSnapshot,
   type TicketingQueueSnapshot,
 } from '@/lib/dashboard/workQueue'
+import { loadPosReconciliationAttentionSummary } from '@/lib/pos/reconciliationSummary.server'
 
 type LoadDashboardWorkQueueInput = {
   userSupabase: SupabaseClient
@@ -24,6 +26,7 @@ type LoadDashboardWorkQueueInput = {
   employeeId: string
   locationId: string | null
   locationName: string | null
+  locationTimezone: string | null
   roleName: string
   now?: Date
 }
@@ -197,12 +200,25 @@ async function loadApplicationsQueueSnapshot(
   }
 }
 
+async function loadPosQueueSnapshot(
+  supabase: SupabaseClient,
+  input: Pick<LoadDashboardWorkQueueInput, 'locationId' | 'locationName' | 'locationTimezone'>,
+  generatedAt: string,
+): Promise<PosQueueSnapshot> {
+  return loadPosReconciliationAttentionSummary(supabase, {
+    locationId: input.locationId,
+    branchName: input.locationName,
+    timezone: input.locationTimezone,
+    generatedAt,
+  })
+}
+
 export async function loadDashboardWorkQueue(
   input: LoadDashboardWorkQueueInput,
 ): Promise<DashboardWorkQueue> {
   const generatedAt = (input.now || new Date()).toISOString()
   const visibleModuleIds = new Set(input.visibleModuleIds)
-  const [bookings, ticketing, lms, applications] = await Promise.all([
+  const [bookings, ticketing, lms, applications, pos] = await Promise.all([
     visibleModuleIds.has('bookings')
       ? loadBookingQueueSnapshot(
           input.userSupabase,
@@ -218,6 +234,9 @@ export async function loadDashboardWorkQueue(
     visibleModuleIds.has('applications')
       ? loadApplicationsQueueSnapshot(input.userSupabase, generatedAt, input.roleName)
       : undefined,
+    visibleModuleIds.has('pos')
+      ? loadPosQueueSnapshot(input.serviceSupabase, input, generatedAt)
+      : undefined,
   ])
 
   return buildDashboardWorkQueue({
@@ -227,5 +246,6 @@ export async function loadDashboardWorkQueue(
     ticketing,
     lms,
     applications,
+    pos,
   })
 }

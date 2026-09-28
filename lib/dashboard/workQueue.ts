@@ -2,7 +2,7 @@ export type DashboardAttentionSeverity = 'critical' | 'warning' | 'info'
 
 export type DashboardAttentionItem = {
   id: string
-  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications'
+  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications' | 'pos'
   moduleLabel: string
   severity: DashboardAttentionSeverity
   title: string
@@ -46,6 +46,15 @@ export type ApplicationsQueueSnapshot = {
   oldestAttentionAt: string | null
 }
 
+export type PosQueueSnapshot = {
+  available: boolean
+  unresolvedCount: number
+  failedCount: number
+  oldestUnresolvedAt: string | null
+  month: string
+  branchName: string
+}
+
 export type DashboardWorkQueue = {
   generatedAt: string
   items: DashboardAttentionItem[]
@@ -59,6 +68,7 @@ type BuildDashboardWorkQueueInput = {
   ticketing?: TicketingQueueSnapshot
   lms?: LmsQueueSnapshot
   applications?: ApplicationsQueueSnapshot
+  pos?: PosQueueSnapshot
 }
 
 const SEVERITY_ORDER: Record<DashboardAttentionSeverity, number> = {
@@ -252,6 +262,35 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           dateLabel: 'Oldest record',
           reference: 'Applications - shared summary',
           href: '/dashboard/applications#attention',
+        })
+      }
+    }
+  }
+
+  if (visibleModules.has('pos')) {
+    if (!input.pos?.available) {
+      unavailableProviders.push('POS')
+    } else {
+      const count = safeCount(input.pos.unresolvedCount)
+      if (count > 0) {
+        const failedCount = safeCount(input.pos.failedCount)
+        const date = validDate(input.pos.oldestUnresolvedAt, input.generatedAt)
+        items.push({
+          id: 'pos-reconciliation',
+          moduleId: 'pos',
+          moduleLabel: 'POS',
+          severity:
+            failedCount > 0 || isOlderThanDays(date, input.generatedAt, 3) ? 'critical' : 'warning',
+          title: `${count} POS ${plural(count, 'tender')} unreconciled`,
+          detail:
+            failedCount > 0
+              ? `${failedCount} ${plural(failedCount, 'tender')} failed reconciliation. Current-month cash and supplier-direct remittances are excluded.`
+              : 'Current-month non-cash tenders waiting for reconciliation. Cash and supplier-direct remittances are excluded.',
+          count,
+          date,
+          dateLabel: 'Oldest tender',
+          reference: `POS Â· ${input.pos.branchName} Â· ${input.pos.month}`,
+          href: '/dashboard/pos?period=month&status=UNRECONCILED',
         })
       }
     }

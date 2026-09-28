@@ -218,7 +218,7 @@ export default async function Dashboard() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(id, name, branch_code)')
+    .select('full_name, roles(name), locations(id, name, branch_code, timezone)')
     .eq('id', session.user.id)
     .single()
 
@@ -250,6 +250,7 @@ export default async function Dashboard() {
     employeeId: session.user.id,
     locationId: location?.id || null,
     locationName: location?.name || null,
+    locationTimezone: location?.timezone || null,
     roleName: role?.name || '',
   })
 

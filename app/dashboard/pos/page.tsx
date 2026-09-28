@@ -5,8 +5,8 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import type { StaffSession } from '@/lib/auth/staffSession'
-import type { PosLedgerPayload } from '@/lib/pos/contracts'
-import { loadPosLedger } from '@/lib/pos/ledgerServer'
+import type { PosLedgerFilters, PosLedgerPayload, PosLedgerPeriod } from '@/lib/pos/contracts'
+import { isIsoDate, loadPosLedger } from '@/lib/pos/ledgerServer'
 import { loadPosBootstrap } from '@/lib/pos/server'
 import PosPreviewClient from './PosPreviewClient'
 
@@ -29,9 +29,16 @@ function currentDateInTimezone(timezone: string) {
 export default async function PosPreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string | string[] }>
+  searchParams: Promise<{
+    search?: string | string[]
+    period?: string | string[]
+    date?: string | string[]
+    status?: string | string[]
+  }>
 }) {
   const params = await searchParams
+  const firstValue = (value: string | string[] | undefined) =>
+    Array.isArray(value) ? value[0] : value
   const requestedSearch = Array.isArray(params.search) ? params.search[0] : params.search
   const initialSearch = String(requestedSearch || '')
     .trim()
@@ -70,7 +77,23 @@ export default async function PosPreviewPage({
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
   const timezone = location?.timezone || 'Europe/London'
-  const ledgerDate = currentDateInTimezone(timezone)
+  const currentDate = currentDateInTimezone(timezone)
+  const requestedDate = firstValue(params.date)
+  const ledgerDate = requestedDate && isIsoDate(requestedDate) ? requestedDate : currentDate
+  const ledgerPeriod: PosLedgerPeriod = firstValue(params.period) === 'month' ? 'month' : 'day'
+  const allowedStatuses = new Set<NonNullable<PosLedgerFilters['status']>>([
+    'POSTED',
+    'PARTIALLY_REFUNDED',
+    'REFUNDED',
+    'CORRECTED',
+    'UNRECONCILED',
+  ])
+  const requestedStatus = firstValue(params.status)
+  const statusFilter = allowedStatuses.has(
+    requestedStatus as NonNullable<PosLedgerFilters['status']>,
+  )
+    ? (requestedStatus as NonNullable<PosLedgerFilters['status']>)
+    : undefined
   let initialLoadError: string | null = null
   let initialLedger: PosLedgerPayload
   const departmentNames = (
@@ -101,7 +124,12 @@ export default async function PosPreviewPage({
   })
 
   try {
-    initialLedger = await loadPosLedger(user.id, 'day', ledgerDate)
+    initialLedger = await loadPosLedger(
+      user.id,
+      ledgerPeriod,
+      ledgerDate,
+      statusFilter ? { status: statusFilter } : {},
+    )
   } catch (error) {
     console.error('[pos] initial ledger load failed', {
       errorType: error instanceof Error ? error.name : typeof error,
@@ -122,7 +150,7 @@ export default async function PosPreviewPage({
         branchId: location?.id || '',
         branchName: location?.name || 'Branch',
         timezone,
-        period: 'day',
+        period: ledgerPeriod,
         date: ledgerDate,
         loadedAt: new Date().toISOString(),
         source: 'daily_ledger_entries',
@@ -150,6 +178,7 @@ export default async function PosPreviewPage({
             initialBootstrap={initialBootstrap || undefined}
             initialLoadError={initialLoadError}
             initialSearch={initialSearch}
+            initialStatusFilter={statusFilter || ''}
           />
         </main>
       </div>

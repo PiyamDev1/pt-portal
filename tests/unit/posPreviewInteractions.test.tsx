@@ -227,6 +227,35 @@ describe('POS preview interactions', () => {
     expect(screen.queryByText('POS-0908-014')).toBeNull()
   })
 
+  it('opens a dashboard reconciliation deep link with its ledger filter selected', async () => {
+    const monthlyLedger: PosLedgerPayload = {
+      ...EMPTY_LEDGER,
+      context: { ...EMPTY_LEDGER.context, period: 'month' },
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(monthlyLedger),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <PosPreviewClient
+        branchName="Test branch"
+        initialLedger={monthlyLedger}
+        initialStatusFilter="UNRECONCILED"
+      />,
+    )
+
+    expect((screen.getByLabelText('Status filter') as HTMLSelectElement).value).toBe('UNRECONCILED')
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('period=month'),
+        expect.objectContaining({ cache: 'no-store' }),
+      ),
+    )
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('status=UNRECONCILED')
+  })
+
   it('refreshes the live ledger every two minutes', async () => {
     const liveLedger: PosLedgerPayload = {
       items: [],

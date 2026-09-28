@@ -12,6 +12,7 @@ import {
   posLedgerPeriodBounds,
   summarizePosLedgerItems,
 } from '@/lib/pos/ledgerServer'
+import { isPosTenderUnreconciled } from '@/lib/pos/reconciliation'
 import { loadPosBootstrap } from '@/lib/pos/server'
 
 type Aggregate = { moneyIn: number; moneyOut: number; net: number }
@@ -77,7 +78,7 @@ export async function loadPosReport(
       if (tender.destination === 'SUPPLIER_DIRECT') continue
       const signed = tender.direction === 'OUT' ? -tender.amount : tender.amount
       addAggregate(methods, tender.methodCode, signed)
-      if (!['COMPLETED', 'CLEARED'].includes(tender.reconciliationStatus) && tender.id) {
+      if (isPosTenderUnreconciled(tender) && tender.id) {
         unreconciled.push({
           tenderId: tender.id,
           reference: item.reference,
