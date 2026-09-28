@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import type { StaffSession } from '@/lib/auth/staffSession'
+import { formatIsoDateInTimezone } from '@/lib/dateFormatter'
 import type { PosLedgerFilters, PosLedgerPayload, PosLedgerPeriod } from '@/lib/pos/contracts'
 import { isIsoDate, loadPosLedger } from '@/lib/pos/ledgerServer'
 import { loadPosBootstrap } from '@/lib/pos/server'
@@ -13,17 +14,6 @@ import PosPreviewClient from './PosPreviewClient'
 export const metadata: Metadata = {
   title: 'POS - PT Portal',
   description: 'Daily branch transactions and till workspace',
-}
-
-function currentDateInTimezone(timezone: string) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: timezone,
-  }).formatToParts(new Date())
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${value.year}-${value.month}-${value.day}`
 }
 
 export default async function PosPreviewPage({
@@ -77,7 +67,7 @@ export default async function PosPreviewPage({
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
   const timezone = location?.timezone || 'Europe/London'
-  const currentDate = currentDateInTimezone(timezone)
+  const currentDate = formatIsoDateInTimezone(new Date(), timezone)
   const requestedDate = firstValue(params.date)
   const ledgerDate = requestedDate && isIsoDate(requestedDate) ? requestedDate : currentDate
   const ledgerPeriod: PosLedgerPeriod = firstValue(params.period) === 'month' ? 'month' : 'day'

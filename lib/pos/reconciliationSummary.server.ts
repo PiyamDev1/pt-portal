@@ -6,6 +6,7 @@ import type {
   PosReconciliationStatus,
   PosTenderDestination,
 } from '@/lib/pos/contracts'
+import { formatIsoDateInTimezone } from '@/lib/dateFormatter'
 import {
   isPosTenderUnreconciled,
   resolvePosTenderReconciliation,
@@ -33,24 +34,6 @@ export type PosReconciliationAttentionSummary = {
   oldestUnresolvedAt: string | null
   month: string
   branchName: string
-}
-
-function dateInTimezone(value: string, timezone: string) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: timezone,
-    }).formatToParts(new Date(value))
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-    if (values.year && values.month && values.day) {
-      return `${values.year}-${values.month}-${values.day}`
-    }
-  } catch {
-    // Fall back to UTC if a stored branch timezone is invalid.
-  }
-  return new Date(value).toISOString().slice(0, 10)
 }
 
 async function loadTransactionTenders(
@@ -135,7 +118,7 @@ export async function loadPosReconciliationAttentionSummary(
     generatedAt: string
   },
 ): Promise<PosReconciliationAttentionSummary> {
-  const localDate = dateInTimezone(input.generatedAt, input.timezone || 'Europe/London')
+  const localDate = formatIsoDateInTimezone(input.generatedAt, input.timezone || 'Europe/London')
   const month = localDate.slice(0, 7)
   const unavailable = {
     available: false,

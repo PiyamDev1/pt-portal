@@ -54,3 +54,29 @@ export const handleDateInput = (value: string): string => {
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
 }
+
+/**
+ * Return the calendar date seen in a named timezone. Invalid timezone names
+ * fall back to UTC so reporting adapters keep a deterministic date boundary.
+ */
+export function formatIsoDateInTimezone(value: string | Date, timezone: string): string {
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) throw new Error('Invalid date value')
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: timezone,
+    }).formatToParts(date)
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+    if (values.year && values.month && values.day) {
+      return `${values.year}-${values.month}-${values.day}`
+    }
+  } catch {
+    // The UTC fallback below handles invalid stored timezone names.
+  }
+
+  return date.toISOString().slice(0, 10)
+}

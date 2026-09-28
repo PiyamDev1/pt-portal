@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatIsoDateInTimezone,
   formatToDisplayDate,
   formatToISODate,
   handleDateInput,
@@ -10,6 +11,13 @@ describe('dateFormatter', () => {
   it('converts between the LMS display and ISO formats', () => {
     expect(formatToDisplayDate('2026-08-12')).toBe('12/08/2026')
     expect(formatToISODate('12/08/2026')).toBe('2026-08-12')
+  })
+
+  it('returns the calendar date in the requested timezone with a UTC fallback', () => {
+    const value = '2026-09-28T00:30:00.000Z'
+    expect(formatIsoDateInTimezone(value, 'America/Los_Angeles')).toBe('2026-09-27')
+    expect(formatIsoDateInTimezone(value, 'Europe/London')).toBe('2026-09-28')
+    expect(formatIsoDateInTimezone(value, 'Not/A_Timezone')).toBe('2026-09-28')
   })
 
   it('formats date input incrementally and ignores non-digits', () => {

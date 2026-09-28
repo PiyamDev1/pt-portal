@@ -263,7 +263,7 @@ Name:         [________________]
 
 Amount:       £________
 Action:       Customer payment / Pay supplier / Expense / Donation
-Amount:       Â£________ (always entered as a positive amount)
+Amount:       £________ (always entered as a positive amount)
 Payment:      [Cash] [Card] [Bank] [Split]
 
 [Save transaction]       [Refunds & corrections]

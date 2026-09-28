@@ -17,9 +17,11 @@ import {
   type LmsQueueSnapshot,
   type PosQueueSnapshot,
   type TicketingQueueSnapshot,
+  type TrainingQueueSnapshot,
 } from '@/lib/dashboard/workQueue'
 import { loadFrappeAttentionSummary } from '@/lib/integrations/frappe/attentionSummary.server'
 import { loadPosReconciliationAttentionSummary } from '@/lib/pos/reconciliationSummary.server'
+import { loadTrainingAttentionSummary } from '@/lib/training/attentionSummary.server'
 
 type LoadDashboardWorkQueueInput = {
   userSupabase: SupabaseClient
@@ -219,12 +221,24 @@ async function loadFrappeQueueSnapshot(supabase: SupabaseClient): Promise<Frappe
   return loadFrappeAttentionSummary(supabase)
 }
 
+async function loadTrainingQueueSnapshot(
+  supabase: SupabaseClient,
+  input: Pick<LoadDashboardWorkQueueInput, 'employeeId' | 'locationTimezone'>,
+  generatedAt: string,
+): Promise<TrainingQueueSnapshot> {
+  return loadTrainingAttentionSummary(supabase, {
+    employeeId: input.employeeId,
+    generatedAt,
+    timezone: input.locationTimezone,
+  })
+}
+
 export async function loadDashboardWorkQueue(
   input: LoadDashboardWorkQueueInput,
 ): Promise<DashboardWorkQueue> {
   const generatedAt = (input.now || new Date()).toISOString()
   const visibleModuleIds = new Set(input.visibleModuleIds)
-  const [bookings, ticketing, lms, applications, pos, frappe] = await Promise.all([
+  const [bookings, ticketing, lms, applications, pos, frappe, training] = await Promise.all([
     visibleModuleIds.has('bookings')
       ? loadBookingQueueSnapshot(
           input.userSupabase,
@@ -244,6 +258,9 @@ export async function loadDashboardWorkQueue(
       ? loadPosQueueSnapshot(input.serviceSupabase, input, generatedAt)
       : undefined,
     visibleModuleIds.has('settings') ? loadFrappeQueueSnapshot(input.serviceSupabase) : undefined,
+    visibleModuleIds.has('training')
+      ? loadTrainingQueueSnapshot(input.userSupabase, input, generatedAt)
+      : undefined,
   ])
 
   return buildDashboardWorkQueue({
@@ -255,5 +272,6 @@ export async function loadDashboardWorkQueue(
     applications,
     pos,
     frappe,
+    training,
   })
 }

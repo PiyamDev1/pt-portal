@@ -4362,7 +4362,7 @@ Please enter the access code and accept the data handling terms before downloadi
                               )}
                               {isInvoiceReference && (
                                 <p className="mt-1 inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-black text-slate-700">
-                                  Invoice reference only Â· excluded from package totals
+                                  Invoice reference only · excluded from package totals
                                 </p>
                               )}
                               {reservation.supplier_reference && (

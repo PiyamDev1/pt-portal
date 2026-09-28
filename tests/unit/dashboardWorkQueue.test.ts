@@ -203,7 +203,7 @@ describe('dashboard work queue', () => {
         count: 3,
         detail:
           '1 tender failed reconciliation. Current-month cash and supplier-direct remittances are excluded.',
-        reference: 'POS Â· Bradford Â· 2026-09',
+        reference: 'POS · Bradford · 2026-09',
         href: '/dashboard/pos?period=month&status=UNRECONCILED',
       }),
     ])
@@ -244,5 +244,34 @@ describe('dashboard work queue', () => {
     ])
     expect(staffQueue.items).toEqual([])
     expect(staffQueue.unavailableProviders).toEqual([])
+  })
+
+  it('adds one personal Training item without double-counting overdue assignments', () => {
+    const queue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['training'],
+      training: {
+        available: true,
+        attentionCount: 3,
+        incompleteCount: 2,
+        overdueCount: 1,
+        dueSoonCount: 1,
+        expiredCertificateCount: 1,
+        expiringCertificateCount: 0,
+        oldestAttentionAt: '2026-09-20T00:00:00.000Z',
+      },
+    })
+
+    expect(queue.items).toEqual([
+      expect.objectContaining({
+        id: 'training-attention',
+        moduleId: 'training',
+        severity: 'critical',
+        count: 3,
+        detail:
+          '2 incomplete assignments, 1 overdue assignment, 1 assignment due within 7 days, 1 expired certificate.',
+        href: '/dashboard/training',
+      }),
+    ])
   })
 })

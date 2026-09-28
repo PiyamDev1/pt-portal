@@ -2,7 +2,7 @@ export type DashboardAttentionSeverity = 'critical' | 'warning' | 'info'
 
 export type DashboardAttentionItem = {
   id: string
-  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications' | 'pos' | 'settings'
+  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications' | 'pos' | 'settings' | 'training'
   moduleLabel: string
   severity: DashboardAttentionSeverity
   title: string
@@ -65,6 +65,17 @@ export type FrappeQueueSnapshot = {
   oldestProblemAt: string | null
 }
 
+export type TrainingQueueSnapshot = {
+  available: boolean
+  attentionCount: number
+  incompleteCount: number
+  overdueCount: number
+  dueSoonCount: number
+  expiredCertificateCount: number
+  expiringCertificateCount: number
+  oldestAttentionAt: string | null
+}
+
 export type DashboardWorkQueue = {
   generatedAt: string
   items: DashboardAttentionItem[]
@@ -80,6 +91,7 @@ type BuildDashboardWorkQueueInput = {
   applications?: ApplicationsQueueSnapshot
   pos?: PosQueueSnapshot
   frappe?: FrappeQueueSnapshot
+  training?: TrainingQueueSnapshot
 }
 
 const SEVERITY_ORDER: Record<DashboardAttentionSeverity, number> = {
@@ -300,7 +312,7 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           count,
           date,
           dateLabel: 'Oldest tender',
-          reference: `POS Â· ${input.pos.branchName} Â· ${input.pos.month}`,
+          reference: `POS · ${input.pos.branchName} · ${input.pos.month}`,
           href: '/dashboard/pos?period=month&status=UNRECONCILED',
         })
       }
@@ -346,8 +358,60 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           count,
           date: validDate(input.frappe.oldestProblemAt, input.generatedAt),
           dateLabel: 'Oldest signal',
-          reference: 'Frappe HRMS Â· integration health',
+          reference: 'Frappe HRMS · integration health',
           href: '/dashboard/settings?tab=maintenance',
+        })
+      }
+    }
+  }
+
+  if (visibleModules.has('training')) {
+    if (!input.training?.available) {
+      unavailableProviders.push('Training')
+    } else {
+      const count = safeCount(input.training.attentionCount)
+      if (count > 0) {
+        const incompleteCount = safeCount(input.training.incompleteCount)
+        const overdueCount = safeCount(input.training.overdueCount)
+        const dueSoonCount = safeCount(input.training.dueSoonCount)
+        const expiredCount = safeCount(input.training.expiredCertificateCount)
+        const expiringCount = safeCount(input.training.expiringCertificateCount)
+        const detailParts = (
+          [
+            [incompleteCount, 'incomplete assignment', 'incomplete assignments'],
+            [overdueCount, 'overdue assignment', 'overdue assignments'],
+            [dueSoonCount, 'assignment due within 7 days', 'assignments due within 7 days'],
+            [expiredCount, 'expired certificate', 'expired certificates'],
+            [
+              expiringCount,
+              'certificate expiring within 30 days',
+              'certificates expiring within 30 days',
+            ],
+          ] as Array<[number, string, string]>
+        )
+          .filter(([partCount]) => partCount > 0)
+          .map(
+            ([partCount, singular, pluralValue]) =>
+              `${partCount} ${plural(partCount, singular, pluralValue)}`,
+          )
+
+        items.push({
+          id: 'training-attention',
+          moduleId: 'training',
+          moduleLabel: 'Training',
+          severity:
+            overdueCount > 0 || expiredCount > 0
+              ? 'critical'
+              : dueSoonCount > 0 || expiringCount > 0
+                ? 'warning'
+                : 'info',
+          title: `${count} training ${plural(count, 'item')} ${count === 1 ? 'needs' : 'need'} attention`,
+          detail: `${detailParts.join(', ')}.`,
+          count,
+          date: validDate(input.training.oldestAttentionAt, input.generatedAt),
+          dateLabel: 'Oldest deadline',
+          reference: 'Training · your assignments',
+          href: '/dashboard/training',
         })
       }
     }
