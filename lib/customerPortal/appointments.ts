@@ -9,6 +9,7 @@ import {
   sendBookingEmail,
 } from '@/lib/bookingEmail'
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
+import { storeBookingAuditEvent, storeBookingEmailAttempt } from '@/lib/bookingPersistence'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import {
   buildAvailabilityCandidates,
@@ -473,6 +474,23 @@ export async function createCustomerAppointment(input: {
       409,
     )
   }
+  await storeBookingAuditEvent(service, {
+    booking_id: booking.id,
+    location_id: slot.location_id,
+    action_type: 'created',
+    actor_identifier: 'customer-portal',
+    after_data: {
+      status: 'confirmed',
+      customer_name: input.contactName,
+      customer_phone: input.contactPhone,
+      customer_email: input.contactEmail,
+      service_id: slot.service_id,
+      person_count: input.groupSize,
+      start_time: slot.starts_at,
+      end_time: slot.ends_at,
+    },
+    metadata: { source: 'website' },
+  })
   const appointmentAlias = await getOrCreateResourceAlias('appointment', booking.id)
   const managementGrant = await createCustomerAccessGrant({
     resourceType: 'appointment',
@@ -492,9 +510,10 @@ export async function createCustomerAppointment(input: {
     singleUse: true,
   })
   const manageUrl = `${PORTAL_ORIGIN}/appointments/manage/${encodeURIComponent(emailExchange.token)}`
-  await sendBookingEmail({
+  const confirmationSubject = 'Your appointment is confirmed'
+  const confirmationResult = await sendBookingEmail({
     to: input.contactEmail,
-    subject: 'Your appointment is confirmed',
+    subject: confirmationSubject,
     kind: 'confirmation',
     template: `${serviceRow.confirmation_template?.trim() || defaultTemplate('confirmation')}${customerPortalAccessEmailBlock(booking.customer_guest_code, manageUrl)}`,
     customerName: input.contactName,
@@ -503,6 +522,17 @@ export async function createCustomerAppointment(input: {
     branchName: location.name,
     branchAddress: address(location),
     branchContactNumber: location.phone ?? 'Contact unavailable',
+  })
+  await storeBookingEmailAttempt(service, {
+    bookingId: booking.id,
+    locationId: slot.location_id,
+    customerEmail: input.contactEmail,
+    emailKind: 'confirmation',
+    emailSubject: confirmationSubject,
+    senderEmail: confirmationResult.senderEmail,
+    notificationStatus: confirmationResult.sent ? 'sent' : 'failed',
+    failureReason: confirmationResult.reason ?? null,
+    metadata: { source: 'customer-portal', service_id: slot.service_id },
   })
   return {
     appointment: await bookingSummary(booking.id),
@@ -806,14 +836,35 @@ export async function updateCustomerAppointment(input: {
         409,
       )
     await releaseBookingCapacity(service, booking.id)
-    await sendBookingEmail({
+    await storeBookingAuditEvent(service, {
+      booking_id: booking.id,
+      location_id: booking.location_id,
+      action_type: 'cancelled',
+      actor_identifier: 'customer-portal',
+      before_data: { status: booking.status },
+      after_data: { status: 'cancelled' },
+      metadata: { source: 'customer-portal' },
+    })
+    const cancellationSubject = 'Your appointment has been cancelled'
+    const cancellationResult = await sendBookingEmail({
       to: booking.customer_email,
-      subject: 'Your appointment has been cancelled',
+      subject: cancellationSubject,
       kind: 'cancellation',
       template: bookingService.cancellation_template,
       customerName: booking.customer_name,
       serviceName: bookingService.name,
       startTimeISO: booking.start_time,
+    })
+    await storeBookingEmailAttempt(service, {
+      bookingId: booking.id,
+      locationId: booking.location_id,
+      customerEmail: booking.customer_email,
+      emailKind: 'cancellation',
+      emailSubject: cancellationSubject,
+      senderEmail: cancellationResult.senderEmail,
+      notificationStatus: cancellationResult.sent ? 'sent' : 'failed',
+      failureReason: cancellationResult.reason ?? null,
+      metadata: { source: 'customer-portal' },
     })
     return bookingSummary(booking.id)
   }
@@ -911,14 +962,41 @@ export async function updateCustomerAppointment(input: {
       409,
     )
   }
-  await sendBookingEmail({
+  await storeBookingAuditEvent(service, {
+    booking_id: booking.id,
+    location_id: booking.location_id,
+    action_type: input.slotPublicId ? 'rescheduled' : 'amended',
+    actor_identifier: 'customer-portal',
+    before_data: {
+      customer_name: booking.customer_name,
+      customer_phone: booking.customer_phone,
+      person_count: booking.person_count,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+    },
+    after_data: changes,
+    metadata: { source: 'customer-portal' },
+  })
+  const modificationSubject = 'Your appointment has been updated'
+  const modificationResult = await sendBookingEmail({
     to: booking.customer_email,
-    subject: 'Your appointment has been updated',
+    subject: modificationSubject,
     kind: 'modification',
     template: bookingService.modification_template,
     customerName: input.contactName ?? booking.customer_name,
     serviceName: bookingService.name,
     startTimeISO: startsAt,
+  })
+  await storeBookingEmailAttempt(service, {
+    bookingId: booking.id,
+    locationId: booking.location_id,
+    customerEmail: booking.customer_email,
+    emailKind: 'modification',
+    emailSubject: modificationSubject,
+    senderEmail: modificationResult.senderEmail,
+    notificationStatus: modificationResult.sent ? 'sent' : 'failed',
+    failureReason: modificationResult.reason ?? null,
+    metadata: { source: 'customer-portal', rescheduled: Boolean(input.slotPublicId) },
   })
   return bookingSummary(booking.id)
 }

@@ -25,9 +25,19 @@ import {
 import {
   findIdempotentBooking,
   recordIdempotentBooking,
+  storeBookingAuditEvent,
   storeBookingEmailAttempt,
 } from '@/lib/bookingPersistence'
 import { reserveBookingCapacity } from '@/lib/bookingCapacity'
+import {
+  extractUtcTimeHHMMSS,
+  getServicePersonUnits,
+  hasServiceRuleFields,
+  isValidBookingEmail,
+  isValidBookingPhone,
+  overlapsRangeBeyondTolerance,
+  timeToMinutes,
+} from '@/lib/bookingRules'
 
 function buildBranchAddress(
   location: {
@@ -59,89 +69,6 @@ const SCHEMA_HINT =
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10'
-}
-
-function getServicePersonUnits(
-  service: { person_count_excludes_family_head?: boolean },
-  personCount: number,
-): number {
-  if (service.person_count_excludes_family_head === false) {
-    return Math.max(0, personCount - 1)
-  }
-  return Math.max(0, personCount)
-}
-
-function hasServiceRuleFields(service: unknown): boolean {
-  const candidate = service as {
-    person_count_excludes_family_head?: unknown
-    close_overrun_tolerance_minutes?: unknown
-  } | null
-  return (
-    typeof candidate?.person_count_excludes_family_head === 'boolean' &&
-    typeof candidate?.close_overrun_tolerance_minutes === 'number'
-  )
-}
-
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + minutes
-}
-
-function extractUtcTimeHHMMSS(date: Date): string {
-  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}`
-}
-
-function overlapsRangeBeyondTolerance(
-  startMinutes: number,
-  occupiedUntilMinutes: number,
-  rangeStart: string | null,
-  rangeEnd: string | null,
-  toleranceMinutes: number,
-): boolean {
-  if (!rangeStart || !rangeEnd) return false
-  const rs = timeToMinutes(rangeStart)
-  const re = timeToMinutes(rangeEnd)
-
-  if (occupiedUntilMinutes <= rs || startMinutes >= re) return false
-  if (startMinutes >= rs && startMinutes < re) return true
-
-  const overrun = occupiedUntilMinutes - rs
-  return overrun > toleranceMinutes
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-}
-
-function isValidPhone(value: string): boolean {
-  return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim())
-}
-
-async function logBookingAudit(
-  supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
-  payload: {
-    booking_id: string
-    location_id: string
-    action_type: string
-    actor_identifier?: string | null
-    before_data?: unknown
-    after_data?: unknown
-    metadata?: Record<string, unknown>
-  },
-): Promise<void> {
-  const { error } = await supabase.from('booking_audit_logs').insert({
-    booking_id: payload.booking_id,
-    location_id: payload.location_id,
-    action_type: payload.action_type,
-    actor_identifier: payload.actor_identifier ?? null,
-    before_data: payload.before_data ?? null,
-    after_data: payload.after_data ?? null,
-    metadata: payload.metadata ?? null,
-  })
-
-  if (error && !isSchemaError(error)) {
-    console.error('Failed to write booking audit log', error)
-  }
 }
 
 /**
@@ -254,7 +181,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!isValidEmail(customer_email)) {
+    if (!isValidBookingEmail(customer_email)) {
       return NextResponse.json(
         {
           success: false,
@@ -264,7 +191,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!isValidPhone(customer_phone)) {
+    if (!isValidBookingPhone(customer_phone)) {
       return NextResponse.json(
         {
           success: false,
@@ -906,7 +833,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    await logBookingAudit(supabase, {
+    await storeBookingAuditEvent(supabase, {
       booking_id: newBooking.id,
       location_id,
       action_type: 'created',

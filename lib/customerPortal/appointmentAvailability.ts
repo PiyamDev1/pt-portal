@@ -1,4 +1,9 @@
 import type { DefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
+import {
+  getServicePersonUnits,
+  overlapsRangeBeyondTolerance,
+  timeToMinutes,
+} from '@/lib/bookingRules'
 
 export const CUSTOMER_AVAILABLE_DATE_WINDOW_DAYS = 35
 
@@ -28,21 +33,12 @@ export interface AvailabilityCandidate {
   available: number
 }
 
-function servicePersonUnits(service: AvailabilityService, groupSize: number) {
-  return service.person_count_excludes_family_head ? groupSize : Math.max(0, groupSize - 1)
-}
-
 export function serviceDurationMinutes(service: AvailabilityService, groupSize: number) {
   return (
     service.duration_minutes +
-    servicePersonUnits(service, groupSize) *
+    getServicePersonUnits(service, groupSize) *
       Math.max(0, service.duration_per_additional_person_minutes)
   )
-}
-
-function timeToMinutes(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours! * 60 + minutes!
 }
 
 function maxTime(left: string | null, right: string | null) {
@@ -63,21 +59,6 @@ function minutesToIso(date: string, minutes: number) {
   return new Date(
     `${date}T${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00Z`,
   ).toISOString()
-}
-
-function overlapsBreak(
-  start: number,
-  occupiedUntil: number,
-  breakStart: string | null,
-  breakEnd: string | null,
-  tolerance: number,
-) {
-  if (!breakStart || !breakEnd) return false
-  const rangeStart = timeToMinutes(breakStart)
-  const rangeEnd = timeToMinutes(breakEnd)
-  if (occupiedUntil <= rangeStart || start >= rangeEnd) return false
-  if (start >= rangeStart && start < rangeEnd) return true
-  return occupiedUntil - rangeStart > tolerance
 }
 
 function occupiedUntilMs(booking: Record<string, unknown>) {
@@ -146,8 +127,14 @@ export function buildAvailabilityCandidates(input: {
     const occupiedUntilMinutes = current + occupancy
     if (occupiedUntilMinutes > closeMinutes + tolerance) break
     if (
-      overlapsBreak(current, occupiedUntilMinutes, lunchStart, lunchEnd, tolerance) ||
-      overlapsBreak(current, occupiedUntilMinutes, prayerStart, prayerEnd, tolerance)
+      overlapsRangeBeyondTolerance(
+        current,
+        occupiedUntilMinutes,
+        lunchStart,
+        lunchEnd,
+        tolerance,
+      ) ||
+      overlapsRangeBeyondTolerance(current, occupiedUntilMinutes, prayerStart, prayerEnd, tolerance)
     ) {
       current += 5
       continue

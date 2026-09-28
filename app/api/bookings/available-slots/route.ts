@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings'
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
+import {
+  getServicePersonUnits,
+  hasServiceRuleFields,
+  overlapsRangeBeyondToleranceMinutes,
+  timeToMinutes,
+} from '@/lib/bookingRules'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
@@ -10,27 +16,6 @@ const CANDIDATE_SLOT_STEP_MINUTES = 5
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10'
-}
-
-function getServicePersonUnits(
-  service: { person_count_excludes_family_head?: boolean },
-  personCount: number,
-): number {
-  if (service.person_count_excludes_family_head === false) {
-    return Math.max(0, personCount - 1)
-  }
-  return Math.max(0, personCount)
-}
-
-function hasServiceRuleFields(service: unknown): boolean {
-  const candidate = service as {
-    person_count_excludes_family_head?: unknown
-    close_overrun_tolerance_minutes?: unknown
-  } | null
-  return (
-    typeof candidate?.person_count_excludes_family_head === 'boolean' &&
-    typeof candidate?.close_overrun_tolerance_minutes === 'number'
-  )
 }
 
 /**
@@ -295,7 +280,7 @@ function generateAvailableSlots(
     }
 
     if (
-      overlapsBreakBeyondTolerance(
+      overlapsRangeBeyondToleranceMinutes(
         currentMinutes,
         occupiedUntilMinutes,
         lunchStartMinutes,
@@ -308,7 +293,7 @@ function generateAvailableSlots(
     }
 
     if (
-      overlapsBreakBeyondTolerance(
+      overlapsRangeBeyondToleranceMinutes(
         currentMinutes,
         occupiedUntilMinutes,
         prayerStartMinutes,
@@ -340,40 +325,6 @@ function generateAvailableSlots(
   }
 
   return slots
-}
-
-function overlapsBreakBeyondTolerance(
-  startMinutes: number,
-  occupiedUntilMinutes: number,
-  breakStartMinutes: number | null,
-  breakEndMinutes: number | null,
-  toleranceMinutes: number,
-): boolean {
-  if (breakStartMinutes === null || breakEndMinutes === null) {
-    return false
-  }
-
-  // No overlap with break window.
-  if (occupiedUntilMinutes <= breakStartMinutes || startMinutes >= breakEndMinutes) {
-    return false
-  }
-
-  // Starting inside a break is always invalid.
-  if (startMinutes >= breakStartMinutes && startMinutes < breakEndMinutes) {
-    return true
-  }
-
-  // Crossing into a break is allowed only up to the tolerance.
-  const overrunMinutes = occupiedUntilMinutes - breakStartMinutes
-  return overrunMinutes > toleranceMinutes
-}
-
-/**
- * Convert HH:MM:SS time string to minutes from midnight
- */
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + minutes
 }
 
 function maxTime(a: string | null, b: string | null): string | null {

@@ -11,6 +11,41 @@ type SupabaseLikeClient = {
   from: (table: string) => any
 }
 
+type BookingAuditPayload = {
+  booking_id: string
+  location_id: string
+  action_type: string
+  actor_identifier?: string | null
+  before_data?: unknown
+  after_data?: unknown
+  metadata?: Record<string, unknown>
+}
+
+function isBookingSchemaError(error: unknown) {
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === '42703' || code === '42P10'
+}
+
+/** Store a best-effort booking audit event without blocking the source mutation. */
+export async function storeBookingAuditEvent(
+  supabase: SupabaseLikeClient,
+  payload: BookingAuditPayload,
+): Promise<void> {
+  const { error } = await supabase.from('booking_audit_logs').insert({
+    booking_id: payload.booking_id,
+    location_id: payload.location_id,
+    action_type: payload.action_type,
+    actor_identifier: payload.actor_identifier ?? null,
+    before_data: payload.before_data ?? null,
+    after_data: payload.after_data ?? null,
+    metadata: payload.metadata ?? null,
+  })
+
+  if (error && !isBookingSchemaError(error)) {
+    console.error('Failed to write booking audit log', error)
+  }
+}
+
 export async function findIdempotentBooking(
   supabase: SupabaseLikeClient,
   actionName: string,

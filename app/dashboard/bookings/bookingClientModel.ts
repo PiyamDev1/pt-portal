@@ -1,4 +1,5 @@
 import { BookingStatus, type BookingSource } from '@/app/types/bookings'
+import { getServicePersonUnits as getSharedServicePersonUnits } from '@/lib/bookingRules'
 
 export interface BookingWithService {
   id: string
@@ -255,9 +256,7 @@ export function getServicePersonUnits(
   service: BookingServiceOption | undefined,
   personCount: number,
 ): number {
-  if (!service) return Math.max(0, personCount)
-  if (service.person_count_excludes_family_head === false) return Math.max(0, personCount - 1)
-  return Math.max(0, personCount)
+  return getSharedServicePersonUnits(service, personCount)
 }
 
 export function personCountLabel(service: BookingServiceOption | undefined): string {

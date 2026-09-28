@@ -31,6 +31,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Each employee now receives one de-duplicated Training item for incomplete, overdue, due-soon, expired, or expiring enrolments/certificates, using only their active-course records and linking back to Training.
 - Packages now shares its Action centre predicates with the dashboard, combining urgent active folders, selected standalone quotations, and expired standalone links while leaving grouped quotations in their group workflow.
 - Admin now surfaces role-scoped staff approvals and unresolved issue reports as separate Settings links; Maintenance Admin proposals remain self-scoped, and issue-report visibility matches the Master/Super Admin UI.
+- Booking slot/person/contact rules and audit/email persistence are now shared by staff routes, availability, the booking UI, and customer appointments; caller-specific access and grants remain at their boundaries.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -347,7 +348,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 
 ### Phase 2: duplicate workflow reduction
 
-- [ ] Extract the shared booking service.
+- [ ] Complete the shared booking service. Slot policy, capacity RPCs, idempotency, notification state, and audit persistence are shared; creation/rescheduling/cancellation orchestration remains to be consolidated.
 - [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
 - [ ] Add live Company Ledger summaries for company-wide positions. LMS and supplier summaries are complete; named bank balances remain pending until a trustworthy bank-account source exists.
