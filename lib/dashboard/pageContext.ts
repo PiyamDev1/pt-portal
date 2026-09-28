@@ -25,15 +25,16 @@ function firstRelated(value: RelatedName | RelatedName[] | null | undefined) {
 export async function loadDashboardPageContext() {
   const supabase = await getRouteSupabaseClient()
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
-  if (!session) redirect('/login')
+  if (authError || !user) redirect('/login')
 
   const { data } = await supabase
     .from('employees')
     .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   const employee = data as EmployeePageContextRow | null
@@ -42,7 +43,7 @@ export async function loadDashboardPageContext() {
 
   return {
     supabase,
-    userId: session.user.id,
+    userId: user.id,
     employeeName: employee?.full_name || undefined,
     role: role?.name || undefined,
     location: location || undefined,

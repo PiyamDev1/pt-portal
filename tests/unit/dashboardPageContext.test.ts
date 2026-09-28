@@ -34,8 +34,9 @@ describe('loadDashboardPageContext', () => {
     const select = vi.fn(() => ({ eq }))
     const supabase = {
       auth: {
-        getSession: vi.fn().mockResolvedValue({
-          data: { session: { user: { id: 'employee-1' } } },
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: 'employee-1' } },
+          error: null,
         }),
       },
       from: vi.fn(() => ({ select })),
@@ -57,7 +58,10 @@ describe('loadDashboardPageContext', () => {
   it('redirects unauthenticated page requests before loading employee data', async () => {
     const supabase = {
       auth: {
-        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: null },
+          error: { message: 'Invalid session' },
+        }),
       },
       from: vi.fn(),
     }

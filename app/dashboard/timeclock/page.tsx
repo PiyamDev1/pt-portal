@@ -15,16 +15,13 @@
  *
  * @module app/dashboard/timeclock/page
  */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Clock3, History, Keyboard, TrendingUp, Users } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import TimeclockClient from './client'
 import {
-  getRoleName,
   hasMaintenanceTimeclockAccess,
   hasManagerTimeclockAccess,
   pickRoleName,
@@ -36,47 +33,17 @@ export const metadata = {
 }
 
 export default async function TimeclockPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
-  )
+  const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
-
-  const [{ data: employee }, { count: reportCount }, { data: profile }] = await Promise.all([
-    supabase
-      .from('employees')
-      .select('full_name, roles(name), locations(name, branch_code)')
-      .eq('id', session.user.id)
-      .single(),
+  const [{ count: reportCount }, { data: profile }] = await Promise.all([
     supabase
       .from('employees')
       .select('id', { count: 'exact', head: true })
-      .eq('manager_id', session.user.id),
-    supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle(),
+      .eq('manager_id', userId),
+    supabase.from('profiles').select('role').eq('id', userId).maybeSingle(),
   ])
 
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const roleName = pickRoleName(getRoleName(role), profile?.role)
+  const roleName = pickRoleName(role, profile?.role)
   const isManager = hasManagerTimeclockAccess(roleName, reportCount)
   const canUseMaintenanceTools = hasMaintenanceTimeclockAccess(roleName)
   const canSeeTeam = isManager || canUseMaintenanceTools
@@ -125,10 +92,10 @@ export default async function TimeclockPage() {
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <PageHeader
-          employeeName={employee?.full_name}
-          role={roleName || role?.name}
+          employeeName={employeeName}
+          role={roleName || role}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
         />
 

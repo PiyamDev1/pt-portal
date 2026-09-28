@@ -15,57 +15,30 @@
  *
  * @module app/dashboard/timeclock/manual-entry/page
  */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import ManualEntryClient from './client'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import {
-  getRoleName,
   hasMaintenanceTimeclockAccess,
   hasManagerTimeclockAccess,
   pickRoleName,
 } from '@/lib/timeclockAccess'
 
 export default async function ManualEntryPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) {
-    redirect('/login')
-  }
+  const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
 
   // Check if user is a manager (has reports) or has Master Admin role
-  const [{ data: employee }, { count: reportCount }, { data: profile }] = await Promise.all([
-    supabase
-      .from('employees')
-      .select('full_name, roles(name), locations(name, branch_code)')
-      .eq('id', session.user.id)
-      .single(),
+  const [{ count: reportCount }, { data: profile }] = await Promise.all([
     supabase
       .from('employees')
       .select('id', { count: 'exact', head: true })
-      .eq('manager_id', session.user.id),
-    supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle(),
+      .eq('manager_id', userId),
+    supabase.from('profiles').select('role').eq('id', userId).maybeSingle(),
   ])
 
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const roleName = pickRoleName(getRoleName(role), profile?.role)
+  const roleName = pickRoleName(role, profile?.role)
   const canAccessManualEntry =
     hasManagerTimeclockAccess(roleName, reportCount) || hasMaintenanceTimeclockAccess(roleName)
 
@@ -73,20 +46,18 @@ export default async function ManualEntryPage() {
     redirect('/dashboard/timeclock')
   }
 
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
+          employeeName={employeeName}
+          role={role}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
         />
         <main className="max-w-4xl mx-auto p-6 w-full flex-grow">
-          <ManualEntryClient userId={session.user.id} />
+          <ManualEntryClient userId={userId} />
         </main>
       </div>
     </DashboardClientWrapper>
