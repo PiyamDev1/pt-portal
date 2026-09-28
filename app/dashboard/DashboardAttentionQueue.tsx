@@ -39,7 +39,7 @@ function formatQueueDate(value: string) {
   }).format(date)
 }
 
-function AttentionItem({ item }: { item: DashboardAttentionItem }) {
+function AttentionItem({ item, compact }: { item: DashboardAttentionItem; compact: boolean }) {
   const style = SEVERITY_STYLE[item.severity]
   const Icon = style.icon
 
@@ -47,7 +47,7 @@ function AttentionItem({ item }: { item: DashboardAttentionItem }) {
     <Link
       href={item.href}
       prefetch={false}
-      className="group flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:flex-row sm:items-center"
+      className={`group flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${compact ? '' : 'sm:flex-row sm:items-center'}`}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <span
@@ -73,7 +73,9 @@ function AttentionItem({ item }: { item: DashboardAttentionItem }) {
           <p className="mt-1 text-[11px] font-semibold text-slate-400">{item.reference}</p>
         </div>
       </div>
-      <div className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-100 pt-3 sm:block sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
+      <div
+        className={`flex shrink-0 items-center justify-between gap-4 border-t border-slate-100 pt-3 ${compact ? '' : 'sm:block sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right'}`}
+      >
         <div>
           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
             {item.dateLabel}
@@ -91,13 +93,21 @@ function AttentionItem({ item }: { item: DashboardAttentionItem }) {
   )
 }
 
-export function DashboardAttentionQueue({ queue }: { queue: DashboardWorkQueue }) {
+export function DashboardAttentionQueue({
+  queue,
+  compact = false,
+}: {
+  queue: DashboardWorkQueue
+  compact?: boolean
+}) {
   return (
     <section
       aria-labelledby="dashboard-attention-title"
       className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 shadow-sm"
     >
-      <div className="flex flex-col gap-3 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-800 to-[#4b0f16] px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className={`flex flex-col gap-3 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-800 to-[#4b0f16] px-5 py-4 text-white ${compact ? '' : 'sm:flex-row sm:items-center sm:justify-between'}`}
+      >
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-100">
             Read-only · linked to source
@@ -116,7 +126,7 @@ export function DashboardAttentionQueue({ queue }: { queue: DashboardWorkQueue }
 
       <div className="space-y-3 p-4">
         {queue.items.length > 0 ? (
-          queue.items.map((item) => <AttentionItem key={item.id} item={item} />)
+          queue.items.map((item) => <AttentionItem key={item.id} item={item} compact={compact} />)
         ) : queue.unavailableProviders.length > 0 ? (
           <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
             <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />

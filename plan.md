@@ -2,6 +2,9 @@
 
 Status: active implementation
 
+Checkboxes in the delivery sequence reflect the current repository state. Partially completed items
+use nested checkboxes so finished foundations are not confused with the remaining work.
+
 Scope: whole PT Portal repository, including dashboard modules, API routes, shared libraries, migrations, integrations, and customer-portal boundaries.
 
 This plan is based on a static audit of the current repository. It proposes architecture and implementation work; it does not authorise cross-module writes, a new event bus, or a replacement accounting system.
@@ -32,6 +35,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Packages now shares its Action centre predicates with the dashboard, combining urgent active folders, selected standalone quotations, and expired standalone links while leaving grouped quotations in their group workflow.
 - Admin now surfaces role-scoped staff approvals and unresolved issue reports as separate Settings links; Maintenance Admin proposals remain self-scoped, and issue-report visibility matches the Master/Super Admin UI.
 - Booking slot/person/contact rules and audit/email persistence are now shared by staff routes, availability, the booking UI, and customer appointments; caller-specific access and grants remain at their boundaries.
+- The desktop Attention Centre now sits directly below the Notice Board in the dashboard rail, while mobile keeps its compact launcher flow and notice popup.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
@@ -348,16 +352,26 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 
 ### Phase 2: duplicate workflow reduction
 
-- [ ] Complete the shared booking service. Slot policy, capacity RPCs, idempotency, notification state, and audit persistence are shared; creation/rescheduling/cancellation orchestration remains to be consolidated.
+- [ ] Complete the shared booking service.
+  - [x] Share slot policy, capacity RPCs, idempotency, notification state, and audit persistence.
+  - [x] Reuse person/contact normalization across staff and customer appointment callers.
+  - [ ] Consolidate creation, rescheduling, and cancellation orchestration behind caller-specific access boundaries.
 - [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
-- [ ] Add live Company Ledger summaries for company-wide positions. LMS and supplier summaries are complete; named bank balances remain pending until a trustworthy bank-account source exists.
+- [ ] Add live Company Ledger summaries for company-wide positions.
+  - [x] Add company-wide LMS outstanding, overdue, and due-soon totals.
+  - [x] Aggregate live POS supplier balances across all branches.
+  - [ ] Add named bank balances once a trustworthy bank-account source exists.
 - [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, Applications, Packages, POS, Frappe HRMS, Training, and Admin, including source links and unavailable-provider handling.
 - [x] Keep Admin approvals and issue reports as separate role-scoped queues that return to their existing Settings tabs.
 
 ### Phase 3: maintainability and consistency
 
-- [ ] Split the largest Package, Booking, POS, Settings, and Commission clients. Booking Settings now shares one tested email-template editor, Commission isolates its tested reconciliation overview and advanced-tool guidance, and POS shares tested financial-summary and role-aware navigation chrome; the larger workspace panels remain to be separated.
+- [ ] Split the largest Package, Booking, POS, Settings, and Commission clients.
+  - [x] Share the tested Booking Settings email-template editor across create/edit flows.
+  - [x] Isolate the tested Commission reconciliation overview and advanced-tool guidance.
+  - [x] Share tested POS financial-summary and role-aware navigation chrome.
+  - [ ] Separate the remaining Package, Booking, POS, Settings, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
 - [ ] Reorganise Settings by user goal.
 - [ ] Centralise page context and capability loading.

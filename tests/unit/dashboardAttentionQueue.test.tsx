@@ -56,4 +56,35 @@ describe('DashboardAttentionQueue', () => {
     expect(screen.getByText(/this is not an all-clear result/i)).toBeTruthy()
     expect(screen.queryByText('No linked items need attention right now.')).toBeNull()
   })
+
+  it('uses a stacked item layout in the compact notice-board rail', () => {
+    const queue: DashboardWorkQueue = {
+      generatedAt,
+      unavailableProviders: [],
+      items: [
+        {
+          id: 'ticketing-deadline',
+          moduleId: 'ticketing',
+          moduleLabel: 'Ticketing',
+          severity: 'warning',
+          title: 'Ticket deadline approaching',
+          detail: 'One booking needs review.',
+          count: 1,
+          date: '2026-09-28T12:00:00.000Z',
+          dateLabel: 'Deadline',
+          reference: 'ABC123',
+          href: '/dashboard/ticketing',
+        },
+      ],
+    }
+
+    render(<DashboardAttentionQueue queue={queue} compact />)
+
+    const link = screen.getByRole('link', { name: /Ticket deadline approaching/ })
+    expect(link.className).not.toContain('sm:flex-row')
+    expect(
+      screen.getByRole('heading', { name: 'Attention centre' }).parentElement?.parentElement
+        ?.className,
+    ).not.toContain('sm:flex-row')
+  })
 })

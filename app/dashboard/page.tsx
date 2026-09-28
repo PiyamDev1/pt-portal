@@ -180,11 +180,13 @@ function DesktopDashboard({
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_21rem] gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="space-y-5">
-          <DashboardAttentionQueue queue={workQueue} />
+        <div>
           <DashboardModulesClient modules={modules} />
         </div>
-        <NoticeBoardClient showMobilePopup={false} />
+        <div className="space-y-5">
+          <NoticeBoardClient showMobilePopup={false} />
+          <DashboardAttentionQueue queue={workQueue} compact />
+        </div>
       </div>
     </section>
   )
