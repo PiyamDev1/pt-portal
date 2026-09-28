@@ -9,10 +9,13 @@ import {
   BookingTemplatePreview,
   REMINDER_TEMPLATE_PRESETS,
 } from './BookingEmailTemplateEditor'
+import {
+  BOOKING_DAY_NAMES,
+  BookingScheduleOverridesEditor,
+  BookingWeeklyScheduleEditor,
+  useBookingScheduleSettings,
+} from './BookingScheduleSettings'
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-const INTERVAL_OPTIONS = [15, 20, 30, 45, 60]
 const TEMPLATE_VARIABLES = [...ALLOWED_TEMPLATE_VARIABLES]
 
 function buildNewServiceDraft() {
@@ -43,21 +46,6 @@ export interface BranchLocationOption {
   appointments_enabled?: boolean | null
 }
 
-export interface BranchSettingRow {
-  id: string
-  location_id: string
-  day_of_week: number
-  open_time: string
-  close_time: string
-  lunch_start_time: string | null
-  lunch_end_time: string | null
-  prayer_start_time: string | null
-  prayer_end_time: string | null
-  is_closed: boolean
-  concurrent_staff: number
-  slot_interval_minutes: number
-}
-
 export interface BookingServiceRow {
   id: string
   location_id: string
@@ -78,22 +66,6 @@ export interface BookingServiceRow {
   customer_max_group_size: number
   customer_modification_cutoff_hours: number
   is_active: boolean
-}
-
-interface BranchScheduleOverride {
-  id: string
-  location_id: string
-  date: string
-  open_time: string | null
-  close_time: string | null
-  lunch_start_time: string | null
-  lunch_end_time: string | null
-  prayer_start_time: string | null
-  prayer_end_time: string | null
-  is_closed: boolean
-  concurrent_staff: number
-  slot_interval_minutes: number
-  notes: string | null
 }
 
 interface BookingReminderSettings {
@@ -144,23 +116,6 @@ function LabeledInput({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-function buildDefaultWeek(locationId: string): BranchSettingRow[] {
-  return DAY_NAMES.map((_, day) => ({
-    id: `temp-${day}`,
-    location_id: locationId,
-    day_of_week: day,
-    open_time: '09:00',
-    close_time: '17:00',
-    lunch_start_time: '13:00',
-    lunch_end_time: '14:00',
-    prayer_start_time: day === 5 ? '13:00' : null,
-    prayer_end_time: day === 5 ? '14:00' : null,
-    is_closed: day === 0,
-    concurrent_staff: 1,
-    slot_interval_minutes: 30,
-  }))
-}
-
 function normalizeServiceRow(service: BookingServiceRow): BookingServiceRow {
   return {
     ...service,
@@ -185,9 +140,8 @@ export default function BookingSettingsTab({
   const [activeSection, setActiveSection] = useState<'overrides' | 'services' | 'reminders'>(
     'overrides',
   )
+  const schedule = useBookingScheduleSettings(selectedLocationId || null)
 
-  const [weeklySettings, setWeeklySettings] = useState<BranchSettingRow[]>([])
-  const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
   const [services, setServices] = useState<BookingServiceRow[]>([])
   const [reminderSettings, setReminderSettings] = useState<BookingReminderSettings>(
     buildDefaultReminderSettings(selectedLocationId),
@@ -197,22 +151,6 @@ export default function BookingSettingsTab({
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
   const reminderTemplateRef = useRef<HTMLTextAreaElement | null>(null)
-
-  const [newOverrideDate, setNewOverrideDate] = useState('')
-  const [newOverride, setNewOverride] = useState<
-    Omit<BranchScheduleOverride, 'id' | 'location_id' | 'date'>
-  >({
-    open_time: '09:00',
-    close_time: '17:00',
-    lunch_start_time: '13:00',
-    lunch_end_time: '14:00',
-    prayer_start_time: null,
-    prayer_end_time: null,
-    is_closed: false,
-    concurrent_staff: 1,
-    slot_interval_minutes: 30,
-    notes: null,
-  })
 
   const selectedBranch = useMemo(
     () => branchLocations.find((l) => l.id === selectedLocationId),
@@ -227,8 +165,8 @@ export default function BookingSettingsTab({
     [services],
   )
   const weeklyOpenDayCount = useMemo(
-    () => weeklySettings.filter((setting) => !setting.is_closed).length,
-    [weeklySettings],
+    () => schedule.weeklySettings.filter((setting) => !setting.is_closed).length,
+    [schedule.weeklySettings],
   )
 
   const loadAll = async (locationId: string) => {
@@ -236,32 +174,17 @@ export default function BookingSettingsTab({
 
     setLoading(true)
     try {
-      const from = new Date()
-      const to = new Date(from)
-      to.setUTCDate(to.getUTCDate() + 60)
-
-      const [weeklyRes, overridesRes, servicesRes, remindersRes] = await Promise.all([
-        fetch(`/api/bookings/settings/branch?location_id=${locationId}`),
-        fetch(
-          `/api/bookings/settings/overrides?location_id=${locationId}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`,
-        ),
+      const [servicesRes, remindersRes] = await Promise.all([
         fetch(`/api/bookings/settings/services?location_id=${locationId}`),
         fetch(`/api/bookings/settings/reminders?location_id=${locationId}`),
       ])
 
-      const weeklyJson = await weeklyRes.json()
-      const overridesJson = await overridesRes.json()
       const servicesJson = await servicesRes.json()
       const remindersJson = await remindersRes.json()
 
-      if (!weeklyRes.ok) throw new Error(weeklyJson.error || 'Failed to load weekly settings')
-      if (!overridesRes.ok) throw new Error(overridesJson.error || 'Failed to load overrides')
       if (!servicesRes.ok) throw new Error(servicesJson.error || 'Failed to load services')
       if (!remindersRes.ok) throw new Error(remindersJson.error || 'Failed to load reminders')
 
-      const rows = (weeklyJson.settings || []) as BranchSettingRow[]
-      setWeeklySettings(rows.length > 0 ? rows : buildDefaultWeek(locationId))
-      setOverrides((overridesJson.overrides || []) as BranchScheduleOverride[])
       setServices(((servicesJson.services || []) as BookingServiceRow[]).map(normalizeServiceRow))
       setReminderSettings(
         (remindersJson.settings ||
@@ -271,8 +194,6 @@ export default function BookingSettingsTab({
       toast.error('Failed to load booking settings', {
         description: error instanceof Error ? error.message : 'Unknown error',
       })
-      setWeeklySettings(buildDefaultWeek(locationId))
-      setOverrides([])
       setServices([])
       setReminderSettings(buildDefaultReminderSettings(locationId))
     } finally {
@@ -285,16 +206,6 @@ export default function BookingSettingsTab({
       loadAll(selectedLocationId)
     }
   }, [selectedLocationId])
-
-  const updateDay = (
-    day: number,
-    field: keyof BranchSettingRow,
-    value: string | number | boolean | null,
-  ) => {
-    setWeeklySettings((prev) =>
-      prev.map((row) => (row.day_of_week === day ? { ...row, [field]: value } : row)),
-    )
-  }
 
   const toggleServiceDay = (days: number[] | null, day: number): number[] => {
     const base = Array.isArray(days) ? days : []
@@ -346,80 +257,6 @@ export default function BookingSettingsTab({
       )
       .join(' | ')
     return `${json.error || 'Template contains unsupported placeholders'} (${details})`
-  }
-
-  const saveWeekly = async () => {
-    if (!selectedLocationId) return
-
-    setLoading(true)
-    try {
-      const res = await fetch('/api/bookings/settings/branch', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_id: selectedLocationId, settings: weeklySettings }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      toast.success('Weekly branch settings saved')
-      await loadAll(selectedLocationId)
-    } catch (error) {
-      toast.error('Failed to save weekly settings', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const saveOverride = async () => {
-    if (!selectedLocationId || !newOverrideDate) {
-      toast.error('Select a date for the one-off schedule')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const payload = {
-        location_id: selectedLocationId,
-        date: newOverrideDate,
-        ...newOverride,
-      }
-
-      const res = await fetch('/api/bookings/settings/overrides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-
-      toast.success('One-off schedule saved')
-      setNewOverrideDate('')
-      await loadAll(selectedLocationId)
-    } catch (error) {
-      toast.error('Failed to save one-off schedule', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const deleteOverride = async (id: string) => {
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/bookings/settings/overrides/${id}`, { method: 'DELETE' })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      setOverrides((prev) => prev.filter((o) => o.id !== id))
-      toast.success('One-off schedule deleted')
-    } catch (error) {
-      toast.error('Failed to delete one-off schedule', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      })
-    } finally {
-      setLoading(false)
-    }
   }
 
   const addService = async () => {
@@ -695,300 +532,8 @@ export default function BookingSettingsTab({
 
       {activeSection === 'overrides' && (
         <div className="space-y-4">
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-slate-800">Weekly appointment hours</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  These are the normal hours used when a customer or colleague looks for a slot. Add
-                  a special date below only when this weekly pattern changes.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={saveWeekly}
-                disabled={loading}
-                className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {loading ? 'Saving...' : 'Save weekly hours'}
-              </button>
-            </div>
-
-            <div className="divide-y divide-slate-100">
-              {weeklySettings.map((row) => (
-                <div
-                  key={row.day_of_week}
-                  className="grid gap-3 px-4 py-4 lg:grid-cols-[130px_minmax(155px,1fr)_minmax(250px,1.25fr)_minmax(210px,1fr)_100px] lg:items-center"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {DAY_NAMES[row.day_of_week]}
-                    </p>
-                    <label className="mt-1 inline-flex items-center gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={!row.is_closed}
-                        onChange={(e) => updateDay(row.day_of_week, 'is_closed', !e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                      />
-                      Accept bookings
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <LabeledInput label="Open">
-                      <input
-                        type="time"
-                        disabled={row.is_closed}
-                        value={row.open_time || ''}
-                        onChange={(e) => updateDay(row.day_of_week, 'open_time', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                      />
-                    </LabeledInput>
-                    <LabeledInput label="Close">
-                      <input
-                        type="time"
-                        disabled={row.is_closed}
-                        value={row.close_time || ''}
-                        onChange={(e) => updateDay(row.day_of_week, 'close_time', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                      />
-                    </LabeledInput>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <LabeledInput label="Lunch break">
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <input
-                          aria-label={`${DAY_NAMES[row.day_of_week]} lunch start`}
-                          type="time"
-                          disabled={row.is_closed}
-                          value={row.lunch_start_time || ''}
-                          onChange={(e) =>
-                            updateDay(row.day_of_week, 'lunch_start_time', e.target.value || null)
-                          }
-                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
-                        />
-                        <input
-                          aria-label={`${DAY_NAMES[row.day_of_week]} lunch end`}
-                          type="time"
-                          disabled={row.is_closed}
-                          value={row.lunch_end_time || ''}
-                          onChange={(e) =>
-                            updateDay(row.day_of_week, 'lunch_end_time', e.target.value || null)
-                          }
-                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
-                        />
-                      </div>
-                    </LabeledInput>
-                    <LabeledInput label="Prayer break">
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <input
-                          aria-label={`${DAY_NAMES[row.day_of_week]} prayer start`}
-                          type="time"
-                          disabled={row.is_closed}
-                          value={row.prayer_start_time || ''}
-                          onChange={(e) =>
-                            updateDay(row.day_of_week, 'prayer_start_time', e.target.value || null)
-                          }
-                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
-                        />
-                        <input
-                          aria-label={`${DAY_NAMES[row.day_of_week]} prayer end`}
-                          type="time"
-                          disabled={row.is_closed}
-                          value={row.prayer_end_time || ''}
-                          onChange={(e) =>
-                            updateDay(row.day_of_week, 'prayer_end_time', e.target.value || null)
-                          }
-                          className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
-                        />
-                      </div>
-                    </LabeledInput>
-                  </div>
-
-                  <LabeledInput label="Concurrent staff">
-                    <input
-                      type="number"
-                      min={1}
-                      disabled={row.is_closed}
-                      value={row.concurrent_staff}
-                      onChange={(e) =>
-                        updateDay(
-                          row.day_of_week,
-                          'concurrent_staff',
-                          Math.max(1, Number(e.target.value) || 1),
-                        )
-                      }
-                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                    />
-                  </LabeledInput>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-700">
-              Add One-off Schedule (special date)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <LabeledInput label="Date">
-                <input
-                  type="date"
-                  value={newOverrideDate}
-                  onChange={(e) => setNewOverrideDate(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Branch Open Time">
-                <input
-                  type="time"
-                  value={newOverride.open_time || ''}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Branch Close Time">
-                <input
-                  type="time"
-                  value={newOverride.close_time || ''}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Lunch Break Start">
-                <input
-                  type="time"
-                  value={newOverride.lunch_start_time || ''}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, lunch_start_time: e.target.value || null }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Lunch Break End">
-                <input
-                  type="time"
-                  value={newOverride.lunch_end_time || ''}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, lunch_end_time: e.target.value || null }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Prayer Break Start">
-                <input
-                  type="time"
-                  value={newOverride.prayer_start_time || ''}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, prayer_start_time: e.target.value || null }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Prayer Break End">
-                <input
-                  type="time"
-                  value={newOverride.prayer_end_time || ''}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, prayer_end_time: e.target.value || null }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Concurrent Staff (all services)">
-                <input
-                  type="number"
-                  min={1}
-                  value={newOverride.concurrent_staff}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({
-                      ...p,
-                      concurrent_staff: Math.max(1, Number(e.target.value)),
-                    }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Slot Interval (deprecated: use service slots)">
-                <select
-                  value={newOverride.slot_interval_minutes}
-                  onChange={(e) =>
-                    setNewOverride((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))
-                  }
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                >
-                  {INTERVAL_OPTIONS.map((v) => (
-                    <option key={v} value={v}>
-                      {v} min interval
-                    </option>
-                  ))}
-                </select>
-              </LabeledInput>
-            </div>
-            <p className="text-xs text-slate-500">
-              Concurrent staff is shared across all booking services. If one person handles
-              appointments, keep this at 1 so services cannot overlap.
-            </p>
-            <div className="flex items-center gap-3">
-              <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={newOverride.is_closed}
-                  onChange={(e) => setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))}
-                />{' '}
-                Closed all day
-              </label>
-              <button
-                onClick={saveOverride}
-                disabled={loading}
-                className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
-              >
-                {loading ? 'Saving...' : 'Save One-off Schedule'}
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">
-              Upcoming One-off Schedules
-            </div>
-            {overrides.length === 0 ? (
-              <div className="px-4 py-8 text-sm text-slate-400 text-center">
-                No one-off schedules configured
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {overrides.map((row) => (
-                  <div key={row.id} className="px-4 py-3 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">
-                        {row.date}
-                        {row.is_closed ? ' (Closed)' : ''}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {row.open_time || '--'}-{row.close_time || '--'} | Lunch{' '}
-                        {row.lunch_start_time || '--'}-{row.lunch_end_time || '--'} | Prayer{' '}
-                        {row.prayer_start_time || '--'}-{row.prayer_end_time || '--'} | Staff{' '}
-                        {row.concurrent_staff}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => deleteOverride(row.id)}
-                      className="px-3 py-1.5 text-xs rounded border border-red-200 text-red-600 bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <BookingWeeklyScheduleEditor model={schedule} />
+          <BookingScheduleOverridesEditor model={schedule} />
         </div>
       )}
 
@@ -1157,7 +702,7 @@ export default function BookingSettingsTab({
               <div className="md:col-span-3 rounded border border-slate-200 bg-white px-3 py-2">
                 <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                 <div className="flex flex-wrap gap-2">
-                  {DAY_NAMES.map((name, day) => {
+                  {BOOKING_DAY_NAMES.map((name, day) => {
                     const active = newService.available_days.includes(day)
                     return (
                       <button
@@ -1429,7 +974,7 @@ export default function BookingSettingsTab({
                     <div className="md:col-span-3 rounded border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                       <div className="flex flex-wrap gap-2">
-                        {DAY_NAMES.map((name, day) => {
+                        {BOOKING_DAY_NAMES.map((name, day) => {
                           const active =
                             Array.isArray(editingService.available_days) &&
                             editingService.available_days.includes(day)
@@ -1609,7 +1154,9 @@ export default function BookingSettingsTab({
                       <p className="text-xs text-slate-400 mt-1">
                         Days:{' '}
                         {Array.isArray(service.available_days) && service.available_days.length > 0
-                          ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ')
+                          ? service.available_days
+                              .map((d) => BOOKING_DAY_NAMES[d].slice(0, 3))
+                              .join(', ')
                           : 'All'}{' '}
                         · Time: {service.service_start_time || 'Branch open'} -{' '}
                         {service.service_end_time || 'Branch close'}

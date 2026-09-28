@@ -38,6 +38,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Booking creation, rescheduling, and cancellation now use one lifecycle orchestrator across staff and customer callers; failed capacity moves restore the previous reservation window, and failed creations remove their provisional booking.
 - The desktop Attention Centre now sits directly below the Notice Board in the dashboard rail, while mobile keeps its compact launcher flow and notice popup.
 - Settings navigation is now grouped by Security, People & HR, Operations, Pricing, and Maintenance through one role-aware component instead of repeated tab buttons.
+- Booking Settings and Branch Management now share one branch-schedule model and the same weekly-hours and special-date editors instead of maintaining duplicate API calls, state, and controls.
 - NADRA, passport, and passport-draft document workspaces now use one canonical application DocumentHub import, the shared server Supabase client, and PageHeader back navigation instead of rebuilding those primitives per page.
 - The Applications hub, service pages, and document workspaces now load their authenticated client and PageHeader identity through one shared dashboard page context instead of repeating session, employee, role, and location setup.
 - The Timeclock landing, history, team, and manual-entry pages now share the same verified user and PageHeader context while keeping their existing manager and maintenance access checks.
@@ -382,6 +383,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Isolate the tested Commission reconciliation overview and advanced-tool guidance.
   - [x] Share tested POS financial-summary and role-aware navigation chrome.
   - [x] Extract the role-aware Settings navigation from the content client.
+  - [x] Share branch schedule loading, mutations, and editors across Booking Settings and Branch Management.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
