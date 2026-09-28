@@ -357,7 +357,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 
 ### Phase 3: maintainability and consistency
 
-- [ ] Split the largest Package, Booking, POS, Settings, and Commission clients. Booking Settings now shares one tested email-template editor for create/edit flows; the larger workspace panels remain to be separated.
+- [ ] Split the largest Package, Booking, POS, Settings, and Commission clients. Booking Settings now shares one tested email-template editor for create/edit flows, and Commission now isolates its tested reconciliation overview and advanced-tool guidance; the larger workspace panels remain to be separated.
 - [ ] Consolidate document and receipt UI primitives.
 - [ ] Reorganise Settings by user goal.
 - [ ] Centralise page context and capability loading.
