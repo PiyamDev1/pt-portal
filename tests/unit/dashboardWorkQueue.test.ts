@@ -304,4 +304,48 @@ describe('dashboard work queue', () => {
       }),
     ])
   })
+
+  it('keeps Admin approvals and issue reports as separate source links', () => {
+    const queue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['settings'],
+      frappe: {
+        available: true,
+        outboxDeadLetterCount: 0,
+        failedInboxCount: 0,
+        openConflictCount: 0,
+        failedDomainCount: 0,
+        degradedDomainCount: 0,
+        oldestProblemAt: null,
+      },
+      admin: {
+        approvalAvailable: true,
+        approvalScope: 'all',
+        pendingApprovalCount: 2,
+        oldestPendingApprovalAt: '2026-09-20T09:00:00.000Z',
+        issueReportsIncluded: true,
+        issueReportsAvailable: true,
+        openIssueReportCount: 3,
+        criticalIssueReportCount: 1,
+        oldestOpenIssueReportAt: '2026-09-21T09:00:00.000Z',
+      },
+    })
+
+    expect(queue.unavailableProviders).toEqual([])
+    expect(queue.items).toEqual([
+      expect.objectContaining({
+        id: 'admin-approval-queue',
+        severity: 'critical',
+        count: 2,
+        href: '/dashboard/settings?tab=approval-queue',
+      }),
+      expect.objectContaining({
+        id: 'admin-issue-reports',
+        severity: 'critical',
+        count: 3,
+        detail: '1 report marked critical. Includes new and investigating reports.',
+        href: '/dashboard/settings?tab=issue-reports',
+      }),
+    ])
+  })
 })

@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadAdminAttentionSummary } from '@/lib/admin/attentionSummary.server'
 import { loadCompanyLmsLiveSummary } from '@/lib/accounting/companySources'
 import {
   APPLICATION_SOURCE_KEYS,
@@ -10,6 +11,7 @@ import {
 import { loadApplicationSummary } from '@/lib/applications/summary.server'
 import {
   buildDashboardWorkQueue,
+  type AdminQueueSnapshot,
   type ApplicationsQueueSnapshot,
   type BookingQueueSnapshot,
   type DashboardWorkQueue,
@@ -230,6 +232,13 @@ async function loadFrappeQueueSnapshot(supabase: SupabaseClient): Promise<Frappe
   return loadFrappeAttentionSummary(supabase)
 }
 
+async function loadAdminQueueSnapshot(
+  supabase: SupabaseClient,
+  input: Pick<LoadDashboardWorkQueueInput, 'employeeId' | 'roleName'>,
+): Promise<AdminQueueSnapshot> {
+  return loadAdminAttentionSummary(supabase, input)
+}
+
 async function loadTrainingQueueSnapshot(
   supabase: SupabaseClient,
   input: Pick<LoadDashboardWorkQueueInput, 'employeeId' | 'locationTimezone'>,
@@ -247,7 +256,7 @@ export async function loadDashboardWorkQueue(
 ): Promise<DashboardWorkQueue> {
   const generatedAt = (input.now || new Date()).toISOString()
   const visibleModuleIds = new Set(input.visibleModuleIds)
-  const [bookings, ticketing, lms, applications, packages, pos, frappe, training] =
+  const [bookings, ticketing, lms, applications, packages, pos, frappe, admin, training] =
     await Promise.all([
       visibleModuleIds.has('bookings')
         ? loadBookingQueueSnapshot(
@@ -271,6 +280,9 @@ export async function loadDashboardWorkQueue(
         ? loadPosQueueSnapshot(input.serviceSupabase, input, generatedAt)
         : undefined,
       visibleModuleIds.has('settings') ? loadFrappeQueueSnapshot(input.serviceSupabase) : undefined,
+      visibleModuleIds.has('settings')
+        ? loadAdminQueueSnapshot(input.serviceSupabase, input)
+        : undefined,
       visibleModuleIds.has('training')
         ? loadTrainingQueueSnapshot(input.userSupabase, input, generatedAt)
         : undefined,
@@ -286,6 +298,7 @@ export async function loadDashboardWorkQueue(
     packages,
     pos,
     frappe,
+    admin,
     training,
   })
 }

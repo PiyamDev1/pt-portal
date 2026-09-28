@@ -85,6 +85,18 @@ export type FrappeQueueSnapshot = {
   oldestProblemAt: string | null
 }
 
+export type AdminQueueSnapshot = {
+  approvalAvailable: boolean
+  approvalScope: 'all' | 'own'
+  pendingApprovalCount: number
+  oldestPendingApprovalAt: string | null
+  issueReportsIncluded: boolean
+  issueReportsAvailable: boolean
+  openIssueReportCount: number
+  criticalIssueReportCount: number
+  oldestOpenIssueReportAt: string | null
+}
+
 export type TrainingQueueSnapshot = {
   available: boolean
   attentionCount: number
@@ -112,6 +124,7 @@ type BuildDashboardWorkQueueInput = {
   packages?: PackageQueueSnapshot
   pos?: PosQueueSnapshot
   frappe?: FrappeQueueSnapshot
+  admin?: AdminQueueSnapshot
   training?: TrainingQueueSnapshot
 }
 
@@ -438,6 +451,60 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           reference: 'Frappe HRMS · integration health',
           href: '/dashboard/settings?tab=maintenance',
         })
+      }
+    }
+
+    if (!input.admin?.approvalAvailable) {
+      unavailableProviders.push('Admin approvals')
+    } else {
+      const count = safeCount(input.admin.pendingApprovalCount)
+      if (count > 0) {
+        const date = validDate(input.admin.oldestPendingApprovalAt, input.generatedAt)
+        const ownScope = input.admin.approvalScope === 'own'
+        items.push({
+          id: 'admin-approval-queue',
+          moduleId: 'settings',
+          moduleLabel: 'Admin',
+          severity: isOlderThanDays(date, input.generatedAt, 3) ? 'critical' : 'warning',
+          title: ownScope
+            ? `${count} staff change ${plural(count, 'request')} pending`
+            : `${count} staff change ${plural(count, 'request')} awaiting review`,
+          detail: ownScope
+            ? 'Your Maintenance Admin proposals waiting for organization Admin review.'
+            : 'Maintenance Admin proposals waiting for an organization Admin decision.',
+          count,
+          date,
+          dateLabel: 'Oldest request',
+          reference: 'Admin · Approval queue',
+          href: '/dashboard/settings?tab=approval-queue',
+        })
+      }
+    }
+
+    if (input.admin?.issueReportsIncluded) {
+      if (!input.admin.issueReportsAvailable) {
+        unavailableProviders.push('Issue reports')
+      } else {
+        const count = safeCount(input.admin.openIssueReportCount)
+        if (count > 0) {
+          const criticalCount = safeCount(input.admin.criticalIssueReportCount)
+          items.push({
+            id: 'admin-issue-reports',
+            moduleId: 'settings',
+            moduleLabel: 'Admin',
+            severity: criticalCount > 0 ? 'critical' : 'warning',
+            title: `${count} issue ${plural(count, 'report')} ${count === 1 ? 'needs' : 'need'} triage`,
+            detail:
+              criticalCount > 0
+                ? `${criticalCount} ${plural(criticalCount, 'report')} marked critical. Includes new and investigating reports.`
+                : 'New and investigating issue reports waiting for triage.',
+            count,
+            date: validDate(input.admin.oldestOpenIssueReportAt, input.generatedAt),
+            dateLabel: 'Oldest report',
+            reference: 'Admin · Issue reports',
+            href: '/dashboard/settings?tab=issue-reports',
+          })
+        }
       }
     }
   }

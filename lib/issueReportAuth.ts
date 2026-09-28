@@ -23,7 +23,7 @@ type AdminAuthResult = {
 }
 
 export async function verifyMasterAdminSession(): Promise<AdminAuthResult> {
-  const access = await requireStaffSession({ roles: ['Master Admin'] })
+  const access = await requireStaffSession({ roles: ['Master Admin', 'Super Admin'] })
   if (!access.authorized) {
     const payload = (await access.response
       .clone()
