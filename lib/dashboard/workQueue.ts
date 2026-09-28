@@ -2,7 +2,7 @@ export type DashboardAttentionSeverity = 'critical' | 'warning' | 'info'
 
 export type DashboardAttentionItem = {
   id: string
-  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications' | 'pos'
+  moduleId: 'bookings' | 'ticketing' | 'lms' | 'applications' | 'pos' | 'settings'
   moduleLabel: string
   severity: DashboardAttentionSeverity
   title: string
@@ -55,6 +55,16 @@ export type PosQueueSnapshot = {
   branchName: string
 }
 
+export type FrappeQueueSnapshot = {
+  available: boolean
+  outboxDeadLetterCount: number
+  failedInboxCount: number
+  openConflictCount: number
+  failedDomainCount: number
+  degradedDomainCount: number
+  oldestProblemAt: string | null
+}
+
 export type DashboardWorkQueue = {
   generatedAt: string
   items: DashboardAttentionItem[]
@@ -69,6 +79,7 @@ type BuildDashboardWorkQueueInput = {
   lms?: LmsQueueSnapshot
   applications?: ApplicationsQueueSnapshot
   pos?: PosQueueSnapshot
+  frappe?: FrappeQueueSnapshot
 }
 
 const SEVERITY_ORDER: Record<DashboardAttentionSeverity, number> = {
@@ -291,6 +302,52 @@ export function buildDashboardWorkQueue(input: BuildDashboardWorkQueueInput): Da
           dateLabel: 'Oldest tender',
           reference: `POS Â· ${input.pos.branchName} Â· ${input.pos.month}`,
           href: '/dashboard/pos?period=month&status=UNRECONCILED',
+        })
+      }
+    }
+  }
+
+  if (visibleModules.has('settings')) {
+    if (!input.frappe?.available) {
+      unavailableProviders.push('Frappe HRMS')
+    } else {
+      const outboxDeadLetters = safeCount(input.frappe.outboxDeadLetterCount)
+      const failedInbox = safeCount(input.frappe.failedInboxCount)
+      const openConflicts = safeCount(input.frappe.openConflictCount)
+      const failedDomains = safeCount(input.frappe.failedDomainCount)
+      const degradedDomains = safeCount(input.frappe.degradedDomainCount)
+      const count =
+        outboxDeadLetters + failedInbox + openConflicts + failedDomains + degradedDomains
+
+      if (count > 0) {
+        const detailParts = (
+          [
+            [outboxDeadLetters, 'dead-letter item', 'dead-letter items'],
+            [failedInbox, 'failed inbound item', 'failed inbound items'],
+            [openConflicts, 'open conflict', 'open conflicts'],
+            [failedDomains, 'failed sync domain', 'failed sync domains'],
+            [degradedDomains, 'degraded sync domain', 'degraded sync domains'],
+          ] as Array<[number, string, string]>
+        )
+          .filter(([partCount]) => partCount > 0)
+          .map(
+            ([partCount, singular, pluralValue]) =>
+              `${partCount} ${plural(partCount, singular, pluralValue)}`,
+          )
+
+        items.push({
+          id: 'frappe-integration-health',
+          moduleId: 'settings',
+          moduleLabel: 'Frappe HRMS',
+          severity:
+            outboxDeadLetters > 0 || failedInbox > 0 || failedDomains > 0 ? 'critical' : 'warning',
+          title: 'Frappe HRMS sync needs review',
+          detail: `${detailParts.join(', ')}.`,
+          count,
+          date: validDate(input.frappe.oldestProblemAt, input.generatedAt),
+          dateLabel: 'Oldest signal',
+          reference: 'Frappe HRMS Â· integration health',
+          href: '/dashboard/settings?tab=maintenance',
         })
       }
     }

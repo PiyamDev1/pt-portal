@@ -208,4 +208,41 @@ describe('dashboard work queue', () => {
       }),
     ])
   })
+
+  it('shows Frappe integration failures only to staff with Settings visibility', () => {
+    const frappe = {
+      available: true,
+      outboxDeadLetterCount: 2,
+      failedInboxCount: 1,
+      openConflictCount: 3,
+      failedDomainCount: 1,
+      degradedDomainCount: 1,
+      oldestProblemAt: '2026-09-20T09:00:00.000Z',
+    }
+    const visibleQueue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['hrms-transfer', 'settings'],
+      frappe,
+    })
+    const staffQueue = buildDashboardWorkQueue({
+      generatedAt,
+      visibleModuleIds: ['hrms-transfer'],
+      frappe,
+    })
+
+    expect(visibleQueue.items).toEqual([
+      expect.objectContaining({
+        id: 'frappe-integration-health',
+        moduleId: 'settings',
+        moduleLabel: 'Frappe HRMS',
+        severity: 'critical',
+        count: 8,
+        detail:
+          '2 dead-letter items, 1 failed inbound item, 3 open conflicts, 1 failed sync domain, 1 degraded sync domain.',
+        href: '/dashboard/settings?tab=maintenance',
+      }),
+    ])
+    expect(staffQueue.items).toEqual([])
+    expect(staffQueue.unavailableProviders).toEqual([])
+  })
 })

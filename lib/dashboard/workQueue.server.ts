@@ -13,10 +13,12 @@ import {
   type ApplicationsQueueSnapshot,
   type BookingQueueSnapshot,
   type DashboardWorkQueue,
+  type FrappeQueueSnapshot,
   type LmsQueueSnapshot,
   type PosQueueSnapshot,
   type TicketingQueueSnapshot,
 } from '@/lib/dashboard/workQueue'
+import { loadFrappeAttentionSummary } from '@/lib/integrations/frappe/attentionSummary.server'
 import { loadPosReconciliationAttentionSummary } from '@/lib/pos/reconciliationSummary.server'
 
 type LoadDashboardWorkQueueInput = {
@@ -213,12 +215,16 @@ async function loadPosQueueSnapshot(
   })
 }
 
+async function loadFrappeQueueSnapshot(supabase: SupabaseClient): Promise<FrappeQueueSnapshot> {
+  return loadFrappeAttentionSummary(supabase)
+}
+
 export async function loadDashboardWorkQueue(
   input: LoadDashboardWorkQueueInput,
 ): Promise<DashboardWorkQueue> {
   const generatedAt = (input.now || new Date()).toISOString()
   const visibleModuleIds = new Set(input.visibleModuleIds)
-  const [bookings, ticketing, lms, applications, pos] = await Promise.all([
+  const [bookings, ticketing, lms, applications, pos, frappe] = await Promise.all([
     visibleModuleIds.has('bookings')
       ? loadBookingQueueSnapshot(
           input.userSupabase,
@@ -237,6 +243,7 @@ export async function loadDashboardWorkQueue(
     visibleModuleIds.has('pos')
       ? loadPosQueueSnapshot(input.serviceSupabase, input, generatedAt)
       : undefined,
+    visibleModuleIds.has('settings') ? loadFrappeQueueSnapshot(input.serviceSupabase) : undefined,
   ])
 
   return buildDashboardWorkQueue({
@@ -247,5 +254,6 @@ export async function loadDashboardWorkQueue(
     lms,
     applications,
     pos,
+    frappe,
   })
 }
