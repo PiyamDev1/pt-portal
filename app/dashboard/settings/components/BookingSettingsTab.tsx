@@ -2,89 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
+import { ALLOWED_TEMPLATE_VARIABLES } from '@/lib/bookingEmailTemplate'
 import {
-  ALLOWED_TEMPLATE_VARIABLES,
-  type BookingTemplateValues,
-  buildBookingEmailHtmlFromTemplate,
-} from '@/lib/bookingEmailTemplate'
+  BOOKING_TEMPLATE_DEFAULTS,
+  BookingEmailTemplateEditor,
+  BookingTemplatePreview,
+  REMINDER_TEMPLATE_PRESETS,
+} from './BookingEmailTemplateEditor'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const INTERVAL_OPTIONS = [15, 20, 30, 45, 60]
 const TEMPLATE_VARIABLES = [...ALLOWED_TEMPLATE_VARIABLES]
-type TemplateField = 'confirmation_template' | 'modification_template' | 'cancellation_template'
-
-const TEMPLATE_PRESETS: Record<TemplateField, Array<{ label: string; template: string }>> = {
-  confirmation_template: [
-    {
-      label: 'Formal',
-      template:
-        'Dear [Customer Name],\n\nYour appointment for [service booked] has been confirmed for [date booked] at [time booked] at [branch name].\n\nPlease arrive 10 minutes early and bring any required documents.\n\nKind regards,\nPiyam Travel',
-    },
-    {
-      label: 'Friendly',
-      template:
-        'Hi [Customer Name],\n\nYou are booked in for [service booked] on [date booked] at [time booked] with [branch name].\n\nIf you need to change anything, just let us know.\n\nThanks,\nPiyam Travel',
-    },
-    {
-      label: 'Short',
-      template:
-        'Booking confirmed: [service booked] on [date booked] at [time booked] - [branch name].',
-    },
-  ],
-  modification_template: [
-    {
-      label: 'Formal',
-      template:
-        'Dear [Customer Name],\n\nYour appointment for [service booked] has been updated. The new time is [date booked] at [time booked] at [branch name].\n\nPlease contact us if this change does not suit you.\n\nKind regards,\nPiyam Travel',
-    },
-    {
-      label: 'Friendly',
-      template:
-        'Hi [Customer Name],\n\nWe have updated your [service booked] appointment to [date booked] at [time booked] with [branch name].\n\nReply if you need anything else.\n\nThanks,\nPiyam Travel',
-    },
-    {
-      label: 'Short',
-      template:
-        'Appointment updated: [service booked] is now on [date booked] at [time booked] - [branch name].',
-    },
-  ],
-  cancellation_template: [
-    {
-      label: 'Formal',
-      template:
-        'Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] at [branch name] has been cancelled.\n\nIf you would like to rebook, please contact us and we will be happy to help.\n\nKind regards,\nPiyam Travel',
-    },
-    {
-      label: 'Friendly',
-      template:
-        'Hi [Customer Name],\n\nYour [service booked] booking for [date booked] at [time booked] with [branch name] has been cancelled.\n\nIf you want a new slot, let us know.\n\nThanks,\nPiyam Travel',
-    },
-    {
-      label: 'Short',
-      template:
-        'Appointment cancelled: [service booked] on [date booked] at [time booked] - [branch name].',
-    },
-  ],
-}
-
-const REMINDER_TEMPLATE_PRESETS = [
-  {
-    label: 'Formal',
-    template:
-      'Dear [Customer Name],\n\nThis is a reminder that your [service booked] appointment is scheduled for [date booked] at [time booked] at [branch name].\n\nIf you cannot attend, please contact us as soon as possible.\n\nKind regards,\nPiyam Travel',
-  },
-  {
-    label: 'Friendly',
-    template:
-      'Hi [Customer Name],\n\nJust a quick reminder about your [service booked] appointment on [date booked] at [time booked] with [branch name].\n\nIf anything has changed, please let us know as soon as you can.\n\nThanks,\nPiyam Travel',
-  },
-  {
-    label: 'Short',
-    template:
-      'Reminder: your [service booked] appointment is on [date booked] at [time booked] at [branch name]. Please contact us if you cannot attend.',
-  },
-]
 
 function buildNewServiceDraft() {
   return {
@@ -92,9 +21,9 @@ function buildNewServiceDraft() {
     duration_minutes: 30,
     buffer_minutes: 15,
     available_days: [] as number[],
-    confirmation_template: TEMPLATE_PRESETS.confirmation_template[0].template,
-    modification_template: TEMPLATE_PRESETS.modification_template[0].template,
-    cancellation_template: TEMPLATE_PRESETS.cancellation_template[0].template,
+    confirmation_template: BOOKING_TEMPLATE_DEFAULTS.confirmation_template,
+    modification_template: BOOKING_TEMPLATE_DEFAULTS.modification_template,
+    cancellation_template: BOOKING_TEMPLATE_DEFAULTS.cancellation_template,
     service_start_time: '',
     service_end_time: '',
     duration_per_additional_person_minutes: 0,
@@ -105,38 +34,6 @@ function buildNewServiceDraft() {
     customer_max_group_size: 20,
     customer_modification_cutoff_hours: 24,
   }
-}
-
-const TEMPLATE_SAMPLE_VALUES: Record<string, string> = {
-  '[Customer Name]': 'Alex Carter',
-  '[date booked]': '24 Apr 2026',
-  '[time booked]': '10:30',
-  '[service booked]': 'Visa Consultation',
-  '[branch name]': 'London Branch',
-  '[branch address]': '12 Station Road, London, SW1A 1AA, United Kingdom',
-  '[branch contact number]': '+44 2071234567',
-}
-
-function buildTemplatePreviewHtml(rawTemplate: string | null | undefined): string {
-  const base = (rawTemplate || '').trim()
-  const sampleValues: BookingTemplateValues = {
-    'Customer Name': TEMPLATE_SAMPLE_VALUES['[Customer Name]'],
-    'date booked': TEMPLATE_SAMPLE_VALUES['[date booked]'],
-    'time booked': TEMPLATE_SAMPLE_VALUES['[time booked]'],
-    'service booked': TEMPLATE_SAMPLE_VALUES['[service booked]'],
-    'branch name': TEMPLATE_SAMPLE_VALUES['[branch name]'],
-    'branch address': TEMPLATE_SAMPLE_VALUES['[branch address]'],
-    'branch contact number': TEMPLATE_SAMPLE_VALUES['[branch contact number]'],
-  }
-
-  if (!base) {
-    return buildBookingEmailHtmlFromTemplate(
-      'Start typing a template to preview it here.',
-      sampleValues,
-    )
-  }
-
-  return buildBookingEmailHtmlFromTemplate(base, sampleValues)
 }
 
 export interface BranchLocationOption {
@@ -222,8 +119,7 @@ function buildDefaultReminderSettings(locationId: string): BookingReminderSettin
     same_day_reminder_enabled: true,
     same_day_reminder_hours_before: 2,
     reminder_subject: 'Appointment reminder: [service booked] on [date booked] at [time booked]',
-    reminder_template:
-      'Dear [Customer Name],\n\nThis is a reminder that your [service booked] appointment is scheduled for [date booked] at [time booked] at [branch name].\n\nIf you cannot attend, please contact us as soon as possible.\n\nKind regards,\nPiyam Travel',
+    reminder_template: REMINDER_TEMPLATE_PRESETS[0].template,
     attendance_confirmation_required: true,
     penalty_enabled: true,
     penalty_threshold: 3,
@@ -245,61 +141,6 @@ function LabeledInput({ label, children }: { label: string; children: ReactNode 
       <span className="text-xs font-medium text-slate-600">{label}</span>
       {children}
     </label>
-  )
-}
-
-function TemplatePreview({
-  title,
-  template,
-}: {
-  title: string
-  template: string | null | undefined
-}) {
-  return (
-    <div className="mt-2 rounded border border-slate-200 bg-white p-2">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        {title} Preview
-      </p>
-      <iframe
-        title={`${title} preview`}
-        srcDoc={buildTemplatePreviewHtml(template)}
-        className="h-56 w-full rounded border border-slate-200"
-        sandbox=""
-      />
-    </div>
-  )
-}
-
-function TemplatePresetButtons({
-  field,
-  onApply,
-}: {
-  field: TemplateField
-  onApply: (template: string) => void
-}) {
-  return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-        Presets
-      </span>
-      {TEMPLATE_PRESETS[field].map((preset) => (
-        <button
-          key={`${field}-${preset.label}`}
-          type="button"
-          onClick={() => onApply(preset.template)}
-          className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800"
-        >
-          {preset.label}
-        </button>
-      ))}
-      <button
-        type="button"
-        onClick={() => onApply('')}
-        className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500"
-      >
-        Clear
-      </button>
-    </div>
   )
 }
 
@@ -355,20 +196,6 @@ export default function BookingSettingsTab({
   const [newService, setNewService] = useState(() => buildNewServiceDraft())
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
-  const [activeNewTemplateField, setActiveNewTemplateField] =
-    useState<TemplateField>('confirmation_template')
-  const [activeEditTemplateField, setActiveEditTemplateField] =
-    useState<TemplateField>('confirmation_template')
-  const newTemplateRefs = useRef<Record<TemplateField, HTMLTextAreaElement | null>>({
-    confirmation_template: null,
-    modification_template: null,
-    cancellation_template: null,
-  })
-  const editTemplateRefs = useRef<Record<TemplateField, HTMLTextAreaElement | null>>({
-    confirmation_template: null,
-    modification_template: null,
-    cancellation_template: null,
-  })
   const reminderTemplateRef = useRef<HTMLTextAreaElement | null>(null)
 
   const [newOverrideDate, setNewOverrideDate] = useState('')
@@ -501,31 +328,6 @@ export default function BookingSettingsTab({
     })
   }
 
-  const insertTemplateToken = (mode: 'new' | 'edit', token: string) => {
-    if (mode === 'new') {
-      const field = activeNewTemplateField
-      const textarea = newTemplateRefs.current[field]
-      setNewService((prev) => {
-        const current = prev[field] || ''
-        const next = insertTokenAtSelection(current, token, textarea)
-        return { ...prev, [field]: next }
-      })
-      moveCursorAfterInsert(textarea, token.length)
-      return
-    }
-
-    if (!editingService) return
-    const field = activeEditTemplateField
-    const textarea = editTemplateRefs.current[field]
-    setEditingService((prev) => {
-      if (!prev) return prev
-      const current = prev[field] || ''
-      const next = insertTokenAtSelection(current, token, textarea)
-      return { ...prev, [field]: next }
-    })
-    moveCursorAfterInsert(textarea, token.length)
-  }
-
   const insertReminderTemplateToken = (token: string) => {
     const textarea = reminderTemplateRef.current
     setReminderSettings((prev) => ({
@@ -533,17 +335,6 @@ export default function BookingSettingsTab({
       reminder_template: insertTokenAtSelection(prev.reminder_template, token, textarea),
     }))
     moveCursorAfterInsert(textarea, token.length)
-  }
-
-  const applyTemplatePreset = (mode: 'new' | 'edit', field: TemplateField, template: string) => {
-    if (mode === 'new') {
-      setActiveNewTemplateField(field)
-      setNewService((prev) => ({ ...prev, [field]: template }))
-      return
-    }
-
-    setActiveEditTemplateField(field)
-    setEditingService((prev) => (prev ? { ...prev, [field]: template || null } : prev))
   }
 
   const buildTemplateErrorMessage = (json: any): string => {
@@ -1459,123 +1250,36 @@ export default function BookingSettingsTab({
                 </div>
               </div>
               <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <LabeledInput label="Booking Confirmation Email Template">
-                  <>
-                    <TemplatePresetButtons
-                      field="confirmation_template"
-                      onApply={(template) =>
-                        applyTemplatePreset('new', 'confirmation_template', template)
-                      }
-                    />
-                    <div className="mb-2 flex flex-wrap gap-1.5">
-                      {TEMPLATE_VARIABLES.map((token) => (
-                        <button
-                          key={`new-confirmation-${token}`}
-                          type="button"
-                          onClick={() => insertTemplateToken('new', token)}
-                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
-                        >
-                          {token}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      ref={(el) => {
-                        newTemplateRefs.current.confirmation_template = el
-                      }}
-                      value={newService.confirmation_template}
-                      onFocus={() => setActiveNewTemplateField('confirmation_template')}
-                      onChange={(e) =>
-                        setNewService((p) => ({ ...p, confirmation_template: e.target.value }))
-                      }
-                      rows={6}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                      placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]."
-                    />
-                    <TemplatePreview
-                      title="Confirmation"
-                      template={newService.confirmation_template}
-                    />
-                  </>
-                </LabeledInput>
-                <LabeledInput label="Booking Modification Email Template">
-                  <>
-                    <TemplatePresetButtons
-                      field="modification_template"
-                      onApply={(template) =>
-                        applyTemplatePreset('new', 'modification_template', template)
-                      }
-                    />
-                    <div className="mb-2 flex flex-wrap gap-1.5">
-                      {TEMPLATE_VARIABLES.map((token) => (
-                        <button
-                          key={`new-modification-${token}`}
-                          type="button"
-                          onClick={() => insertTemplateToken('new', token)}
-                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
-                        >
-                          {token}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      ref={(el) => {
-                        newTemplateRefs.current.modification_template = el
-                      }}
-                      value={newService.modification_template}
-                      onFocus={() => setActiveNewTemplateField('modification_template')}
-                      onChange={(e) =>
-                        setNewService((p) => ({ ...p, modification_template: e.target.value }))
-                      }
-                      rows={6}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                      placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]."
-                    />
-                    <TemplatePreview
-                      title="Modification"
-                      template={newService.modification_template}
-                    />
-                  </>
-                </LabeledInput>
-                <LabeledInput label="Booking Cancellation Email Template">
-                  <>
-                    <TemplatePresetButtons
-                      field="cancellation_template"
-                      onApply={(template) =>
-                        applyTemplatePreset('new', 'cancellation_template', template)
-                      }
-                    />
-                    <div className="mb-2 flex flex-wrap gap-1.5">
-                      {TEMPLATE_VARIABLES.map((token) => (
-                        <button
-                          key={`new-cancellation-${token}`}
-                          type="button"
-                          onClick={() => insertTemplateToken('new', token)}
-                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
-                        >
-                          {token}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      ref={(el) => {
-                        newTemplateRefs.current.cancellation_template = el
-                      }}
-                      value={newService.cancellation_template}
-                      onFocus={() => setActiveNewTemplateField('cancellation_template')}
-                      onChange={(e) =>
-                        setNewService((p) => ({ ...p, cancellation_template: e.target.value }))
-                      }
-                      rows={6}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                      placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled."
-                    />
-                    <TemplatePreview
-                      title="Cancellation"
-                      template={newService.cancellation_template}
-                    />
-                  </>
-                </LabeledInput>
+                <BookingEmailTemplateEditor
+                  field="confirmation_template"
+                  label="Booking Confirmation Email Template"
+                  previewTitle="Confirmation"
+                  value={newService.confirmation_template}
+                  onChange={(value) =>
+                    setNewService((current) => ({ ...current, confirmation_template: value }))
+                  }
+                  placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]."
+                />
+                <BookingEmailTemplateEditor
+                  field="modification_template"
+                  label="Booking Modification Email Template"
+                  previewTitle="Modification"
+                  value={newService.modification_template}
+                  onChange={(value) =>
+                    setNewService((current) => ({ ...current, modification_template: value }))
+                  }
+                  placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]."
+                />
+                <BookingEmailTemplateEditor
+                  field="cancellation_template"
+                  label="Booking Cancellation Email Template"
+                  previewTitle="Cancellation"
+                  value={newService.cancellation_template}
+                  onChange={(value) =>
+                    setNewService((current) => ({ ...current, cancellation_template: value }))
+                  }
+                  placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled."
+                />
               </div>
               <div className="flex gap-2">
                 <button
@@ -1839,126 +1543,45 @@ export default function BookingSettingsTab({
                       </div>
                     </div>
                     <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <LabeledInput label="Booking Confirmation Email Template">
-                        <>
-                          <TemplatePresetButtons
-                            field="confirmation_template"
-                            onApply={(template) =>
-                              applyTemplatePreset('edit', 'confirmation_template', template)
-                            }
-                          />
-                          <div className="mb-2 flex flex-wrap gap-1.5">
-                            {TEMPLATE_VARIABLES.map((token) => (
-                              <button
-                                key={`edit-confirmation-${service.id}-${token}`}
-                                type="button"
-                                onClick={() => insertTemplateToken('edit', token)}
-                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
-                              >
-                                {token}
-                              </button>
-                            ))}
-                          </div>
-                          <textarea
-                            ref={(el) => {
-                              editTemplateRefs.current.confirmation_template = el
-                            }}
-                            value={editingService.confirmation_template || ''}
-                            onFocus={() => setActiveEditTemplateField('confirmation_template')}
-                            onChange={(e) =>
-                              setEditingService((p) =>
-                                p ? { ...p, confirmation_template: e.target.value || null } : p,
-                              )
-                            }
-                            rows={6}
-                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                          />
-                          <TemplatePreview
-                            title="Confirmation"
-                            template={editingService.confirmation_template}
-                          />
-                        </>
-                      </LabeledInput>
-                      <LabeledInput label="Booking Modification Email Template">
-                        <>
-                          <TemplatePresetButtons
-                            field="modification_template"
-                            onApply={(template) =>
-                              applyTemplatePreset('edit', 'modification_template', template)
-                            }
-                          />
-                          <div className="mb-2 flex flex-wrap gap-1.5">
-                            {TEMPLATE_VARIABLES.map((token) => (
-                              <button
-                                key={`edit-modification-${service.id}-${token}`}
-                                type="button"
-                                onClick={() => insertTemplateToken('edit', token)}
-                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
-                              >
-                                {token}
-                              </button>
-                            ))}
-                          </div>
-                          <textarea
-                            ref={(el) => {
-                              editTemplateRefs.current.modification_template = el
-                            }}
-                            value={editingService.modification_template || ''}
-                            onFocus={() => setActiveEditTemplateField('modification_template')}
-                            onChange={(e) =>
-                              setEditingService((p) =>
-                                p ? { ...p, modification_template: e.target.value || null } : p,
-                              )
-                            }
-                            rows={6}
-                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                          />
-                          <TemplatePreview
-                            title="Modification"
-                            template={editingService.modification_template}
-                          />
-                        </>
-                      </LabeledInput>
-                      <LabeledInput label="Booking Cancellation Email Template">
-                        <>
-                          <TemplatePresetButtons
-                            field="cancellation_template"
-                            onApply={(template) =>
-                              applyTemplatePreset('edit', 'cancellation_template', template)
-                            }
-                          />
-                          <div className="mb-2 flex flex-wrap gap-1.5">
-                            {TEMPLATE_VARIABLES.map((token) => (
-                              <button
-                                key={`edit-cancellation-${service.id}-${token}`}
-                                type="button"
-                                onClick={() => insertTemplateToken('edit', token)}
-                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
-                              >
-                                {token}
-                              </button>
-                            ))}
-                          </div>
-                          <textarea
-                            ref={(el) => {
-                              editTemplateRefs.current.cancellation_template = el
-                            }}
-                            value={editingService.cancellation_template || ''}
-                            onFocus={() => setActiveEditTemplateField('cancellation_template')}
-                            onChange={(e) =>
-                              setEditingService((p) =>
-                                p ? { ...p, cancellation_template: e.target.value || null } : p,
-                              )
-                            }
-                            rows={6}
-                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                          />
-                          <TemplatePreview
-                            title="Cancellation"
-                            template={editingService.cancellation_template}
-                          />
-                        </>
-                      </LabeledInput>
+                      <BookingEmailTemplateEditor
+                        field="confirmation_template"
+                        label="Booking Confirmation Email Template"
+                        previewTitle="Confirmation"
+                        value={editingService.confirmation_template}
+                        onChange={(value) =>
+                          setEditingService((current) =>
+                            current
+                              ? { ...current, confirmation_template: value || null }
+                              : current,
+                          )
+                        }
+                      />
+                      <BookingEmailTemplateEditor
+                        field="modification_template"
+                        label="Booking Modification Email Template"
+                        previewTitle="Modification"
+                        value={editingService.modification_template}
+                        onChange={(value) =>
+                          setEditingService((current) =>
+                            current
+                              ? { ...current, modification_template: value || null }
+                              : current,
+                          )
+                        }
+                      />
+                      <BookingEmailTemplateEditor
+                        field="cancellation_template"
+                        label="Booking Cancellation Email Template"
+                        previewTitle="Cancellation"
+                        value={editingService.cancellation_template}
+                        onChange={(value) =>
+                          setEditingService((current) =>
+                            current
+                              ? { ...current, cancellation_template: value || null }
+                              : current,
+                          )
+                        }
+                      />
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -2340,7 +1963,7 @@ export default function BookingSettingsTab({
                     Sample customer
                   </span>
                 </div>
-                <TemplatePreview
+                <BookingTemplatePreview
                   title="Reminder email"
                   template={reminderSettings.reminder_template}
                 />
