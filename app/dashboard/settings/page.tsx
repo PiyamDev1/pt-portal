@@ -15,13 +15,11 @@
  *
  * @module app/dashboard/settings/page
  */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { DeviceLayoutPreference } from './components/DeviceLayoutPreference'
 
 const SettingsClient = dynamic(() => import('./client'), {
@@ -31,50 +29,21 @@ const SettingsClient = dynamic(() => import('./client'), {
 })
 
 export default async function SettingsPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
-  )
-
-  // 1. Security Check: Only allow if logged in
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
+  const { supabase, userId, userEmail, userMetadata, employeeName, role, location } =
+    await loadDashboardPageContext()
 
   const serviceSupabase = getServiceSupabaseClient()
 
   // 2. Fetch Hierarchy Data in Parallel (Fast)
-  const [locations, departments, roles, employees, employeeDepartments, employeeData] =
-    await Promise.all([
-      supabase.from('locations').select('*').order('name'),
-      serviceSupabase.from('departments').select('*').order('name'),
-      supabase.from('roles').select('*').order('level'), // Level 1 = Boss
-      supabase
-        .from('employees')
-        .select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active'),
-      serviceSupabase.from('employee_departments').select('employee_id, department_id'),
-      supabase
-        .from('employees')
-        .select('full_name, roles(name), locations(name, branch_code)')
-        .eq('id', session.user.id)
-        .single(),
-    ])
+  const [locations, departments, roles, employees, employeeDepartments] = await Promise.all([
+    supabase.from('locations').select('*').order('name'),
+    serviceSupabase.from('departments').select('*').order('name'),
+    supabase.from('roles').select('*').order('level'), // Level 1 = Boss
+    supabase
+      .from('employees')
+      .select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active'),
+    serviceSupabase.from('employee_departments').select('employee_id, department_id'),
+  ])
 
   const departmentsByEmployee = new Map<string, string[]>()
   for (const membership of employeeDepartments.data || []) {
@@ -91,14 +60,8 @@ export default async function SettingsPage() {
       (employee.department_id ? [employee.department_id] : []),
   }))
 
-  const location = Array.isArray(employeeData?.data?.locations)
-    ? employeeData.data.locations[0]
-    : employeeData?.data?.locations
-  const role = Array.isArray(employeeData?.data?.roles)
-    ? employeeData.data.roles[0]
-    : employeeData?.data?.roles
-  const userRole = role?.name || 'Employee'
-  const currentDepartmentIds = new Set(departmentsByEmployee.get(session.user.id) || [])
+  const userRole = role || 'Employee'
+  const currentDepartmentIds = new Set(departmentsByEmployee.get(userId) || [])
   const userDepartments = (departments.data || [])
     .filter((department) => currentDepartmentIds.has(department.id))
     .map((department) => department.name)
@@ -113,10 +76,10 @@ export default async function SettingsPage() {
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
         <PageHeader
-          employeeName={employeeData?.data?.full_name}
+          employeeName={employeeName}
           role={userRole}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
         />
 
@@ -136,9 +99,9 @@ export default async function SettingsPage() {
 
           <SettingsClient
             currentUser={{
-              id: session.user.id,
-              email: session.user.email || '',
-              user_metadata: session.user.user_metadata,
+              id: userId,
+              email: userEmail || '',
+              user_metadata: userMetadata,
             }}
             userRole={userRole}
             userDepartments={userDepartments}

@@ -3,16 +3,23 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 
 type RelatedName = {
   name?: string | null
+}
+
+type DashboardPageLocation = RelatedName & {
+  id?: string | null
   branch_code?: string | null
+  timezone?: string | null
+  appointments_enabled?: boolean | null
 }
 
 type EmployeePageContextRow = {
+  email?: string | null
   full_name?: string | null
   roles?: RelatedName | RelatedName[] | null
-  locations?: RelatedName | RelatedName[] | null
+  locations?: DashboardPageLocation | DashboardPageLocation[] | null
 }
 
-function firstRelated(value: RelatedName | RelatedName[] | null | undefined) {
+function firstRelated<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] || null : value || null
 }
 
@@ -33,7 +40,9 @@ export async function loadDashboardPageContext() {
 
   const { data } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
+    .select(
+      'email, full_name, roles(name), locations(id, name, branch_code, timezone, appointments_enabled)',
+    )
     .eq('id', user.id)
     .single()
 
@@ -48,6 +57,9 @@ export async function loadDashboardPageContext() {
   return {
     supabase,
     userId: user.id,
+    userEmail: user.email || undefined,
+    userMetadata: user.user_metadata,
+    employeeEmail: employee?.email || undefined,
     employeeName: employee?.full_name || authDisplayName || undefined,
     role: role?.name || undefined,
     location: location || undefined,

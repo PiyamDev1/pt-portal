@@ -25,9 +25,18 @@ describe('loadDashboardPageContext', () => {
   it('returns the authenticated client and normalized page-header identity', async () => {
     const single = vi.fn().mockResolvedValue({
       data: {
+        email: 'amina@piyam.test',
         full_name: 'Amina Khan',
         roles: [{ name: 'Admin' }],
-        locations: [{ name: 'Bradford', branch_code: 'BD1' }],
+        locations: [
+          {
+            id: 'location-1',
+            name: 'Bradford',
+            branch_code: 'BD1',
+            timezone: 'Europe/London',
+            appointments_enabled: true,
+          },
+        ],
       },
     })
     const eq = vi.fn(() => ({ single }))
@@ -35,7 +44,13 @@ describe('loadDashboardPageContext', () => {
     const supabase = {
       auth: {
         getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'employee-1' } },
+          data: {
+            user: {
+              id: 'employee-1',
+              email: 'amina.auth@piyam.test',
+              user_metadata: { preferred_name: 'Amina' },
+            },
+          },
           error: null,
         }),
       },
@@ -46,12 +61,23 @@ describe('loadDashboardPageContext', () => {
     await expect(loadDashboardPageContext()).resolves.toEqual({
       supabase,
       userId: 'employee-1',
+      userEmail: 'amina.auth@piyam.test',
+      userMetadata: { preferred_name: 'Amina' },
+      employeeEmail: 'amina@piyam.test',
       employeeName: 'Amina Khan',
       role: 'Admin',
-      location: { name: 'Bradford', branch_code: 'BD1' },
+      location: {
+        id: 'location-1',
+        name: 'Bradford',
+        branch_code: 'BD1',
+        timezone: 'Europe/London',
+        appointments_enabled: true,
+      },
     })
     expect(supabase.from).toHaveBeenCalledWith('employees')
-    expect(select).toHaveBeenCalledWith('full_name, roles(name), locations(name, branch_code)')
+    expect(select).toHaveBeenCalledWith(
+      'email, full_name, roles(name), locations(id, name, branch_code, timezone, appointments_enabled)',
+    )
     expect(eq).toHaveBeenCalledWith('id', 'employee-1')
   })
 

@@ -9,9 +9,6 @@
  * @module app/dashboard/page
  */
 
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
@@ -28,6 +25,7 @@ import {
   type DashboardModule,
 } from '@/lib/dashboardModules'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { loadDashboardWorkQueue } from '@/lib/dashboard/workQueue.server'
 import type { DashboardWorkQueue } from '@/lib/dashboard/workQueue'
 
@@ -193,48 +191,16 @@ function DesktopDashboard({
 }
 
 export default async function Dashboard() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(id, name, branch_code, timezone)')
-    .eq('id', session.user.id)
-    .single()
-
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
+  const { supabase, userId, employeeName, role, location } = await loadDashboardPageContext()
   const serviceSupabase = getServiceSupabaseClient()
   const [{ data: canManageCommission }, { data: departmentMemberships }] = await Promise.all([
     serviceSupabase.rpc('commission_actor_can_manage_2026082901', {
-      p_employee_id: session.user.id,
+      p_employee_id: userId,
     }),
     serviceSupabase
       .from('employee_departments')
       .select('departments(name)')
-      .eq('employee_id', session.user.id),
+      .eq('employee_id', userId),
   ])
   const departmentNames = ((departmentMemberships || []) as DepartmentMembership[])
     .map((membership) => relatedDepartmentName(membership.departments))
@@ -243,40 +209,31 @@ export default async function Dashboard() {
     (moduleItem) =>
       (moduleItem.id === 'commissions' && canManageCommission === true) ||
       (moduleItem.id !== 'commissions' &&
-        canAccessDashboardModule(moduleItem, role?.name, departmentNames)),
+        canAccessDashboardModule(moduleItem, role, departmentNames)),
   )
   const workQueue = await loadDashboardWorkQueue({
     userSupabase: supabase,
     serviceSupabase,
     visibleModuleIds: visibleModules.map((moduleItem) => moduleItem.id),
-    employeeId: session.user.id,
+    employeeId: userId,
     locationId: location?.id || null,
     locationName: location?.name || null,
     locationTimezone: location?.timezone || null,
-    roleName: role?.name || '',
+    roleName: role || '',
   })
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-[#f5f5f5]">
-        <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
-          location={location}
-          userId={session.user.id}
-        />
+        <PageHeader employeeName={employeeName} role={role} location={location} userId={userId} />
 
         <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
-          <BackupCodesReminder userId={session.user.id} />
-          <MobileDashboard
-            modules={visibleModules}
-            userName={employee?.full_name}
-            workQueue={workQueue}
-          />
+          <BackupCodesReminder userId={userId} />
+          <MobileDashboard modules={visibleModules} userName={employeeName} workQueue={workQueue} />
           <DesktopDashboard
             modules={visibleModules}
-            userName={employee?.full_name}
-            roleName={role?.name}
+            userName={employeeName}
+            roleName={role}
             branchName={location?.name}
             workQueue={workQueue}
           />

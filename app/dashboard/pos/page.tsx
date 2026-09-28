@@ -1,10 +1,8 @@
 import type { Metadata } from 'next'
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import type { StaffSession } from '@/lib/auth/staffSession'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { formatIsoDateInTimezone } from '@/lib/dateFormatter'
 import type { PosLedgerFilters, PosLedgerPayload, PosLedgerPeriod } from '@/lib/pos/contracts'
 import { isIsoDate, loadPosLedger } from '@/lib/pos/ledgerServer'
@@ -33,39 +31,14 @@ export default async function PosPreviewPage({
   const initialSearch = String(requestedSearch || '')
     .trim()
     .slice(0, 120)
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('id,email,full_name, roles(name), locations(id, name, branch_code, timezone)')
-    .eq('id', user.id)
-    .single()
+  const { supabase, userId, userEmail, employeeEmail, employeeName, role, location } =
+    await loadDashboardPageContext()
 
   const { data: memberships } = await supabase
     .from('employee_departments')
     .select('departments(name)')
-    .eq('employee_id', user.id)
+    .eq('employee_id', userId)
 
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
   const timezone = location?.timezone || 'Europe/London'
   const currentDate = formatIsoDateInTimezone(new Date(), timezone)
   const requestedDate = firstValue(params.date)
@@ -97,12 +70,12 @@ export default async function PosPreviewPage({
     })
     .filter((name): name is string => Boolean(name))
   const access: StaffSession = {
-    user: { id: user.id, email: user.email || employee?.email || '' },
+    user: { id: userId, email: userEmail || employeeEmail || '' },
     employee: {
-      id: user.id,
-      email: employee?.email || user.email || '',
-      fullName: employee?.full_name || user.email || 'Staff member',
-      role: role?.name || '',
+      id: userId,
+      email: employeeEmail || userEmail || '',
+      fullName: employeeName || userEmail || 'Staff member',
+      role: role || '',
       departments: departmentNames,
     },
   }
@@ -115,7 +88,7 @@ export default async function PosPreviewPage({
 
   try {
     initialLedger = await loadPosLedger(
-      user.id,
+      userId,
       ledgerPeriod,
       ledgerDate,
       statusFilter ? { status: statusFilter } : {},
@@ -153,17 +126,17 @@ export default async function PosPreviewPage({
     <DashboardClientWrapper>
       <div className="min-h-screen bg-[#f5f5f5] text-slate-950">
         <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
+          employeeName={employeeName}
+          role={role}
           location={location}
-          userId={user.id}
+          userId={userId}
           showBack
         />
 
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
           <PosPreviewClient
             branchName={location?.name || initialLedger.context.branchName}
-            employeeId={user.id}
+            employeeId={userId}
             initialLedger={initialLedger}
             initialBootstrap={initialBootstrap || undefined}
             initialLoadError={initialLoadError}
