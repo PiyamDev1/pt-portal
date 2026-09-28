@@ -14,11 +14,10 @@
  *
  * @module app/dashboard/lms/page
  */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { FILTER_OPTIONS } from './constants'
 
 const LMSClient = dynamic(() => import('./client'), {
@@ -37,41 +36,16 @@ export default async function LMSPage({
   const initialFilter = FILTER_OPTIONS.includes(requestedFilter as (typeof FILTER_OPTIONS)[number])
     ? (requestedFilter as (typeof FILTER_OPTIONS)[number])
     : 'active'
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session?.user?.id)
-    .single()
-
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
+  const { userId, employeeName, role, location } = await loadDashboardPageContext()
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
+          employeeName={employeeName}
+          role={role}
           location={location}
-          userId={session?.user?.id}
+          userId={userId}
           showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
@@ -82,7 +56,7 @@ export default async function LMSPage({
             </p>
           </div>
 
-          <LMSClient currentUserId={session?.user?.id ?? ''} initialFilter={initialFilter} />
+          <LMSClient currentUserId={userId} initialFilter={initialFilter} />
         </main>
       </div>
     </DashboardClientWrapper>

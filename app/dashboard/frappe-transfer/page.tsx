@@ -5,13 +5,11 @@
  * Frappe Employee record.
  */
 
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import { FrappeTransferClient } from './client'
 import { FrappeHandoffLaunchClient } from './HandoffLaunchClient'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 import { getFrappeProvisioningCandidate } from '@/lib/integrations/frappe/provisioning'
 
 export const metadata = {
@@ -26,41 +24,8 @@ type FrappeTransferPageProps = {
 export default async function FrappeTransferPage({ searchParams }: FrappeTransferPageProps) {
   const params = await searchParams
   const handoffStatus = typeof params?.handoff === 'string' ? params.handoff : null
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
-    .single()
-
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const candidate = await getFrappeProvisioningCandidate(session.user.id)
+  const { userId, employeeName, role, location } = await loadDashboardPageContext()
+  const candidate = await getFrappeProvisioningCandidate(userId)
 
   const shouldLaunchFrappe = Boolean(
     candidate?.frappe_employee_id && (!handoffStatus || handoffStatus === 'required'),
@@ -70,10 +35,10 @@ export default async function FrappeTransferPage({ searchParams }: FrappeTransfe
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
         <PageHeader
-          employeeName={employee?.full_name}
-          role={role?.name}
+          employeeName={employeeName}
+          role={role}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
         />
 
@@ -91,7 +56,7 @@ export default async function FrappeTransferPage({ searchParams }: FrappeTransfe
 
           {shouldLaunchFrappe ? (
             <FrappeHandoffLaunchClient
-              employeeName={employee?.full_name}
+              employeeName={employeeName}
               returningFromFrappe={handoffStatus === 'required'}
             />
           ) : (

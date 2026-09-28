@@ -14,12 +14,10 @@
  *
  * @module app/dashboard/pricing/page
  */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { loadDashboardPageContext } from '@/lib/dashboard/pageContext'
 
 const PricingClient = dynamic(() => import('./client'), {
   loading: () => (
@@ -28,51 +26,17 @@ const PricingClient = dynamic(() => import('./client'), {
 })
 
 export default async function PricingPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            )
-          } catch {}
-        },
-      },
-    },
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
-
-  const { data: employeeData } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
-    .single()
-
-  const location = Array.isArray(employeeData?.locations)
-    ? employeeData.locations[0]
-    : employeeData?.locations
-  const role = Array.isArray(employeeData?.roles) ? employeeData.roles[0] : employeeData?.roles
-  const userRole = role?.name || 'Employee'
+  const { userId, employeeName, role, location } = await loadDashboardPageContext()
+  const userRole = role || 'Employee'
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
         <PageHeader
-          employeeName={employeeData?.full_name}
+          employeeName={employeeName}
           role={userRole}
           location={location}
-          userId={session.user.id}
+          userId={userId}
           showBack={true}
         />
 
