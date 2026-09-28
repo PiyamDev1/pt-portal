@@ -1,89 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import { validateBookingTemplate } from '@/lib/bookingEmail'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
 import type { Database } from '@/types/supabase'
+import {
+  BOOKING_SERVICE_SCHEMA_HINT,
+  getBookingServicePortalSettingsError,
+  isBookingServiceSchemaError,
+  isMissingBookingServiceTimingColumns,
+  validateBookingServiceTemplates,
+} from '@/lib/bookingServiceSettings'
 
-const SCHEMA_HINT =
-  'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
-
-function isSchemaError(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code
-  return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204'
-}
-
-function isMissingServiceTimingColumns(error: unknown): boolean {
-  const payload = error as { message?: string; details?: string; hint?: string } | null
-  const haystack =
-    `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase()
-  if (!haystack.includes('schema cache')) return false
-  return (
-    haystack.includes('duration_per_additional_person_minutes') ||
-    haystack.includes('person_count_excludes_family_head') ||
-    haystack.includes('close_overrun_tolerance_minutes')
-  )
-}
-
-type TemplateValidationError = { field: string; invalidTokens: string[] }
 type BookingServiceUpdate = Database['public']['Tables']['booking_services']['Update']
-
-function customerPortalSettingsError(input: {
-  customer_visible?: unknown
-  customer_description?: unknown
-  customer_max_group_size?: unknown
-  customer_modification_cutoff_hours?: unknown
-}): string | null {
-  if (input.customer_visible !== undefined && typeof input.customer_visible !== 'boolean') {
-    return 'customer_visible must be true or false'
-  }
-  if (
-    input.customer_description !== undefined &&
-    input.customer_description !== null &&
-    typeof input.customer_description !== 'string'
-  ) {
-    return 'customer_description must be text'
-  }
-  if (
-    typeof input.customer_description === 'string' &&
-    input.customer_description.trim().length > 1000
-  ) {
-    return 'customer_description must be 1000 characters or fewer'
-  }
-  if (input.customer_max_group_size !== undefined) {
-    const value = input.customer_max_group_size
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 100) {
-      return 'customer_max_group_size must be a whole number from 1 to 100'
-    }
-  }
-  if (input.customer_modification_cutoff_hours !== undefined) {
-    const value = input.customer_modification_cutoff_hours
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 168) {
-      return 'customer_modification_cutoff_hours must be a whole number from 0 to 168'
-    }
-  }
-  return null
-}
-
-function validateServiceTemplates(input: {
-  confirmation_template?: string | null
-  modification_template?: string | null
-  cancellation_template?: string | null
-}): TemplateValidationError[] {
-  const checks: Array<{ field: string; value: string | null | undefined }> = [
-    { field: 'confirmation_template', value: input.confirmation_template },
-    { field: 'modification_template', value: input.modification_template },
-    { field: 'cancellation_template', value: input.cancellation_template },
-  ]
-
-  return checks
-    .map(({ field, value }) => {
-      if (value === undefined || value === null || value.trim() === '') return null
-      const result = validateBookingTemplate(value)
-      if (result.valid) return null
-      return { field, invalidTokens: result.invalidTokens }
-    })
-    .filter((item): item is TemplateValidationError => item !== null)
-}
 
 /**
  * PATCH /api/bookings/settings/services/[id]
@@ -149,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
-    const portalSettingsError = customerPortalSettingsError({
+    const portalSettingsError = getBookingServicePortalSettingsError({
       customer_visible,
       customer_description,
       customer_max_group_size,
@@ -159,7 +86,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: portalSettingsError }, { status: 400 })
     }
 
-    const templateErrors = validateServiceTemplates({
+    const templateErrors = validateBookingServiceTemplates({
       confirmation_template,
       modification_template,
       cancellation_template,
@@ -212,7 +139,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .single()
 
     // Backward compatibility while DB migration is pending.
-    if (error && isMissingServiceTimingColumns(error)) {
+    if (error && isMissingBookingServiceTimingColumns(error)) {
       const fallbackUpdates = { ...updates }
       delete fallbackUpdates.duration_per_additional_person_minutes
       delete fallbackUpdates.person_count_excludes_family_head
@@ -228,8 +155,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (error) {
-      if (isSchemaError(error)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
+      if (isBookingServiceSchemaError(error)) {
+        return NextResponse.json({ error: BOOKING_SERVICE_SCHEMA_HINT }, { status: 503 })
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
