@@ -53,6 +53,13 @@ import {
 import { buildLinkedPackageGroupSnapshot, type TravelPackageGroupDetail } from '@/lib/packageGroups'
 import { makeId, type UmrahTransportPricingData } from './packageTransportPricingModel'
 import { FlightOptionEditor, newLinkedFlightGroup, OptionEditor } from './PackageOptionEditors'
+import { PackageQuoteBrowser } from './PackageQuoteBrowser'
+import {
+  buildPackageShareUrl as buildShareUrl,
+  formatPackageExpiry as formatExpiry,
+  getPackageTimestamp as getTimestamp,
+} from './packageQuoteBrowserModel'
+import { PackageSectionHeader as SectionHeader } from './PackageSectionHeader'
 
 type PackagesClientProps = {
   currentUserId: string
@@ -94,39 +101,14 @@ const PACKAGE_TYPES: Array<{ value: TravelPackageType; label: string }> = [
   { value: 'holiday', label: 'Holiday' },
 ]
 
-type QuoteFilter = 'all' | 'live' | 'draft' | 'selected' | 'expired' | 'bin'
-
-const QUOTE_FILTERS: Array<{ value: QuoteFilter; label: string }> = [
-  { value: 'all', label: 'All' },
-  { value: 'live', label: 'Live Links' },
-  { value: 'draft', label: 'Drafts' },
-  { value: 'selected', label: 'Selected' },
-  { value: 'expired', label: 'Expired' },
-  { value: 'bin', label: 'Bin' },
-]
-
 const EXPIRED_QUOTE_BIN_AFTER_DAYS = 10
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-
-type QuoteTableRow =
-  | { type: 'quote'; id: string; createdAt: string; quote: TravelPackageQuote }
-  | { type: 'group'; id: string; createdAt: string; group: TravelPackageGroup }
-
-function getTimestamp(value: string | null | undefined) {
-  if (!value) return 0
-  const time = new Date(value).getTime()
-  return Number.isFinite(time) ? time : 0
-}
 
 function shouldMoveExpiredQuoteToBin(quote: TravelPackageQuote) {
   if (quote.status === 'archived' || !isPackageQuoteExpired(quote.expires_at)) return false
   const expiresAt = getTimestamp(quote.expires_at)
   if (!expiresAt) return false
   return Date.now() - expiresAt >= EXPIRED_QUOTE_BIN_AFTER_DAYS * MS_PER_DAY
-}
-
-function getQuoteLinkedGroupId(quote: TravelPackageQuote) {
-  return normalizePackageQuotePayload(quote.payload).linkedPackageGroup?.groupId || null
 }
 
 function newOption(
@@ -319,15 +301,6 @@ function createInitialPayload(): PackageQuotePayload {
   })
 }
 
-function buildShareUrl(token?: string) {
-  if (!token || typeof window === 'undefined') return ''
-  return `${window.location.origin}/packages/${token}`
-}
-
-function getQuoteStartingPrice(quote: TravelPackageQuote) {
-  return buildCustomerPackageOptions(quote.payload, 1)[0]?.combination || null
-}
-
 function toDateTimeLocalValue(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
@@ -342,40 +315,6 @@ function fromDateTimeLocalValue(value: string) {
   return date.toISOString()
 }
 
-function formatExpiry(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Invalid expiry'
-  return date.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function SectionHeader({
-  icon: Icon,
-  title,
-  action,
-}: {
-  icon: typeof Building2
-  title: string
-  action?: React.ReactNode
-}) {
-  return (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-          <Icon className="h-4 w-4" />
-        </span>
-        <h2 className="text-base font-black text-slate-950">{title}</h2>
-      </div>
-      {action}
-    </div>
-  )
-}
-
 export default function PackagesClient({
   currentUserId,
   initialQuoteId = null,
@@ -386,7 +325,6 @@ export default function PackagesClient({
   )
   const [quotes, setQuotes] = useState<TravelPackageQuote[]>([])
   const [activeQuote, setActiveQuote] = useState<TravelPackageQuote | null>(null)
-  const [quoteFilter, setQuoteFilter] = useState<QuoteFilter>('all')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
@@ -440,46 +378,6 @@ export default function PackagesClient({
     () => quotes.filter((quote) => quote.status !== 'archived'),
     [quotes],
   )
-  const binnedQuotes = useMemo(
-    () => quotes.filter((quote) => quote.status === 'archived'),
-    [quotes],
-  )
-  const filteredQuotes = useMemo(() => {
-    if (quoteFilter === 'live') {
-      return activeQuotes.filter(
-        (quote) =>
-          quote.share_enabled &&
-          quote.status === 'shared' &&
-          !isPackageQuoteExpired(quote.expires_at),
-      )
-    }
-    if (quoteFilter === 'draft') {
-      return activeQuotes.filter((quote) => quote.status === 'draft' || !quote.share_enabled)
-    }
-    if (quoteFilter === 'selected') {
-      return activeQuotes.filter((quote) => Boolean(quote.selected_at))
-    }
-    if (quoteFilter === 'expired') {
-      return activeQuotes.filter((quote) => isPackageQuoteExpired(quote.expires_at))
-    }
-    if (quoteFilter === 'bin') {
-      return binnedQuotes
-    }
-    const linkedGroupIds = new Set(packageGroups.map((group) => group.id))
-    return activeQuotes.filter((quote) => {
-      const groupId = getQuoteLinkedGroupId(quote)
-      return !groupId || !linkedGroupIds.has(groupId)
-    })
-  }, [activeQuotes, binnedQuotes, packageGroups, quoteFilter])
-  const quoteTableRows = useMemo<QuoteTableRow[]>(() => {
-    const quoteRows: QuoteTableRow[] = filteredQuotes.map((quote) => ({
-      type: 'quote',
-      id: quote.id,
-      createdAt: quote.created_at,
-      quote,
-    }))
-    return quoteRows.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
-  }, [filteredQuotes])
   const filteredPackageGroups = useMemo(() => {
     const search = packageGroupSearch.trim().toLowerCase()
     const currentGroups = packageGroups.filter((group) => group.status !== 'archived')
@@ -2868,275 +2766,18 @@ export default function PackagesClient({
         </aside>
       </div>
 
-      <Link
-        href="/dashboard/packages/groups"
-        className="sticky top-2 z-20 flex min-h-14 items-center justify-between gap-4 border-y-4 border-cyan-900 bg-white px-4 py-3 shadow-lg transition hover:bg-cyan-50 sm:rounded-xl sm:border-x"
-      >
-        <span className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
-            <FolderKanban className="h-5 w-5" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-black text-cyan-950">See Group Packages</span>
-            <span className="block truncate text-xs font-semibold text-slate-600">
-              Linked quotations are managed together in the group folder
-            </span>
-          </span>
-        </span>
-        <ExternalLink className="h-4 w-4 shrink-0 text-cyan-900" />
-      </Link>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <SectionHeader icon={PackageCheck} title="Package quote table" />
-          <div className="flex flex-wrap gap-2">
-            {QUOTE_FILTERS.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setQuoteFilter(filter.value)}
-                className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
-                  quoteFilter === filter.value
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {loading ? (
-          <p className="mt-3 text-sm text-slate-500">Loading package quotes...</p>
-        ) : quoteTableRows.length === 0 ? (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-            No package quotes match this view.
-          </div>
-        ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-[900px] w-full border-separate border-spacing-0 text-left text-sm">
-              <thead>
-                <tr className="text-xs font-black uppercase text-slate-500">
-                  <th className="border-b border-slate-200 px-3 py-2">Quote</th>
-                  <th className="border-b border-slate-200 px-3 py-2">Customer</th>
-                  <th className="border-b border-slate-200 px-3 py-2">Status</th>
-                  <th className="border-b border-slate-200 px-3 py-2">Expires</th>
-                  <th className="border-b border-slate-200 px-3 py-2">From</th>
-                  <th className="border-b border-slate-200 px-3 py-2">Selection</th>
-                  <th className="border-b border-slate-200 px-3 py-2">Live Link</th>
-                  <th className="border-b border-slate-200 px-3 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quoteTableRows.map((row) => {
-                  if (row.type === 'group') {
-                    const { group } = row
-                    return (
-                      <tr
-                        key={`group-${group.id}`}
-                        className="align-top bg-cyan-50/40 hover:bg-cyan-50"
-                      >
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <p className="max-w-[16rem] truncate font-black text-slate-950">
-                            {group.title}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Group quote · {new Date(group.created_at).toLocaleDateString('en-GB')}
-                          </p>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <p className="font-bold text-cyan-900">{group.group_reference}</p>
-                          <p className="text-xs text-slate-500">Linked package group</p>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <span className="inline-flex rounded-lg bg-cyan-100 px-2 py-1 text-xs font-black text-cyan-800">
-                            {group.status}
-                          </span>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <span className="text-xs font-bold text-slate-400">Not applicable</span>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <p className="text-xs font-bold text-slate-700">
-                            {new Date(group.created_at).toLocaleString('en-GB')}
-                          </p>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <span className="text-xs font-bold text-cyan-800">Linked families</span>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <span className="text-xs font-bold text-slate-500">Managed as group</span>
-                        </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <div className="flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPackageGroupExpanded(true)
-                                setSelectedGroupId(group.id)
-                                void loadPackageGroupDetail(group.id, false)
-                              }}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-200 bg-white text-cyan-900 transition hover:bg-cyan-100"
-                              title="Open linked package group"
-                            >
-                              <Link2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  }
-
-                  const { quote } = row
-                  const startingPrice = getQuoteStartingPrice(quote)
-                  const expired = isPackageQuoteExpired(quote.expires_at)
-                  const binned = quote.status === 'archived'
-                  const live = quote.share_enabled && quote.status === 'shared' && !expired
-                  const quoteShareUrl = buildShareUrl(quote.share_token)
-
-                  return (
-                    <tr
-                      key={quote.id}
-                      className={`align-top ${
-                        activeQuote?.id === quote.id ? 'bg-red-50/70' : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        <p className="max-w-[16rem] truncate font-black text-slate-950">
-                          {quote.title}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {quote.package_type} ·{' '}
-                          {new Date(quote.created_at).toLocaleDateString('en-GB')}
-                        </p>
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        <p className="font-bold text-slate-800">
-                          {quote.customer_name || 'No customer'}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {quote.customer_phone || quote.customer_email || ''}
-                        </p>
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        <span
-                          className={`inline-flex rounded-lg px-2 py-1 text-xs font-black ${
-                            binned
-                              ? 'bg-slate-100 text-slate-600'
-                              : expired
-                                ? 'bg-red-50 text-red-700'
-                                : live
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : quote.status === 'draft'
-                                    ? 'bg-amber-50 text-amber-700'
-                                    : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {binned ? 'Bin' : expired ? 'Expired' : live ? 'Live' : quote.status}
-                        </span>
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        <p
-                          className={`text-xs font-bold ${expired ? 'text-red-700' : 'text-slate-700'}`}
-                        >
-                          {formatExpiry(quote.expires_at)}
-                        </p>
-                        {quote.share_enabled && (
-                          <p className="mt-1 text-[11px] text-slate-500">
-                            {binned ? 'Moved to bin' : expired ? 'Link closed' : 'Link open'}
-                          </p>
-                        )}
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        {startingPrice ? (
-                          <div>
-                            <p className="font-black text-slate-950">
-                              {formatMoney(startingPrice.totalPrice, startingPrice.currency)}
-                            </p>
-                            <p className="text-xs font-bold text-[#8b1e2d]">
-                              {formatMoney(startingPrice.perPersonPrice, startingPrice.currency)}{' '}
-                              avg hotel payer
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-400">Incomplete</span>
-                        )}
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        {quote.selected_at ? (
-                          <div>
-                            <p className="text-xs font-black text-emerald-700">Selected</p>
-                            <p className="text-xs text-slate-500">
-                              {new Date(quote.selected_at).toLocaleString('en-GB')}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-400">No reply yet</span>
-                        )}
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        {live ? (
-                          <p className="max-w-[16rem] truncate text-xs font-semibold text-slate-600">
-                            {quoteShareUrl}
-                          </p>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-400">Not shared</span>
-                        )}
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-3">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openQuoteForEdit(quote)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 transition hover:bg-slate-100"
-                            title="Open quote for editing"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void duplicateQuote(quote)}
-                            disabled={saving}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-900 transition hover:bg-blue-100"
-                            title="Duplicate quote as new draft"
-                          >
-                            <CopyPlus className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void copyQuoteShareLink(quote)}
-                            disabled={!live}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
-                            title="Copy customer link"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          {live ? (
-                            <a
-                              href={quoteShareUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
-                              title="Open customer link"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
-                              <ExternalLink className="h-4 w-4" />
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <PackageQuoteBrowser
+        model={{
+          quotes,
+          packageGroups,
+          activeQuoteId: activeQuote?.id || null,
+          loading,
+          saving,
+          onOpenQuote: openQuoteForEdit,
+          onDuplicateQuote: duplicateQuote,
+          onCopyShareLink: copyQuoteShareLink,
+        }}
+      />
     </div>
   )
 }
