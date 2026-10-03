@@ -4,18 +4,9 @@ import { useState } from 'react'
 import { GripVertical, Plus, Trash2 } from 'lucide-react'
 
 import type { UmrahTransportSupplier, UmrahTransportVehicleType } from '@/app/types/pricing'
+import type { SupplierDraft, VehicleDraft } from './umrahTransportPricingModel'
 
-export type SupplierDraft = {
-  name: string
-  default_currency: string
-  notes: string
-}
-
-export type VehicleDraft = {
-  label: string
-  passenger_capacity: string
-  sort_order: number
-}
+export type { SupplierDraft, VehicleDraft } from './umrahTransportPricingModel'
 
 export interface UmrahTransportPricingConfigModel {
   saving: boolean
