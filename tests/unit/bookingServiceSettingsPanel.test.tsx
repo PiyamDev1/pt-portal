@@ -1,7 +1,8 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  BookingServiceSettingsPanel,
   type BookingServiceRow,
   useBookingServiceSettings,
 } from '@/app/dashboard/settings/components/BookingServiceSettingsPanel'
@@ -44,6 +45,11 @@ function ModelProbe({ locationId }: { locationId: string }) {
       })}
     </output>
   )
+}
+
+function PanelProbe({ locationId }: { locationId: string }) {
+  const model = useBookingServiceSettings(locationId)
+  return <BookingServiceSettingsPanel model={model} />
 }
 
 describe('Booking service settings model', () => {
@@ -110,5 +116,75 @@ describe('Booking service settings model', () => {
     expect(screen.getByLabelText('service summary').textContent).toContain(
       '"firstName":"Branch two"',
     )
+  })
+
+  it('uses the shared field contract when creating a service', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        return {
+          ok: true,
+          json: async () => ({
+            service: service({ ...body, id: 'service-created', is_active: true }),
+          }),
+        }
+      }
+      return { ok: true, json: async () => ({ services: [] }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<PanelProbe locationId="location-1" />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Service/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Service Name' }), {
+      target: { value: 'Document review' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Offer in customer portal' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Maximum group size' }), {
+      target: { value: '6' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, requestOptions] = fetchMock.mock.calls[1]
+    expect(JSON.parse(String(requestOptions?.body))).toMatchObject({
+      location_id: 'location-1',
+      name: 'Document review',
+      customer_visible: true,
+      customer_max_group_size: 6,
+    })
+  })
+
+  it('uses the same shared field contract when editing a service', async () => {
+    const stored = service({ customer_visible: true, customer_max_group_size: 4 })
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body))
+        return { ok: true, json: async () => ({ service: { ...stored, ...body } }) }
+      }
+      return { ok: true, json: async () => ({ services: [stored] }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<PanelProbe locationId="location-1" />)
+    await screen.findByText('Visa consultation')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Service Name' }), {
+      target: { value: 'Updated consultation' },
+    })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Maximum group size' }), {
+      target: { value: '8' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, requestOptions] = fetchMock.mock.calls[1]
+    expect(JSON.parse(String(requestOptions?.body))).toMatchObject({
+      name: 'Updated consultation',
+      customer_visible: true,
+      customer_max_group_size: 8,
+    })
   })
 })

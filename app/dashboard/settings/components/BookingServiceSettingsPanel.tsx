@@ -1,64 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ALLOWED_TEMPLATE_VARIABLES } from '@/lib/bookingEmailTemplate'
-import { BOOKING_TEMPLATE_DEFAULTS, BookingEmailTemplateEditor } from './BookingEmailTemplateEditor'
+import {
+  BookingServiceFormFields,
+  buildDefaultBookingServiceForm,
+  type BookingServiceFormValue,
+} from './BookingServiceFormFields'
 import { BOOKING_DAY_NAMES } from './BookingScheduleSettings'
 
 const TEMPLATE_VARIABLES = [...ALLOWED_TEMPLATE_VARIABLES]
 
-function buildNewServiceDraft() {
-  return {
-    name: '',
-    duration_minutes: 30,
-    buffer_minutes: 15,
-    available_days: [] as number[],
-    confirmation_template: BOOKING_TEMPLATE_DEFAULTS.confirmation_template,
-    modification_template: BOOKING_TEMPLATE_DEFAULTS.modification_template,
-    cancellation_template: BOOKING_TEMPLATE_DEFAULTS.cancellation_template,
-    service_start_time: '',
-    service_end_time: '',
-    duration_per_additional_person_minutes: 0,
-    person_count_excludes_family_head: true,
-    close_overrun_tolerance_minutes: 15,
-    customer_visible: false,
-    customer_description: '',
-    customer_max_group_size: 20,
-    customer_modification_cutoff_hours: 24,
-  }
-}
-
-export interface BookingServiceRow {
+export interface BookingServiceRow extends BookingServiceFormValue {
   id: string
   location_id: string
-  name: string
-  duration_minutes: number
-  buffer_minutes: number
-  available_days: number[] | null
-  service_start_time: string | null
-  service_end_time: string | null
-  confirmation_template: string | null
-  modification_template: string | null
-  cancellation_template: string | null
-  duration_per_additional_person_minutes: number
-  person_count_excludes_family_head: boolean
-  close_overrun_tolerance_minutes: number
-  customer_visible: boolean
-  customer_description: string | null
-  customer_max_group_size: number
-  customer_modification_cutoff_hours: number
   is_active: boolean
-}
-
-function LabeledInput({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="space-y-1 block">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
-      {children}
-    </label>
-  )
 }
 
 function normalizeServiceRow(service: BookingServiceRow): BookingServiceRow {
@@ -80,7 +38,7 @@ export function useBookingServiceSettings(selectedLocationId: string) {
   const [loading, setLoading] = useState(false)
   const [services, setServices] = useState<BookingServiceRow[]>([])
 
-  const [newService, setNewService] = useState(() => buildNewServiceDraft())
+  const [newService, setNewService] = useState(() => buildDefaultBookingServiceForm())
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
 
@@ -130,14 +88,6 @@ export function useBookingServiceSettings(selectedLocationId: string) {
     }
   }, [selectedLocationId])
 
-  const toggleServiceDay = (days: number[] | null, day: number): number[] => {
-    const base = Array.isArray(days) ? days : []
-    if (base.includes(day)) {
-      return base.filter((d) => d !== day)
-    }
-    return [...base, day].sort((a, b) => a - b)
-  }
-
   const buildTemplateErrorMessage = (json: any): string => {
     if (!Array.isArray(json?.template_errors)) return json?.error || 'Invalid template variables'
     const details = json.template_errors
@@ -183,7 +133,7 @@ export function useBookingServiceSettings(selectedLocationId: string) {
       const json = await res.json()
       if (!res.ok) throw new Error(buildTemplateErrorMessage(json))
       setServices((prev) => [...prev, normalizeServiceRow(json.service as BookingServiceRow)])
-      setNewService(buildNewServiceDraft())
+      setNewService(buildDefaultBookingServiceForm())
       setShowAddService(false)
       toast.success('Service added')
     } catch (error) {
@@ -293,7 +243,6 @@ export function useBookingServiceSettings(selectedLocationId: string) {
     setEditingService,
     activeServiceCount,
     customerPortalServiceCount,
-    toggleServiceDay,
     addService,
     saveService,
     toggleService,
@@ -314,7 +263,6 @@ export function BookingServiceSettingsPanel({ model }: { model: BookingServiceSe
     editingService,
     setEditingService,
     customerPortalServiceCount,
-    toggleServiceDay,
     addService,
     saveService,
     toggleService,
@@ -334,7 +282,7 @@ export function BookingServiceSettingsPanel({ model }: { model: BookingServiceSe
         <button
           type="button"
           onClick={() => {
-            setNewService(buildNewServiceDraft())
+            setNewService(buildDefaultBookingServiceForm())
             setShowAddService(true)
           }}
           className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
@@ -381,239 +329,19 @@ export function BookingServiceSettingsPanel({ model }: { model: BookingServiceSe
       </div>
 
       {showAddService && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-          <LabeledInput label="Service Name">
-            <input
-              type="text"
-              value={newService.name}
-              onChange={(e) => setNewService((p) => ({ ...p, name: e.target.value }))}
-              placeholder="e.g. Medical"
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-          </LabeledInput>
-          <LabeledInput label="Duration (minutes)">
-            <input
-              type="number"
-              min={5}
-              value={newService.duration_minutes}
-              onChange={(e) =>
-                setNewService((p) => ({ ...p, duration_minutes: Number(e.target.value) }))
-              }
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-          </LabeledInput>
-          <LabeledInput label="Buffer (minutes)">
-            <input
-              type="number"
-              min={0}
-              value={newService.buffer_minutes}
-              onChange={(e) =>
-                setNewService((p) => ({ ...p, buffer_minutes: Number(e.target.value) }))
-              }
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-          </LabeledInput>
-          <LabeledInput label="Service Start Time">
-            <input
-              type="time"
-              value={newService.service_start_time}
-              onChange={(e) => setNewService((p) => ({ ...p, service_start_time: e.target.value }))}
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-          </LabeledInput>
-          <LabeledInput label="Service End Time">
-            <input
-              type="time"
-              value={newService.service_end_time}
-              onChange={(e) => setNewService((p) => ({ ...p, service_end_time: e.target.value }))}
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-          </LabeledInput>
-          <LabeledInput label="Extra Time per Additional Person (minutes)">
-            <input
-              type="number"
-              min={0}
-              value={newService.duration_per_additional_person_minutes}
-              onChange={(e) =>
-                setNewService((p) => ({
-                  ...p,
-                  duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)),
-                }))
-              }
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
-          </LabeledInput>
-          <LabeledInput label="Close-Time Overrun Allowed (minutes)">
-            <input
-              type="number"
-              min={0}
-              value={newService.close_overrun_tolerance_minutes}
-              onChange={(e) =>
-                setNewService((p) => ({
-                  ...p,
-                  close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)),
-                }))
-              }
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              Allows an appointment to finish this many minutes after service close time.
-            </p>
-          </LabeledInput>
-          <LabeledInput label="Person Count Rule">
-            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={newService.person_count_excludes_family_head}
-                onChange={(e) =>
-                  setNewService((p) => ({
-                    ...p,
-                    person_count_excludes_family_head: e.target.checked,
-                  }))
-                }
-              />
-              Person count excludes family head
-            </label>
-          </LabeledInput>
-          <div className="md:col-span-3 rounded border border-slate-200 bg-white px-3 py-2">
-            <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
-            <div className="flex flex-wrap gap-2">
-              {BOOKING_DAY_NAMES.map((name, day) => {
-                const active = newService.available_days.includes(day)
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() =>
-                      setNewService((p) => ({
-                        ...p,
-                        available_days: toggleServiceDay(p.available_days, day),
-                      }))
-                    }
-                    className={`px-2 py-1 rounded text-xs border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
-                  >
-                    {name.slice(0, 3)}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <div className="md:col-span-5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-indigo-950">Customer portal listing</p>
-                <p className="mt-1 text-xs leading-5 text-indigo-800">
-                  Keep this off for internal-only services. Turn it on only when customers can
-                  select this service in the customer portal.
-                </p>
-              </div>
-              <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800">
-                <input
-                  type="checkbox"
-                  checked={newService.customer_visible}
-                  onChange={(e) =>
-                    setNewService((p) => ({ ...p, customer_visible: e.target.checked }))
-                  }
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                />
-                Offer in customer portal
-              </label>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px_190px]">
-              <LabeledInput label="Customer-facing description (optional)">
-                <textarea
-                  rows={2}
-                  maxLength={1000}
-                  value={newService.customer_description}
-                  onChange={(e) =>
-                    setNewService((p) => ({ ...p, customer_description: e.target.value }))
-                  }
-                  placeholder="Tell customers what this appointment is for and what to bring."
-                  className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Maximum group size">
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={newService.customer_max_group_size}
-                  onChange={(e) =>
-                    setNewService((p) => ({
-                      ...p,
-                      customer_max_group_size: Math.min(
-                        100,
-                        Math.max(1, Number(e.target.value) || 1),
-                      ),
-                    }))
-                  }
-                  className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-              <LabeledInput label="Change/cancel cutoff (hours)">
-                <input
-                  type="number"
-                  min={0}
-                  max={168}
-                  value={newService.customer_modification_cutoff_hours}
-                  onChange={(e) =>
-                    setNewService((p) => ({
-                      ...p,
-                      customer_modification_cutoff_hours: Math.min(
-                        168,
-                        Math.max(0, Number(e.target.value) || 0),
-                      ),
-                    }))
-                  }
-                  className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
-                />
-              </LabeledInput>
-            </div>
-          </div>
-          <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <BookingEmailTemplateEditor
-              field="confirmation_template"
-              label="Booking Confirmation Email Template"
-              previewTitle="Confirmation"
-              value={newService.confirmation_template}
-              onChange={(value) =>
-                setNewService((current) => ({ ...current, confirmation_template: value }))
-              }
-              placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]."
-            />
-            <BookingEmailTemplateEditor
-              field="modification_template"
-              label="Booking Modification Email Template"
-              previewTitle="Modification"
-              value={newService.modification_template}
-              onChange={(value) =>
-                setNewService((current) => ({ ...current, modification_template: value }))
-              }
-              placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]."
-            />
-            <BookingEmailTemplateEditor
-              field="cancellation_template"
-              label="Booking Cancellation Email Template"
-              previewTitle="Cancellation"
-              value={newService.cancellation_template}
-              onChange={(value) =>
-                setNewService((current) => ({ ...current, cancellation_template: value }))
-              }
-              placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled."
-            />
-          </div>
+        <div className="grid grid-cols-1 items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-5">
+          <BookingServiceFormFields value={newService} onChange={setNewService} />
           <div className="flex gap-2">
             <button
               onClick={addService}
               disabled={loading}
-              className="px-3 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50"
+              className="rounded bg-indigo-600 px-3 py-2 text-sm text-white disabled:opacity-50"
             >
               Add
             </button>
             <button
               onClick={() => setShowAddService(false)}
-              className="px-3 py-2 rounded border border-slate-300 text-sm"
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
             >
               Cancel
             </button>
@@ -625,287 +353,26 @@ export function BookingServiceSettingsPanel({ model }: { model: BookingServiceSe
         {services.map((service) => (
           <div key={service.id} className="rounded-lg border border-slate-200 bg-white p-4">
             {editingService?.id === service.id ? (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                <LabeledInput label="Service Name">
-                  <input
-                    type="text"
-                    value={editingService.name}
-                    onChange={(e) =>
-                      setEditingService((p) => (p ? { ...p, name: e.target.value } : p))
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                </LabeledInput>
-                <LabeledInput label="Duration (minutes)">
-                  <input
-                    type="number"
-                    min={5}
-                    value={editingService.duration_minutes}
-                    onChange={(e) =>
-                      setEditingService((p) =>
-                        p ? { ...p, duration_minutes: Number(e.target.value) } : p,
-                      )
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                </LabeledInput>
-                <LabeledInput label="Buffer (minutes)">
-                  <input
-                    type="number"
-                    min={0}
-                    value={editingService.buffer_minutes}
-                    onChange={(e) =>
-                      setEditingService((p) =>
-                        p ? { ...p, buffer_minutes: Number(e.target.value) } : p,
-                      )
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                </LabeledInput>
-                <LabeledInput label="Service Start Time">
-                  <input
-                    type="time"
-                    value={editingService.service_start_time || ''}
-                    onChange={(e) =>
-                      setEditingService((p) =>
-                        p ? { ...p, service_start_time: e.target.value || null } : p,
-                      )
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                </LabeledInput>
-                <LabeledInput label="Service End Time">
-                  <input
-                    type="time"
-                    value={editingService.service_end_time || ''}
-                    onChange={(e) =>
-                      setEditingService((p) =>
-                        p ? { ...p, service_end_time: e.target.value || null } : p,
-                      )
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                </LabeledInput>
-                <LabeledInput label="Extra Time per Additional Person (minutes)">
-                  <input
-                    type="number"
-                    min={0}
-                    value={editingService.duration_per_additional_person_minutes ?? 0}
-                    onChange={(e) =>
-                      setEditingService((p) =>
-                        p
-                          ? {
-                              ...p,
-                              duration_per_additional_person_minutes: Math.max(
-                                0,
-                                Number(e.target.value),
-                              ),
-                            }
-                          : p,
-                      )
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    e.g. 22 mins → 3 people ≈ 2.5 slots
-                  </p>
-                </LabeledInput>
-                <LabeledInput label="Close-Time Overrun Allowed (minutes)">
-                  <input
-                    type="number"
-                    min={0}
-                    value={editingService.close_overrun_tolerance_minutes ?? 15}
-                    onChange={(e) =>
-                      setEditingService((p) =>
-                        p
-                          ? {
-                              ...p,
-                              close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)),
-                            }
-                          : p,
-                      )
-                    }
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Allows an appointment to finish this many minutes after service close time.
-                  </p>
-                </LabeledInput>
-                <LabeledInput label="Person Count Rule">
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={editingService.person_count_excludes_family_head}
-                      onChange={(e) =>
-                        setEditingService((p) =>
-                          p ? { ...p, person_count_excludes_family_head: e.target.checked } : p,
-                        )
-                      }
-                    />
-                    Person count excludes family head
-                  </label>
-                </LabeledInput>
-                <div className="md:col-span-3 rounded border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
-                  <div className="flex flex-wrap gap-2">
-                    {BOOKING_DAY_NAMES.map((name, day) => {
-                      const active =
-                        Array.isArray(editingService.available_days) &&
-                        editingService.available_days.includes(day)
-                      return (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() =>
-                            setEditingService((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    available_days: toggleServiceDay(p.available_days, day),
-                                  }
-                                : p,
-                            )
-                          }
-                          className={`px-2 py-1 rounded text-xs border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
-                        >
-                          {name.slice(0, 3)}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div className="md:col-span-5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-indigo-950">
-                        Customer portal listing
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-indigo-800">
-                        A customer-visible service can be booked online for this branch. The booking
-                        email supplies a VISIT code for customers to claim a staff-created
-                        appointment later.
-                      </p>
-                    </div>
-                    <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-800">
-                      <input
-                        type="checkbox"
-                        checked={editingService.customer_visible}
-                        onChange={(e) =>
-                          setEditingService((p) =>
-                            p ? { ...p, customer_visible: e.target.checked } : p,
-                          )
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                      />
-                      Offer in customer portal
-                    </label>
-                  </div>
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px_190px]">
-                    <LabeledInput label="Customer-facing description (optional)">
-                      <textarea
-                        rows={2}
-                        maxLength={1000}
-                        value={editingService.customer_description || ''}
-                        onChange={(e) =>
-                          setEditingService((p) =>
-                            p ? { ...p, customer_description: e.target.value || null } : p,
-                          )
-                        }
-                        placeholder="Tell customers what this appointment is for and what to bring."
-                        className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
-                      />
-                    </LabeledInput>
-                    <LabeledInput label="Maximum group size">
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={editingService.customer_max_group_size}
-                        onChange={(e) =>
-                          setEditingService((p) =>
-                            p
-                              ? {
-                                  ...p,
-                                  customer_max_group_size: Math.min(
-                                    100,
-                                    Math.max(1, Number(e.target.value) || 1),
-                                  ),
-                                }
-                              : p,
-                          )
-                        }
-                        className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
-                      />
-                    </LabeledInput>
-                    <LabeledInput label="Change/cancel cutoff (hours)">
-                      <input
-                        type="number"
-                        min={0}
-                        max={168}
-                        value={editingService.customer_modification_cutoff_hours}
-                        onChange={(e) =>
-                          setEditingService((p) =>
-                            p
-                              ? {
-                                  ...p,
-                                  customer_modification_cutoff_hours: Math.min(
-                                    168,
-                                    Math.max(0, Number(e.target.value) || 0),
-                                  ),
-                                }
-                              : p,
-                          )
-                        }
-                        className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm"
-                      />
-                    </LabeledInput>
-                  </div>
-                </div>
-                <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <BookingEmailTemplateEditor
-                    field="confirmation_template"
-                    label="Booking Confirmation Email Template"
-                    previewTitle="Confirmation"
-                    value={editingService.confirmation_template}
-                    onChange={(value) =>
-                      setEditingService((current) =>
-                        current ? { ...current, confirmation_template: value || null } : current,
-                      )
-                    }
-                  />
-                  <BookingEmailTemplateEditor
-                    field="modification_template"
-                    label="Booking Modification Email Template"
-                    previewTitle="Modification"
-                    value={editingService.modification_template}
-                    onChange={(value) =>
-                      setEditingService((current) =>
-                        current ? { ...current, modification_template: value || null } : current,
-                      )
-                    }
-                  />
-                  <BookingEmailTemplateEditor
-                    field="cancellation_template"
-                    label="Booking Cancellation Email Template"
-                    previewTitle="Cancellation"
-                    value={editingService.cancellation_template}
-                    onChange={(value) =>
-                      setEditingService((current) =>
-                        current ? { ...current, cancellation_template: value || null } : current,
-                      )
-                    }
-                  />
-                </div>
+              <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-5">
+                <BookingServiceFormFields
+                  value={editingService}
+                  onChange={(nextValue) =>
+                    setEditingService((current) =>
+                      current ? { ...current, ...nextValue } : current,
+                    )
+                  }
+                />
                 <div className="flex gap-2">
                   <button
                     onClick={saveService}
-                    className="px-3 py-2 rounded bg-indigo-600 text-white text-sm"
+                    disabled={loading}
+                    className="rounded bg-indigo-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                   >
                     Save
                   </button>
                   <button
                     onClick={() => setEditingService(null)}
-                    className="px-3 py-2 rounded border border-slate-300 text-sm"
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
                   >
                     Cancel
                   </button>

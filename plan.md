@@ -42,6 +42,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Booking reminder timing, message preview, attendance responses, and no-show policy now live in a dedicated panel that reuses the canonical reminder contract shared with the API and reminder processor.
 - Booking service collection and item routes now share one validation and schema-fallback contract for customer-portal controls, email templates, and compatibility handling.
 - Booking service and customer-portal configuration now live in a dedicated settings panel with a reusable state model, keeping branch summaries synchronized while preventing stale branch responses.
+- Booking service creation and editing now use one shared field contract for slot rules, customer-portal controls, and email templates instead of maintaining two copies of the same form.
 - NADRA, passport, and passport-draft document workspaces now use one canonical application DocumentHub import, the shared server Supabase client, and PageHeader back navigation instead of rebuilding those primitives per page.
 - The Applications hub, service pages, and document workspaces now load their authenticated client and PageHeader identity through one shared dashboard page context instead of repeating session, employee, role, and location setup.
 - The Timeclock landing, history, team, and manual-entry pages now share the same verified user and PageHeader context while keeping their existing manager and maintenance access checks.
@@ -390,6 +391,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Isolate Booking reminder, attendance, and no-show settings behind the shared reminder contract.
   - [x] Centralise Booking service validation and schema compatibility across collection and item routes.
   - [x] Extract Booking service and customer-portal configuration into a dedicated settings panel and state model.
+  - [x] Reuse one Booking service form contract for both create and edit workflows.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
