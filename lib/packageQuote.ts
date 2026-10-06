@@ -266,9 +266,33 @@ function normalizeLinkedFlightOption(
   const hasAdultPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'adultPrice')
   const hasChildPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'childPrice')
   const hasInfantPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'infantPrice')
-  const adultPrice = hasAdultPrice ? asNumber(candidate?.adultPrice) : undefined
-  const childPrice = hasChildPrice ? asNumber(candidate?.childPrice) : undefined
-  const infantPrice = hasInfantPrice ? asNumber(candidate?.infantPrice) : undefined
+  const hasAdultAdjustedCost = Object.prototype.hasOwnProperty.call(
+    candidate || {},
+    'adultAdjustedCost',
+  )
+  const hasChildAdjustedCost = Object.prototype.hasOwnProperty.call(
+    candidate || {},
+    'childAdjustedCost',
+  )
+  const hasInfantAdjustedCost = Object.prototype.hasOwnProperty.call(
+    candidate || {},
+    'infantAdjustedCost',
+  )
+  const hasAdultSearchCost = Object.prototype.hasOwnProperty.call(candidate || {}, 'adultSearchCost')
+  const hasChildSearchCost = Object.prototype.hasOwnProperty.call(candidate || {}, 'childSearchCost')
+  const hasInfantSearchCost = Object.prototype.hasOwnProperty.call(candidate || {}, 'infantSearchCost')
+  const adultPrice =
+    hasAdultAdjustedCost || hasAdultPrice
+      ? asNumber(hasAdultAdjustedCost ? candidate?.adultAdjustedCost : candidate?.adultPrice)
+      : undefined
+  const childPrice =
+    hasChildAdjustedCost || hasChildPrice
+      ? asNumber(hasChildAdjustedCost ? candidate?.childAdjustedCost : candidate?.childPrice)
+      : undefined
+  const infantPrice =
+    hasInfantAdjustedCost || hasInfantPrice
+      ? asNumber(hasInfantAdjustedCost ? candidate?.infantAdjustedCost : candidate?.infantPrice)
+      : undefined
   const adultDelta = asNumber(candidate?.adultDelta)
   const childDelta = asNumber(candidate?.childDelta)
   const infantDelta = asNumber(candidate?.infantDelta)
@@ -279,6 +303,12 @@ function normalizeLinkedFlightOption(
     !hasAdultPrice &&
     !hasChildPrice &&
     !hasInfantPrice &&
+    !hasAdultAdjustedCost &&
+    !hasChildAdjustedCost &&
+    !hasInfantAdjustedCost &&
+    !hasAdultSearchCost &&
+    !hasChildSearchCost &&
+    !hasInfantSearchCost &&
     adultDelta === 0 &&
     childDelta === 0 &&
     infantDelta === 0
@@ -290,9 +320,35 @@ function normalizeLinkedFlightOption(
     id: asString(candidate?.id, fallbackId),
     airlineName: airlineName || summary.trim().split('\n')[0] || 'Flight option',
     summary,
-    ...(hasAdultPrice ? { adultPrice } : {}),
-    ...(hasChildPrice ? { childPrice } : {}),
-    ...(hasInfantPrice ? { infantPrice } : {}),
+    ...((hasAdultSearchCost || hasAdultPrice || hasAdultAdjustedCost)
+      ? {
+          adultSearchCost: hasAdultSearchCost
+            ? asNumber(candidate?.adultSearchCost)
+            : (adultPrice ?? 0),
+        }
+      : {}),
+    ...(hasAdultAdjustedCost ? { adultAdjustedCost: asNumber(candidate?.adultAdjustedCost) } : {}),
+    ...((hasChildSearchCost || hasChildPrice || hasChildAdjustedCost)
+      ? {
+          childSearchCost: hasChildSearchCost
+            ? asNumber(candidate?.childSearchCost)
+            : (childPrice ?? 0),
+        }
+      : {}),
+    ...(hasChildAdjustedCost ? { childAdjustedCost: asNumber(candidate?.childAdjustedCost) } : {}),
+    ...((hasInfantSearchCost || hasInfantPrice || hasInfantAdjustedCost)
+      ? {
+          infantSearchCost: hasInfantSearchCost
+            ? asNumber(candidate?.infantSearchCost)
+            : (infantPrice ?? 0),
+        }
+      : {}),
+    ...(hasInfantAdjustedCost
+      ? { infantAdjustedCost: asNumber(candidate?.infantAdjustedCost) }
+      : {}),
+    ...((hasAdultPrice || hasAdultAdjustedCost) ? { adultPrice } : {}),
+    ...((hasChildPrice || hasChildAdjustedCost) ? { childPrice } : {}),
+    ...((hasInfantPrice || hasInfantAdjustedCost) ? { infantPrice } : {}),
     adultDelta,
     childDelta,
     infantDelta,
@@ -428,9 +484,39 @@ function normalizeOption(
   const searchPrice = asNumber(candidate?.searchPrice)
   const id = asString(candidate?.id, fallbackId)
   const pricingMode = normalizePricingMode(candidate?.pricingMode, defaultPricingMode)
-  const adultPrice = asNumber(candidate?.adultPrice)
-  const childPrice = asNumber(candidate?.childPrice)
-  const infantPrice = asNumber(candidate?.infantPrice)
+  const adultAdjustedCost =
+    candidate?.adultAdjustedCost === undefined
+      ? undefined
+      : asNumber(candidate.adultAdjustedCost)
+  const childAdjustedCost =
+    candidate?.childAdjustedCost === undefined
+      ? undefined
+      : asNumber(candidate.childAdjustedCost)
+  const infantAdjustedCost =
+    candidate?.infantAdjustedCost === undefined
+      ? undefined
+      : asNumber(candidate.infantAdjustedCost)
+  const adultSearchCost =
+    candidate?.adultSearchCost === undefined
+      ? candidate?.adultPrice === undefined
+        ? undefined
+        : asNumber(candidate.adultPrice)
+      : asNumber(candidate.adultSearchCost)
+  const childSearchCost =
+    candidate?.childSearchCost === undefined
+      ? candidate?.childPrice === undefined
+        ? undefined
+        : asNumber(candidate.childPrice)
+      : asNumber(candidate.childSearchCost)
+  const infantSearchCost =
+    candidate?.infantSearchCost === undefined
+      ? candidate?.infantPrice === undefined
+        ? undefined
+        : asNumber(candidate.infantPrice)
+      : asNumber(candidate.infantSearchCost)
+  const adultPrice = adultAdjustedCost ?? asNumber(candidate?.adultPrice)
+  const childPrice = childAdjustedCost ?? asNumber(candidate?.childPrice)
+  const infantPrice = infantAdjustedCost ?? asNumber(candidate?.infantPrice)
   const isDefault = asBoolean(candidate?.isDefault)
   const quantity = asOptionalPositiveNumber(candidate?.quantity)
   const visaPassengerCategory = normalizeVisaPassengerCategory(candidate?.visaPassengerCategory)
@@ -445,6 +531,12 @@ function normalizeOption(
     adultPrice <= 0 &&
     childPrice <= 0 &&
     infantPrice <= 0 &&
+    (adultSearchCost || 0) <= 0 &&
+    (adultAdjustedCost || 0) <= 0 &&
+    (childSearchCost || 0) <= 0 &&
+    (childAdjustedCost || 0) <= 0 &&
+    (infantSearchCost || 0) <= 0 &&
+    (infantAdjustedCost || 0) <= 0 &&
     transportRoutes.length === 0 &&
     hotelAddonOptions.length === 0
   ) {
@@ -458,6 +550,12 @@ function normalizeOption(
     price: adjustedPrice,
     searchPrice,
     adjustedPrice,
+    ...(adultSearchCost !== undefined ? { adultSearchCost } : {}),
+    ...(adultAdjustedCost !== undefined ? { adultAdjustedCost } : {}),
+    ...(childSearchCost !== undefined ? { childSearchCost } : {}),
+    ...(childAdjustedCost !== undefined ? { childAdjustedCost } : {}),
+    ...(infantSearchCost !== undefined ? { infantSearchCost } : {}),
+    ...(infantAdjustedCost !== undefined ? { infantAdjustedCost } : {}),
     hotelAddonOptions,
     pricingMode,
     isDefault,

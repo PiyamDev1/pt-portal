@@ -264,36 +264,64 @@ function LinkedFlightGroupEditor({
                   rows={2}
                   className="w-full resize-y rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-700"
                 />
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <div className="mt-2 grid gap-3 sm:grid-cols-3">
                   {[
-                    ['Adult leg cost', 'adultPrice'],
-                    ['Child leg cost', 'childPrice'],
-                    ['Infant leg cost', 'infantPrice'],
+                    ['Adult', 'adult'],
+                    ['Child', 'child'],
+                    ['Infant', 'infant'],
                   ].map(([label, key]) => (
-                    <label key={key} className="block">
+                    <div key={key} className="space-y-2">
                       <span className="block text-xs font-bold text-slate-500">{label}</span>
-                      <div className="mt-1 flex min-h-10 items-center rounded-lg border-2 border-slate-200 bg-white px-3">
-                        <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-                        <input
-                          value={option[key as 'adultPrice' | 'childPrice' | 'infantPrice'] ?? ''}
-                          onChange={(event) =>
-                            updateOption(optionIndex, {
-                              ...option,
-                              [key]: Number(event.target.value || 0),
-                            })
-                          }
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
-                        />
-                      </div>
-                    </label>
+                      {(['Search Cost', 'Adj Cost'] as const).map((costLabel) => {
+                        const costKey = `${key}${costLabel === 'Search Cost' ? 'SearchCost' : 'AdjustedCost'}` as
+                          | 'adultSearchCost'
+                          | 'adultAdjustedCost'
+                          | 'childSearchCost'
+                          | 'childAdjustedCost'
+                          | 'infantSearchCost'
+                          | 'infantAdjustedCost'
+                        const priceKey = `${key}Price` as 'adultPrice' | 'childPrice' | 'infantPrice'
+                        const searchKey = `${key}SearchCost` as
+                          | 'adultSearchCost'
+                          | 'childSearchCost'
+                          | 'infantSearchCost'
+                        return (
+                          <label key={costKey} className="block">
+                            <span className="block text-[11px] font-semibold text-slate-500">
+                              {costLabel}
+                            </span>
+                            <div className="mt-1 flex min-h-9 items-center rounded-lg border-2 border-slate-200 bg-white px-2.5">
+                              <span className="mr-2 text-xs font-black text-slate-500">GBP</span>
+                              <input
+                                aria-label={`${label} ${costLabel}`}
+                                value={option[costKey] ?? option[priceKey] ?? ''}
+                                onChange={(event) => {
+                                  const amount = Number(event.target.value || 0)
+                                  updateOption(optionIndex, {
+                                    ...option,
+                                    [costKey]: amount,
+                                    ...(costLabel === 'Adj Cost'
+                                      ? { [searchKey]: option[searchKey] ?? option[priceKey] ?? 0 }
+                                      : {}),
+                                    ...(costLabel === 'Adj Cost' ? { [priceKey]: amount } : {}),
+                                  })
+                                }}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
+                              />
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
                   ))}
                 </div>
                 <p className="mt-2 text-xs font-semibold text-indigo-900">
-                  Enter the actual cost for this leg. Customers see only the difference from the
-                  included airline for this leg.
+                  Quote totals use Adj Cost. Customers see only the difference from the included
+                  airline for this leg.
                 </p>
               </div>
             ))}
@@ -914,33 +942,60 @@ export function OptionEditor({
         className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
       />
       {showFlightPricing ? (
-        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        <div className="mt-2 grid gap-3 sm:grid-cols-3">
           {[
-            ['Adult 12+', 'adultPrice'],
-            ['Child 2-12', 'childPrice'],
-            ['Infant under 2', 'infantPrice'],
+            ['Adult 12+', 'adult'],
+            ['Child 2-12', 'child'],
+            ['Infant under 2', 'infant'],
           ].map(([label, key]) => (
-            <label key={key} className="block">
+            <div key={key} className="space-y-2">
               <span className="block text-xs font-bold text-slate-500">{label}</span>
-              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-                <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-                <input
-                  value={option[key as 'adultPrice' | 'childPrice' | 'infantPrice'] || ''}
-                  onChange={(event) =>
-                    onChange({
-                      ...option,
-                      [key]: Number(event.target.value || 0),
-                      pricingMode: 'per_person',
-                    })
-                  }
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  className="w-full bg-transparent text-sm font-bold outline-none"
-                />
-              </div>
-            </label>
+              {(['Search Cost', 'Adj Cost'] as const).map((costLabel) => {
+                const costKey = `${key}${costLabel === 'Search Cost' ? 'SearchCost' : 'AdjustedCost'}` as
+                  | 'adultSearchCost'
+                  | 'adultAdjustedCost'
+                  | 'childSearchCost'
+                  | 'childAdjustedCost'
+                  | 'infantSearchCost'
+                  | 'infantAdjustedCost'
+                const priceKey = `${key}Price` as 'adultPrice' | 'childPrice' | 'infantPrice'
+                const searchKey = `${key}SearchCost` as
+                  | 'adultSearchCost'
+                  | 'childSearchCost'
+                  | 'infantSearchCost'
+                return (
+                  <label key={costKey} className="block">
+                    <span className="block text-[11px] font-semibold text-slate-500">
+                      {costLabel}
+                    </span>
+                    <div className="mt-1 flex min-h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5">
+                      <span className="mr-2 text-xs font-black text-slate-500">GBP</span>
+                      <input
+                        aria-label={`${label} ${costLabel}`}
+                        value={option[costKey] ?? option[priceKey] ?? ''}
+                        onChange={(event) => {
+                          const amount = Number(event.target.value || 0)
+                          onChange({
+                            ...option,
+                            [costKey]: amount,
+                            ...(costLabel === 'Adj Cost'
+                              ? { [searchKey]: option[searchKey] ?? option[priceKey] ?? 0 }
+                              : {}),
+                            ...(costLabel === 'Adj Cost' ? { [priceKey]: amount } : {}),
+                            pricingMode: 'per_person',
+                          })
+                        }}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="w-full bg-transparent text-sm font-bold outline-none"
+                      />
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
           ))}
         </div>
       ) : (

@@ -171,6 +171,12 @@ export interface PackageComponentOption {
   price: number
   searchPrice?: number
   adjustedPrice?: number
+  adultSearchCost?: number
+  adultAdjustedCost?: number
+  childSearchCost?: number
+  childAdjustedCost?: number
+  infantSearchCost?: number
+  infantAdjustedCost?: number
   hotelAddonOptions?: PackageHotelAddonOption[]
   pricingMode?: PackagePricingMode
   isDefault?: boolean
@@ -244,6 +250,12 @@ export interface PackageLinkedFlightOption {
   id: string
   airlineName: string
   summary: string
+  adultSearchCost?: number
+  adultAdjustedCost?: number
+  childSearchCost?: number
+  childAdjustedCost?: number
+  infantSearchCost?: number
+  infantAdjustedCost?: number
   adultPrice?: number
   childPrice?: number
   infantPrice?: number
