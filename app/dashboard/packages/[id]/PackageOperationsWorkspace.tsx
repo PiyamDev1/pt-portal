@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
-import { FileClock, History, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { FileClock, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppDialog } from '@/components/AppDialog'
 import type {
@@ -42,7 +42,6 @@ import {
   dateInput,
   dateTimeInput,
   emptyVoucher,
-  formatDateTime,
   formatVoucherPassengers,
   getVehicleCapacity,
   label,
@@ -79,6 +78,7 @@ import { PackageTransportVoucherActionsPreview } from './PackageTransportVoucher
 import { PackageTransportVoucherDetailsForm } from './PackageTransportVoucherDetailsForm'
 import { PackageTransportVoucherHistoryTable } from './PackageTransportVoucherHistoryTable'
 import { PackageTransportVoucherItineraryEditor } from './PackageTransportVoucherItineraryEditor'
+import { PackageAuditHistoryPanel } from './PackageAuditHistoryPanel'
 import {
   PackageResponsibilityPanel,
   type PackageResponsibilityField,
@@ -1704,26 +1704,7 @@ export default function PackageOperationsWorkspace({
             </div>
           )}
 
-          {activeTab === 'history' && (
-            <div className="space-y-3">
-              {auditEvents.map((event) => (
-                <article key={event.id} className="flex gap-3 border-b border-slate-200 pb-3">
-                  <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center bg-slate-100">
-                    <History className="h-4 w-4 text-slate-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{event.event_summary}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {label(event.event_type)} · {formatDateTime(event.created_at)}
-                    </p>
-                  </div>
-                </article>
-              ))}
-              {auditEvents.length === 0 && (
-                <p className="py-8 text-center text-sm text-slate-500">No audit events yet.</p>
-              )}
-            </div>
-          )}
+          {activeTab === 'history' && <PackageAuditHistoryPanel events={auditEvents} />}
         </div>
       )}
     </section>
