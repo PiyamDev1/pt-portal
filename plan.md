@@ -433,6 +433,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [ ] Consolidate the remaining Package document presentation and add the missing cross-service receipt contract, including Visa.
     - [x] Extract category-based package document uploads while keeping upload requests and document state in PackageOverviewClient.
     - [x] Extract the grouped package document library and linked visa-photo display while keeping document mutations in PackageOverviewClient.
+    - [x] Extract third-party package document access form and recent-share presentation while keeping form state and create/revoke actions in PackageOverviewClient.
 - [x] Reorganise Settings navigation by Security, People & HR, Operations, Pricing, and Maintenance without changing role access.
 - [x] Centralise shared page context and reusable capability loading.
   - [x] Reuse the shared authenticated server Supabase client across application document pages.
