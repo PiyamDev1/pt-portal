@@ -1,21 +1,6 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  ArrowLeft,
-  CopyPlus,
-  ExternalLink,
-  FolderKanban,
-  Link2,
-  PackageCheck,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Save,
-  Send,
-  Trash2,
-} from 'lucide-react'
 import { toast } from 'sonner'
 import type {
   PackageComponentOption,
@@ -49,12 +34,11 @@ import { PackageStayOptions } from './PackageStayOptions'
 import { PackageServiceOptions } from './PackageServiceOptions'
 import { newLinkedFlightGroup } from './PackageOptionEditors'
 import { PackageQuoteBrowser } from './PackageQuoteBrowser'
+import { PackageQuoteActions } from './PackageQuoteActions'
 import {
   buildPackageShareUrl as buildShareUrl,
-  formatPackageExpiry as formatExpiry,
   getPackageTimestamp as getTimestamp,
 } from './packageQuoteBrowserModel'
-import { PackageSectionHeader as SectionHeader } from './PackageSectionHeader'
 
 type PackagesClientProps = {
   currentUserId: string
@@ -1304,120 +1288,19 @@ export default function PackagesClient({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <Link
-            href="/dashboard/packages"
-            className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-slate-600 transition hover:text-slate-950"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Packages
-          </Link>
-          <p className="text-xs font-bold text-slate-500">Package creator</p>
-          <h1 className="mt-1 text-2xl font-black text-slate-950">Holidays, ziyarat and umrah</h1>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-            Build hotel, flight and transport options, save the quote, then share a customer link
-            where they can choose their preferred mix and see the live total.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={startNew}
-            className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
-          >
-            <RefreshCw className="h-4 w-4" />
-            New
-          </button>
-          {activeQuote && (
-            <button
-              type="button"
-              onClick={() => void duplicateQuote(activeQuote)}
-              disabled={saving}
-              className="flex min-h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-blue-900 transition hover:bg-blue-100"
-            >
-              <CopyPlus className="h-4 w-4" />
-              Duplicate
-            </button>
-          )}
-          {activeQuote && (
-            <a
-              href={`/dashboard/packages/quotations/${activeQuote.id}/sales`}
-              className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
-            >
-              <PackageCheck className="h-4 w-4" />
-              Sales Mode
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={() => void saveQuote(false)}
-            disabled={saving}
-            className="flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-bold text-white transition hover:bg-black disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={() => void saveQuote(true)}
-            disabled={saving}
-            className="flex min-h-10 items-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-bold text-white transition hover:bg-[#6f1422] disabled:opacity-50"
-          >
-            <Send className="h-4 w-4" />
-            Save & Share
-          </button>
-        </div>
-      </div>
+      <PackageQuoteActions
+        activeQuote={activeQuote}
+        saving={saving}
+        shareUrl={shareUrl}
+        onStartNew={startNew}
+        onDuplicateQuote={duplicateQuote}
+        onSaveQuote={(share) => saveQuote(share)}
+        onCopyShareLink={copyShareLink}
+      />
 
       {setupMessage && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
           {setupMessage}
-        </div>
-      )}
-
-      {shareUrl && activeQuote?.share_enabled && (
-        <div
-          className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-            isPackageQuoteExpired(activeQuote.expires_at)
-              ? 'border-red-200 bg-red-50'
-              : 'border-emerald-200 bg-emerald-50'
-          }`}
-        >
-          <div className="min-w-0">
-            <p
-              className={`text-sm font-black ${
-                isPackageQuoteExpired(activeQuote.expires_at) ? 'text-red-900' : 'text-emerald-900'
-              }`}
-            >
-              {isPackageQuoteExpired(activeQuote.expires_at)
-                ? 'Customer link has expired'
-                : 'Customer link is active'}
-            </p>
-            <p
-              className={`truncate text-sm ${
-                isPackageQuoteExpired(activeQuote.expires_at) ? 'text-red-800' : 'text-emerald-800'
-              }`}
-            >
-              {shareUrl}
-            </p>
-            <p
-              className={`mt-1 text-xs font-bold ${
-                isPackageQuoteExpired(activeQuote.expires_at) ? 'text-red-700' : 'text-emerald-700'
-              }`}
-            >
-              Expires {formatExpiry(activeQuote.expires_at)}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void copyShareLink()}
-            disabled={isPackageQuoteExpired(activeQuote.expires_at)}
-            className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <Link2 className="h-4 w-4" />
-            Copy Link
-          </button>
         </div>
       )}
 
