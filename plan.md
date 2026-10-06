@@ -423,6 +423,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Transport Voucher version history and customer visibility actions while keeping edit, preview, and release mutations in the operations workspace.
   - [x] Extract Transport Voucher itinerary editing and reorder controls while keeping itinerary and route-assignment updates in the operations workspace.
   - [x] Extract the Transport Voucher service-details form while keeping field updates, vehicle-capacity rules, provider aliases, and persistence in the operations workspace.
+  - [x] Extract Transport Voucher save/release controls and preview presentation while keeping voucher and print-view actions in the operations workspace.
   - [x] Reuse a shared family-option type across passenger and payment panels.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
