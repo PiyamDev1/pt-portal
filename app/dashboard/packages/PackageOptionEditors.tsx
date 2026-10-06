@@ -30,6 +30,51 @@ import {
   type UmrahTransportPricingData,
 } from './packageTransportPricingModel'
 
+const FLIGHT_COST_FIELDS = [
+  {
+    label: 'Adult Search Cost',
+    costKey: 'adultSearchCost',
+    searchKey: 'adultSearchCost',
+    priceKey: 'adultPrice',
+    adjusted: false,
+  },
+  {
+    label: 'Adult Adj Cost',
+    costKey: 'adultAdjustedCost',
+    searchKey: 'adultSearchCost',
+    priceKey: 'adultPrice',
+    adjusted: true,
+  },
+  {
+    label: 'Child Search Cost',
+    costKey: 'childSearchCost',
+    searchKey: 'childSearchCost',
+    priceKey: 'childPrice',
+    adjusted: false,
+  },
+  {
+    label: 'Child Adj Cost',
+    costKey: 'childAdjustedCost',
+    searchKey: 'childSearchCost',
+    priceKey: 'childPrice',
+    adjusted: true,
+  },
+  {
+    label: 'Infant Search Cost',
+    costKey: 'infantSearchCost',
+    searchKey: 'infantSearchCost',
+    priceKey: 'infantPrice',
+    adjusted: false,
+  },
+  {
+    label: 'Infant Adj Cost',
+    costKey: 'infantAdjustedCost',
+    searchKey: 'infantSearchCost',
+    priceKey: 'infantPrice',
+    adjusted: true,
+  },
+] as const
+
 function newHotelAddonOption() {
   return {
     id: makeId('hotel-addon'),
@@ -264,59 +309,38 @@ function LinkedFlightGroupEditor({
                   rows={2}
                   className="w-full resize-y rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-700"
                 />
-                <div className="mt-2 grid gap-3 sm:grid-cols-3">
-                  {[
-                    ['Adult', 'adult'],
-                    ['Child', 'child'],
-                    ['Infant', 'infant'],
-                  ].map(([label, key]) => (
-                    <div key={key} className="space-y-2">
-                      <span className="block text-xs font-bold text-slate-500">{label}</span>
-                      {(['Search Cost', 'Adj Cost'] as const).map((costLabel) => {
-                        const costKey = `${key}${costLabel === 'Search Cost' ? 'SearchCost' : 'AdjustedCost'}` as
-                          | 'adultSearchCost'
-                          | 'adultAdjustedCost'
-                          | 'childSearchCost'
-                          | 'childAdjustedCost'
-                          | 'infantSearchCost'
-                          | 'infantAdjustedCost'
-                        const priceKey = `${key}Price` as 'adultPrice' | 'childPrice' | 'infantPrice'
-                        const searchKey = `${key}SearchCost` as
-                          | 'adultSearchCost'
-                          | 'childSearchCost'
-                          | 'infantSearchCost'
-                        return (
-                          <label key={costKey} className="block">
-                            <span className="block text-[11px] font-semibold text-slate-500">
-                              {costLabel}
-                            </span>
-                            <div className="mt-1 flex min-h-9 items-center rounded-lg border-2 border-slate-200 bg-white px-2.5">
-                              <span className="mr-2 text-xs font-black text-slate-500">GBP</span>
-                              <input
-                                aria-label={`${label} ${costLabel}`}
-                                value={option[costKey] ?? option[priceKey] ?? ''}
-                                onChange={(event) => {
-                                  const amount = Number(event.target.value || 0)
-                                  updateOption(optionIndex, {
-                                    ...option,
-                                    [costKey]: amount,
-                                    ...(costLabel === 'Adj Cost'
-                                      ? { [searchKey]: option[searchKey] ?? option[priceKey] ?? 0 }
-                                      : {}),
-                                    ...(costLabel === 'Adj Cost' ? { [priceKey]: amount } : {}),
-                                  })
-                                }}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="0.00"
-                                className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
-                              />
-                            </div>
-                          </label>
-                        )
-                      })}
-                    </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  {FLIGHT_COST_FIELDS.map((field) => (
+                    <label key={field.costKey} className="block min-w-0">
+                      <span className="block min-h-7 text-[11px] font-semibold leading-tight text-slate-500">
+                        {field.label}
+                      </span>
+                      <div className="mt-1 flex min-h-9 items-center rounded-lg border-2 border-slate-200 bg-white px-2">
+                        <input
+                          aria-label={field.label}
+                          value={option[field.costKey] ?? option[field.priceKey] ?? ''}
+                          onChange={(event) => {
+                            const amount = Number(event.target.value || 0)
+                            updateOption(optionIndex, {
+                              ...option,
+                              [field.costKey]: amount,
+                              ...(field.adjusted
+                                ? {
+                                    [field.searchKey]:
+                                      option[field.searchKey] ?? option[field.priceKey] ?? 0,
+                                    [field.priceKey]: amount,
+                                  }
+                                : {}),
+                            })
+                          }}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
+                        />
+                      </div>
+                    </label>
                   ))}
                 </div>
                 <p className="mt-2 text-xs font-semibold text-indigo-900">
@@ -942,60 +966,39 @@ export function OptionEditor({
         className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
       />
       {showFlightPricing ? (
-        <div className="mt-2 grid gap-3 sm:grid-cols-3">
-          {[
-            ['Adult 12+', 'adult'],
-            ['Child 2-12', 'child'],
-            ['Infant under 2', 'infant'],
-          ].map(([label, key]) => (
-            <div key={key} className="space-y-2">
-              <span className="block text-xs font-bold text-slate-500">{label}</span>
-              {(['Search Cost', 'Adj Cost'] as const).map((costLabel) => {
-                const costKey = `${key}${costLabel === 'Search Cost' ? 'SearchCost' : 'AdjustedCost'}` as
-                  | 'adultSearchCost'
-                  | 'adultAdjustedCost'
-                  | 'childSearchCost'
-                  | 'childAdjustedCost'
-                  | 'infantSearchCost'
-                  | 'infantAdjustedCost'
-                const priceKey = `${key}Price` as 'adultPrice' | 'childPrice' | 'infantPrice'
-                const searchKey = `${key}SearchCost` as
-                  | 'adultSearchCost'
-                  | 'childSearchCost'
-                  | 'infantSearchCost'
-                return (
-                  <label key={costKey} className="block">
-                    <span className="block text-[11px] font-semibold text-slate-500">
-                      {costLabel}
-                    </span>
-                    <div className="mt-1 flex min-h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5">
-                      <span className="mr-2 text-xs font-black text-slate-500">GBP</span>
-                      <input
-                        aria-label={`${label} ${costLabel}`}
-                        value={option[costKey] ?? option[priceKey] ?? ''}
-                        onChange={(event) => {
-                          const amount = Number(event.target.value || 0)
-                          onChange({
-                            ...option,
-                            [costKey]: amount,
-                            ...(costLabel === 'Adj Cost'
-                              ? { [searchKey]: option[searchKey] ?? option[priceKey] ?? 0 }
-                              : {}),
-                            ...(costLabel === 'Adj Cost' ? { [priceKey]: amount } : {}),
-                            pricingMode: 'per_person',
-                          })
-                        }}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        className="w-full bg-transparent text-sm font-bold outline-none"
-                      />
-                    </div>
-                  </label>
-                )
-              })}
-            </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {FLIGHT_COST_FIELDS.map((field) => (
+            <label key={field.costKey} className="block min-w-0">
+              <span className="block min-h-7 text-[11px] font-semibold leading-tight text-slate-500">
+                {field.label}
+              </span>
+              <div className="mt-1 flex min-h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
+                <input
+                  aria-label={field.label}
+                  value={option[field.costKey] ?? option[field.priceKey] ?? ''}
+                  onChange={(event) => {
+                    const amount = Number(event.target.value || 0)
+                    onChange({
+                      ...option,
+                      [field.costKey]: amount,
+                      ...(field.adjusted
+                        ? {
+                            [field.searchKey]:
+                              option[field.searchKey] ?? option[field.priceKey] ?? 0,
+                            [field.priceKey]: amount,
+                          }
+                        : {}),
+                      pricingMode: 'per_person',
+                    })
+                  }}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
+                />
+              </div>
+            </label>
           ))}
         </div>
       ) : (
