@@ -4,8 +4,6 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
-  ArrowDownWideNarrow,
-  Building2,
   Bus,
   CopyPlus,
   ExternalLink,
@@ -50,6 +48,7 @@ import { PackageLinkedGroupWorkspace } from './PackageLinkedGroupWorkspace'
 import { PackageQuoteDetails } from './PackageQuoteDetails'
 import { PackageDiscountOffers } from './PackageDiscountOffers'
 import { PackageQuoteSidebar } from './PackageQuoteSidebar'
+import { PackageStayOptions } from './PackageStayOptions'
 import { FlightOptionEditor, newLinkedFlightGroup, OptionEditor } from './PackageOptionEditors'
 import { PackageQuoteBrowser } from './PackageQuoteBrowser'
 import {
@@ -1604,118 +1603,21 @@ export default function PackagesClient({
             </div>
           </section>
 
-          <section className="rounded-xl border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
-            <SectionHeader
-              icon={Building2}
-              title="Hotel and stay options"
-              action={
-                <div className="flex flex-wrap gap-2">
-                  {payload.packageType === 'holiday' && (
-                    <button
-                      type="button"
-                      onClick={addHolidayLocation}
-                      className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-violet-900 px-3 text-xs font-black text-white transition hover:bg-violet-950"
-                      title="Add holiday location"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add location
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={sortStayGroupsByAdjustedCost}
-                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 text-xs font-black text-violet-900 transition hover:bg-violet-100"
-                    title="Sort hotel options by adjusted cost"
-                  >
-                    <ArrowDownWideNarrow className="h-4 w-4" />
-                    Sort low-high
-                  </button>
-                </div>
-              }
-            />
-            <div className="grid gap-4 lg:grid-cols-2">
-              {stayGroupsForEditor.map(({ group, groupIndex }) => (
-                <div key={group.id} className="rounded-lg border border-violet-200 bg-white p-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <input
-                      value={group.label}
-                      onChange={(event) =>
-                        updateStayGroup(groupIndex, { ...group, label: event.target.value })
-                      }
-                      placeholder={payload.packageType === 'holiday' ? 'Enter location' : 'Stay'}
-                      className="min-h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm font-black outline-none focus:border-slate-900"
-                    />
-                    {payload.packageType === 'holiday' && groupIndex === 0 && (
-                      <span className="rounded-lg bg-blue-100 px-2 py-2 text-[11px] font-black text-blue-800">
-                        Start
-                      </span>
-                    )}
-                    {payload.packageType === 'holiday' && payload.stayGroups.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeHolidayLocation(groupIndex)}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
-                        title="Remove location"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateStayGroup(groupIndex, {
-                          ...group,
-                          options: [
-                            ...group.options,
-                            newOption(`${group.id}-hotel`, {
-                              isDefault: group.options.length === 0,
-                            }),
-                          ],
-                        })
-                      }
-                      className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
-                      title="Add hotel"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {group.options.map((option, optionIndex) => (
-                      <OptionEditor
-                        key={option.id}
-                        option={option}
-                        titlePlaceholder={`${group.label} hotel`}
-                        summaryPlaceholder={`${group.label} hotel summary, nights, board basis, distance`}
-                        showHotelCostAudit
-                        showDefaultToggle
-                        defaultLabel="Preferred hotel"
-                        canRemove={group.options.length > 1}
-                        onChange={(next) =>
-                          updateStayGroup(groupIndex, {
-                            ...group,
-                            options: next.isDefault
-                              ? group.options.map((candidate, index) => ({
-                                  ...(index === optionIndex ? next : candidate),
-                                  isDefault: index === optionIndex,
-                                }))
-                              : group.options.map((candidate, index) =>
-                                  index === optionIndex ? next : candidate,
-                                ),
-                          })
-                        }
-                        onRemove={() =>
-                          updateStayGroup(groupIndex, {
-                            ...group,
-                            options: group.options.filter((_, index) => index !== optionIndex),
-                          })
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <PackageStayOptions
+            model={{
+              payload: {
+                packageType: payload.packageType,
+                stayGroups: payload.stayGroups,
+              },
+              stayGroupsForEditor,
+              transportPricingData,
+              createHotelOption: (groupId, isDefault) => newOption(groupId, { isDefault }),
+              onUpdateStayGroup: updateStayGroup,
+              onAddHolidayLocation: addHolidayLocation,
+              onRemoveHolidayLocation: removeHolidayLocation,
+              onSortStayGroupsByAdjustedCost: sortStayGroupsByAdjustedCost,
+            }}
+          />
 
           <PackageDiscountOffers
             model={{
