@@ -405,6 +405,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract hotel and stay option presentation while keeping itinerary ordering and quote draft updates in the quotation client.
   - [x] Extract flight, visa, and transport option panels while keeping quote option creation, pricing, and draft updates in the quotation client.
   - [x] Extract quotation actions and customer-link status presentation while keeping save, duplicate, and sharing mutations in the quotation client.
+  - [x] Extract the Package Operations task panel while keeping task API mutations in the operations workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.

@@ -84,6 +84,7 @@ import {
   parsePackageCommissionReadiness,
   type PackageCommissionReadiness,
 } from '@/lib/commissions/packageReadiness'
+import { PackageTasksPanel, type PackageTaskForm } from './PackageTasksPanel'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -238,7 +239,11 @@ export default function PackageOperationsWorkspace({
     lmsPlanId: '',
     internalNotes: '',
   })
-  const [taskForm, setTaskForm] = useState({ title: '', dueAt: '', priority: 'medium' })
+  const [taskForm, setTaskForm] = useState<PackageTaskForm>({
+    title: '',
+    dueAt: '',
+    priority: 'medium',
+  })
   const [deadlineForm, setDeadlineForm] = useState({ title: '', dueAt: '', severity: 'medium' })
   const [communicationForm, setCommunicationForm] = useState({
     summary: '',
@@ -2943,83 +2948,13 @@ export default function PackageOperationsWorkspace({
 
           {activeTab === 'activity' && (
             <div className="grid gap-5 xl:grid-cols-2">
-              <div className="space-y-4">
-                <h3 className="text-sm font-black">Tasks</h3>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void createOperation('task', taskForm)
-                  }}
-                  className="grid gap-2 border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_11rem_8rem_auto]"
-                >
-                  <input
-                    placeholder="Task title"
-                    value={taskForm.title}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, title: event.target.value }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                    required
-                  />
-                  <label className="text-[11px] font-bold uppercase text-slate-500">
-                    Due date
-                    <input
-                      type="datetime-local"
-                      value={taskForm.dueAt}
-                      onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, dueAt: event.target.value }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-2 py-2 text-xs normal-case text-slate-900"
-                    />
-                  </label>
-                  <select
-                    value={taskForm.priority}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, priority: event.target.value }))
-                    }
-                    className="border border-slate-300 px-2 py-2 text-xs"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                  <button title="Add task" className="bg-slate-900 p-2 text-white">
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </form>
-                <div className="space-y-2">
-                  {tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-3 border border-slate-200 p-3"
-                    >
-                      <button
-                        title="Complete task"
-                        onClick={() =>
-                          void updateOperation('task', task.id, {
-                            status: task.status === 'completed' ? 'open' : 'completed',
-                          })
-                        }
-                        className={`flex h-6 w-6 items-center justify-center border ${task.status === 'completed' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}
-                      >
-                        {task.status === 'completed' && <Check className="h-4 w-4" />}
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-sm font-bold ${task.status === 'completed' ? 'text-slate-400 line-through' : 'text-slate-900'}`}
-                        >
-                          {task.title}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {task.due_at ? `Due ${formatDateTime(task.due_at)}` : 'No due date'} ·{' '}
-                          {task.priority}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <PackageTasksPanel
+                tasks={tasks}
+                taskForm={taskForm}
+                setTaskForm={setTaskForm}
+                onCreateTask={(body) => createOperation('task', body)}
+                onUpdateTask={(taskId, body) => updateOperation('task', taskId, body)}
+              />
               <div className="space-y-4">
                 <h3 className="text-sm font-black">Deadlines</h3>
                 <form
