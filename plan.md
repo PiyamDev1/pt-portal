@@ -431,6 +431,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
   - [x] Route NADRA, passport, and passport-draft workspaces through one application DocumentHub entry point and PageHeader return control.
   - [ ] Consolidate the remaining Package document presentation and add the missing cross-service receipt contract, including Visa.
+    - [x] Extract category-based package document uploads while keeping upload requests and document state in PackageOverviewClient.
 - [x] Reorganise Settings navigation by Security, People & HR, Operations, Pricing, and Maintenance without changing role access.
 - [x] Centralise shared page context and reusable capability loading.
   - [x] Reuse the shared authenticated server Supabase client across application document pages.
