@@ -415,6 +415,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract installment-plan display and creation fields while keeping schedule persistence and LMS linking in the workspace.
   - [x] Extract the Package payment family selector and financial summary while keeping totals and filtering calculations in the workspace.
   - [x] Extract reservation discount source-of-truth guidance while keeping reservation financials authoritative and navigation delegated to the workspace.
+  - [x] Extract the open-risk action list while keeping risk resolution persistence in the operations workspace.
   - [x] Reuse a shared family-option type across passenger and payment panels.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.

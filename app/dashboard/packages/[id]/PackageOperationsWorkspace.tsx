@@ -92,6 +92,7 @@ import { PackagePassengerTable, type PackagePassengerEditForm } from './PackageP
 import { PackagePaymentTable, type PackagePaymentEditForm } from './PackagePaymentTable'
 import { PackagePaymentEntryForm, type PackagePaymentCreateForm } from './PackagePaymentEntryForm'
 import { PackagePaymentOverview } from './PackagePaymentOverview'
+import { PackageOpenRisksPanel } from './PackageOpenRisksPanel'
 import { PackageReservationDiscountNotice } from './PackageReservationDiscountNotice'
 import {
   PackageInstallmentPlanPanel,
@@ -1932,34 +1933,15 @@ export default function PackageOperationsWorkspace({
                 </div>
               </div>
               {openRisks.length > 0 && (
-                <div className="space-y-2">
-                  {openRisks.map((risk) => (
-                    <div
-                      key={risk.id}
-                      className="flex flex-wrap items-center gap-3 border border-amber-200 bg-amber-50 p-3"
-                    >
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-black text-slate-900">{risk.title}</p>
-                        <p className="text-xs text-slate-600">{risk.description}</p>
-                      </div>
-                      <span className="text-xs font-black uppercase text-amber-700">
-                        {risk.severity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          void updateOperation('risk', risk.id, {
-                            status: 'resolved',
-                            resolutionNote: 'Resolved by agent.',
-                          })
-                        }
-                        className="border border-amber-300 bg-white px-2 py-1 text-xs font-black text-amber-800"
-                      >
-                        Resolve
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <PackageOpenRisksPanel
+                  risks={openRisks}
+                  onResolveRisk={(riskId) =>
+                    void updateOperation('risk', riskId, {
+                      status: 'resolved',
+                      resolutionNote: 'Resolved by agent.',
+                    })
+                  }
+                />
               )}
             </div>
           )}
