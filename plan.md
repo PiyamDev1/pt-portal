@@ -412,6 +412,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract the editable Package Operations passenger table while keeping passenger loading and mutations in the workspace.
   - [x] Extract the Package Operations payment history table while keeping payment state and mutations in the workspace.
   - [x] Extract the Package Operations payment-entry form while keeping family validation and payment persistence in the workspace.
+  - [x] Extract installment-plan display and creation fields while keeping schedule persistence and LMS linking in the workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
