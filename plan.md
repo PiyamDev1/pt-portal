@@ -44,7 +44,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Booking service and customer-portal configuration now live in a dedicated settings panel with a reusable state model, keeping branch summaries synchronized while preventing stale branch responses.
 - Booking service creation and editing now use one shared field contract for slot rules, customer-portal controls, and email templates instead of maintaining two copies of the same form.
 - Umrah transport pricing now separates configuration and the supplier comparison matrix into tested panels backed by one shared draft/key model and one Supabase data owner.
-- Package quotations now separate tested option editing, quote browsing/filtering, and linked-package-group presentation from the API-owning quotation client; group fetches, snapshots, and mutations remain with their existing data owner.
+- Package quotations now separate tested quote details, option editing, quote browsing/filtering, and linked-package-group presentation from the API-owning quotation client; transformations, fetches, snapshots, and mutations remain with their existing data owner.
 - NADRA, passport, and passport-draft document workspaces now use one canonical application DocumentHub import, the shared server Supabase client, and PageHeader back navigation instead of rebuilding those primitives per page.
 - The Applications hub, service pages, and document workspaces now load their authenticated client and PageHeader identity through one shared dashboard page context instead of repeating session, employee, role, and location setup.
 - The Timeclock landing, history, team, and manual-entry pages now share the same verified user and PageHeader context while keeping their existing manager and maintenance access checks.
@@ -399,6 +399,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract the Package quotation option and linked-flight editors without moving quote persistence out of the parent.
   - [x] Extract the Package quote browser, filters, status/expiry display, and action delegation behind one tested model.
   - [x] Extract the linked-package-group workspace, local disclosure/filtering, and action delegation while retaining all group API mutations in the quotation client.
+  - [x] Extract the Package quote-details editor and shared package-type labels while retaining draft transformation, expiry, and persistence ownership in the quotation client.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
