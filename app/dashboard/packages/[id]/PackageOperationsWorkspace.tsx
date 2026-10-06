@@ -6,7 +6,6 @@ import {
   Check,
   ExternalLink,
   FileClock,
-  GripVertical,
   History,
   Loader2,
   Pencil,
@@ -90,6 +89,7 @@ import { PackageDetailsPanel, type PackageCustomerDetailsForm } from './PackageD
 import { PackageCommissionReadinessPanel } from './PackageCommissionReadinessPanel'
 import { PackageTransportVoucherContextPanel } from './PackageTransportVoucherContextPanel'
 import { PackageTransportVoucherHistoryTable } from './PackageTransportVoucherHistoryTable'
+import { PackageTransportVoucherItineraryEditor } from './PackageTransportVoucherItineraryEditor'
 import {
   PackageResponsibilityPanel,
   type PackageResponsibilityField,
@@ -146,7 +146,6 @@ export default function PackageOperationsWorkspace({
   const [showAddPassengerForm, setShowAddPassengerForm] = useState(false)
   const [selectedPassengerFamilyQuoteId, setSelectedPassengerFamilyQuoteId] = useState('')
   const [selectedPaymentFamilyQuoteId, setSelectedPaymentFamilyQuoteId] = useState('')
-  const [draggedVoucherSegmentIndex, setDraggedVoucherSegmentIndex] = useState<number | null>(null)
   const [voucherPreviewQrCodeDataUrl, setVoucherPreviewQrCodeDataUrl] = useState('')
   const [accessVoucherQrCodeDataUrl, setAccessVoucherQrCodeDataUrl] = useState('')
 
@@ -1881,163 +1880,16 @@ export default function PackageOperationsWorkspace({
                   </div>
                 </div>
 
-                <div className="flex flex-col border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="text-sm font-black text-slate-900">Itinerary Builder</h3>
-                  <div className="mt-3 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
-                    {(voucherForm.itinerary || []).map((item, index) => (
-                      <div
-                        key={index}
-                        onDragOver={(event) => {
-                          event.preventDefault()
-                          event.dataTransfer.dropEffect = 'move'
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault()
-                          if (draggedVoucherSegmentIndex !== null) {
-                            moveVoucherItineraryItem(draggedVoucherSegmentIndex, index)
-                          }
-                          setDraggedVoucherSegmentIndex(null)
-                        }}
-                        className={`space-y-2 border bg-white p-3 transition ${
-                          draggedVoucherSegmentIndex === index
-                            ? 'border-cyan-500 bg-cyan-50 opacity-70'
-                            : 'border-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <button
-                              type="button"
-                              draggable
-                              onDragStart={(event) => {
-                                setDraggedVoucherSegmentIndex(index)
-                                event.dataTransfer.effectAllowed = 'move'
-                                event.dataTransfer.setData('text/plain', String(index))
-                              }}
-                              onDragEnd={() => setDraggedVoucherSegmentIndex(null)}
-                              className="inline-flex h-8 w-8 shrink-0 cursor-grab items-center justify-center border border-slate-200 bg-slate-50 text-slate-500 active:cursor-grabbing"
-                              title="Drag to reorder segment"
-                              aria-label={`Reorder segment ${index + 1}`}
-                            >
-                              <GripVertical className="h-4 w-4" />
-                            </button>
-                            <p className="truncate text-xs font-black text-slate-700">
-                              Segment #{index + 1}: {item.type || 'Transport Segment'}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeVoucherItineraryItem(index)}
-                            className="text-xs font-black text-red-600"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <label className="text-[11px] font-bold uppercase text-slate-500">
-                            Segment type
-                            <input
-                              value={item.type}
-                              onChange={(event) =>
-                                updateVoucherItinerary(index, { type: event.target.value })
-                              }
-                              placeholder="Airport Pickup"
-                              className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm normal-case text-slate-900"
-                            />
-                          </label>
-                          <label className="text-[11px] font-bold uppercase text-slate-500">
-                            Vehicle for this segment
-                            <select
-                              value={
-                                voucherForm.routeAssignments?.[index]?.vehicleType ||
-                                voucherForm.vehicleType ||
-                                voucherForm.vehicle ||
-                                ''
-                              }
-                              onChange={(event) =>
-                                updateVoucherItineraryVehicle(index, event.target.value)
-                              }
-                              className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm normal-case text-slate-900"
-                            >
-                              <option value="">To be confirmed</option>
-                              {TRANSPORT_VEHICLES.map((vehicle) => (
-                                <option key={vehicle.name} value={vehicle.name}>
-                                  {vehicle.name}
-                                </option>
-                              ))}
-                              {voucherForm.routeAssignments?.[index]?.vehicleType &&
-                                !TRANSPORT_VEHICLES.some(
-                                  (vehicle) =>
-                                    vehicle.name ===
-                                    voucherForm.routeAssignments?.[index]?.vehicleType,
-                                ) && (
-                                  <option
-                                    value={voucherForm.routeAssignments[index]?.vehicleType || ''}
-                                  >
-                                    {voucherForm.routeAssignments[index]?.vehicleType}
-                                  </option>
-                                )}
-                            </select>
-                          </label>
-                        </div>
-                        <input
-                          value={item.description}
-                          onChange={(event) =>
-                            updateVoucherItinerary(index, { description: event.target.value })
-                          }
-                          placeholder="JED Airport to Makkah Hotel"
-                          className="w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="date"
-                            value={item.date}
-                            onChange={(event) =>
-                              updateVoucherItinerary(index, { date: event.target.value })
-                            }
-                            className="border border-slate-300 px-3 py-2 text-sm"
-                          />
-                          <input
-                            type="time"
-                            value={item.time}
-                            onChange={(event) =>
-                              updateVoucherItinerary(index, { time: event.target.value })
-                            }
-                            className="border border-slate-300 px-3 py-2 text-sm"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    {(voucherForm.itinerary || []).length === 0 && (
-                      <p className="border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-500">
-                        No itinerary segments yet.
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => addVoucherItineraryItem("Ziyara'at / Tour")}
-                      className="bg-blue-100 p-2 text-xs font-black text-blue-800"
-                    >
-                      Add Ziyara&apos;at
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addVoucherItineraryItem('Hotel Transfer')}
-                      className="bg-emerald-100 p-2 text-xs font-black text-emerald-800"
-                    >
-                      Add Hotel Transfer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addVoucherItineraryItem('Return Transfer')}
-                      className="col-span-2 bg-slate-200 p-2 text-xs font-black text-slate-800"
-                    >
-                      Add Return to Airport
-                    </button>
-                  </div>
-                </div>
+                <PackageTransportVoucherItineraryEditor
+                  itinerary={voucherForm.itinerary || []}
+                  routeAssignments={voucherForm.routeAssignments || []}
+                  defaultVehicleType={voucherForm.vehicleType || voucherForm.vehicle || ''}
+                  onUpdateItem={updateVoucherItinerary}
+                  onUpdateVehicle={updateVoucherItineraryVehicle}
+                  onAddItem={addVoucherItineraryItem}
+                  onRemoveItem={removeVoucherItineraryItem}
+                  onMoveItem={moveVoucherItineraryItem}
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 {editingVoucherId && (
