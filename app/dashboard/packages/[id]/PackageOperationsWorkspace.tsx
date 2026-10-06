@@ -51,7 +51,6 @@ import {
 } from '@/lib/packageTransportVoucher'
 import {
   TABS,
-  TRANSPORT_VEHICLES,
   dateInput,
   dateTimeInput,
   emptyVoucher,
@@ -88,6 +87,7 @@ import { PackageOpenRisksPanel } from './PackageOpenRisksPanel'
 import { PackageDetailsPanel, type PackageCustomerDetailsForm } from './PackageDetailsPanel'
 import { PackageCommissionReadinessPanel } from './PackageCommissionReadinessPanel'
 import { PackageTransportVoucherContextPanel } from './PackageTransportVoucherContextPanel'
+import { PackageTransportVoucherDetailsForm } from './PackageTransportVoucherDetailsForm'
 import { PackageTransportVoucherHistoryTable } from './PackageTransportVoucherHistoryTable'
 import { PackageTransportVoucherItineraryEditor } from './PackageTransportVoucherItineraryEditor'
 import {
@@ -1063,6 +1063,23 @@ export default function PackageOperationsWorkspace({
     setVoucherForm((current) => ({ ...current, [key]: value }))
   }
 
+  const updateVoucherVehicle = (vehicleType: string) => {
+    const vehicle = getVehicleCapacity(vehicleType)
+    updateVoucherField('vehicle', vehicleType)
+    updateVoucherField('vehicleType', vehicleType)
+    if (vehicle) updateVoucherField('maxBags', String(vehicle.bags))
+  }
+
+  const updateVoucherProviderName = (providerName: string) => {
+    updateVoucherField('providerName', providerName)
+    updateVoucherField('transportCompany', providerName)
+  }
+
+  const updateVoucherProviderContact = (providerContact: string) => {
+    updateVoucherField('providerContact', providerContact)
+    updateVoucherField('groundManager', providerContact)
+  }
+
   const updateVoucherItinerary = (
     index: number,
     updates: Partial<NonNullable<TravelPackageTransportVoucherData['itinerary']>[number]>,
@@ -1655,230 +1672,14 @@ export default function PackageOperationsWorkspace({
               />
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_34rem]">
-                <div className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <label className="text-xs font-bold text-slate-600">
-                      Vehicle type
-                      <select
-                        value={voucherForm.vehicle || voucherForm.vehicleType || 'H1'}
-                        onChange={(event) => {
-                          const vehicle = getVehicleCapacity(event.target.value)
-                          updateVoucherField('vehicle', event.target.value)
-                          updateVoucherField('vehicleType', event.target.value)
-                          if (vehicle) updateVoucherField('maxBags', String(vehicle.bags))
-                        }}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      >
-                        {TRANSPORT_VEHICLES.map((vehicle) => (
-                          <option key={vehicle.name} value={vehicle.name}>
-                            {vehicle.name} ({vehicle.passengers} pax, {vehicle.bags} bags)
-                          </option>
-                        ))}
-                        {voucherForm.vehicle &&
-                          !TRANSPORT_VEHICLES.some((item) => item.name === voucherForm.vehicle) && (
-                            <option value={voucherForm.vehicle}>{voucherForm.vehicle}</option>
-                          )}
-                      </select>
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Max bags
-                      <input
-                        value={voucherForm.maxBags || ''}
-                        onChange={(event) => updateVoucherField('maxBags', event.target.value)}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Extra baggage fee
-                      <input
-                        value={voucherForm.extraBaggageFee || ''}
-                        onChange={(event) =>
-                          updateVoucherField('extraBaggageFee', event.target.value)
-                        }
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-3">
-                    <label className="text-xs font-bold text-slate-600">
-                      Adults
-                      <input
-                        type="number"
-                        min="0"
-                        value={voucherForm.adults || 0}
-                        onChange={(event) =>
-                          updateVoucherField('adults', Number(event.target.value))
-                        }
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Children
-                      <input
-                        type="number"
-                        min="0"
-                        value={voucherForm.children || 0}
-                        onChange={(event) =>
-                          updateVoucherField('children', Number(event.target.value))
-                        }
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Infants
-                      <input
-                        type="number"
-                        min="0"
-                        value={voucherForm.infants || 0}
-                        onChange={(event) =>
-                          updateVoucherField('infants', Number(event.target.value))
-                        }
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    {voucherPassengerError && (
-                      <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 md:col-span-3">
-                        {voucherPassengerError}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      Booking ID
-                      <input
-                        value={voucherForm.bookingId || ''}
-                        onChange={(event) => updateVoucherField('bookingId', event.target.value)}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Flight number
-                      <input
-                        value={voucherForm.flightNumber || ''}
-                        onChange={(event) => updateVoucherField('flightNumber', event.target.value)}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Airports
-                      <input
-                        value={voucherForm.airports || ''}
-                        onChange={(event) => updateVoucherField('airports', event.target.value)}
-                        placeholder="LHR to JED"
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="text-xs font-bold text-slate-600">
-                        Landing date
-                        <input
-                          type="date"
-                          value={voucherForm.landingDate || ''}
-                          onChange={(event) =>
-                            updateVoucherField('landingDate', event.target.value)
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-slate-600">
-                        Landing time
-                        <input
-                          type="time"
-                          value={voucherForm.landingTime || ''}
-                          onChange={(event) =>
-                            updateVoucherField('landingTime', event.target.value)
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                    </div>
-                    <label className="text-xs font-bold text-slate-600">
-                      Transport provider name
-                      <input
-                        value={voucherForm.providerName || voucherForm.transportCompany || ''}
-                        onChange={(event) => {
-                          updateVoucherField('providerName', event.target.value)
-                          updateVoucherField('transportCompany', event.target.value)
-                        }}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Transport provider contact
-                      <input
-                        value={voucherForm.providerContact || voucherForm.groundManager || ''}
-                        onChange={(event) => {
-                          updateVoucherField('providerContact', event.target.value)
-                          updateVoucherField('groundManager', event.target.value)
-                        }}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      Makkah hotel
-                      <input
-                        value={voucherForm.makkahHotel}
-                        onChange={(event) => updateVoucherField('makkahHotel', event.target.value)}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Madinah hotel
-                      <input
-                        value={voucherForm.madinahHotel}
-                        onChange={(event) => updateVoucherField('madinahHotel', event.target.value)}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Driver contact
-                      <input
-                        value={voucherForm.driverContact}
-                        onChange={(event) =>
-                          updateVoucherField('driverContact', event.target.value)
-                        }
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Departure date/time
-                      <input
-                        type="datetime-local"
-                        value={dateTimeInput(voucherForm.departureAt)}
-                        onChange={(event) => updateVoucherField('departureAt', event.target.value)}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      Customer note
-                      <textarea
-                        value={voucherForm.publicNotes}
-                        onChange={(event) => updateVoucherField('publicNotes', event.target.value)}
-                        rows={3}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs font-bold text-slate-600">
-                      Internal note
-                      <textarea
-                        value={voucherForm.internalNotes}
-                        onChange={(event) =>
-                          updateVoucherField('internalNotes', event.target.value)
-                        }
-                        rows={3}
-                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  </div>
-                </div>
+                <PackageTransportVoucherDetailsForm
+                  voucherForm={voucherForm}
+                  passengerError={voucherPassengerError}
+                  onUpdateField={updateVoucherField}
+                  onVehicleChange={updateVoucherVehicle}
+                  onProviderNameChange={updateVoucherProviderName}
+                  onProviderContactChange={updateVoucherProviderContact}
+                />
 
                 <PackageTransportVoucherItineraryEditor
                   itinerary={voucherForm.itinerary || []}
