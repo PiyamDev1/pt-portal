@@ -53,7 +53,6 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import {
-  PASSPORT_STATUSES,
   TABS,
   TRANSPORT_VEHICLES,
   dateInput,
@@ -63,7 +62,6 @@ import {
   formatVoucherPassengers,
   getVehicleCapacity,
   label,
-  packageStatusLabel,
   normalizeVoucherVehicleFields,
   readApiResponse,
   type OperationsResponse,
@@ -92,6 +90,7 @@ import { PackagePaymentTable, type PackagePaymentEditForm } from './PackagePayme
 import { PackagePaymentEntryForm, type PackagePaymentCreateForm } from './PackagePaymentEntryForm'
 import { PackagePaymentOverview } from './PackagePaymentOverview'
 import { PackageOpenRisksPanel } from './PackageOpenRisksPanel'
+import { PackageDetailsPanel, type PackageCustomerDetailsForm } from './PackageDetailsPanel'
 import {
   PackageResponsibilityPanel,
   type PackageResponsibilityField,
@@ -204,7 +203,7 @@ export default function PackageOperationsWorkspace({
   const [voucherPreviewQrCodeDataUrl, setVoucherPreviewQrCodeDataUrl] = useState('')
   const [accessVoucherQrCodeDataUrl, setAccessVoucherQrCodeDataUrl] = useState('')
 
-  const [customerForm, setCustomerForm] = useState({
+  const [customerForm, setCustomerForm] = useState<PackageCustomerDetailsForm>({
     customerName: packageFolder.customer_name || '',
     customerPhone: packageFolder.customer_phone || '',
     customerEmail: packageFolder.customer_email || '',
@@ -1530,165 +1529,19 @@ export default function PackageOperationsWorkspace({
           {activeTab === 'control' && (
             <div className="space-y-5">
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
-                <div className="border border-slate-200 bg-white">
-                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-sm font-black text-slate-950">Package details</p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Status, dates, and customer contact information.
-                    </p>
-                  </div>
-                  <div className="space-y-4 p-4">
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <label className="block text-xs font-bold text-slate-600">
-                        Lifecycle status
-                        <select
-                          value={packageFolder.status}
-                          onChange={(event) =>
-                            void changePackageStatus(
-                              event.target.value as TravelPackageFolderStatus,
-                            )
-                          }
-                          className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-                        >
-                          {availableStatuses.map((status) => (
-                            <option key={status} value={status}>
-                              {packageStatusLabel(status)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block text-xs font-bold text-slate-600">
-                        Passport status
-                        <select
-                          value={packageFolder.passport_status}
-                          onChange={(event) =>
-                            void patchPackage({ passportStatus: event.target.value })
-                          }
-                          className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-                        >
-                          {PASSPORT_STATUSES.map((status) => (
-                            <option key={status} value={status}>
-                              {label(status)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-xs font-bold uppercase text-slate-500">Next action</p>
-                        <p className="mt-1 text-sm font-black text-slate-900">
-                          {packageFolder.next_action || 'Review package'}
-                        </p>
-                        {packageFolder.next_action_due_at && (
-                          <p className="mt-1 text-xs text-slate-500">
-                            Due {formatDateTime(packageFolder.next_action_due_at)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        void patchPackage(customerForm)
-                      }}
-                      className="grid gap-3 md:grid-cols-3"
-                    >
-                      <label className="text-xs font-bold text-slate-600">
-                        Lead customer
-                        <input
-                          value={customerForm.customerName}
-                          onChange={(event) =>
-                            setCustomerForm((current) => ({
-                              ...current,
-                              customerName: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-slate-600">
-                        Phone
-                        <input
-                          value={customerForm.customerPhone}
-                          onChange={(event) =>
-                            setCustomerForm((current) => ({
-                              ...current,
-                              customerPhone: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-slate-600">
-                        Email
-                        <input
-                          type="email"
-                          value={customerForm.customerEmail}
-                          onChange={(event) =>
-                            setCustomerForm((current) => ({
-                              ...current,
-                              customerEmail: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-slate-600">
-                        Destination
-                        <input
-                          value={customerForm.destination}
-                          onChange={(event) =>
-                            setCustomerForm((current) => ({
-                              ...current,
-                              destination: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-slate-600">
-                        Departure
-                        <input
-                          type="date"
-                          value={customerForm.departureDate}
-                          onChange={(event) =>
-                            setCustomerForm((current) => ({
-                              ...current,
-                              departureDate: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-xs font-bold text-slate-600">
-                        Return
-                        <input
-                          type="date"
-                          value={customerForm.returnDate}
-                          onChange={(event) =>
-                            setCustomerForm((current) => ({
-                              ...current,
-                              returnDate: event.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        disabled={saving === 'package'}
-                        className="inline-flex items-center justify-center gap-2 bg-slate-900 px-3 py-2 text-xs font-black text-white md:col-span-3 md:justify-self-start disabled:opacity-50"
-                      >
-                        {saving === 'package' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4" />
-                        )}
-                        Save package details
-                      </button>
-                    </form>
-                  </div>
-                </div>
+                <PackageDetailsPanel
+                  status={packageFolder.status}
+                  passportStatus={packageFolder.passport_status}
+                  availableStatuses={availableStatuses}
+                  nextAction={packageFolder.next_action}
+                  nextActionDueAt={packageFolder.next_action_due_at}
+                  customerForm={customerForm}
+                  setCustomerForm={setCustomerForm}
+                  saving={saving === 'package'}
+                  onStatusChange={(status) => void changePackageStatus(status)}
+                  onPassportStatusChange={(passportStatus) => void patchPackage({ passportStatus })}
+                  onSaveCustomerDetails={(details) => void patchPackage(details)}
+                />
 
                 <div className="space-y-4">
                   <PackageResponsibilityPanel
