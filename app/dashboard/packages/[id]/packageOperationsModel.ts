@@ -19,6 +19,11 @@ export type WorkspaceTab =
   | 'voucher'
   | 'history'
 
+export type PackageFamilyOption = {
+  quoteId: string
+  familyLabel: string
+}
+
 export type OperationsResponse = {
   tasks?: TravelPackageTask[]
   deadlines?: TravelPackageDeadline[]

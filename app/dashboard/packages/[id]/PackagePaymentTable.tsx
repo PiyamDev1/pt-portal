@@ -9,7 +9,13 @@ import type {
   TravelPackagePaymentType,
 } from '@/app/types/packages'
 import { formatMoney } from '@/lib/packageQuote'
-import { PAYMENT_METHODS, PAYMENT_TYPES, formatDateTime, label } from './packageOperationsModel'
+import {
+  PAYMENT_METHODS,
+  PAYMENT_TYPES,
+  formatDateTime,
+  label,
+  type PackageFamilyOption,
+} from './packageOperationsModel'
 
 export type PackagePaymentEditForm = {
   amount: string
@@ -22,14 +28,9 @@ export type PackagePaymentEditForm = {
   notes: string
 }
 
-type PackagePaymentFamilyOption = {
-  quoteId: string
-  familyLabel: string
-}
-
 type PackagePaymentTableProps = {
   payments: TravelPackagePayment[]
-  groupFamilies: PackagePaymentFamilyOption[]
+  groupFamilies: PackageFamilyOption[]
   editingPaymentId: string | null
   paymentEditForm: PackagePaymentEditForm
   setPaymentEditForm: Dispatch<SetStateAction<PackagePaymentEditForm>>

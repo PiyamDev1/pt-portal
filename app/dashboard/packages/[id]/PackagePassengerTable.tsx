@@ -3,8 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { Pencil, Save, Trash2, X } from 'lucide-react'
 import type { TravelPackagePassenger, TravelPackagePassengerType } from '@/app/types/packages'
-import { dateInput, label } from './packageOperationsModel'
-import type { PackagePassengerFamilyOption } from './PackagePassengerCreatePanel'
+import { dateInput, label, type PackageFamilyOption } from './packageOperationsModel'
 
 export type PackagePassengerEditForm = {
   firstName: string
@@ -17,7 +16,7 @@ export type PackagePassengerEditForm = {
 
 type PackagePassengerTableProps = {
   passengers: TravelPackagePassenger[]
-  groupFamilies: PackagePassengerFamilyOption[]
+  groupFamilies: PackageFamilyOption[]
   editingPassengerId: string | null
   passengerEditForm: PackagePassengerEditForm
   setPassengerEditForm: Dispatch<SetStateAction<PackagePassengerEditForm>>

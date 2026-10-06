@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { UserPlus, X } from 'lucide-react'
 import type { TravelPackagePassengerType } from '@/app/types/packages'
+import type { PackageFamilyOption } from './packageOperationsModel'
 
 export type PackagePassengerCreateForm = {
   firstName: string
@@ -11,15 +12,10 @@ export type PackagePassengerCreateForm = {
   passengerType: TravelPackagePassengerType
 }
 
-export type PackagePassengerFamilyOption = {
-  quoteId: string
-  familyLabel: string
-}
-
 type PackagePassengerCreatePanelProps = {
   isOpen: boolean
   onToggle: () => void
-  groupFamilies: PackagePassengerFamilyOption[]
+  groupFamilies: PackageFamilyOption[]
   selectedFamilyQuoteId: string
   setSelectedFamilyQuoteId: Dispatch<SetStateAction<string>>
   passengerForm: PackagePassengerCreateForm
