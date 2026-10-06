@@ -5,7 +5,6 @@ import QRCode from 'qrcode'
 import {
   AlertTriangle,
   BadgePercent,
-  CalendarClock,
   Check,
   ExternalLink,
   FileClock,
@@ -85,6 +84,7 @@ import {
   type PackageCommissionReadiness,
 } from '@/lib/commissions/packageReadiness'
 import { PackageTasksPanel, type PackageTaskForm } from './PackageTasksPanel'
+import { PackageDeadlinesPanel, type PackageDeadlineForm } from './PackageDeadlinesPanel'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -244,7 +244,11 @@ export default function PackageOperationsWorkspace({
     dueAt: '',
     priority: 'medium',
   })
-  const [deadlineForm, setDeadlineForm] = useState({ title: '', dueAt: '', severity: 'medium' })
+  const [deadlineForm, setDeadlineForm] = useState<PackageDeadlineForm>({
+    title: '',
+    dueAt: '',
+    severity: 'medium',
+  })
   const [communicationForm, setCommunicationForm] = useState({
     summary: '',
     channel: 'whatsapp',
@@ -2955,79 +2959,15 @@ export default function PackageOperationsWorkspace({
                 onCreateTask={(body) => createOperation('task', body)}
                 onUpdateTask={(taskId, body) => updateOperation('task', taskId, body)}
               />
-              <div className="space-y-4">
-                <h3 className="text-sm font-black">Deadlines</h3>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void createOperation('deadline', deadlineForm)
-                  }}
-                  className="grid gap-2 border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_11rem_8rem_auto]"
-                >
-                  <input
-                    placeholder="Deadline title"
-                    value={deadlineForm.title}
-                    onChange={(event) =>
-                      setDeadlineForm((current) => ({ ...current, title: event.target.value }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                    required
-                  />
-                  <label className="text-[11px] font-bold uppercase text-slate-500">
-                    Due date
-                    <input
-                      type="datetime-local"
-                      value={deadlineForm.dueAt}
-                      onChange={(event) =>
-                        setDeadlineForm((current) => ({ ...current, dueAt: event.target.value }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-2 py-2 text-xs normal-case text-slate-900"
-                      required
-                    />
-                  </label>
-                  <select
-                    value={deadlineForm.severity}
-                    onChange={(event) =>
-                      setDeadlineForm((current) => ({ ...current, severity: event.target.value }))
-                    }
-                    className="border border-slate-300 px-2 py-2 text-xs"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                  <button title="Add deadline" className="bg-slate-900 p-2 text-white">
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </form>
-                <div className="space-y-2">
-                  {deadlines.map((deadline) => (
-                    <div
-                      key={deadline.id}
-                      className="flex items-center gap-3 border border-slate-200 p-3"
-                    >
-                      <CalendarClock className="h-4 w-4 text-amber-600" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold">{deadline.title}</p>
-                        <p className="text-xs text-slate-500">
-                          {formatDateTime(deadline.due_at)} · {deadline.severity}
-                        </p>
-                      </div>
-                      {deadline.status === 'open' && (
-                        <button
-                          onClick={() =>
-                            void updateOperation('deadline', deadline.id, { status: 'met' })
-                          }
-                          className="border border-slate-300 px-2 py-1 text-xs font-black"
-                        >
-                          Met
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <PackageDeadlinesPanel
+                deadlines={deadlines}
+                deadlineForm={deadlineForm}
+                setDeadlineForm={setDeadlineForm}
+                onCreateDeadline={(body) => createOperation('deadline', body)}
+                onMarkDeadlineMet={(deadlineId) =>
+                  updateOperation('deadline', deadlineId, { status: 'met' })
+                }
+              />
               <div className="space-y-4 xl:col-span-2">
                 <h3 className="text-sm font-black">Communication log</h3>
                 <form
