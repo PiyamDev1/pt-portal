@@ -55,8 +55,6 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import {
-  PAYMENT_METHODS,
-  PAYMENT_TYPES,
   PASSPORT_STATUSES,
   TABS,
   TRANSPORT_VEHICLES,
@@ -94,6 +92,7 @@ import {
 } from './PackagePassengerCreatePanel'
 import { PackagePassengerTable, type PackagePassengerEditForm } from './PackagePassengerTable'
 import { PackagePaymentTable, type PackagePaymentEditForm } from './PackagePaymentTable'
+import { PackagePaymentEntryForm, type PackagePaymentCreateForm } from './PackagePaymentEntryForm'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -219,7 +218,7 @@ export default function PackageOperationsWorkspace({
     roomAllocation: '',
     internalNotes: '',
   })
-  const [paymentForm, setPaymentForm] = useState({
+  const [paymentForm, setPaymentForm] = useState<PackagePaymentCreateForm>({
     amount: '',
     paymentType: 'deposit' as TravelPackagePaymentType,
     paymentMethod: 'bank_transfer' as TravelPackagePaymentMethod,
@@ -2081,143 +2080,15 @@ export default function PackageOperationsWorkspace({
                   </p>
                 </div>
               </div>
-              {groupFamilies.length > 0 && !selectedPaymentFamily ? (
-                <p className="border border-dashed border-cyan-300 bg-cyan-50 p-4 text-center text-sm font-bold text-cyan-900">
-                  Choose a family above to record a payment. The All families view is read-only.
-                </p>
-              ) : (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void addPayment()
-                  }}
-                  className="grid gap-3 border border-slate-200 bg-slate-50 p-4 md:grid-cols-3 xl:grid-cols-4"
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Amount"
-                    value={paymentForm.amount}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({ ...current, amount: event.target.value }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                    required
-                  />
-                  {paymentPlan?.installments?.some(
-                    (installment) => installment.status !== 'paid',
-                  ) ? (
-                    <select
-                      value={paymentForm.installmentId}
-                      onChange={(event) =>
-                        setPaymentForm((current) => ({
-                          ...current,
-                          installmentId: event.target.value,
-                        }))
-                      }
-                      className="border border-slate-300 px-3 py-2 text-sm"
-                    >
-                      <option value="">No installment link</option>
-                      {paymentPlan.installments
-                        ?.filter((installment) => installment.status !== 'paid')
-                        .map((installment) => (
-                          <option key={installment.id} value={installment.id}>
-                            Installment #{installment.sequence_number} · {installment.due_on} ·{' '}
-                            {formatMoney(installment.amount, paymentPlan.currency)}
-                          </option>
-                        ))}
-                    </select>
-                  ) : null}
-                  <select
-                    value={paymentForm.paymentType}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({
-                        ...current,
-                        paymentType: event.target.value as TravelPackagePaymentType,
-                      }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    {PAYMENT_TYPES.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={paymentForm.paymentMethod}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({
-                        ...current,
-                        paymentMethod: event.target.value as TravelPackagePaymentMethod,
-                      }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    {PAYMENT_METHODS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={paymentForm.paymentStatus}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({
-                        ...current,
-                        paymentStatus: event.target.value as TravelPackagePaymentStatus,
-                      }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    <option value="completed">Received</option>
-                    <option value="pending">Requested / pending</option>
-                    <option value="failed">Failed</option>
-                  </select>
-                  <input
-                    type="datetime-local"
-                    title="Payment due"
-                    value={paymentForm.dueAt}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({ ...current, dueAt: event.target.value }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    placeholder={
-                      paymentForm.paymentType === 'account_credit'
-                        ? 'Previous package / refund reference'
-                        : 'Receipt / bank reference'
-                    }
-                    required={paymentForm.paymentType === 'account_credit'}
-                    value={paymentForm.receiptReference}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({
-                        ...current,
-                        receiptReference: event.target.value,
-                      }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    placeholder="Payment note"
-                    value={paymentForm.notes}
-                    onChange={(event) =>
-                      setPaymentForm((current) => ({ ...current, notes: event.target.value }))
-                    }
-                    className="border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={saving === 'payment'}
-                    className="inline-flex items-center justify-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Record payment
-                  </button>
-                </form>
-              )}
+              <PackagePaymentEntryForm
+                paymentForm={paymentForm}
+                setPaymentForm={setPaymentForm}
+                paymentPlan={paymentPlan}
+                familySelectionRequired={groupFamilies.length > 0}
+                familySelected={Boolean(selectedPaymentFamily)}
+                saving={saving === 'payment'}
+                onRecordPayment={addPayment}
+              />
               {(groupFamilies.length === 0 || selectedPaymentFamily) && (
                 <section className="flex flex-col gap-3 border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
