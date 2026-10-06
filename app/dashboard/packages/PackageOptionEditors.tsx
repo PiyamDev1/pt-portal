@@ -312,7 +312,11 @@ function LinkedFlightGroupEditor({
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   {FLIGHT_COST_FIELDS.map((field) => (
                     <label key={field.costKey} className="block min-w-0">
-                      <span className="block min-h-7 text-[11px] font-semibold leading-tight text-slate-500">
+                      <span
+                        className={`block min-h-7 text-[11px] font-semibold leading-tight ${
+                          field.adjusted ? 'text-slate-500' : 'text-red-600'
+                        }`}
+                      >
                         {field.label}
                       </span>
                       <div className="mt-1 flex min-h-9 items-center rounded-lg border-2 border-slate-200 bg-white px-2">
@@ -969,7 +973,11 @@ export function OptionEditor({
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {FLIGHT_COST_FIELDS.map((field) => (
             <label key={field.costKey} className="block min-w-0">
-              <span className="block min-h-7 text-[11px] font-semibold leading-tight text-slate-500">
+              <span
+                className={`block min-h-7 text-[11px] font-semibold leading-tight ${
+                  field.adjusted ? 'text-slate-500' : 'text-red-600'
+                }`}
+              >
                 {field.label}
               </span>
               <div className="mt-1 flex min-h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
