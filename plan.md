@@ -407,6 +407,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract quotation actions and customer-link status presentation while keeping save, duplicate, and sharing mutations in the quotation client.
   - [x] Extract the Package Operations task panel while keeping task API mutations in the operations workspace.
   - [x] Extract the Package Operations deadline panel while keeping deadline API mutations in the operations workspace.
+  - [x] Extract the Package Operations communication log while keeping communication API mutations in the operations workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
