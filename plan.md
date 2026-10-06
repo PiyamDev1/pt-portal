@@ -419,6 +419,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract package branch and employee responsibility controls while keeping assignment updates in the operations workspace.
   - [x] Extract package status, customer, and travel detail presentation while keeping status guards and package updates in the operations workspace.
   - [x] Extract Commission readiness presentation while keeping readiness loading, safe reconciliation, and package mutations in the operations workspace.
+  - [x] Extract final-quote context and route assignments from Transport Voucher while keeping voucher reset and itinerary rebuild handlers in the operations workspace.
   - [x] Reuse a shared family-option type across passenger and payment panels.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
