@@ -61,6 +61,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Booking filters and workspace tools now have a controlled presentation component; the client retains filter state, saved-view, refresh, and CSV-export behavior.
 - Booking mobile and desktop previous/today/next controls now share one responsive component and canonical view type; date calculations stay in the workspace.
 - POS ledger advanced filters now render through a controlled panel with live catalogue/supplier/till/agent options; filter state, reset behavior, and transaction filtering stay in the POS workspace.
+- POS ledger period/date controls, search, sort, and filter-toggle chrome now share a controlled toolbar; date normalization, filter state, and search behavior stay in the POS workspace.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata; the repository now documents its two separate migration histories and guards their inventory in CI.
 
@@ -435,6 +436,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Booking workspace filters and tool buttons while keeping filter state and actions in the workspace.
   - [x] Share Booking period navigation controls across mobile and desktop without moving date calculations out of the workspace.
   - [x] Extract POS ledger advanced filters while retaining filter state, reset behavior, and transaction filtering in the POS workspace.
+  - [x] Extract POS ledger period/date, search, sort, and filter-toggle controls while retaining all state and calculations in the POS workspace.
   - [x] Extract the Packages dashboard header and summary tiles while keeping role checks and count calculations in the dashboard client.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.

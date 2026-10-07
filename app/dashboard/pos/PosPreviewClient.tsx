@@ -20,16 +20,13 @@ import {
   BadgePoundSterling,
   Banknote,
   Building2,
-  CalendarDays,
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Clock3,
   Coins,
   CreditCard,
   FileText,
-  Filter,
   HelpCircle,
   Landmark,
   Plane,
@@ -48,6 +45,7 @@ import type { ApiResponse } from '@/lib/api/http'
 import type {
   PosLedgerPayload,
   PosLedgerPaymentMethod,
+  PosLedgerPeriod,
   PosLedgerSummary,
   PosLedgerTransaction,
   PosBootstrapPayload,
@@ -59,6 +57,7 @@ import type {
 import { formatMoney, formatSignedMoney } from '@/lib/pos/format'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 import PosLedgerFilters, { type PosLedgerPaymentFilter } from './PosLedgerFilters'
+import PosLedgerToolbar, { type PosLedgerSort } from './PosLedgerToolbar'
 import PosSelectedTransactionDetails from './PosSelectedTransactionDetails'
 import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
 import {
@@ -71,7 +70,6 @@ type IconComponent = ComponentType<{ className?: string }>
 type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Split'
 type TenderDestination = 'OUR_ACCOUNT' | 'SUPPLIER_DIRECT'
 type OutgoingType = 'Refund' | 'Expense' | 'Supplier payment'
-type LedgerPeriod = 'day' | 'month'
 
 const DEMO_TODAY = '2026-09-08'
 const DEFAULT_LEDGER_HEIGHT = 240
@@ -766,7 +764,6 @@ const SUPPLIERS = [
   { name: 'Al Haram Travel', area: 'Packages', balance: 2150 },
 ]
 
-const SORTS = ['Supplier', 'Newest'] as const
 const NADRA_SERVICE_IDS = ['nicop-cnic', 'poc', 'frc', 'crc', 'poa']
 const EMPTY_LEDGER_SUMMARY: PosLedgerSummary = {
   moneyIn: 0,
@@ -812,7 +809,7 @@ function formatLoadedAt(value: string | null, timezone: string) {
   }).format(date)
 }
 
-function shiftLedgerDate(date: string, period: LedgerPeriod, offset: number) {
+function shiftLedgerDate(date: string, period: PosLedgerPeriod, offset: number) {
   const value = new Date(`${date}T12:00:00Z`)
   if (period === 'month') {
     value.setUTCDate(1)
@@ -901,8 +898,8 @@ export default function PosPreviewClient({
   const [loyaltyFilter, setLoyaltyFilter] = useState('')
   const [minAmountFilter, setMinAmountFilter] = useState('')
   const [maxAmountFilter, setMaxAmountFilter] = useState('')
-  const [sortBy, setSortBy] = useState<(typeof SORTS)[number]>('Supplier')
-  const [ledgerPeriod, setLedgerPeriod] = useState<LedgerPeriod>(
+  const [sortBy, setSortBy] = useState<PosLedgerSort>('Supplier')
+  const [ledgerPeriod, setLedgerPeriod] = useState<PosLedgerPeriod>(
     initialLedger?.context.period || 'day',
   )
   const [ledgerDate, setLedgerDate] = useState(initialLedger?.context.date || DEMO_TODAY)
@@ -2299,123 +2296,30 @@ export default function PosPreviewClient({
                   {sortBy === 'Supplier' ? 'suppliers first' : 'newest first'}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <div
-                  data-pos-tour="ledger-period"
-                  className="flex h-9 rounded-xl border border-slate-200 bg-white p-1"
-                >
-                  {(['day', 'month'] as LedgerPeriod[]).map((period) => (
-                    <button
-                      key={period}
-                      type="button"
-                      onClick={() => setLedgerPeriod(period)}
-                      aria-pressed={ledgerPeriod === period}
-                      className={`rounded-lg px-2 text-[10px] font-black capitalize transition ${
-                        ledgerPeriod === period
-                          ? 'bg-slate-950 text-white'
-                          : 'text-slate-500 hover:bg-slate-100'
-                      }`}
-                    >
-                      {period}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex h-9 items-center rounded-xl border border-slate-200 bg-white">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setLedgerDate((current) => shiftLedgerDate(current, ledgerPeriod, -1))
-                    }
-                    aria-label={ledgerPeriod === 'month' ? 'Previous month' : 'Previous day'}
-                    className="flex h-full w-8 items-center justify-center rounded-l-xl text-slate-500 hover:bg-slate-100"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <label className="relative h-full">
-                    <span className="sr-only">
-                      {ledgerPeriod === 'month' ? 'Ledger month' : 'Ledger date'}
-                    </span>
-                    <CalendarDays className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type={ledgerPeriod === 'month' ? 'month' : 'date'}
-                      value={ledgerPeriod === 'month' ? ledgerDate.slice(0, 7) : ledgerDate}
-                      onChange={(event) =>
-                        setLedgerDate(
-                          ledgerPeriod === 'month'
-                            ? `${event.target.value}-01`
-                            : event.target.value,
-                        )
-                      }
-                      className="h-full w-[8.5rem] border-x border-slate-200 bg-white pl-7 pr-1 text-[10px] font-bold text-slate-700 outline-none focus:bg-red-50/40"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setLedgerDate((current) => shiftLedgerDate(current, ledgerPeriod, 1))
-                    }
-                    aria-label={ledgerPeriod === 'month' ? 'Next month' : 'Next day'}
-                    className="flex h-full w-8 items-center justify-center rounded-r-xl text-slate-500 hover:bg-slate-100"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLedgerPeriod('day')
-                    setLedgerDate(todayDate)
-                  }}
-                  className={`h-9 rounded-xl border px-3 text-[10px] font-black transition ${
-                    ledgerPeriod === 'day' && ledgerDate === todayDate
-                      ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  Today
-                </button>
-                <label data-pos-tour="ledger-search" className="relative min-w-0 flex-1 lg:w-56">
-                  <span className="sr-only">Search transactions</span>
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    ref={searchInputRef}
-                    aria-label="Search transactions"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search reference or name"
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-xs font-semibold text-slate-900 outline-none transition placeholder:font-normal focus:border-[#8b1e2d] focus:ring-2 focus:ring-red-100"
-                  />
-                  <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-black text-slate-400">
-                    /
-                  </kbd>
-                </label>
-                <label className="sr-only" htmlFor="ledger-sort">
-                  Sort ledger
-                </label>
-                <select
-                  id="ledger-sort"
-                  value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value as (typeof SORTS)[number])}
-                  className="h-9 rounded-xl border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700 outline-none focus:border-[#8b1e2d]"
-                >
-                  <option value="Supplier">Supplier sort</option>
-                  <option value="Newest">Newest first</option>
-                </select>
-                <button
-                  type="button"
-                  data-pos-tour="ledger-filters"
-                  onClick={() => setFiltersOpen((current) => !current)}
-                  aria-expanded={filtersOpen}
-                  className={`flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
-                    filtersOpen
-                      ? 'border-[#8b1e2d] bg-red-50 text-[#8b1e2d]'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <Filter className="h-4 w-4" />
-                  <span className="hidden sm:inline">Filters</span>
-                </button>
-              </div>
+              <PosLedgerToolbar
+                period={ledgerPeriod}
+                date={ledgerDate}
+                todayDate={todayDate}
+                search={search}
+                sortBy={sortBy}
+                filtersOpen={filtersOpen}
+                searchInputRef={searchInputRef}
+                onPeriodChange={setLedgerPeriod}
+                onPrevious={() =>
+                  setLedgerDate((current) => shiftLedgerDate(current, ledgerPeriod, -1))
+                }
+                onDateChange={(value) =>
+                  setLedgerDate(ledgerPeriod === 'month' ? `${value}-01` : value)
+                }
+                onNext={() => setLedgerDate((current) => shiftLedgerDate(current, ledgerPeriod, 1))}
+                onToday={() => {
+                  setLedgerPeriod('day')
+                  setLedgerDate(todayDate)
+                }}
+                onSearchChange={setSearch}
+                onSortChange={setSortBy}
+                onToggleFilters={() => setFiltersOpen((current) => !current)}
+              />
             </div>
 
             {ledgerPeriod === 'month' && (
