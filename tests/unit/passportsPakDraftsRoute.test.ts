@@ -122,6 +122,19 @@ describe('POST /api/passports/pak/drafts', () => {
     expect(mocks.from).not.toHaveBeenCalledWith('applications')
   })
 
+  it('returns 400 for malformed JSON before creating a database client', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/passports/pak/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(mocks.getSupabaseClient).not.toHaveBeenCalled()
+  })
+
   it('does not store old passport number for first-time drafts', async () => {
     const insertQuery = mocks.makeQuery({
       data: {

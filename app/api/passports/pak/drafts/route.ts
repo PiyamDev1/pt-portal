@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 import {
@@ -18,6 +19,7 @@ import {
   type PakPassportDraftAssignmentEmailResult,
 } from '@/lib/passports/pakDraftAssignmentEmail'
 import type { Database } from '@/types/supabase'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -60,6 +62,7 @@ const DRAFT_SELECT = `
 `
 
 const MAX_DRAFT_ID_ATTEMPTS = 5
+const draftActionBodySchema = z.object({}).passthrough()
 
 type DraftRow = {
   id: string
@@ -616,7 +619,14 @@ export async function POST(request: NextRequest) {
   if (!access.authorized) return access.response
 
   try {
-    const body = (await request.json()) as Record<string, unknown>
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      draftActionBodySchema,
+    )
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
+
     body.currentUserId = access.user.id
     body.userId = access.user.id
     const action = cleanText(body.action || 'create')
