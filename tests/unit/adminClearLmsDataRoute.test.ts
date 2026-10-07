@@ -1,37 +1,59 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const neq = vi.fn()
-  const deleteFn = vi.fn(() => ({ neq }))
-  const from = vi.fn(() => ({ delete: deleteFn }))
   const rpc = vi.fn()
-  const createClient = vi.fn(() => ({ from, rpc }))
+  const getServiceSupabaseClient = vi.fn(() => ({ rpc }))
+  const requireLmsAdmin = vi.fn()
+  const verifyLmsDestructiveAction = vi.fn()
+  const enforceRateLimit = vi.fn()
+  const getClientIp = vi.fn(() => '127.0.0.1')
 
-  return { neq, deleteFn, from, rpc, createClient }
+  return {
+    rpc,
+    getServiceSupabaseClient,
+    requireLmsAdmin,
+    verifyLmsDestructiveAction,
+    enforceRateLimit,
+    getClientIp,
+  }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 vi.mock('@/lib/lms/apiAuth', () => ({
-  requireLmsAdmin: vi.fn(async () => ({
-    authorized: true,
-    user: { id: 'admin-1', email: 'admin@example.com' },
-    employee: { id: 'admin-1' },
-  })),
-  verifyLmsDestructiveAction: vi.fn(async () => null),
+  requireLmsAdmin: mocks.requireLmsAdmin,
+  verifyLmsDestructiveAction: mocks.verifyLmsDestructiveAction,
+}))
+vi.mock('@/lib/security/rateLimit', () => ({
+  enforceRateLimit: mocks.enforceRateLimit,
+  getClientIp: mocks.getClientIp,
 }))
 
 import { POST } from '@/app/api/admin/clear-lms-data/route'
 
 describe('POST /api/admin/clear-lms-data', () => {
+  const originalEnv = { ...process.env }
+
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.neq.mockResolvedValue({ error: null })
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
+    mocks.requireLmsAdmin.mockResolvedValue({
+      authorized: true,
+      user: { id: 'admin-1', email: 'admin@example.com' },
+      employee: { id: 'admin-1' },
+    })
+    mocks.verifyLmsDestructiveAction.mockResolvedValue(null)
+    mocks.enforceRateLimit.mockResolvedValue({ allowed: true })
     mocks.rpc.mockResolvedValue({ data: {}, error: null })
   })
 
-  it('returns semantic success payload when all tables are cleared', async () => {
+  afterAll(() => {
+    process.env = originalEnv
+  })
+
+  it('returns the legacy table-list success payload and route-specific rate limit', async () => {
     const response = await POST(new Request('http://localhost/api/admin/clear-lms-data'))
     const payload = await response.json()
 
@@ -40,11 +62,15 @@ describe('POST /api/admin/clear-lms-data', () => {
       clearedTables: ['loan_installments', 'loan_transactions', 'loans', 'loan_customers'],
       clearedTableCount: 4,
     })
+    expect(mocks.enforceRateLimit).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.objectContaining({ scope: 'admin.clear-lms-data' }),
+    )
     expect(mocks.rpc).toHaveBeenCalledWith('lms_clear_all_data')
   })
 
-  it('returns 500 with specific table failure', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'fk violation' } })
+  it('returns 500 with the database failure message', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'fk violation' } })
 
     const response = await POST(new Request('http://localhost/api/admin/clear-lms-data'))
     const payload = await response.json()
@@ -53,8 +79,8 @@ describe('POST /api/admin/clear-lms-data', () => {
     expect(payload).toEqual({ error: 'fk violation' })
   })
 
-  it('returns fallback 500 for thrown errors', async () => {
-    mocks.createClient.mockImplementationOnce(() => {
+  it('returns a consistent fallback 500 for thrown service-client errors', async () => {
+    mocks.getServiceSupabaseClient.mockImplementationOnce(() => {
       throw new Error('unexpected')
     })
 
