@@ -110,6 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: body, error: bodyError } = await parseBodyWithSchema(
     request,
     reservationCreateBodySchema,
+    { allowEmptyBody: false },
   )
   if (bodyError || !body) return apiError('Invalid JSON body', 400)
 

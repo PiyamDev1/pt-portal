@@ -26,6 +26,15 @@ describe('parseBodyWithSchema', () => {
     expect(result.error).toBe('Invalid JSON request body')
   })
 
+  it('can reject an empty body for routes that require JSON input', async () => {
+    const result = await parseBodyWithSchema(
+      new Request('https://portal.test/api/test', { method: 'POST' }),
+      z.object({}).passthrough(),
+      { allowEmptyBody: false },
+    )
+    expect(result.error).toBe('Invalid JSON request body')
+  })
+
   it('rejects a body whose declared length exceeds the limit before parsing', async () => {
     const result = await parseBodyWithSchema(
       new Request('https://portal.test/api/test', {

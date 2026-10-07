@@ -92,6 +92,7 @@ export async function PATCH(
   const { data: body, error: bodyError } = await parseBodyWithSchema(
     request,
     reservationUpdateBodySchema,
+    { allowEmptyBody: false },
   )
   if (bodyError || !body) return apiError('Invalid JSON body', 400)
 

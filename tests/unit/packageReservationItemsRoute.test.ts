@@ -232,6 +232,41 @@ describe('travel package reservation item routes', () => {
     )
   })
 
+  it('rejects malformed item creation before loading or writing reservation data', async () => {
+    const response = await POST(
+      new Request(
+        'http://localhost/api/travel-packages/package-1/reservations/reservation-1/items',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{',
+        },
+      ) as never,
+      { params: Promise.resolve({ id: 'package-1', reservationId: 'reservation-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.parentSelect).not.toHaveBeenCalled()
+    expect(mocks.itemInsert).not.toHaveBeenCalled()
+    expect(mocks.syncPackagePaymentStatus).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty item request before loading or writing reservation data', async () => {
+    const response = await POST(
+      new Request(
+        'http://localhost/api/travel-packages/package-1/reservations/reservation-1/items',
+        { method: 'POST' },
+      ) as never,
+      { params: Promise.resolve({ id: 'package-1', reservationId: 'reservation-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.parentSelect).not.toHaveBeenCalled()
+    expect(mocks.itemInsert).not.toHaveBeenCalled()
+  })
+
   it('updates an existing reservation item inside the package boundary', async () => {
     const response = await PATCH(makeRequest({ status: 'confirmed' }, 'PATCH') as never, {
       params: Promise.resolve({
@@ -248,5 +283,26 @@ describe('travel package reservation item routes', () => {
     expect(mocks.itemUpdateIdEq).toHaveBeenCalledWith('id', 'item-1')
     expect(mocks.itemUpdateReservationEq).toHaveBeenCalledWith('reservation_id', 'reservation-1')
     expect(mocks.itemUpdatePackageEq).toHaveBeenCalledWith('package_id', 'package-1')
+  })
+
+  it('rejects an empty reservation item update before writing', async () => {
+    const response = await PATCH(
+      new Request(
+        'http://localhost/api/travel-packages/package-1/reservations/reservation-1/items/item-1',
+        { method: 'PATCH' },
+      ) as never,
+      {
+        params: Promise.resolve({
+          id: 'package-1',
+          reservationId: 'reservation-1',
+          itemId: 'item-1',
+        }),
+      },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.itemUpdate).not.toHaveBeenCalled()
+    expect(mocks.syncPackagePaymentStatus).not.toHaveBeenCalled()
   })
 })

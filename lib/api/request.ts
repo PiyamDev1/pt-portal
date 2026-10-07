@@ -17,7 +17,7 @@ export type MultipartParseResult =
   | { data: FormData; error: null; status: 200 }
   | { data: null; error: string; status: 400 | 413 }
 
-async function readJsonBody(request: Request, maxBytes: number) {
+async function readJsonBody(request: Request, maxBytes: number, allowEmptyBody: boolean) {
   const contentLength = Number(request.headers.get('content-length'))
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     return { value: null, error: 'Request body is too large' }
@@ -34,7 +34,11 @@ async function readJsonBody(request: Request, maxBytes: number) {
     return { value: null, error: 'Request body is too large' }
   }
 
-  if (!text.trim()) return { value: {}, error: null }
+  if (!text.trim()) {
+    return allowEmptyBody
+      ? { value: {}, error: null }
+      : { value: null, error: 'Invalid JSON request body' }
+  }
 
   try {
     return { value: JSON.parse(text), error: null }
@@ -52,9 +56,13 @@ async function readJsonBody(request: Request, maxBytes: number) {
 export async function parseBodyWithSchema<TSchema extends z.ZodType>(
   request: Request,
   schema: TSchema,
-  options: { maxBytes?: number } = {},
+  options: { maxBytes?: number; allowEmptyBody?: boolean } = {},
 ): Promise<BodyParseResult<z.output<TSchema>>> {
-  const parsedJson = await readJsonBody(request, options.maxBytes ?? DEFAULT_JSON_BODY_LIMIT_BYTES)
+  const parsedJson = await readJsonBody(
+    request,
+    options.maxBytes ?? DEFAULT_JSON_BODY_LIMIT_BYTES,
+    options.allowEmptyBody ?? true,
+  )
   if (parsedJson.error) {
     return { data: null, error: parsedJson.error, issues: [] }
   }
