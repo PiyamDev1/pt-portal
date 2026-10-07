@@ -1,8 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
 import { DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import {
   logServerEvent,
@@ -15,10 +15,6 @@ import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-function getAdminClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
@@ -186,7 +182,7 @@ export async function GET() {
   const access = await requireMaintenanceSession()
   if (!access.authorized) return access.response
 
-  const admin = getAdminClient()
+  const admin = getServiceSupabaseClient()
   const { data, error } = await admin
     .from('notice_board_slides')
     .select('*')
@@ -245,7 +241,7 @@ export async function POST(request: Request) {
     maxBytes: 16 * 1024,
   })
   if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
-  const { data, error } = await getAdminClient()
+  const { data, error } = await getServiceSupabaseClient()
     .from('notice_board_slides')
     .insert(sanitizeSlide(body, access.user.id))
     .select('*')
@@ -267,7 +263,7 @@ export async function PATCH(request: Request) {
   })
   if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
-  const admin = getAdminClient()
+  const admin = getServiceSupabaseClient()
   const { data: previousSlide } = await admin
     .from('notice_board_slides')
     .select('image_storage_provider, image_storage_bucket, image_storage_key')
@@ -305,7 +301,7 @@ export async function DELETE(request: Request) {
   })
   if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
-  const { data: deletedSlide, error } = await getAdminClient()
+  const { data: deletedSlide, error } = await getServiceSupabaseClient()
     .from('notice_board_slides')
     .delete()
     .eq('id', body.id)

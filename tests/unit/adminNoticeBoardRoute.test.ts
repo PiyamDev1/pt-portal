@@ -16,8 +16,8 @@ vi.mock('@/lib/security/rateLimit', () => ({
   getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: vi.fn(() => ({
     from: vi.fn(() => ({
       insert: mocks.insert,
     })),

@@ -479,6 +479,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Convert visa country and preset seed handlers to typed routes and the shared service-client boundary while preserving existing role guards, rate limits, and response contracts.
     - [x] Convert the employee status handler to a typed route while preserving manager-scope checks and fresh second-factor verification for disabling accounts.
     - [x] Convert the LMS service-category seed endpoint to a typed route and the shared server-only Supabase client while preserving maintenance authorization, rate limits, normalization, and response shape.
+    - [x] Reuse the server-only Supabase client in Notice Board administration without changing maintenance access, validation, or storage cleanup behavior.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 
 ## Verification requirements
