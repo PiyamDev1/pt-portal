@@ -232,4 +232,20 @@ describe('travel package reservation routes', () => {
     expect(mocks.updateSecondEq).toHaveBeenCalledWith('package_id', 'package-1')
     expect(mocks.syncPackagePaymentStatus).toHaveBeenCalledWith(expect.anything(), 'package-1')
   })
+
+  it('rejects malformed reservation updates before writing or reconciling payments', async () => {
+    const response = await PATCH(
+      new Request('http://localhost/api/travel-packages/package-1/reservations/reservation-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }) as never,
+      { params: Promise.resolve({ id: 'package-1', reservationId: 'reservation-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.syncPackagePaymentStatus).not.toHaveBeenCalled()
+  })
 })

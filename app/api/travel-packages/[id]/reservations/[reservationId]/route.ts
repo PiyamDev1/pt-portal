@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type {
   TravelPackageReservation,
@@ -9,6 +10,9 @@ import type {
 import { selectTravelPackageReservationColumns } from '../columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentStatus } from '@/lib/packagePaymentsServer'
+import { z } from 'zod'
+
+const reservationUpdateBodySchema = z.object({}).passthrough()
 
 const SCHEMA_HINT =
   'Travel package reservation schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -66,14 +70,6 @@ function parseOptionalDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : text
 }
 
-async function parseBody(request: NextRequest) {
-  try {
-    return (await request.json()) as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
 function hasBodyKey(body: Record<string, unknown>, camelKey: string, snakeKey: string) {
   return (
     Object.prototype.hasOwnProperty.call(body, camelKey) ||
@@ -93,8 +89,11 @@ export async function PATCH(
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = await parseBody(request)
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    reservationUpdateBodySchema,
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const updatePayload: Record<string, unknown> = {
     updated_by: user.id,
