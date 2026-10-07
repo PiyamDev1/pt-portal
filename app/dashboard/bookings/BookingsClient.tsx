@@ -13,6 +13,7 @@ import BookingSettingsTab, {
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
 import BookingAppointmentDetailsFields from '@/app/dashboard/bookings/BookingAppointmentDetailsFields'
 import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
+import BookingQuickReschedulePanel from '@/app/dashboard/bookings/BookingQuickReschedulePanel'
 import BookingPeriodNavigation, {
   type BookingView,
 } from '@/app/dashboard/bookings/BookingPeriodNavigation'
@@ -1503,6 +1504,20 @@ export default function BookingsClient({
       })
       .slice(0, 5)
   }, [appointmentForm.manual_override, availableSlots, editingBooking, editingBookingStartMinutes])
+  const quickRescheduleOffsets = editingBooking
+    ? [15, 30, 60].map((minutes) => ({
+        minutes,
+        isoString: new Date(
+          new Date(editingBooking.start_time).getTime() + minutes * 60000,
+        ).toISOString(),
+      }))
+    : []
+  const firstAvailableRescheduleSlot = availableSlots[0] ?? null
+  const nextAvailableRescheduleTime = editingBooking
+    ? availableSlots.find((slot) => slot.isoString > editingBooking.start_time)?.isoString ||
+      firstAvailableRescheduleSlot?.isoString ||
+      null
+    : null
   const manualOverrideWarning =
     expectedManualDuration !== null && manualDurationMinutes !== null
       ? manualDurationMinutes <= 0
@@ -2671,124 +2686,37 @@ export default function BookingsClient({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {editingBooking && (
-                <div className="md:col-span-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-indigo-900">Quick reschedule</p>
-                      <p className="text-xs text-indigo-700">
-                        Keep the booking details and move the appointment time in one tap. Current
-                        slot: {formatTime(editingBooking.start_time)}.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowRescheduleOnly((prev) => !prev)}
-                        className="ui-tap ui-focus rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                      >
-                        {showRescheduleOnly ? 'Show full edit' : 'Reschedule only'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAppointmentForm((p) => ({
-                            ...p,
-                            start_time: editingBooking.start_time,
-                          }))
-                        }
-                        className="ui-tap ui-focus rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                      >
-                        Keep current time
-                      </button>
-                      {[15, 30, 60].map((minutes) => {
-                        const shifted = new Date(
-                          new Date(editingBooking.start_time).getTime() + minutes * 60000,
-                        ).toISOString()
-                        return (
-                          <button
-                            key={`later-${minutes}`}
-                            type="button"
-                            onClick={() =>
-                              setAppointmentForm((p) => ({
-                                ...p,
-                                start_time: shifted,
-                                manual_override: false,
-                              }))
-                            }
-                            className="ui-tap ui-focus rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                          >
-                            +{minutes} min
-                          </button>
-                        )
-                      })}
-                      {availableSlots.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const nextLaterSlot = availableSlots.find(
-                              (slot) => slot.isoString > editingBooking.start_time,
-                            )
-                            const fallback = availableSlots[0]
-                            setAppointmentForm((p) => ({
-                              ...p,
-                              start_time: nextLaterSlot?.isoString || fallback.isoString,
-                              manual_override: false,
-                            }))
-                          }}
-                          className="ui-tap ui-focus rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                        >
-                          Next available
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (availableSlots[0])
-                          setAppointmentForm((p) => ({
-                            ...p,
-                            start_time: availableSlots[0].isoString,
-                            manual_override: false,
-                          }))
-                      }}
-                      disabled={availableSlots.length === 0}
-                      className="ui-tap ui-focus rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                    >
-                      First available
-                    </button>
-                    {rescheduleSuggestions.map((slot) => (
-                      <button
-                        key={slot.isoString}
-                        type="button"
-                        onClick={() =>
-                          setAppointmentForm((p) => ({
-                            ...p,
-                            start_time: slot.isoString,
-                            manual_override: false,
-                          }))
-                        }
-                        className={`ui-tap ui-focus rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          slot.isoString === appointmentForm.start_time
-                            ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {slot.time}
-                      </button>
-                    ))}
-                  </div>
-
-                  {currentSelectedMinutes !== null &&
+                <BookingQuickReschedulePanel
+                  currentTimeLabel={formatTime(editingBooking.start_time)}
+                  selectedTimeLabel={
+                    currentSelectedMinutes !== null ? formatTime(appointmentForm.start_time) : ''
+                  }
+                  selectedStartTime={appointmentForm.start_time}
+                  selectedTimeChanged={
+                    currentSelectedMinutes !== null &&
                     editingBookingStartMinutes !== null &&
-                    currentSelectedMinutes !== editingBookingStartMinutes && (
-                      <p className="mt-2 text-xs font-medium text-emerald-700">
-                        New time selected: {formatTime(appointmentForm.start_time)}.
-                      </p>
-                    )}
-                </div>
+                    currentSelectedMinutes !== editingBookingStartMinutes
+                  }
+                  rescheduleOnly={showRescheduleOnly}
+                  quickOffsets={quickRescheduleOffsets}
+                  firstAvailableSlot={firstAvailableRescheduleSlot}
+                  nextAvailableStartTime={nextAvailableRescheduleTime}
+                  suggestions={rescheduleSuggestions}
+                  onToggleRescheduleOnly={() => setShowRescheduleOnly((prev) => !prev)}
+                  onKeepCurrentTime={() =>
+                    setAppointmentForm((current) => ({
+                      ...current,
+                      start_time: editingBooking.start_time,
+                    }))
+                  }
+                  onSelectTime={(start_time) =>
+                    setAppointmentForm((current) => ({
+                      ...current,
+                      start_time,
+                      manual_override: false,
+                    }))
+                  }
+                />
               )}
 
               <BookingAppointmentDetailsFields
