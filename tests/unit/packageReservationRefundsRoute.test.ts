@@ -210,6 +210,43 @@ describe('travel package reservation refunds', () => {
     expect(mocks.reservationUpdate).not.toHaveBeenCalled()
   })
 
+  it('rejects malformed refund input before reading or writing financial records', async () => {
+    const response = await POST(
+      new Request(
+        'http://localhost/api/travel-packages/package-1/reservations/reservation-1/refunds',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{',
+        },
+      ) as never,
+      params,
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.reservationSelect).not.toHaveBeenCalled()
+    expect(mocks.paymentInsert).not.toHaveBeenCalled()
+    expect(mocks.reservationUpdate).not.toHaveBeenCalled()
+    expect(mocks.syncPackagePaymentFinancials).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty refund request before reading or writing financial records', async () => {
+    const response = await POST(
+      new Request(
+        'http://localhost/api/travel-packages/package-1/reservations/reservation-1/refunds',
+        { method: 'POST' },
+      ) as never,
+      params,
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.reservationSelect).not.toHaveBeenCalled()
+    expect(mocks.paymentInsert).not.toHaveBeenCalled()
+    expect(mocks.reservationUpdate).not.toHaveBeenCalled()
+  })
+
   it('deducts the profit-weighted quote discount allocation from customer refund capacity', async () => {
     const earlyBird = {
       id: 'early-bird',

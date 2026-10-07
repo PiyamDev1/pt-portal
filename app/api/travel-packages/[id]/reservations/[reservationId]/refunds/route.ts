@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
@@ -7,6 +8,9 @@ import { calculateTravelPackageDiscountAllocations } from '@/lib/packageDiscount
 import type { TravelPackagePaymentMethod, TravelPackageReservation } from '@/app/types/packages'
 import { selectTravelPackagePaymentColumns } from '../../../payments/columns'
 import { selectTravelPackageReservationColumns } from '../../columns'
+import { z } from 'zod'
+
+const reservationRefundBodySchema = z.object({}).passthrough()
 
 const METHODS = new Set<TravelPackagePaymentMethod>(['cash', 'bank_transfer', 'card', 'other'])
 
@@ -35,8 +39,12 @@ export async function POST(
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    reservationRefundBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const refundKind = cleanText(body.refundKind || body.refund_kind)
   if (!['supplier', 'customer'].includes(refundKind)) {
