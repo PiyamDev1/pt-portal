@@ -24,6 +24,9 @@ import BookingWorkspaceHeader, {
 } from '@/app/dashboard/bookings/BookingWorkspaceHeader'
 import BookingTodaySidebar from '@/app/dashboard/bookings/BookingTodaySidebar'
 import BookingWorkspaceTools from '@/app/dashboard/bookings/BookingWorkspaceTools'
+import BookingFilterFields, {
+  BookingLocationSelect,
+} from '@/app/dashboard/bookings/BookingFilterFields'
 import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
 import MemberServiceModal from '@/app/dashboard/bookings/MemberServiceModal'
 import { useBookingDraft } from '@/app/dashboard/bookings/useBookingDraft'
@@ -53,7 +56,7 @@ import {
   type SlotLoadResult,
   type SlotOption,
 } from './bookingClientModel'
-import { CalendarIcon, CheckIcon, CloseIcon, FilterIcon, PinIcon } from './BookingIcons'
+import { CalendarIcon, CheckIcon, CloseIcon, FilterIcon } from './BookingIcons'
 import { type BookingReport, type SavedBookingView } from './bookingClientApi'
 import { BookingRow, DayAgendaModal, SelectedDayPanel } from './BookingDayViews'
 import { SlotTimeline, WeekTimeline } from './BookingTimelines'
@@ -1702,62 +1705,24 @@ export default function BookingsClient({
 
                   {mobileFiltersOpen && (
                     <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                      {branchLocations.length > 0 && (
-                        <select
-                          value={selectedLocationId}
-                          onChange={(e) => setSelectedLocationId(e.target.value)}
-                          className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                        >
-                          {branchLocations.map((location) => (
-                            <option key={location.id} value={location.id}>
-                              {location.name}
-                              {location.branch_code ? ` (${location.branch_code})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      <select
-                        value={sourceFilter}
-                        onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
-                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                      >
-                        <option value="all">All sources</option>
-                        <option value={BookingSource.PORTAL}>Portal</option>
-                        <option value={BookingSource.WHATSAPP}>WhatsApp</option>
-                        <option value={BookingSource.WEBSITE}>Website</option>
-                      </select>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as 'all' | BookingStatus)}
-                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                      >
-                        <option value="all">All statuses</option>
-                        <option value={BookingStatus.PENDING}>Pending</option>
-                        <option value={BookingStatus.CONFIRMED}>Confirmed</option>
-                        <option value={BookingStatus.COMPLETED}>Completed</option>
-                        <option value={BookingStatus.CANCELLED}>Cancelled</option>
-                      </select>
-                      <select
-                        value={serviceFilter}
-                        onChange={(e) => setServiceFilter(e.target.value)}
-                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                      >
-                        <option value="all">All services</option>
-                        {serviceOptions.map((service) => (
-                          <option key={service.id} value={service.id}>
-                            {service.name}
-                          </option>
-                        ))}
-                      </select>
-                      <label className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={showCancelled}
-                          onChange={(e) => setShowCancelled(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-red-700"
-                        />
-                        Show cancelled
-                      </label>
+                      <BookingLocationSelect
+                        variant="mobile"
+                        locations={branchLocations}
+                        selectedLocationId={selectedLocationId}
+                        onChange={setSelectedLocationId}
+                      />
+                      <BookingFilterFields
+                        variant="mobile"
+                        sourceFilter={sourceFilter}
+                        statusFilter={statusFilter}
+                        serviceFilter={serviceFilter}
+                        serviceOptions={serviceOptions}
+                        showCancelled={showCancelled}
+                        onSourceChange={setSourceFilter}
+                        onStatusChange={setStatusFilter}
+                        onServiceChange={setServiceFilter}
+                        onShowCancelledChange={setShowCancelled}
+                      />
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={openSaveViewForm}
@@ -1800,22 +1765,13 @@ export default function BookingsClient({
                 onMemberService={() => setShowMemberServiceModal(true)}
               />
 
-              {!showSettings && branchLocations.length > 0 && (
-                <div className="relative">
-                  <PinIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <select
-                    value={selectedLocationId}
-                    onChange={(e) => setSelectedLocationId(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-700 transition-colors hover:border-slate-300 sm:text-sm"
-                  >
-                    {branchLocations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name}
-                        {location.branch_code ? ` (${location.branch_code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {!showSettings && (
+                <BookingLocationSelect
+                  variant="desktop"
+                  locations={branchLocations}
+                  selectedLocationId={selectedLocationId}
+                  onChange={setSelectedLocationId}
+                />
               )}
 
               {!showSettings && (

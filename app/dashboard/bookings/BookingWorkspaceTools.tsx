@@ -1,19 +1,9 @@
-import { BookingSource, BookingStatus } from '@/app/types/bookings'
-import type { BookingServiceOption } from './bookingClientModel'
+import BookingFilterFields, { type BookingFilterFieldsProps } from './BookingFilterFields'
 import { RefreshIcon } from './BookingIcons'
 
-type BookingWorkspaceToolsProps = {
-  sourceFilter: 'all' | BookingSource
-  statusFilter: 'all' | BookingStatus
-  serviceFilter: string
-  serviceOptions: BookingServiceOption[]
-  showCancelled: boolean
+type BookingWorkspaceToolsProps = Omit<BookingFilterFieldsProps, 'variant'> & {
   refreshing: boolean
   onResetFilters: () => void
-  onSourceChange: (value: 'all' | BookingSource) => void
-  onStatusChange: (value: 'all' | BookingStatus) => void
-  onServiceChange: (value: string) => void
-  onShowCancelledChange: (value: boolean) => void
   onRefresh: () => void
   onSaveView: () => void
   onExport: () => void
@@ -57,53 +47,18 @@ export default function BookingWorkspaceTools({
               Reset filters
             </button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <select
-              value={sourceFilter}
-              onChange={(event) => onSourceChange(event.target.value as 'all' | BookingSource)}
-              aria-label="Booking source"
-              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-            >
-              <option value="all">All sources</option>
-              <option value={BookingSource.PORTAL}>Portal</option>
-              <option value={BookingSource.WHATSAPP}>WhatsApp</option>
-              <option value={BookingSource.WEBSITE}>Website</option>
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(event) => onStatusChange(event.target.value as 'all' | BookingStatus)}
-              aria-label="Appointment status"
-              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-            >
-              <option value="all">All statuses</option>
-              <option value={BookingStatus.PENDING}>Pending</option>
-              <option value={BookingStatus.CONFIRMED}>Confirmed</option>
-              <option value={BookingStatus.COMPLETED}>Completed</option>
-              <option value={BookingStatus.CANCELLED}>Cancelled</option>
-            </select>
-            <select
-              value={serviceFilter}
-              onChange={(event) => onServiceChange(event.target.value)}
-              aria-label="Booking service"
-              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-            >
-              <option value="all">All services</option>
-              {serviceOptions.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.name}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={showCancelled}
-                onChange={(event) => onShowCancelledChange(event.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-              />
-              Include cancelled
-            </label>
-          </div>
+          <BookingFilterFields
+            variant="desktop"
+            sourceFilter={sourceFilter}
+            statusFilter={statusFilter}
+            serviceFilter={serviceFilter}
+            serviceOptions={serviceOptions}
+            showCancelled={showCancelled}
+            onSourceChange={onSourceChange}
+            onStatusChange={onStatusChange}
+            onServiceChange={onServiceChange}
+            onShowCancelledChange={onShowCancelledChange}
+          />
         </div>
         <div className="flex flex-wrap gap-2 xl:justify-end">
           <button

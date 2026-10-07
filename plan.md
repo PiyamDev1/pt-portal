@@ -435,6 +435,8 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract the expanded POS transaction details presentation while keeping selection, permissions, and actions in the workspace.
   - [x] Extract Booking's daily queue and action sidebar while keeping counts, scheduling rules, and mutations in the workspace.
   - [x] Extract Booking workspace filters and tool buttons while keeping filter state and actions in the workspace.
+    - [x] Share Booking source, status, service, and cancelled-visibility fields between mobile and desktop while retaining parent-owned filter state.
+    - [x] Reuse one branch selector in mobile filters and the desktop toolbar while preserving responsive presentation.
   - [x] Share Booking period navigation controls across mobile and desktop without moving date calculations out of the workspace.
   - [x] Extract Booking workspace heading, view selection, and active-filter summary while keeping date derivation, filter values, and view transitions in BookingsClient.
   - [x] Extract POS ledger advanced filters while retaining filter state, reset behavior, and transaction filtering in the POS workspace.

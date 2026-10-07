@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-
-import BookingWorkspaceTools from '@/app/dashboard/bookings/BookingWorkspaceTools'
+import BookingFilterFields, {
+  BookingLocationSelect,
+} from '@/app/dashboard/bookings/BookingFilterFields'
 import { BookingSource, BookingStatus } from '@/app/types/bookings'
+import type { BranchLocationOption } from '@/app/dashboard/settings/components/BookingSettingsTab'
 import type { BookingServiceOption } from '@/app/dashboard/bookings/bookingClientModel'
 
 const serviceOptions: BookingServiceOption[] = [
@@ -15,34 +17,30 @@ const serviceOptions: BookingServiceOption[] = [
     duration_per_additional_person_minutes: 0,
   },
 ]
+const locations: BranchLocationOption[] = [
+  { id: 'central', name: 'London Central', branch_code: 'LON' },
+  { id: 'north', name: 'Manchester North', branch_code: 'MAN' },
+]
 
-describe('BookingWorkspaceTools', () => {
-  it('delegates filter changes, reset, refresh, save, and export actions', () => {
-    const onResetFilters = vi.fn()
+describe('BookingFilterFields', () => {
+  it('uses mobile sizing and delegates changes through the shared filter contract', () => {
     const onSourceChange = vi.fn()
     const onStatusChange = vi.fn()
     const onServiceChange = vi.fn()
     const onShowCancelledChange = vi.fn()
-    const onRefresh = vi.fn()
-    const onSaveView = vi.fn()
-    const onExport = vi.fn()
 
     render(
-      <BookingWorkspaceTools
+      <BookingFilterFields
+        variant="mobile"
         sourceFilter="all"
         statusFilter="all"
         serviceFilter="all"
         serviceOptions={serviceOptions}
         showCancelled
-        refreshing={false}
-        onResetFilters={onResetFilters}
         onSourceChange={onSourceChange}
         onStatusChange={onStatusChange}
         onServiceChange={onServiceChange}
         onShowCancelledChange={onShowCancelledChange}
-        onRefresh={onRefresh}
-        onSaveView={onSaveView}
-        onExport={onExport}
       />,
     )
 
@@ -56,41 +54,31 @@ describe('BookingWorkspaceTools', () => {
       target: { value: 'visa-review' },
     })
     fireEvent.click(screen.getByLabelText('Show cancelled'))
-    fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save view' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
 
     expect(onSourceChange).toHaveBeenCalledWith(BookingSource.WHATSAPP)
     expect(onStatusChange).toHaveBeenCalledWith(BookingStatus.CONFIRMED)
     expect(onServiceChange).toHaveBeenCalledWith('visa-review')
     expect(onShowCancelledChange).toHaveBeenCalledWith(false)
-    expect(onResetFilters).toHaveBeenCalledOnce()
-    expect(onRefresh).toHaveBeenCalledOnce()
-    expect(onSaveView).toHaveBeenCalledOnce()
-    expect(onExport).toHaveBeenCalledOnce()
+    expect(screen.getByRole('option', { name: 'Visa review' })).toBeTruthy()
   })
 
-  it('disables refresh while the parent is already refreshing', () => {
-    render(
-      <BookingWorkspaceTools
-        sourceFilter="all"
-        statusFilter="all"
-        serviceFilter="all"
-        serviceOptions={[]}
-        showCancelled
-        refreshing
-        onResetFilters={vi.fn()}
-        onSourceChange={vi.fn()}
-        onStatusChange={vi.fn()}
-        onServiceChange={vi.fn()}
-        onShowCancelledChange={vi.fn()}
-        onRefresh={vi.fn()}
-        onSaveView={vi.fn()}
-        onExport={vi.fn()}
-      />,
-    )
+  it('shares branch options and selection behavior across mobile and desktop layouts', () => {
+    const onChange = vi.fn()
+    const props = {
+      locations,
+      selectedLocationId: 'central',
+      onChange,
+    }
+    const { rerender } = render(<BookingLocationSelect variant="mobile" {...props} />)
 
-    expect(screen.getByRole('button', { name: 'Refreshing' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('option', { name: 'London Central (LON)' })).toBeTruthy()
+    expect(screen.getByLabelText('Branch location').className).toContain('min-h-11')
+    fireEvent.change(screen.getByLabelText('Branch location'), { target: { value: 'north' } })
+    expect(onChange).toHaveBeenCalledWith('north')
+
+    rerender(<BookingLocationSelect variant="desktop" {...props} />)
+    expect(screen.getByLabelText('Branch location').className).toContain('pl-9')
+    fireEvent.change(screen.getByLabelText('Branch location'), { target: { value: 'north' } })
+    expect(onChange).toHaveBeenCalledTimes(2)
   })
 })
