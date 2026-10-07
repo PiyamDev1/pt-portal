@@ -9,9 +9,10 @@
 
 import { useState, memo } from 'react'
 import { toast } from 'sonner'
-import { Trash2, Save, X, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { GBPassportPricing, PricingEditValues } from '@/app/types/pricing'
+import PricingEntryActions from './PricingEntryActions'
 
 interface GBPassportPricingTabProps {
   pricing: GBPassportPricing[]
@@ -231,22 +232,13 @@ function GBPassportPricingTabCore({
                       <td className="py-3 px-4 text-right text-gray-600">
                         {(Number(editValues.sale_price) - Number(editValues.cost_price)).toFixed(2)}
                       </td>
-                      <td className="py-3 px-4 text-center flex gap-2 justify-center">
-                        <button
-                          onClick={onSave}
-                          className="text-green-600 hover:text-green-900"
-                          title="Save"
-                        >
-                          <Save className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="text-gray-600 hover:text-gray-900"
-                          title="Cancel"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </td>
+                      <PricingEntryActions
+                        isEditing
+                        onSave={onSave}
+                        onCancel={() => setEditingId(null)}
+                        onEdit={() => onEdit(item)}
+                        onDelete={() => onDelete(item.id)}
+                      />
                     </>
                   ) : (
                     <>
@@ -255,21 +247,13 @@ function GBPassportPricingTabCore({
                       <td className="py-3 px-4 text-right font-medium text-green-600">
                         {(item.sale_price - item.cost_price).toFixed(2)}
                       </td>
-                      <td className="py-3 px-4 text-center flex gap-2 justify-center">
-                        <button
-                          onClick={() => onEdit(item)}
-                          className="text-blue-600 hover:text-blue-900 font-medium text-sm"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => onDelete(item.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
+                      <PricingEntryActions
+                        isEditing={false}
+                        onSave={onSave}
+                        onCancel={() => setEditingId(null)}
+                        onEdit={() => onEdit(item)}
+                        onDelete={() => onDelete(item.id)}
+                      />
                     </>
                   )}
                 </tr>
