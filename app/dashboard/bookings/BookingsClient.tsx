@@ -12,6 +12,9 @@ import BookingSettingsTab, {
   type BranchLocationOption,
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
 import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
+import BookingPeriodNavigation, {
+  type BookingView,
+} from '@/app/dashboard/bookings/BookingPeriodNavigation'
 import BookingTodaySidebar from '@/app/dashboard/bookings/BookingTodaySidebar'
 import BookingWorkspaceTools from '@/app/dashboard/bookings/BookingWorkspaceTools'
 import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
@@ -46,8 +49,6 @@ import {
 import {
   CalendarIcon,
   CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   ClockIcon,
   CloseIcon,
   ConfirmedIcon,
@@ -86,7 +87,7 @@ export default function BookingsClient({
     return d
   }, [])
 
-  const [view, setView] = useState<'today' | 'week' | 'list' | 'multi'>('today')
+  const [view, setView] = useState<BookingView>('today')
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today))
   const [monthStart, setMonthStart] = useState<Date>(() => startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState<Date>(today)
@@ -1733,41 +1734,14 @@ export default function BookingsClient({
             </div>
 
             <div className="bookings-mobile-only space-y-3 rounded-[1.5rem] border border-red-100 bg-white/90 p-3 shadow-sm md:hidden">
-              <div className="grid grid-cols-[auto_1fr_auto] gap-2">
-                <button
-                  onClick={goToPrev}
-                  className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-600"
-                  title={
-                    view === 'multi'
-                      ? 'Previous month'
-                      : view === 'today'
-                        ? 'Previous day'
-                        : 'Previous week'
-                  }
-                >
-                  <ChevronLeftIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={goToToday}
-                  className={`ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-semibold ${
-                    isCurrentPeriod
-                      ? 'border-red-200 bg-red-50 text-red-700'
-                      : 'border-slate-200 bg-white text-slate-700'
-                  }`}
-                >
-                  <ClockIcon className="h-4 w-4" />
-                  Today
-                </button>
-                <button
-                  onClick={goToNext}
-                  className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-600"
-                  title={
-                    view === 'multi' ? 'Next month' : view === 'today' ? 'Next day' : 'Next week'
-                  }
-                >
-                  <ChevronRightIcon className="h-4 w-4" />
-                </button>
-              </div>
+              <BookingPeriodNavigation
+                view={view}
+                isCurrentPeriod={isCurrentPeriod}
+                variant="mobile"
+                onPrevious={goToPrev}
+                onToday={goToToday}
+                onNext={goToNext}
+              />
 
               {isAdmin && (
                 <button
@@ -1910,41 +1884,14 @@ export default function BookingsClient({
             </div>
 
             <div className="bookings-desktop-only hidden items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-2.5 shadow-inner shadow-white/60 sm:p-3 md:flex">
-              <button
-                onClick={goToPrev}
-                className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
-                title={
-                  view === 'multi'
-                    ? 'Previous month'
-                    : view === 'today'
-                      ? 'Previous day'
-                      : 'Previous week'
-                }
-              >
-                <ChevronLeftIcon className="h-4 w-4" />
-              </button>
-
-              <button
-                onClick={goToToday}
-                className={`ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
-                  isCurrentPeriod
-                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <ClockIcon className="h-4 w-4" />
-                Today
-              </button>
-
-              <button
-                onClick={goToNext}
-                className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
-                title={
-                  view === 'multi' ? 'Next month' : view === 'today' ? 'Next day' : 'Next week'
-                }
-              >
-                <ChevronRightIcon className="h-4 w-4" />
-              </button>
+              <BookingPeriodNavigation
+                view={view}
+                isCurrentPeriod={isCurrentPeriod}
+                variant="desktop"
+                onPrevious={goToPrev}
+                onToday={goToToday}
+                onNext={goToNext}
+              />
 
               {isAdmin && (
                 <button

@@ -59,6 +59,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - Bookings now renders the daily queue, next appointment, desk actions, and waitlist summary in a focused sidebar while keeping calculations and scheduling callbacks in the workspace.
 - Packages now renders its workspace header, summary tiles, and quick links through a focused component; role checks and all summary counts remain with the dashboard owner.
 - Booking filters and workspace tools now have a controlled presentation component; the client retains filter state, saved-view, refresh, and CSV-export behavior.
+- Booking mobile and desktop previous/today/next controls now share one responsive component and canonical view type; date calculations stay in the workspace.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata; the repository now documents its two separate migration histories and guards their inventory in CI.
 
@@ -431,6 +432,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract the expanded POS transaction details presentation while keeping selection, permissions, and actions in the workspace.
   - [x] Extract Booking's daily queue and action sidebar while keeping counts, scheduling rules, and mutations in the workspace.
   - [x] Extract Booking workspace filters and tool buttons while keeping filter state and actions in the workspace.
+  - [x] Share Booking period navigation controls across mobile and desktop without moving date calculations out of the workspace.
   - [x] Extract the Packages dashboard header and summary tiles while keeping role checks and count calculations in the dashboard client.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.
