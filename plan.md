@@ -495,6 +495,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Convert the employee status handler to a typed route while preserving manager-scope checks and fresh second-factor verification for disabling accounts.
     - [x] Convert the LMS service-category seed endpoint to a typed route and the shared server-only Supabase client while preserving maintenance authorization, rate limits, normalization, and response shape.
     - [x] Convert Admin password reset to a typed route and shared server-only Supabase client while preserving admin authorization, fresh second factor, rate limits, password history, and email behavior.
+    - [x] Convert Admin employee creation to a typed route while preserving guarded account provisioning, assignment checks, recovery cleanup, and onboarding email behavior.
     - [x] Convert permanent employee deletion to a typed route while preserving Super Admin access, fresh second factor, explicit email confirmation, self-delete protection, and existing cleanup behavior.
     - [x] Reuse the server-only Supabase client in Notice Board administration without changing maintenance access, validation, or storage cleanup behavior.
     - [x] Reuse the server-only Supabase client for the read-only LMS schema-readiness check while keeping migrations as the sole schema owner.

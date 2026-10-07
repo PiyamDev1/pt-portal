@@ -17,16 +17,23 @@ import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { generateTemporaryPassword } from '@/lib/security/secureRandom.server'
 import { logServerEvent, reportOperationalError } from '@/lib/observability/server'
 
+type ServiceSupabaseClient = ReturnType<typeof getServiceSupabaseClient>
+type AuthorizedAdminAccess = Extract<
+  Awaited<ReturnType<typeof requireAdminSession>>,
+  { authorized: true }
+>
+type ProvisioningRollback = { contained: boolean; complete: boolean }
+
 // Force dynamic rendering so the API is always evaluated and not statically optimized.
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const corsHeaders = (origin) => ({
+const corsHeaders = (origin: string): HeadersInit => ({
   'Access-Control-Allow-Origin': origin,
   Vary: 'Origin',
 })
 
-const nameSchema = (label) =>
+const nameSchema = (label: string) =>
   z
     .string({ error: `${label} is required.` })
     .trim()
@@ -66,19 +73,19 @@ const addEmployeeSchema = z
   })
   .strict()
 
-function withCors(response, origin) {
+function withCors(response: Response, origin: string) {
   response.headers.set('Access-Control-Allow-Origin', origin)
   response.headers.set('Vary', 'Origin')
   return response
 }
 
-function escapeHtml(value) {
+function escapeHtml(value: unknown) {
   return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 /**
@@ -86,7 +93,10 @@ function escapeHtml(value) {
  * a database dependency, ban the identity before removing dependent rows and
  * retrying. This avoids leaving a login-capable orphan behind.
  */
-async function rollbackProvisionedEmployee(admin, userId) {
+async function rollbackProvisionedEmployee(
+  admin: ServiceSupabaseClient,
+  userId: string,
+): Promise<ProvisioningRollback> {
   try {
     const firstDelete = await admin.auth.admin.deleteUser(userId)
     if (!firstDelete?.error) return { contained: true, complete: true }
@@ -133,7 +143,19 @@ async function rollbackProvisionedEmployee(admin, userId) {
   }
 }
 
-async function reportProvisioningFailure({ request, access, userId, stage, rollback }) {
+async function reportProvisioningFailure({
+  request,
+  access,
+  userId,
+  stage,
+  rollback,
+}: {
+  request: Request
+  access: AuthorizedAdminAccess
+  userId: string
+  stage: string
+  rollback: ProvisioningRollback
+}) {
   const context = {
     actorUserId: access.user.id,
     createdUserId: userId,
@@ -162,7 +184,7 @@ async function reportProvisioningFailure({ request, access, userId, stage, rollb
 }
 
 // Health/diagnostic GET to confirm route is reachable in production.
-export async function GET(request) {
+export async function GET(request: Request) {
   const origin = request.headers.get('origin') || '*'
   return apiOk(
     { route: 'add-employee', method: 'GET', note: 'route is reachable' },
@@ -174,7 +196,7 @@ export async function GET(request) {
 }
 
 // Explicitly handle CORS/preflight to avoid 405 from OPTIONS requests and echo diagnostics.
-export async function OPTIONS(request) {
+export async function OPTIONS(request: Request) {
   const origin = request.headers.get('origin') || '*'
   return apiOk(
     { route: 'add-employee', method: 'OPTIONS' },
@@ -189,13 +211,13 @@ export async function OPTIONS(request) {
   )
 }
 
-export async function POST(request) {
+export async function POST(request: Request) {
   const origin = request.headers.get('origin') || '*'
-  const fail = (message, status = 400) =>
+  const fail = (message: string, status = 400) =>
     apiError(message, status, {}, { headers: corsHeaders(origin) })
-  let authenticatedAccess = null
-  let admin = null
-  let provisionedUserId = null
+  let authenticatedAccess: AuthorizedAdminAccess | null = null
+  let admin: ServiceSupabaseClient | null = null
+  let provisionedUserId: string | null = null
   let provisioningComplete = false
 
   try {
@@ -217,24 +239,34 @@ export async function POST(request) {
     })
     if (bodyError || !body) return fail(bodyError || 'Invalid request payload', 400)
 
-    const missingEnv = []
+    const missingEnv: string[] = []
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY')
-    if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY')
-    if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN')
+    const mailgunApiKey = process.env.MAILGUN_API_KEY || ''
+    const mailgunDomain = process.env.MAILGUN_DOMAIN || ''
+    if (!mailgunApiKey) missingEnv.push('MAILGUN_API_KEY')
+    if (!mailgunDomain) missingEnv.push('MAILGUN_DOMAIN')
     const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS
     if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS')
     if (missingEnv.length > 0) {
       return fail(`Missing required environment variables: ${missingEnv.join(', ')}`, 500)
     }
 
-    admin = getServiceSupabaseClient()
+    const serviceClient = getServiceSupabaseClient()
+    admin = serviceClient
     const { email, firstName, lastName, role_id, department_ids, location_id } = body
 
-    const roleQuery = admin.from('roles').select('id, name').eq('id', role_id).maybeSingle()
-    const departmentsQuery = admin.from('departments').select('id, name').in('id', department_ids)
+    const roleQuery = serviceClient.from('roles').select('id, name').eq('id', role_id).maybeSingle()
+    const departmentsQuery = serviceClient
+      .from('departments')
+      .select('id, name')
+      .in('id', department_ids)
     const locationQuery = location_id
-      ? admin.from('locations').select('id, name, branch_code').eq('id', location_id).maybeSingle()
+      ? serviceClient
+          .from('locations')
+          .select('id, name, branch_code')
+          .eq('id', location_id)
+          .maybeSingle()
       : Promise.resolve({ data: null, error: null })
 
     const [roleResult, departmentResult, locationResult] = await Promise.all([
@@ -286,12 +318,12 @@ export async function POST(request) {
       : `https://${rawMailgunEndpoint}`
     const mg = mailgun.client({
       username: 'api',
-      key: process.env.MAILGUN_API_KEY,
+      key: mailgunApiKey,
       url: mailgunEndpoint,
     })
 
     const tempPassword = generateTemporaryPassword()
-    const { data: authUser, error: authError } = await admin.auth.admin.createUser({
+    const { data: authUser, error: authError } = await serviceClient.auth.admin.createUser({
       email,
       password: tempPassword,
       email_confirm: true,
@@ -304,8 +336,8 @@ export async function POST(request) {
 
     const createdUserId = authUser.user.id
     provisionedUserId = createdUserId
-    const failAfterProvisioning = async (message, status, stage) => {
-      const rollback = await rollbackProvisionedEmployee(admin, createdUserId)
+    const failAfterProvisioning = async (message: string, status: number, stage: string) => {
+      const rollback = await rollbackProvisionedEmployee(serviceClient, createdUserId)
       await reportProvisioningFailure({
         request,
         access,
@@ -316,7 +348,7 @@ export async function POST(request) {
       return fail(message, status)
     }
 
-    const { error: profileError } = await admin.from('employees').insert({
+    const { error: profileError } = await serviceClient.from('employees').insert({
       id: createdUserId,
       email,
       full_name: `${firstName} ${lastName}`,
@@ -330,7 +362,7 @@ export async function POST(request) {
     }
 
     const passwordHash = await bcrypt.hash(tempPassword, 12)
-    const { error: historyError } = await admin.from('password_history').insert({
+    const { error: historyError } = await serviceClient.from('password_history').insert({
       employee_id: createdUserId,
       password_hash: passwordHash,
     })
@@ -338,7 +370,7 @@ export async function POST(request) {
       return failAfterProvisioning('Failed to initialize employee security state.', 500, 'history')
     }
 
-    const { error: departmentError } = await admin.from('employee_departments').insert(
+    const { error: departmentError } = await serviceClient.from('employee_departments').insert(
       department_ids.map((departmentId) => ({
         employee_id: createdUserId,
         department_id: departmentId,
@@ -360,7 +392,7 @@ export async function POST(request) {
       locationText = `\nBranch/Location: ${locationData.name || ''} (${locationData.branch_code || ''})`
     }
 
-    const senderDomain = process.env.MAILGUN_DOMAIN.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    const senderDomain = mailgunDomain.replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!senderDomain) {
       return failAfterProvisioning('Failed to send onboarding email.', 502, 'email_config')
     }
