@@ -19,6 +19,9 @@ import BookingQuickReschedulePanel from '@/app/dashboard/bookings/BookingQuickRe
 import BookingPeriodNavigation, {
   type BookingView,
 } from '@/app/dashboard/bookings/BookingPeriodNavigation'
+import BookingWorkspaceHeader, {
+  type BookingWorkspaceFilterBadge,
+} from '@/app/dashboard/bookings/BookingWorkspaceHeader'
 import BookingTodaySidebar from '@/app/dashboard/bookings/BookingTodaySidebar'
 import BookingWorkspaceTools from '@/app/dashboard/bookings/BookingWorkspaceTools'
 import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
@@ -50,17 +53,7 @@ import {
   type SlotLoadResult,
   type SlotOption,
 } from './bookingClientModel'
-import {
-  CalendarIcon,
-  CheckIcon,
-  ClockIcon,
-  CloseIcon,
-  FilterIcon,
-  ListIcon,
-  PinIcon,
-  SparkIcon,
-  WeekIcon,
-} from './BookingIcons'
+import { CalendarIcon, CheckIcon, CloseIcon, FilterIcon, PinIcon } from './BookingIcons'
 import { type BookingReport, type SavedBookingView } from './bookingClientApi'
 import { BookingRow, DayAgendaModal, SelectedDayPanel } from './BookingDayViews'
 import { SlotTimeline, WeekTimeline } from './BookingTimelines'
@@ -1563,6 +1556,42 @@ export default function BookingsClient({
       : sourceFilter.charAt(0).toUpperCase() + sourceFilter.slice(1)
   const statusFilterLabel =
     statusFilter === 'all' ? 'All statuses' : STATUS_CONFIG[statusFilter]?.label || statusFilter
+  const activeWorkspaceFilterBadges: BookingWorkspaceFilterBadge[] = []
+  if (sourceFilter !== 'all') {
+    activeWorkspaceFilterBadges.push({ key: 'source', label: sourceFilterLabel, icon: 'filter' })
+  }
+  if (statusFilter !== 'all') {
+    activeWorkspaceFilterBadges.push({ key: 'status', label: statusFilterLabel, icon: 'filter' })
+  }
+  if (serviceFilter !== 'all') {
+    activeWorkspaceFilterBadges.push({
+      key: 'service',
+      label:
+        serviceOptions.find((service) => service.id === serviceFilter)?.name || 'Service filter',
+      icon: 'filter',
+    })
+  }
+  if (!showCancelled) {
+    activeWorkspaceFilterBadges.push({
+      key: 'cancelled',
+      label: 'Cancelled hidden',
+      icon: 'filter',
+    })
+  }
+  if (searchQuery.trim()) {
+    activeWorkspaceFilterBadges.push({
+      key: 'search',
+      label: searchQuery === debouncedSearchQuery ? 'Search active' : 'Updating search',
+      icon: 'filter',
+    })
+  }
+  if (selectedLocationId) {
+    activeWorkspaceFilterBadges.push({
+      key: 'location',
+      label: 'Location active',
+      icon: 'location',
+    })
+  }
 
   useEffect(() => {
     if (!panelServiceId && serviceOptions.length > 0) {
@@ -1617,131 +1646,14 @@ export default function BookingsClient({
         <div className="animate-enter-fade-up rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4">
-              <div className="space-y-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
-                  <SparkIcon className="h-3.5 w-3.5" />
-                  Booking desk
-                </span>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                      Appointments
-                    </h1>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {view === 'today' ? dayLabel : view === 'multi' ? monthLabel : weekLabel}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 self-start rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm">
-                    <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white">
-                      <button
-                        onClick={() => changeView('today')}
-                        aria-pressed={view === 'today'}
-                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                          view === 'today'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <ClockIcon className="h-4 w-4" />
-                        Day
-                      </button>
-                      <button
-                        onClick={() => changeView('multi')}
-                        aria-pressed={view === 'multi'}
-                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                          view === 'multi'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'border-l border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <CalendarIcon className="h-4 w-4" />
-                        Calendar
-                      </button>
-                      <button
-                        onClick={() => changeView('week')}
-                        aria-pressed={view === 'week'}
-                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                          view === 'week'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <WeekIcon className="h-4 w-4" />
-                        Week
-                      </button>
-                      <button
-                        onClick={() => changeView('list')}
-                        aria-pressed={view === 'list'}
-                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                          view === 'list'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <ListIcon className="h-4 w-4" />
-                        List
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                    {view === 'today' ? (
-                      <ClockIcon className="h-3.5 w-3.5" />
-                    ) : view === 'multi' ? (
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                    ) : view === 'week' ? (
-                      <WeekIcon className="h-3.5 w-3.5" />
-                    ) : (
-                      <ListIcon className="h-3.5 w-3.5" />
-                    )}
-                    {view === 'today'
-                      ? 'Daily agenda'
-                      : view === 'multi'
-                        ? 'Calendar overview'
-                        : view === 'week'
-                          ? 'Week timeline'
-                          : 'Appointment list'}
-                  </span>
-                  {sourceFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                      <FilterIcon className="h-3.5 w-3.5" />
-                      {sourceFilterLabel}
-                    </span>
-                  )}
-                  {statusFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                      <FilterIcon className="h-3.5 w-3.5" />
-                      {statusFilterLabel}
-                    </span>
-                  )}
-                  {serviceFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                      <FilterIcon className="h-3.5 w-3.5" />
-                      {serviceOptions.find((service) => service.id === serviceFilter)?.name ||
-                        'Service filter'}
-                    </span>
-                  )}
-                  {!showCancelled && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                      <FilterIcon className="h-3.5 w-3.5" />
-                      Cancelled hidden
-                    </span>
-                  )}
-                  {searchQuery.trim() && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                      <FilterIcon className="h-3.5 w-3.5" />
-                      {searchQuery === debouncedSearchQuery ? 'Search active' : 'Updating search'}
-                    </span>
-                  )}
-                  {selectedLocationId && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                      <PinIcon className="h-3.5 w-3.5" />
-                      Location active
-                    </span>
-                  )}
-                </div>
-              </div>
+              <BookingWorkspaceHeader
+                view={view}
+                periodLabel={
+                  view === 'today' ? dayLabel : view === 'multi' ? monthLabel : weekLabel
+                }
+                filterBadges={activeWorkspaceFilterBadges}
+                onViewChange={changeView}
+              />
             </div>
 
             <div className="bookings-mobile-only space-y-3 rounded-[1.5rem] border border-red-100 bg-white/90 p-3 shadow-sm md:hidden">

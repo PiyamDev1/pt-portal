@@ -436,6 +436,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Booking's daily queue and action sidebar while keeping counts, scheduling rules, and mutations in the workspace.
   - [x] Extract Booking workspace filters and tool buttons while keeping filter state and actions in the workspace.
   - [x] Share Booking period navigation controls across mobile and desktop without moving date calculations out of the workspace.
+  - [x] Extract Booking workspace heading, view selection, and active-filter summary while keeping date derivation, filter values, and view transitions in BookingsClient.
   - [x] Extract POS ledger advanced filters while retaining filter state, reset behavior, and transaction filtering in the POS workspace.
   - [x] Extract POS ledger period/date, search, sort, and filter-toggle controls while retaining all state and calculations in the POS workspace.
   - [x] Extract the Packages dashboard header and summary tiles while keeping role checks and count calculations in the dashboard client.
