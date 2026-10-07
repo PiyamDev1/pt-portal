@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => {
   const update = vi.fn(() => ({ eq: updateEq }))
 
   const from = vi.fn(() => ({ select, update }))
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     maybeSingle,
@@ -22,11 +22,13 @@ const mocks = vi.hoisted(() => {
     updateEq,
     update,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { GET, POST } from '@/app/api/passports/pak/notes/route'
 
@@ -49,7 +51,7 @@ describe('PAK passport notes route', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
 
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ select: mocks.select, update: mocks.update })
     mocks.select.mockReturnValue({ eq: mocks.selectEq })
     mocks.selectEq.mockReturnValue({ maybeSingle: mocks.maybeSingle })
@@ -74,6 +76,19 @@ describe('PAK passport notes route', () => {
   it('POST returns 400 when notes is not a string', async () => {
     const res = await POST(makePostRequest({ applicationId: 'app-1', notes: 123 }))
     expect(res.status).toBe(400)
+  })
+
+  it('POST returns 400 for malformed JSON without creating a database client', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/passports/pak/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('POST returns 404 when update finds no record', async () => {

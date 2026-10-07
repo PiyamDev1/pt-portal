@@ -5,16 +5,30 @@
  * @module app/api/passports/pak/notes
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
-function getSupabaseClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-}
+type ServiceSupabaseClient = ReturnType<typeof getServiceSupabaseClient>
+type PassportRecord = { id: string; notes: string | null; application_id: string | null }
+type PassportRecordError = { message?: string }
+type PassportRecordLookup = { data?: PassportRecord | null; error?: PassportRecordError }
 
-function toClientError(error) {
+const notesBodySchema = z.preprocess(
+  (body) => (body && typeof body === 'object' && !Array.isArray(body) ? body : {}),
+  z
+    .object({
+      applicationId: z.unknown().optional(),
+      passportId: z.unknown().optional(),
+      notes: z.unknown().optional(),
+    })
+    .passthrough(),
+)
+
+function toClientError(error?: PassportRecordError | null) {
   const message = error?.message || 'Database error'
   if (message.includes('column') && message.includes('notes')) {
     return 'Database migration required: add notes column to pakistani_passport_applications.'
@@ -22,7 +36,11 @@ function toClientError(error) {
   return message
 }
 
-async function resolvePassportRecord(supabase, applicationId, passportId) {
+async function resolvePassportRecord(
+  supabase: ServiceSupabaseClient,
+  applicationId: unknown,
+  passportId: unknown,
+): Promise<PassportRecordLookup> {
   const normalizedPassportId = String(passportId || '').trim()
   const normalizedApplicationId = String(applicationId || '').trim()
 
@@ -59,7 +77,7 @@ async function resolvePassportRecord(supabase, applicationId, passportId) {
   return { data }
 }
 
-export async function GET(request) {
+export async function GET(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
@@ -72,7 +90,7 @@ export async function GET(request) {
       return apiError('applicationId or passportId is required', 400)
     }
 
-    const supabase = getSupabaseClient()
+    const supabase = getServiceSupabaseClient()
     const { data, error } = await resolvePassportRecord(supabase, applicationId, passportId)
 
     if (error) {
@@ -89,13 +107,17 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request) {
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const body = await request.json()
-    const { applicationId, passportId, notes } = body || {}
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, notesBodySchema)
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
+
+    const { applicationId, passportId, notes } = body
 
     if (!applicationId && !passportId) {
       return apiError('applicationId or passportId is required', 400)
@@ -107,7 +129,7 @@ export async function POST(request) {
 
     const normalizedNotes = notes.trim() || null
 
-    const supabase = getSupabaseClient()
+    const supabase = getServiceSupabaseClient()
     const { data: existingRecord, error: lookupError } = await resolvePassportRecord(
       supabase,
       applicationId,
