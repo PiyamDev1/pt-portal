@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { BookingStatus } from '@/app/types/bookings'
 import { sendBookingEmail } from '@/lib/bookingEmail'
@@ -28,6 +29,24 @@ import {
   overlapsRangeBeyondTolerance,
   timeToMinutes,
 } from '@/lib/bookingRules'
+import { z } from 'zod'
+
+const bookingUpdateBodySchema = z
+  .object({
+    status: z.any().optional(),
+    customer_name: z.any().optional(),
+    customer_phone: z.any().optional(),
+    customer_email: z.any().optional(),
+    service_id: z.any().optional(),
+    start_time: z.any().optional(),
+    end_time: z.any().optional(),
+    manual_override: z.any().optional(),
+    if_unmodified_since: z.any().optional(),
+    notes: z.any().optional(),
+    tags: z.any().optional(),
+    person_count: z.any().optional(),
+  })
+  .passthrough()
 
 function buildBranchAddress(
   location: {
@@ -69,7 +88,14 @@ function isSchemaError(error: unknown): boolean {
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      bookingUpdateBodySchema,
+    )
+    if (bodyError || !body) {
+      return NextResponse.json({ error: bodyError || 'Invalid request body' }, { status: 400 })
+    }
+
     const {
       status,
       customer_name,

@@ -227,6 +227,19 @@ describe('PATCH /api/bookings/[id]', () => {
     mocks.bookingAuditLogsInsert.mockResolvedValue({ error: null })
   })
 
+  it('rejects malformed JSON before loading a booking', async () => {
+    const request = new Request('http://localhost/api/bookings/booking-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    })
+
+    const response = await PATCH(request as never, { params: Promise.resolve({ id: 'booking-1' }) })
+
+    expect(response.status).toBe(400)
+    expect(mocks.getRouteSupabaseClient).not.toHaveBeenCalled()
+  })
+
   it('re-sends appointment details when customer email changes', async () => {
     const request = new Request('http://localhost/api/bookings/booking-1', {
       method: 'PATCH',
