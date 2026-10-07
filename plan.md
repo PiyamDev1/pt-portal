@@ -498,6 +498,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Bound booking updates while preserving stale-write conflicts, idempotency, capacity checks, lifecycle transitions, and customer notification behavior.
   - [x] Reject malformed booking-resend input before database reads or customer email delivery; keep recipient, kind, idempotency, and audit rules unchanged.
   - [x] Bound timeclock scan input while preserving QR signature/nonce validation, punch sequencing, duplicate checks, and attendance sync.
+  - [x] Bound manual timeclock-code submission input before code claims while preserving replay protection and punch/hash/attendance behavior.
   - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.

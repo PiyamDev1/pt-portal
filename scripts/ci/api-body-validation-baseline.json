@@ -25,7 +25,6 @@
     "app/api/packages/[id]/route.ts": 1,
     "app/api/packages/route.ts": 1,
     "app/api/timeclock/events/[eventId]/adjust/route.ts": 1,
-    "app/api/timeclock/manual-entry/submit/route.ts": 1,
     "app/api/training/route.ts": 1,
     "app/api/travel-package-groups/[id]/members/route.ts": 2,
     "app/api/travel-package-groups/[id]/route.ts": 1,

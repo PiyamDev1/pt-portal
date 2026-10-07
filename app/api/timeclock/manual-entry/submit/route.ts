@@ -28,7 +28,13 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syncEngine'
+import { z } from 'zod'
+
+const manualEntrySubmitBodySchema = z
+  .object({ code: z.any().optional(), deviceId: z.any().optional() })
+  .passthrough()
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -70,7 +76,12 @@ export async function POST(request: Request) {
 
     const adminSupabase = createClient(supabaseUrl, serviceKey)
 
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      manualEntrySubmitBodySchema,
+    )
+    if (bodyError || !body) return apiError('Invalid code format', 400)
+
     const rawCode = typeof body?.code === 'string' ? body.code.trim() : ''
     const code = rawCode.replace(/\D/g, '')
 
