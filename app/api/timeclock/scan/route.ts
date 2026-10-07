@@ -45,7 +45,9 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syncEngine'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +64,10 @@ type GeoPoint = {
   lng: number
   accuracy: number
 }
+
+const timeclockScanBodySchema = z
+  .object({ qrText: z.any().optional(), geo: z.any().optional() })
+  .passthrough()
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -178,7 +184,12 @@ export async function POST(request: Request) {
       return apiError('Unauthorized', 401)
     }
 
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      timeclockScanBodySchema,
+    )
+    if (bodyError || !body) return apiError('Invalid QR payload', 400)
+
     const qrText = typeof body?.qrText === 'string' ? body.qrText : ''
     const geo: GeoPoint | null = body?.geo || null
 

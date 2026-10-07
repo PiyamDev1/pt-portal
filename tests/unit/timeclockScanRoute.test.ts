@@ -180,6 +180,17 @@ describe('/api/timeclock/scan route', () => {
     expect(mocks.adminFrom).not.toHaveBeenCalled()
   })
 
+  it('rejects malformed JSON before querying device or attendance records', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
+
+    const response = await POST(makeRequest('{'))
+    const payload = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(payload).toEqual({ error: 'Invalid QR payload' })
+    expect(mocks.adminFrom).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when QR payload is missing required fields', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     const bad = JSON.stringify({ v: 2, device_id: 'dev-1', ts: 0, nonce: 'x', sig: 'y' })
