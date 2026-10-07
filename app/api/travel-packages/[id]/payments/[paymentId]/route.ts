@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
@@ -11,6 +12,9 @@ import {
 } from '@/lib/packages/paymentRouteContract'
 import type { TravelPackagePayment, TravelPackagePaymentType } from '@/app/types/packages'
 import { selectTravelPackagePaymentColumns } from '../columns'
+import { z } from 'zod'
+
+const packagePaymentUpdateBodySchema = z.object({}).passthrough()
 
 function customerRefundContribution(payment: TravelPackagePayment) {
   return payment.reservation_id &&
@@ -65,8 +69,12 @@ export async function PATCH(
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packagePaymentUpdateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const { data: before } = await supabase
     .from('travel_package_payments')
     .select(selectTravelPackagePaymentColumns())
