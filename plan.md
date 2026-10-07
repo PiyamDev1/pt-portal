@@ -490,6 +490,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Convert NADRA agent options to a typed route and shared server client while preserving recursive manager scope and Master Admin visibility, covered by focused tests.
   - [x] Type the Pakistani passport notes reader/updater and reuse the shared server client while preserving legacy ID fallback, migration errors, and staff attribution.
   - [x] Type Pakistani passport application creation and use bounded shared request parsing plus the shared server client without changing its applicant/application rollback behavior.
+  - [x] Type NADRA application creation and use bounded shared request parsing plus the shared server client while preserving duplicate conflicts and family/applicant flow.
   - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.

@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => {
     return {}
   })
 
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     applicantMaybeSingle,
@@ -69,11 +69,13 @@ const mocks = vi.hoisted(() => {
     nicopInsert,
     historyInsert,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { POST } from '@/app/api/nadra/add-application/route'
 
@@ -101,7 +103,7 @@ describe('POST /api/nadra/add-application', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
 
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.applicantSelect.mockReturnValue({ eq: mocks.applicantSelectEq })
     mocks.applicantSelectEq.mockReturnValue({
       maybeSingle: mocks.applicantMaybeSingle,
@@ -179,6 +181,19 @@ describe('POST /api/nadra/add-application', () => {
     })
   })
 
+  it('stops when application creation returns no record', async () => {
+    mocks.applicantMaybeSingle.mockResolvedValue({
+      data: { id: 'a-1', email: 'x@y.com' },
+      error: null,
+    })
+    mocks.appInsertSingle.mockResolvedValue({ data: null, error: null })
+
+    const res = await POST(makeRequest(baseBody))
+
+    expect(res.status).toBe(500)
+    expect(mocks.nadraInsert).not.toHaveBeenCalled()
+  })
+
   it('returns 500 when history insert fails', async () => {
     mocks.applicantMaybeSingle.mockResolvedValue({
       data: { id: 'a-1', email: 'x@y.com' },
@@ -197,5 +212,18 @@ describe('POST /api/nadra/add-application', () => {
     const body = await res.json()
     expect(body.error).toBe('Internal server error')
     expect(body.details).toBe('history failed')
+  })
+
+  it('returns 400 for malformed JSON without creating a database client', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/nadra/add-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 })

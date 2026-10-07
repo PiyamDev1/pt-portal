@@ -13,19 +13,40 @@
  *
  * Authentication: Service role key
  */
-import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const getDuplicateConflict = (error) => {
-  const code = String(error?.code || '')
-  const message = String(error?.message || '')
-  const details = String(error?.details || '')
-  const hint = String(error?.hint || '')
+const addNadraApplicationBodySchema = z
+  .object({
+    applicantCnic: z.any().optional(),
+    applicantName: z.any().optional(),
+    applicantEmail: z.any().optional(),
+    familyHeadCnic: z.any().optional(),
+    familyHeadName: z.any().optional(),
+    familyHeadPhone: z.any().optional(),
+    serviceType: z.any().optional(),
+    serviceOption: z.any().optional(),
+    trackingNumber: z.any().optional(),
+    pin: z.any().optional(),
+  })
+  .passthrough()
+
+type DuplicateError = { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
+
+const getDuplicateConflict = (error: unknown) => {
+  const duplicateError =
+    error && typeof error === 'object' ? (error as DuplicateError) : ({} as DuplicateError)
+  const code = String(duplicateError.code || '')
+  const message = String(duplicateError.message || '')
+  const details = String(duplicateError.details || '')
+  const hint = String(duplicateError.hint || '')
   const combined = `${message} ${details} ${hint}`.toLowerCase()
 
   if (code !== '23505' && !combined.includes('duplicate')) {
@@ -65,18 +86,22 @@ const getDuplicateConflict = (error) => {
   }
 }
 
-export async function POST(request) {
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   let normalizedTrackingNumber = ''
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      addNadraApplicationBodySchema,
     )
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
 
-    const body = await request.json()
+    const supabase = getServiceSupabaseClient()
+
     const {
       applicantCnic,
       applicantName,
@@ -263,6 +288,8 @@ export async function POST(request) {
 
       appRecord = insertedApplication
     }
+
+    if (!appRecord?.id) throw new Error('Application not found or created')
 
     // 4. INSERT NADRA SERVICE (Linked to Application) with duplicate handling
     const payload = {
