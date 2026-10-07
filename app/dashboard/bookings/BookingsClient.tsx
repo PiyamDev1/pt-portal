@@ -13,6 +13,7 @@ import BookingSettingsTab, {
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
 import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
 import BookingTodaySidebar from '@/app/dashboard/bookings/BookingTodaySidebar'
+import BookingWorkspaceTools from '@/app/dashboard/bookings/BookingWorkspaceTools'
 import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
 import MemberServiceModal from '@/app/dashboard/bookings/MemberServiceModal'
 import { useBookingDraft } from '@/app/dashboard/bookings/useBookingDraft'
@@ -2024,106 +2025,29 @@ export default function BookingsClient({
             </div>
 
             {!showSettings && showWorkspaceTools && (
-              <div
-                className="bookings-desktop-only hidden rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 shadow-sm md:block"
-                aria-label="Booking filters and workspace tools"
-              >
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-                  <div>
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">Narrow this view</p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          Filters apply to this workspace. Exports include the chosen date,
-                          location, source, and status.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSourceFilter('all')
-                          setStatusFilter('all')
-                          setServiceFilter('all')
-                          setShowCancelled(true)
-                          setSearchQuery('')
-                          setDebouncedSearchQuery('')
-                        }}
-                        className="ui-tap ui-focus text-xs font-medium text-indigo-700 hover:text-indigo-900"
-                      >
-                        Reset filters
-                      </button>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      <select
-                        value={sourceFilter}
-                        onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
-                        aria-label="Booking source"
-                        className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                      >
-                        <option value="all">All sources</option>
-                        <option value={BookingSource.PORTAL}>Portal</option>
-                        <option value={BookingSource.WHATSAPP}>WhatsApp</option>
-                        <option value={BookingSource.WEBSITE}>Website</option>
-                      </select>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as 'all' | BookingStatus)}
-                        aria-label="Appointment status"
-                        className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                      >
-                        <option value="all">All statuses</option>
-                        <option value={BookingStatus.PENDING}>Pending</option>
-                        <option value={BookingStatus.CONFIRMED}>Confirmed</option>
-                        <option value={BookingStatus.COMPLETED}>Completed</option>
-                        <option value={BookingStatus.CANCELLED}>Cancelled</option>
-                      </select>
-                      <select
-                        value={serviceFilter}
-                        onChange={(e) => setServiceFilter(e.target.value)}
-                        aria-label="Booking service"
-                        className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                      >
-                        <option value="all">All services</option>
-                        {serviceOptions.map((service) => (
-                          <option key={service.id} value={service.id}>
-                            {service.name}
-                          </option>
-                        ))}
-                      </select>
-                      <label className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={showCancelled}
-                          onChange={(e) => setShowCancelled(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                        />
-                        Include cancelled
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <button
-                      onClick={() => fetchBookings(true)}
-                      disabled={refreshing}
-                      className="ui-tap ui-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                      {refreshing ? 'Refreshing' : 'Refresh'}
-                    </button>
-                    <button
-                      onClick={openSaveViewForm}
-                      className="ui-tap ui-focus min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Save view
-                    </button>
-                    <button
-                      onClick={exportBookings}
-                      className="ui-tap ui-focus min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Export CSV
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <BookingWorkspaceTools
+                sourceFilter={sourceFilter}
+                statusFilter={statusFilter}
+                serviceFilter={serviceFilter}
+                serviceOptions={serviceOptions}
+                showCancelled={showCancelled}
+                refreshing={refreshing}
+                onResetFilters={() => {
+                  setSourceFilter('all')
+                  setStatusFilter('all')
+                  setServiceFilter('all')
+                  setShowCancelled(true)
+                  setSearchQuery('')
+                  setDebouncedSearchQuery('')
+                }}
+                onSourceChange={setSourceFilter}
+                onStatusChange={setStatusFilter}
+                onServiceChange={setServiceFilter}
+                onShowCancelledChange={setShowCancelled}
+                onRefresh={() => void fetchBookings(true)}
+                onSaveView={openSaveViewForm}
+                onExport={() => void exportBookings()}
+              />
             )}
 
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm">
