@@ -5,19 +5,19 @@ const mocks = vi.hoisted(() => {
   const eq = vi.fn()
   const update = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ select, update }))
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     select,
     eq,
     update,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 
 import { POST } from '@/app/api/admin/migrate-names-lowercase/route'
@@ -74,7 +74,7 @@ describe('POST /api/admin/migrate-names-lowercase', () => {
 
     expect(response.status).toBe(403)
     expect(payload).toEqual({ error: 'Forbidden' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('passes through a shared rate-limit response', async () => {
@@ -90,7 +90,7 @@ describe('POST /api/admin/migrate-names-lowercase', () => {
     )
 
     expect(response.status).toBe(429)
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 500 when Supabase env vars are missing', async () => {
@@ -102,7 +102,7 @@ describe('POST /api/admin/migrate-names-lowercase', () => {
 
     expect(response.status).toBe(500)
     expect(payload).toEqual({ error: 'Supabase not configured' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 500 with fetch failure detail', async () => {

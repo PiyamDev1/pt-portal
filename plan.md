@@ -467,6 +467,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
     - [x] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary; preserve each screen's response shape and legacy Pakistani ID fallback.
   - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
+    - [x] Convert the applicant-name normalization endpoint to a typed handler and shared server client while preserving its admin guard, rate limit, and response contract.
     - [x] Bound and validate public receipt-verification credentials before rate limiting or lookup, preserving the existing response contract.
     - [x] Convert the LMS payment-method reader to a typed route and shared service-client boundary while preserving its staff guard and empty-list fallback.
     - [x] Convert visa country and preset seed handlers to typed routes and the shared service-client boundary while preserving existing role guards, rate limits, and response contracts.
