@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   isPackageQuoteExpired,
@@ -11,6 +12,16 @@ import {
   markPackageQuoteSyncFailed,
   syncConvertedPackageFromQuotes,
 } from '@/lib/packageQuoteSyncServer'
+import { z } from 'zod'
+
+const packageQuoteUpdateBodySchema = z
+  .object({
+    payload: z.unknown().optional(),
+    expiresAt: z.unknown().optional(),
+    shareEnabled: z.unknown().optional(),
+    status: z.unknown().optional(),
+  })
+  .passthrough()
 
 const SCHEMA_HINT =
   'Package quote schema is not installed yet. Run scripts/migrations/20260708_create_travel_package_quotes.sql in Supabase SQL editor.'
@@ -88,14 +99,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { supabase, user } = await requireUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as {
+  const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageQuoteUpdateBodySchema,
+  )
+  const body = parsedBody as {
     payload?: unknown
     expiresAt?: unknown
     shareEnabled?: boolean
     status?: string
   } | null
 
-  if (!body) return apiError('Invalid request payload', 400)
+  if (bodyError || !body) return apiError('Invalid request payload', 400)
 
   const updates: Record<string, unknown> = {}
 

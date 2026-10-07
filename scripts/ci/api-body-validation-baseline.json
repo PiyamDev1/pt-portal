@@ -22,7 +22,6 @@
     "app/api/integrations/frappe/sync/push/route.ts": 1,
     "app/api/package-portal/access/route.ts": 1,
     "app/api/package-third-party-documents/[token]/route.ts": 1,
-    "app/api/packages/[id]/route.ts": 1,
     "app/api/packages/route.ts": 1,
     "app/api/timeclock/events/[eventId]/adjust/route.ts": 1,
     "app/api/training/route.ts": 1,

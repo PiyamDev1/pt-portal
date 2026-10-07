@@ -133,6 +133,21 @@ describe('PATCH /api/packages/[id]', () => {
     })
   })
 
+  it('rejects malformed JSON before updating a quote', async () => {
+    const response = await PATCH(
+      new Request('http://localhost/api/packages/quote-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }) as never,
+      { params: Promise.resolve({ id: 'quote-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid request payload' })
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
   it('clears an existing customer selection when quote payload is edited', async () => {
     const response = await PATCH(makeRequest({ payload, shareEnabled: false }) as never, {
       params: Promise.resolve({ id: 'quote-1' }),
