@@ -30,7 +30,6 @@
     "app/api/packages/[id]/selection/route.ts": 1,
     "app/api/packages/route.ts": 1,
     "app/api/passports/gb/add/route.js": 1,
-    "app/api/passports/gb/update/route.js": 1,
     "app/api/passports/pak/add-application/route.js": 1,
     "app/api/passports/pak/drafts/route.ts": 1,
     "app/api/passports/pak/notes/route.js": 1,

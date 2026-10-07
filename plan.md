@@ -446,7 +446,9 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Consolidate current-employee department-name loading without moving module-specific authorisation into generic page context.
 - [ ] Modernise legacy API handlers incrementally.
   - [x] Convert the dedicated NADRA, Pakistani Passport, and Visa status mutation routes to typed handlers with shared request and service-client boundaries.
-  - [ ] Separate and modernise the combined GB Passport update/status handler, then convert the application status-history readers.
+  - [ ] Split and modernise GB Passport updates and status-history readers.
+    - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
+    - [ ] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary.
   - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 

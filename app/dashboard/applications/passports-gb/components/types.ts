@@ -68,5 +68,4 @@ export interface GbEditFormData {
   dateOfBirth: string
   phoneNumber: string
   pexNumber: string
-  status: string
 }

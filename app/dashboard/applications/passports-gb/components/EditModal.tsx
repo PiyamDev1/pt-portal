@@ -175,27 +175,6 @@ export default function EditModal({
               placeholder="PEX Reference"
             />
           </div>
-
-          {/* Status */}
-          <div>
-            <label
-              htmlFor="gb-status"
-              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
-            >
-              Status
-            </label>
-            <select
-              id="gb-status"
-              className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white"
-              value={editFormData.status || 'Pending Submission'}
-              onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
-            >
-              <option value="Pending Submission">Pending Submission</option>
-              <option value="Submitted">Submitted</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
         </div>
 
         {/* Delete Section */}

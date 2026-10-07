@@ -60,7 +60,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
     dateOfBirth: '',
     phoneNumber: '',
     pexNumber: '',
-    status: 'Pending Submission',
   })
   const [isEditSaving, setIsEditSaving] = useState(false)
   const { generateReceipt } = useReceipt()
@@ -172,20 +171,18 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
       dateOfBirth: item.applicants?.date_of_birth || '',
       phoneNumber: item.applicants?.phone_number || '',
       pexNumber: item.pex_number || '',
-      status: item.status || 'Pending Submission',
     })
     setEditModal(item)
   }
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
-      const res = await fetch('/api/passports/gb/update', {
+      const res = await fetch('/api/passports/gb/update-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id,
           status: newStatus,
-          userId: currentUserId,
         }),
       })
 
@@ -214,8 +211,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
           dateOfBirth: editFormData.dateOfBirth,
           phoneNumber: editFormData.phoneNumber,
           pexNumber: editFormData.pexNumber,
-          status: editFormData.status,
-          userId: currentUserId,
         }),
       })
 
@@ -233,7 +228,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         dateOfBirth: '',
         phoneNumber: '',
         pexNumber: '',
-        status: 'Pending Submission',
       })
       router.refresh()
     } catch (e: unknown) {
@@ -270,7 +264,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         dateOfBirth: '',
         phoneNumber: '',
         pexNumber: '',
-        status: 'Pending Submission',
       })
       router.refresh()
       return true
@@ -379,7 +372,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
             dateOfBirth: '',
             phoneNumber: '',
             pexNumber: '',
-            status: 'Pending Submission',
           })
         }}
         isSaving={isEditSaving}
