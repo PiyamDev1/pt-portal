@@ -1,7 +1,17 @@
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 import { MOBILE_NAVIGATION_METADATA_KEY } from '@/lib/mobileNavigation'
+import { z } from 'zod'
+
+const dashboardModulePreferenceBodySchema = z
+  .object({
+    moduleId: z.any().optional(),
+    action: z.any().optional(),
+    favorite: z.any().optional(),
+  })
+  .passthrough()
 
 export const dynamic = 'force-dynamic'
 
@@ -43,19 +53,27 @@ export async function POST(request: Request) {
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => ({}))) as {
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    dashboardModulePreferenceBodySchema,
+  )
+  if (bodyError || !body) return apiError('moduleId and action required', 400)
+
+  const preference = body as {
     moduleId?: string
     action?: 'toggle-favorite' | 'record-open'
     favorite?: boolean
   }
 
-  if (!body.moduleId || !body.action) return apiError('moduleId and action required', 400)
+  if (!preference.moduleId || !preference.action) {
+    return apiError('moduleId and action required', 400)
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from('dashboard_user_module_preferences')
     .select('module_id, is_favorite, usage_count, last_opened_at')
     .eq('user_id', user.id)
-    .eq('module_id', body.moduleId)
+    .eq('module_id', preference.moduleId)
     .maybeSingle()
 
   if (existingError) return apiError(existingError.message, 500)
@@ -63,18 +81,18 @@ export async function POST(request: Request) {
   const now = new Date().toISOString()
   const nextRow = {
     user_id: user.id,
-    module_id: body.moduleId,
+    module_id: preference.moduleId,
     is_favorite:
-      body.action === 'toggle-favorite'
-        ? typeof body.favorite === 'boolean'
-          ? body.favorite
+      preference.action === 'toggle-favorite'
+        ? typeof preference.favorite === 'boolean'
+          ? preference.favorite
           : !existing?.is_favorite
         : existing?.is_favorite || false,
     usage_count:
-      body.action === 'record-open'
+      preference.action === 'record-open'
         ? Number(existing?.usage_count || 0) + 1
         : Number(existing?.usage_count || 0),
-    last_opened_at: body.action === 'record-open' ? now : existing?.last_opened_at || null,
+    last_opened_at: preference.action === 'record-open' ? now : existing?.last_opened_at || null,
     updated_at: now,
   }
 
