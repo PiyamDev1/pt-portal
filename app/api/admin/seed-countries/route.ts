@@ -5,11 +5,11 @@
  * @module app/api/admin/seed-countries
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
@@ -53,7 +53,7 @@ const COUNTRIES_DATA = [
 
 const emptySeedSchema = z.object({}).strict()
 
-export async function POST(request) {
+export async function POST(request: Request): Promise<Response> {
   try {
     const access = await requireAdminSession()
     if (!access.authorized) return access.response
@@ -78,7 +78,7 @@ export async function POST(request) {
       return apiError('Supabase not configured', 500)
     }
 
-    const supabase = createClient(url, key)
+    const supabase = getServiceSupabaseClient()
 
     let inserted = 0
 
@@ -97,7 +97,7 @@ export async function POST(request) {
 }
 
 // Keep GET for health checks
-export async function GET() {
+export async function GET(): Promise<Response> {
   return apiOk({
     route: 'seed-countries',
     note: 'Use POST with proper authentication',

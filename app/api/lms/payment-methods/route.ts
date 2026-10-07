@@ -6,14 +6,14 @@
  *   (e.g. Cash, Bank Transfer, Stripe). Returns an empty array gracefully
  *   if table access fails, so the UI can still render with a fallback list.
  *
- * Authentication: Service role key
+ * Authentication: Active LMS staff session; reads use the server-only service client.
  * Response Success (200): { methods: PaymentMethod[] }
  */
 import { apiOk } from '@/lib/api/http'
-import { createClient } from '@supabase/supabase-js'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireLmsStaff } from '@/lib/lms/apiAuth'
 
-export async function GET(request) {
+export async function GET(_request: Request): Promise<Response> {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
@@ -27,9 +27,9 @@ export async function GET(request) {
       })
     }
 
-    const supabase = createClient(url, key)
-
-    const { data: methods, error } = await supabase.from('loan_payment_methods').select('*')
+    const { data: methods, error } = await getServiceSupabaseClient()
+      .from('loan_payment_methods')
+      .select('*')
 
     if (error) {
       console.error('Query error:', error)

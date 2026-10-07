@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => {
     throw new Error(`Unexpected table: ${table}`)
   })
 
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     ilike,
@@ -36,12 +36,12 @@ const mocks = vi.hoisted(() => {
     countryInsert,
     typeUpsert,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 
 import { GET } from '@/app/api/admin/seed-presets/route'
@@ -67,7 +67,7 @@ describe('GET /api/admin/seed-presets', () => {
 
     expect(response.status).toBe(500)
     expect(payload).toEqual({ error: 'Supabase not configured' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns semantic sync summary payload on success', async () => {
@@ -89,5 +89,16 @@ describe('GET /api/admin/seed-presets', () => {
 
     expect(response.status).toBe(500)
     expect(payload).toEqual({ error: 'query failed' })
+  })
+
+  it('returns a controlled error when a missing country cannot be created', async () => {
+    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null })
+    mocks.countryInsertSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const response = await GET()
+    const payload = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(payload).toEqual({ error: 'Failed to create visa country: Kingdom of Saudi Arabia' })
   })
 })

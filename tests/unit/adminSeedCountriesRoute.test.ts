@@ -3,17 +3,17 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const upsert = vi.fn()
   const from = vi.fn(() => ({ upsert }))
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     upsert,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 
 import { GET, POST } from '@/app/api/admin/seed-countries/route'
@@ -63,7 +63,7 @@ describe('/api/admin/seed-countries route', () => {
 
     expect(response.status).toBe(403)
     expect(payload).toEqual({ error: 'Forbidden' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('rejects unexpected payload fields before using the service client', async () => {
@@ -76,7 +76,7 @@ describe('/api/admin/seed-countries route', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 500 when Supabase env vars are missing', async () => {
@@ -88,7 +88,7 @@ describe('/api/admin/seed-countries route', () => {
 
     expect(response.status).toBe(500)
     expect(payload).toEqual({ error: 'Supabase not configured' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns semantic seeded-country count on success', async () => {

@@ -2,18 +2,19 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const from = vi.fn()
-  const createClient = vi.fn(() => ({ from }))
-  return { from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { from, getServiceSupabaseClient }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 vi.mock('@/lib/lms/apiAuth', () => ({
   requireLmsStaff: vi.fn(async () => ({ authorized: true, employee: { id: 'emp-1' } })),
 }))
 
 import { GET } from '@/app/api/lms/payment-methods/route'
+import { requireLmsStaff } from '@/lib/lms/apiAuth'
 
 describe('/api/lms/payment-methods route', () => {
   const originalEnv = { ...process.env }
@@ -34,7 +35,7 @@ describe('/api/lms/payment-methods route', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({ methods: [] })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns empty methods when query returns an error', async () => {
@@ -80,7 +81,7 @@ describe('/api/lms/payment-methods route', () => {
   })
 
   it('returns empty methods when an exception is thrown', async () => {
-    mocks.createClient.mockImplementation(() => {
+    mocks.getServiceSupabaseClient.mockImplementation(() => {
       throw new Error('boom')
     })
 
@@ -90,6 +91,16 @@ describe('/api/lms/payment-methods route', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({ methods: [] })
+  })
+
+  it('returns the LMS authorization response without creating a service client', async () => {
+    const response = new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    vi.mocked(requireLmsStaff).mockResolvedValueOnce({ authorized: false, response })
+
+    const result = await GET(new Request('http://localhost/api/lms/payment-methods'))
+
+    expect(result).toBe(response)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   afterAll(() => {

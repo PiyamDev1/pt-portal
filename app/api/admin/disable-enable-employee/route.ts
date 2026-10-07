@@ -33,7 +33,7 @@ const statusChangeSchema = z
  * - employeeId: string - ID of employee to disable/enable
  * - isActive: boolean - desired status
  */
-export async function POST(request) {
+export async function POST(request: Request): Promise<Response> {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
@@ -121,7 +121,11 @@ export async function POST(request) {
  * Helper: Check if userId is a manager of targetEmployeeId
  * Includes hierarchical checks (manager of manager counts as manager)
  */
-async function checkIfManager(supabase, managerId, targetEmployeeId) {
+async function checkIfManager(
+  supabase: ReturnType<typeof getServiceSupabaseClient>,
+  managerId: string,
+  targetEmployeeId: string,
+): Promise<boolean> {
   const { data: targetEmployee, error } = await supabase
     .from('employees')
     .select('manager_id')
@@ -134,8 +138,8 @@ async function checkIfManager(supabase, managerId, targetEmployeeId) {
   if (targetEmployee.manager_id === managerId) return true
 
   // Check up the chain for this manager
-  let current = targetEmployee.manager_id
-  const visited = new Set()
+  let current: string | null = targetEmployee.manager_id
+  const visited = new Set<string>()
 
   while (current && !visited.has(current)) {
     visited.add(current)

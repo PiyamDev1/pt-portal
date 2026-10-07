@@ -5,9 +5,9 @@
  * @module app/api/admin/seed-presets
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
@@ -224,7 +224,7 @@ const PRESETS = [
   },
 ]
 
-export async function GET(request) {
+export async function GET(request: Request): Promise<Response> {
   const access = await requireMaintenanceSession()
   if (!access.authorized) return access.response
 
@@ -244,9 +244,9 @@ export async function GET(request) {
       return apiError('Supabase not configured', 500)
     }
 
-    const supabase = createClient(url, key)
+    const supabase = getServiceSupabaseClient()
 
-    const logs = []
+    const logs: string[] = []
 
     // Optional: Clear old types to ensure clean slate?
     // Uncomment next line if you want to wipe before seeding
@@ -254,7 +254,7 @@ export async function GET(request) {
 
     for (const group of PRESETS) {
       // 1. Create/Find Country
-      let countryId = null
+      let countryId: string | null = null
       const { data: existingCountry } = await supabase
         .from('visa_countries')
         .select('id')
@@ -269,6 +269,7 @@ export async function GET(request) {
           .insert({ name: group.country })
           .select('id')
           .single()
+        if (!newCountry) throw new Error(`Failed to create visa country: ${group.country}`)
         countryId = newCountry.id
       }
 

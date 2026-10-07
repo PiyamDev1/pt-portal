@@ -384,6 +384,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Add company-wide LMS outstanding, overdue, and due-soon totals.
   - [x] Aggregate live POS supplier balances across all branches.
   - [ ] Add named bank balances once a trustworthy bank-account source exists.
+  - [x] Audit current portal sources and document that bank balances remain manual; do not infer them from POS cash or supplier data.
 - [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, Applications, Packages, POS, Frappe HRMS, Training, and Admin, including source links and unavailable-provider handling.
 - [x] Keep Admin approvals and issue reports as separate role-scoped queues that return to their existing Settings tabs.
 
@@ -438,6 +439,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract POS ledger advanced filters while retaining filter state, reset behavior, and transaction filtering in the POS workspace.
   - [x] Extract POS ledger period/date, search, sort, and filter-toggle controls while retaining all state and calculations in the POS workspace.
   - [x] Extract the Packages dashboard header and summary tiles while keeping role checks and count calculations in the dashboard client.
+  - [x] Extract Commission profile-rate and compensation-context presentation while keeping profile selection, edits, and persistence in the workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
@@ -463,6 +465,9 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary; preserve each screen's response shape and legacy Pakistani ID fallback.
   - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Bound and validate public receipt-verification credentials before rate limiting or lookup, preserving the existing response contract.
+    - [x] Convert the LMS payment-method reader to a typed route and shared service-client boundary while preserving its staff guard and empty-list fallback.
+    - [x] Convert visa country and preset seed handlers to typed routes and the shared service-client boundary while preserving existing role guards, rate limits, and response contracts.
+    - [x] Convert the employee status handler to a typed route while preserving manager-scope checks and fresh second-factor verification for disabling accounts.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 
 ## Verification requirements
