@@ -28,7 +28,8 @@ const mocks = vi.hoisted(() => {
     return {}
   })
 
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  const requireStaffSession = vi.fn()
 
   return {
     linkSingle,
@@ -41,11 +42,17 @@ const mocks = vi.hoisted(() => {
     historyEq,
     historySelect,
     from,
-    createClient,
+    getServiceSupabaseClient,
+    requireStaffSession,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
+vi.mock('@/lib/auth/staffSession', () => ({
+  requireStaffSession: mocks.requireStaffSession,
+}))
 
 import { GET } from '@/app/api/passports/pak/status-history/route'
 
@@ -58,8 +65,37 @@ const makeRequest = (params: Record<string, string> = {}) => {
 describe('GET /api/passports/pak/status-history', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: true,
+      user: { id: 'staff-1', email: 'staff@example.com' },
+      employee: {
+        id: 'staff-1',
+        email: 'staff@example.com',
+        fullName: 'Staff',
+        role: 'Agent',
+        departments: [],
+      },
+    })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'pakistani_passport_applications') {
+        const callCount = mocks.from.mock.calls.filter(
+          (call) => call[0] === 'pakistani_passport_applications',
+        ).length
+        if (callCount <= 1) return { select: mocks.linkSelect }
+        return { select: mocks.directSelect }
+      }
+      if (table === 'pakistani_passport_status_history') {
+        return { select: mocks.historySelect }
+      }
+      return {}
+    })
+    mocks.linkSelect.mockReturnValue({ eq: mocks.linkEq })
+    mocks.linkEq.mockReturnValue({ single: mocks.linkSingle })
+    mocks.directSelect.mockReturnValue({ eq: mocks.directEq })
+    mocks.directEq.mockReturnValue({ single: mocks.directSingle })
+    mocks.historySelect.mockReturnValue({ eq: mocks.historyEq })
+    mocks.historyEq.mockReturnValue({ order: mocks.historyOrder })
   })
 
   it('returns 404 when neither passportId nor applicationId resolve', async () => {
@@ -107,9 +143,25 @@ describe('GET /api/passports/pak/status-history', () => {
     ])
   })
 
+  it('resolves legacy records where the application ID is the passport record ID', async () => {
+    mocks.linkSingle.mockResolvedValue({ data: null, error: { message: 'not found' } })
+    mocks.directSingle.mockResolvedValue({ data: { id: 'legacy-pp-1' }, error: null })
+    mocks.historyOrder.mockResolvedValue({ data: [], error: null })
+
+    const res = await GET(makeRequest({ applicationId: 'legacy-pp-1' }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ history: [] })
+    expect(mocks.historyEq).toHaveBeenCalledWith('passport_application_id', 'legacy-pp-1')
+  })
+
   it('returns 500 when history query fails', async () => {
     mocks.historyOrder.mockResolvedValue({ data: null, error: { message: 'db fail' } })
     const res = await GET(makeRequest({ passportId: 'pp-1' }))
     expect(res.status).toBe(500)
+  })
+
+  it('returns 400 for an oversized lookup ID', async () => {
+    const res = await GET(makeRequest({ passportId: 'x'.repeat(201) }))
+    expect(res.status).toBe(400)
   })
 })

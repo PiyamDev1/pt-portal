@@ -4,30 +4,33 @@
  *
  * @module app/api/passports/gb/status-history
  */
-
-import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 
-export const dynamic = 'force-dynamic'
+const gbPassportHistoryQuerySchema = z.object({
+  passportId: z.string().trim().max(200).optional(),
+})
 
-export async function GET(request) {
+export async function GET(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
-
     const { searchParams } = new URL(request.url)
-    const passportId = searchParams.get('passportId')
+    const parsedQuery = gbPassportHistoryQuerySchema.safeParse({
+      passportId: searchParams.get('passportId') ?? undefined,
+    })
+    if (!parsedQuery.success) {
+      return apiError(parsedQuery.error.issues[0]?.message || 'Invalid query parameters', 400)
+    }
 
+    const { passportId } = parsedQuery.data
     if (!passportId) return apiOk({ history: [] })
 
-    // Fetch history logs
+    const supabase = getServiceSupabaseClient()
     const { data: history, error } = await supabase
       .from('british_passport_status_history')
       .select(

@@ -5,11 +5,17 @@ const mocks = vi.hoisted(() => {
   const eq = vi.fn(() => ({ order }))
   const select = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ select }))
-  const createClient = vi.fn(() => ({ from }))
-  return { order, eq, select, from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  const requireStaffSession = vi.fn()
+  return { order, eq, select, from, getServiceSupabaseClient, requireStaffSession }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
+vi.mock('@/lib/auth/staffSession', () => ({
+  requireStaffSession: mocks.requireStaffSession,
+}))
 
 import { GET } from '@/app/api/passports/gb/status-history/route'
 
@@ -22,9 +28,18 @@ const makeRequest = (params: Record<string, string> = {}) => {
 describe('GET /api/passports/gb/status-history', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: true,
+      user: { id: 'staff-1', email: 'staff@example.com' },
+      employee: {
+        id: 'staff-1',
+        email: 'staff@example.com',
+        fullName: 'Staff',
+        role: 'Agent',
+        departments: [],
+      },
+    })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ select: mocks.select })
     mocks.select.mockReturnValue({ eq: mocks.eq })
     mocks.eq.mockReturnValue({ order: mocks.order })
@@ -54,5 +69,10 @@ describe('GET /api/passports/gb/status-history', () => {
     mocks.order.mockResolvedValue({ data: null, error: { message: 'db failed' } })
     const res = await GET(makeRequest({ passportId: 'gb-1' }))
     expect(res.status).toBe(500)
+  })
+
+  it('returns 400 for an oversized passport ID', async () => {
+    const res = await GET(makeRequest({ passportId: 'x'.repeat(201) }))
+    expect(res.status).toBe(400)
   })
 })

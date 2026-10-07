@@ -4,42 +4,44 @@
  *
  * @module app/api/passports/pak/status-history
  */
-
-import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 
-export const dynamic = 'force-dynamic'
+const pakPassportHistoryQuerySchema = z.object({
+  applicationId: z.string().trim().max(200).optional(),
+  passportId: z.string().trim().max(200).optional(),
+})
 
-export async function GET(request) {
+export async function GET(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
-
     const { searchParams } = new URL(request.url)
-    const applicationId = searchParams.get('applicationId')
-    const passportId = searchParams.get('passportId')
+    const parsedQuery = pakPassportHistoryQuerySchema.safeParse({
+      applicationId: searchParams.get('applicationId') ?? undefined,
+      passportId: searchParams.get('passportId') ?? undefined,
+    })
+    if (!parsedQuery.success) {
+      return apiError(parsedQuery.error.issues[0]?.message || 'Invalid query parameters', 400)
+    }
 
-    // 1. Resolve to a specific Passport Record ID
-    let targetPassportId = passportId
+    const { applicationId } = parsedQuery.data
+    let targetPassportId = parsedQuery.data.passportId
+    const supabase = getServiceSupabaseClient()
 
     if (!targetPassportId && applicationId) {
-      // If we only have App ID, lookup the Passport ID
       const { data: link, error: linkError } = await supabase
         .from('pakistani_passport_applications')
         .select('id')
-        .eq('application_id', applicationId) // Assumes you ran the migration to add application_id
+        .eq('application_id', applicationId)
         .single()
 
       if (linkError || !link) {
-        // Fallback: Check if the application_id IS the passport_id (Old schema structure)
-        // This handles the "Ghost Record" case or "Direct ID" case
+        // Older records may use the application ID as their passport record ID.
         const { data: directCheck } = await supabase
           .from('pakistani_passport_applications')
           .select('id')
@@ -49,18 +51,15 @@ export async function GET(request) {
         if (directCheck) {
           targetPassportId = directCheck.id
         } else {
-          return apiOk({ history: [] }) // Return empty instead of error to prevent UI crash
+          return apiOk({ history: [] })
         }
       } else {
         targetPassportId = link.id
       }
     }
 
-    if (!targetPassportId) {
-      return apiError('Record not found', 404)
-    }
+    if (!targetPassportId) return apiError('Record not found', 404)
 
-    // 2. Fetch History
     const { data: history, error } = await supabase
       .from('pakistani_passport_status_history')
       .select(
@@ -76,14 +75,16 @@ export async function GET(request) {
 
     if (error) throw error
 
-    // 3. Format
-    const formattedHistory = history.map((item) => ({
-      id: item.id,
-      status: item.new_status,
-      changed_by: item.employees?.full_name || 'System',
-      date: item.changed_at,
-      description: `Status changed to ${item.new_status}`,
-    }))
+    const formattedHistory = (history || []).map((item) => {
+      const employee = Array.isArray(item.employees) ? item.employees[0] : item.employees
+      return {
+        id: item.id,
+        status: item.new_status,
+        changed_by: employee?.full_name || 'System',
+        date: item.changed_at,
+        description: `Status changed to ${item.new_status}`,
+      }
+    })
 
     return apiOk({ history: formattedHistory })
   } catch (error) {
