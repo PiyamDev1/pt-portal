@@ -480,7 +480,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Remove duplicated Package auth/header setup across dashboard, group, folder, quotation, sales, and migration routes.
   - [x] Replace the remaining dashboard page-local session, employee, branch, and role loaders; keep specialised capability queries module-owned until a shared contract is justified.
   - [x] Consolidate current-employee department-name loading without moving module-specific authorisation into generic page context.
-- [ ] Modernise legacy API handlers incrementally.
+- [x] Migrate the planned, explicitly scoped legacy API handler cohorts incrementally while preserving each route's data owner and response contract.
   - [x] Convert the dedicated NADRA, Pakistani Passport, and Visa status mutation routes to typed handlers with shared request and service-client boundaries.
   - [x] Split and modernise GB Passport updates and status-history readers.
     - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
@@ -516,6 +516,9 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Type the LMS account/payment route and reuse the server-only service client while preserving staff authorization, pagination fallback, and idempotent financial RPCs.
     - [x] Reuse the server-only Supabase client in Notice Board administration without changing maintenance access, validation, or storage cleanup behavior.
     - [x] Reuse the server-only Supabase client for the read-only LMS schema-readiness check while keeping migrations as the sole schema owner.
+
+API follow-up inventory: the request-body boundary ratchet still tracks 54 routes with direct JSON parsing (60 calls at this snapshot). Those routes are not considered migrated; continue with route-specific tests and review, especially for authentication, booking, timeclock, and financial writes. The CI baseline is in `scripts/ci/api-body-validation-baseline.json`.
+
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 
 ## Verification requirements
