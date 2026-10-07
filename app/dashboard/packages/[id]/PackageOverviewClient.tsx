@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   ArrowLeft,
-  AlertTriangle,
   BadgePoundSterling,
   CalendarDays,
   CheckCircle2,
@@ -62,6 +61,9 @@ import { PackageThirdPartyDocumentAccessPanel } from './PackageThirdPartyDocumen
 import PackageInvoiceLinesEditor from './PackageInvoiceLinesEditor'
 import PackageOverviewDialogs from './PackageOverviewDialogs'
 import PackageFinalQuoteSnapshot from './PackageFinalQuoteSnapshot'
+import PackageQuoteReconciliationNotice, {
+  type PackageQuoteSyncState,
+} from './PackageQuoteReconciliationNotice'
 import PackageGroupPanel from './PackageGroupPanel'
 import PackageTicketingPanel from './PackageTicketingPanel'
 import type {
@@ -673,14 +675,7 @@ export default function PackageOverviewClient({
   const selectedPayload = packageFolder?.selected_quote_snapshot?.payload
   const selectedSelection = packageFolder?.selected_quote_snapshot?.selection
   const selectedQuote = packageFolder?.selected_quote_snapshot?.quote
-  const quoteSync = packageFolder?.metadata?.quoteSync as
-    | {
-        status?: 'synced' | 'review_required' | 'failed'
-        syncedAt?: string
-        message?: string
-        conflicts?: Array<{ message?: string }>
-      }
-    | undefined
+  const quoteSync = packageFolder?.metadata?.quoteSync as PackageQuoteSyncState | undefined
   const groupInvoiceFamilies = useMemo(
     () => packageFolder?.selected_quote_snapshot?.group?.families || [],
     [packageFolder?.selected_quote_snapshot?.group?.families],
@@ -2546,58 +2541,11 @@ Please enter the access code and accept the data handling terms before downloadi
         </div>
       </section>
 
-      {(quoteSync?.status === 'review_required' || quoteSync?.status === 'failed') && (
-        <section
-          className={`flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between ${
-            quoteSync.status === 'failed'
-              ? 'border-red-300 bg-red-50 text-red-950'
-              : 'border-amber-300 bg-amber-50 text-amber-950'
-          }`}
-        >
-          <div className="flex min-w-0 items-start gap-3">
-            <AlertTriangle
-              className={`mt-0.5 h-5 w-5 shrink-0 ${
-                quoteSync.status === 'failed' ? 'text-red-700' : 'text-amber-700'
-              }`}
-            />
-            <div>
-              <p className="text-sm font-black">
-                {quoteSync.status === 'failed'
-                  ? 'Quotation reconciliation failed'
-                  : 'Quotation changes need an agent review'}
-              </p>
-              <p
-                className={`mt-1 text-xs font-semibold leading-5 ${
-                  quoteSync.status === 'failed' ? 'text-red-800' : 'text-amber-800'
-                }`}
-              >
-                {quoteSync.status === 'failed'
-                  ? quoteSync.message ||
-                    'The package may still contain figures from an earlier quotation version.'
-                  : `Package-owned figures were refreshed. ${
-                      quoteSync.conflicts?.[0]?.message ||
-                      'A progressed reservation, payment request, or invoice was preserved.'
-                    }`}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => void reconcilePackageQuote()}
-            disabled={syncingQuote}
-            className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black text-white disabled:opacity-60 ${
-              quoteSync.status === 'failed' ? 'bg-red-900' : 'bg-amber-900'
-            }`}
-          >
-            {syncingQuote ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4" />
-            )}
-            Reconcile again
-          </button>
-        </section>
-      )}
+      <PackageQuoteReconciliationNotice
+        quoteSync={quoteSync}
+        syncing={syncingQuote}
+        onReconcile={() => void reconcilePackageQuote()}
+      />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <PackageStatusCard

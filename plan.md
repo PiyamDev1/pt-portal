@@ -445,6 +445,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Booking quick-reschedule controls while keeping slot ranking, time calculations, and appointment state in the workspace.
   - [x] Extract POS quick-transaction impact and posting presentation while keeping amount, loyalty, destination, availability, and submit decisions in the workspace.
   - [x] Extract the POS configuration overview, health diagnostics, metric cards, and setup sequence while leaving counts and duplicate checks in the parent workspace.
+  - [x] Extract Package quote-reconciliation warning presentation while keeping reconciliation state and retries in the Package workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
