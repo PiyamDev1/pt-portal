@@ -4,18 +4,18 @@ const mocks = vi.hoisted(() => {
   const insert = vi.fn()
   const select = vi.fn()
   const from = vi.fn(() => ({ insert, select }))
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     insert,
     select,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 
 import { POST } from '@/app/api/admin/seed-pricing/route'
@@ -51,7 +51,7 @@ describe('POST /api/admin/seed-pricing', () => {
 
     expect(response.status).toBe(401)
     expect(payload).toEqual({ error: 'Unauthorized' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 500 when Supabase env vars are missing', async () => {
@@ -68,7 +68,7 @@ describe('POST /api/admin/seed-pricing', () => {
 
     expect(response.status).toBe(500)
     expect(payload).toEqual({ error: 'Supabase not configured' })
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns semantic pricing counts on success', async () => {
@@ -86,6 +86,7 @@ describe('POST /api/admin/seed-pricing', () => {
       pkCount: 24,
       gbCount: 27,
     })
+    expect(mocks.getServiceSupabaseClient).toHaveBeenCalledOnce()
   })
 
   it('returns 500 when insert throws', async () => {

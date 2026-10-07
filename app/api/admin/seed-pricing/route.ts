@@ -5,10 +5,10 @@
  * @module app/api/admin/seed-pricing
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
@@ -25,14 +25,11 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) return limit.response
 
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!url || !key) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return apiError('Supabase not configured', 500)
     }
 
-    const supabase = createClient(url, key)
+    const supabase = getServiceSupabaseClient()
 
     // Insert NADRA pricing
     const nadraPricing = [
