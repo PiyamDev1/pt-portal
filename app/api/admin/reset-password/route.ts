@@ -5,7 +5,6 @@
  * @module app/api/admin/reset-password
  */
 
-import { createClient } from '@supabase/supabase-js'
 import formData from 'form-data'
 import Mailgun from 'mailgun.js'
 import bcrypt from 'bcryptjs'
@@ -14,6 +13,7 @@ import { z } from 'zod'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
 import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
@@ -33,7 +33,7 @@ const resetPasswordSchema = z
     message: 'employee_id or email is required',
   })
 
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     const access = await requireAdminSession()
     if (!access.authorized) return access.response
@@ -57,7 +57,8 @@ export async function POST(request) {
     const missingEnv = []
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY')
-    if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY')
+    const mailgunApiKey = process.env.MAILGUN_API_KEY || ''
+    if (!mailgunApiKey) missingEnv.push('MAILGUN_API_KEY')
     if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN')
     const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS
     if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS')
@@ -66,11 +67,7 @@ export async function POST(request) {
       return apiError(msg, 500)
     }
 
-    // Initialize clients inside the function
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
+    const supabaseAdmin = getServiceSupabaseClient()
 
     const mailgun = new Mailgun(formData)
     const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net'
@@ -79,7 +76,7 @@ export async function POST(request) {
       : `https://${rawMailgunEndpoint}`
     const mg = mailgun.client({
       username: 'api',
-      key: process.env.MAILGUN_API_KEY,
+      key: mailgunApiKey,
       url: mailgunEndpoint,
     })
 
@@ -95,7 +92,7 @@ export async function POST(request) {
     }
 
     // Resolve user id
-    let userId = employee_id
+    let userId: string | undefined = employee_id
     if (!userId && email) {
       const { data: emp, error: empErr } = await supabaseAdmin
         .from('employees')
@@ -113,6 +110,8 @@ export async function POST(request) {
 
       userId = emp.id
     }
+
+    if (!userId) return apiError('employee_id or email is required', 400)
 
     // Generate temp password
     const tempPassword = `${randomBytes(12).toString('base64url')}Aa1!`

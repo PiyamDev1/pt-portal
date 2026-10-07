@@ -219,5 +219,10 @@ describe('POST /api/admin/reset-password', () => {
       resetUserId: 'emp-1',
       message: 'Password reset and emailed',
     })
+    expect(mocks.createClient).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'service-role-key',
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    )
   })
 })
