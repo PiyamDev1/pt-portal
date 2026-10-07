@@ -5,9 +5,9 @@
  * @module app/api/admin/create-installments-table
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { requireLmsMaintenance } from '@/lib/lms/apiAuth'
 
 const REQUIRED_LMS_SCHEMA_VERSION = 20260812
@@ -24,7 +24,7 @@ export async function POST() {
       return apiError('Supabase not configured', 500)
     }
 
-    const supabase = createClient(url, key)
+    const supabase = getServiceSupabaseClient()
 
     // Schema creation is migration-owned. This endpoint only verifies the
     // explicit capability/version marker installed by the atomic LMS migration.
