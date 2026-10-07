@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
@@ -11,6 +12,9 @@ import {
 } from '@/lib/packages/paymentRouteContract'
 import type { TravelPackagePayment, TravelPackagePaymentType } from '@/app/types/packages'
 import { selectTravelPackagePaymentColumns } from './columns'
+import { z } from 'zod'
+
+const packagePaymentCreateBodySchema = z.object({}).passthrough()
 
 const SCHEMA_HINT =
   'Package payment tracking is incomplete. Run the package workflow migrations, including scripts/migrations/20260827_create_group_customer_files.sql.'
@@ -57,8 +61,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packagePaymentCreateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const amount = parseMoney(body.amount)
   if (amount <= 0) return apiError('Payment amount must be greater than zero', 400)
   const paymentType = cleanPackagePaymentText(body.paymentType || body.payment_type)
