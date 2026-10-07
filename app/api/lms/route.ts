@@ -10,21 +10,18 @@
  *     limit      number  - Page size (max: 100, default: 50)
  *
  * POST /api/lms
- *   Creates a new loan account with optional installment plan.
- *   Body: { employeeId, amount, serviceType, startDate, installmentCount?, ... }
+ *   Executes a staff action: record_payment, add_service, add_fee,
+ *   create_customer, update_customer, or delete_customer.
+ *   Body shape is validated by the action-specific schema below.
  *
- * DELETE /api/lms
- *   Marks a loan account as settled/deleted.
- *   Body: { accountId }
- *
- * Authentication: Service role key
+ * Authentication: Authorized LMS staff session; database access stays server-side.
  * Response Errors: 500 Supabase not configured | 400 Validation | 500 DB error
  */
-import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import {
   getLmsIdempotencyKey,
   requireLmsStaff,
@@ -119,14 +116,44 @@ const lmsActionSchema = z.discriminatedUnion('action', [
     .passthrough(),
 ])
 
-function lmsRpcErrorStatus(error) {
+type LmsRpcError = { code?: string; message?: string }
+type LmsCustomerRow = {
+  id: string
+  first_name: string
+  last_name: string
+  phone_number: string | null
+  email: string | null
+  address: string | null
+  created_at: string
+}
+type LmsLoanRow = { id: string; loan_customer_id: string; [key: string]: unknown }
+type LmsTransactionRow = {
+  id: string
+  loan_id: string
+  transaction_type: string | null
+  amount: string | number | null
+  transaction_timestamp: string
+  [key: string]: unknown
+}
+type LmsInstallmentRow = {
+  loan_transaction_id: string
+  status: string
+  due_date: string
+}
+
+function lmsRpcErrorStatus(error: LmsRpcError | null | undefined) {
   if (error?.code === 'P0002') return 404
   if (error?.code === '22023' || error?.code === '23503') return 400
   if (error?.code === '42501') return 403
   return 500
 }
 
-async function lmsFailureResponse(request, operation, error, fallbackMessage) {
+async function lmsFailureResponse(
+  request: Request,
+  operation: string,
+  error: LmsRpcError,
+  fallbackMessage: string,
+) {
   const requestId = await reportOperationalError({
     event: 'lms.rpc_failed',
     request,
@@ -140,20 +167,20 @@ async function lmsFailureResponse(request, operation, error, fallbackMessage) {
   )
 }
 
-function parseOptionalTimestamp(value) {
+function parseOptionalTimestamp(value?: string | null) {
   if (!value) return new Date().toISOString()
   const parsed = new Date(value)
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null
 }
 
-function isOptionalIsoDate(value) {
+function isOptionalIsoDate(value?: string | null) {
   if (!value) return true
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
 }
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request) {
+export async function GET(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
@@ -166,7 +193,7 @@ export async function GET(request) {
         500,
       )
     }
-    const supabase = createClient(url, key)
+    const supabase = getServiceSupabaseClient()
 
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'active' // active, overdue, all, settled
@@ -190,7 +217,7 @@ export async function GET(request) {
     // Defensive fallback for a null RPC result: still calculate all metrics
     // globally before filtering and pagination.
     // Fetch all customers so filters, stats, and accountId work globally.
-    const { data: customers, error: custError } = await supabase
+    const { data: customerRows, error: custError } = await supabase
       .from('loan_customers')
       .select(
         `
@@ -206,21 +233,23 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
 
     if (custError) throw custError
+    const customers = customerRows as LmsCustomerRow[]
 
     const customerIds = customers.map((c) => c.id)
 
     // Fetch loans/transactions/installments for all customers before filtering.
-    const { data: allLoans, error: loansError } = await supabase
+    const { data: loanRows, error: loansError } = await supabase
       .from('loans')
       .select('*')
       .in('loan_customer_id', customerIds)
 
     if (loansError) throw loansError
+    const allLoans = loanRows as LmsLoanRow[]
 
     const loanIds = allLoans.map((l) => l.id)
 
     // Fetch transactions for all matching loans.
-    const { data: allTransactions, error: txError } = await supabase
+    const { data: transactionRows, error: txError } = await supabase
       .from('loan_transactions')
       .select(
         `
@@ -231,10 +260,11 @@ export async function GET(request) {
       .in('loan_id', loanIds.length > 0 ? loanIds : ['00000000-0000-0000-0000-000000000000'])
 
     if (txError) throw txError
+    const allTransactions = transactionRows as LmsTransactionRow[]
 
     // Fetch installments for all matching transactions.
     const transactionIds = allTransactions.map((t) => t.id)
-    const { data: allInstallments, error: installmentsError } = await supabase
+    const { data: installmentRows, error: installmentsError } = await supabase
       .from('loan_installments')
       .select('*')
       .in(
@@ -243,34 +273,32 @@ export async function GET(request) {
       )
 
     if (installmentsError) throw installmentsError
+    const allInstallments = installmentRows as LmsInstallmentRow[]
 
     // Build lookup maps for O(1) access
-    const loansMap = new Map()
-    const transactionsMap = new Map()
-    const installmentsMap = new Map()
+    const loansMap = new Map<string, LmsLoanRow[]>()
+    const transactionsMap = new Map<string, LmsTransactionRow[]>()
+    const installmentsMap = new Map<string, LmsInstallmentRow[]>()
 
     // Map loans by customer ID for fast lookup
     allLoans.forEach((loan) => {
-      if (!loansMap.has(loan.loan_customer_id)) {
-        loansMap.set(loan.loan_customer_id, [])
-      }
-      loansMap.get(loan.loan_customer_id).push(loan)
+      const customerLoans = loansMap.get(loan.loan_customer_id) || []
+      customerLoans.push(loan)
+      loansMap.set(loan.loan_customer_id, customerLoans)
     })
 
     // Map transactions by loan ID for fast lookup
     allTransactions.forEach((tx) => {
-      if (!transactionsMap.has(tx.loan_id)) {
-        transactionsMap.set(tx.loan_id, [])
-      }
-      transactionsMap.get(tx.loan_id).push(tx)
+      const loanTransactions = transactionsMap.get(tx.loan_id) || []
+      loanTransactions.push(tx)
+      transactionsMap.set(tx.loan_id, loanTransactions)
     })
 
     // Map installments by transaction ID for fast lookup
     allInstallments.forEach((inst) => {
-      if (!installmentsMap.has(inst.loan_transaction_id)) {
-        installmentsMap.set(inst.loan_transaction_id, [])
-      }
-      installmentsMap.get(inst.loan_transaction_id).push(inst)
+      const transactionInstallments = installmentsMap.get(inst.loan_transaction_id) || []
+      transactionInstallments.push(inst)
+      installmentsMap.set(inst.loan_transaction_id, transactionInstallments)
     })
 
     // Build enriched customer accounts
@@ -279,7 +307,7 @@ export async function GET(request) {
       const loanIds = customerLoans.map((l) => l.id)
 
       // Collect all transactions for this customer's loans
-      const transactions = []
+      const transactions: LmsTransactionRow[] = []
       loanIds.forEach((loanId) => {
         const loanTxs = transactionsMap.get(loanId) || []
         transactions.push(...loanTxs)
@@ -289,13 +317,13 @@ export async function GET(request) {
       let totalServices = 0
       let totalPayments = 0
       let totalFees = 0
-      const services = []
-      const payments = []
-      const fees = []
+      const services: LmsTransactionRow[] = []
+      const payments: LmsTransactionRow[] = []
+      const fees: LmsTransactionRow[] = []
 
       transactions.forEach((t) => {
         const txType = (t.transaction_type || '').toLowerCase()
-        const amount = parseFloat(t.amount || 0)
+        const amount = parseFloat(String(t.amount || 0))
 
         if (txType === 'service') {
           totalServices += amount
@@ -315,7 +343,7 @@ export async function GET(request) {
       let nextDue = null
 
       if (balance > 0) {
-        const dueDates = []
+        const dueDates: Date[] = []
 
         // Get service transaction dates and their installments
         services.forEach((service) => {
@@ -348,7 +376,10 @@ export async function GET(request) {
       const now = new Date()
       const isOverdue = nextDue && nextDue < now && balance > 0
       const isDueSoon =
-        nextDue && !isOverdue && (nextDue - now) / (1000 * 60 * 60 * 24) <= 7 && balance > 0
+        nextDue &&
+        !isOverdue &&
+        (nextDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24) <= 7 &&
+        balance > 0
 
       // Count active services
       let activeServicesCount = 0
@@ -367,12 +398,13 @@ export async function GET(request) {
           const servicePaid = payments.reduce((sum, p) => {
             // Match payments by date proximity (within 1 day of service)
             const dayDiff = Math.abs(
-              (new Date(service.transaction_timestamp) - new Date(p.transaction_timestamp)) /
+              (new Date(service.transaction_timestamp).getTime() -
+                new Date(p.transaction_timestamp).getTime()) /
                 (1000 * 60 * 60 * 24),
             )
-            return dayDiff <= 1 ? sum + parseFloat(p.amount || 0) : sum
+            return dayDiff <= 1 ? sum + parseFloat(String(p.amount || 0)) : sum
           }, 0)
-          if (servicePaid < parseFloat(service.amount || 0)) {
+          if (servicePaid < parseFloat(String(service.amount || 0))) {
             activeServicesCount++
           }
         }
@@ -387,7 +419,8 @@ export async function GET(request) {
 
       // Sort transactions by date descending
       const sortedTransactions = transactions.sort(
-        (a, b) => new Date(b.transaction_timestamp) - new Date(a.transaction_timestamp),
+        (a, b) =>
+          new Date(b.transaction_timestamp).getTime() - new Date(a.transaction_timestamp).getTime(),
       )
 
       return {
@@ -458,7 +491,7 @@ export async function GET(request) {
 }
 
 // POST - Quick Actions
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     const access = await requireLmsStaff()
     if (!access.authorized) return access.response
@@ -479,7 +512,7 @@ export async function POST(request) {
         500,
       )
     }
-    const supabase = createClient(url, key)
+    const supabase = getServiceSupabaseClient()
 
     const {
       data: body,
@@ -522,8 +555,8 @@ export async function POST(request) {
       const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, transactionDate } =
         body
 
-      const totalAmount = parseFloat(serviceAmount)
-      const deposit = parseFloat(initialDeposit) || 0
+      const totalAmount = parseFloat(String(serviceAmount))
+      const deposit = parseFloat(String(initialDeposit)) || 0
       if (!customerId || !Number.isFinite(totalAmount) || totalAmount <= 0) {
         return apiError('Valid customer and service amount required', 400)
       }
@@ -569,7 +602,7 @@ export async function POST(request) {
       const txTimestamp = parseOptionalTimestamp(transactionDate)
       if (!txTimestamp) return apiError('Invalid transaction date', 400)
 
-      const feeAmount = parseFloat(amount)
+      const feeAmount = parseFloat(String(amount))
       if (Number.isNaN(feeAmount) || feeAmount <= 0) {
         return apiError('Valid fee amount required', 400)
       }

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createClient: vi.fn(),
+  getServiceSupabaseClient: vi.fn(),
   requireLmsStaff: vi.fn(),
   verifyLmsDestructiveAction: vi.fn(),
 }))
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 vi.mock('@/lib/lms/apiAuth', () => ({
   getLmsIdempotencyKey: (request: Request, body?: Record<string, unknown>) =>
     request.headers.get('idempotency-key') || body?.idempotencyKey || null,
@@ -48,7 +50,7 @@ describe('LMS atomic mutation contract', () => {
     )
 
     expect(response.status).toBe(401)
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('passes payment, authenticated actor, and idempotency key to one RPC', async () => {
@@ -56,7 +58,7 @@ describe('LMS atomic mutation contract', () => {
       data: { recordedPaymentLoanId: 'loan-1', newBalance: 450, idempotentReplay: false },
       error: null,
     }))
-    mocks.createClient.mockReturnValue({ rpc })
+    mocks.getServiceSupabaseClient.mockReturnValue({ rpc })
 
     const response = await lmsPost(
       new Request('http://localhost/api/lms', {
@@ -88,7 +90,7 @@ describe('LMS atomic mutation contract', () => {
       data: { createdLoanId: 'loan-new', serviceTransactionId: 'service-1' },
       error: null,
     }))
-    mocks.createClient.mockReturnValue({ rpc })
+    mocks.getServiceSupabaseClient.mockReturnValue({ rpc })
 
     const response = await lmsPost(
       new Request('http://localhost/api/lms', {
@@ -128,7 +130,7 @@ describe('LMS atomic mutation contract', () => {
 
   it('adds a fee and recalculates its loan through one RPC', async () => {
     const rpc = vi.fn(async () => ({ data: { loanId: 'loan-1', feeAdded: 25 }, error: null }))
-    mocks.createClient.mockReturnValue({ rpc })
+    mocks.getServiceSupabaseClient.mockReturnValue({ rpc })
 
     const response = await lmsPost(
       new Request('http://localhost/api/lms', {
@@ -156,7 +158,7 @@ describe('LMS atomic mutation contract', () => {
 
   it('creates a customer and initial debt through one idempotent RPC', async () => {
     const rpc = vi.fn(async () => ({ data: { customerId: 'customer-new' }, error: null }))
-    mocks.createClient.mockReturnValue({ rpc })
+    mocks.getServiceSupabaseClient.mockReturnValue({ rpc })
 
     const response = await lmsPost(
       new Request('http://localhost/api/lms', {
@@ -185,7 +187,7 @@ describe('LMS atomic mutation contract', () => {
 
   it('verifies a fresh factor and deletes a customer in one RPC', async () => {
     const rpc = vi.fn(async () => ({ data: { deletedCustomerId: 'customer-1' }, error: null }))
-    mocks.createClient.mockReturnValue({ rpc })
+    mocks.getServiceSupabaseClient.mockReturnValue({ rpc })
     const response = await lmsPost(
       new Request('http://localhost/api/lms', {
         method: 'POST',

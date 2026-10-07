@@ -3,22 +3,22 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const from = vi.fn()
   const rpc = vi.fn()
-  const createClient = vi.fn(() => ({ from, rpc }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from, rpc }))
   const ensureInstallmentsTableExists = vi.fn(async () => undefined)
   const createInstallmentRecords = vi.fn(async () => undefined)
   const createDetailedInstallmentRecords = vi.fn(async () => undefined)
   return {
     from,
     rpc,
-    createClient,
+    getServiceSupabaseClient,
     ensureInstallmentsTableExists,
     createInstallmentRecords,
     createDetailedInstallmentRecords,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 
 vi.mock('@/lib/installmentsDb', () => ({
@@ -66,7 +66,7 @@ describe('/api/lms route POST actions', () => {
 
     expect(response.status).toBe(500)
     expect(payload.error).toContain('Supabase not configured')
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 400 for invalid action', async () => {

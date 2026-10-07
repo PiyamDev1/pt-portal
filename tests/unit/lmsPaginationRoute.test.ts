@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createClient: vi.fn(),
+  getServiceSupabaseClient: vi.fn(),
   requireLmsStaff: vi.fn(),
 }))
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 vi.mock('@/lib/lms/apiAuth', () => ({
   requireLmsStaff: mocks.requireLmsStaff,
   getLmsIdempotencyKey: vi.fn(),
@@ -34,7 +36,7 @@ describe('LMS global pagination contract', () => {
       pagination: { page: 3, limit: 2, total: 9, pages: 5 },
     }
     const rpc = vi.fn(async () => ({ data: databasePayload, error: null }))
-    mocks.createClient.mockReturnValue({ rpc })
+    mocks.getServiceSupabaseClient.mockReturnValue({ rpc })
 
     const response = await GET(
       new Request(

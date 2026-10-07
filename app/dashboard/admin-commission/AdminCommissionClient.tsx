@@ -47,6 +47,7 @@ import {
   type CommissionRateKind,
 } from '@/lib/commissions/contracts'
 import CommissionProfileSummary, { moneyFormatter } from './CommissionProfileSummary'
+import CommissionOverviewCard from './CommissionOverviewCard'
 import CommissionSourceCoveragePanel from './CommissionSourceCoveragePanel'
 import type {
   CommissionAdminData,
@@ -137,50 +138,6 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 function requestKey(prefix: string) {
   return `${prefix}:${crypto.randomUUID()}`
-}
-
-function OverviewCard({
-  label,
-  value,
-  note,
-  icon: Icon,
-  tone = 'white',
-}: {
-  label: string
-  value: string
-  note: string
-  icon: typeof Users
-  tone?: 'white' | 'dark' | 'red'
-}) {
-  const styles = {
-    white: 'border-slate-200 bg-white text-slate-950',
-    dark: 'border-slate-950 bg-[#17181b] text-white',
-    red: 'border-red-950/10 bg-gradient-to-br from-[#761522] to-[#ad293b] text-white',
-  }
-  return (
-    <article className={`rounded-[1.35rem] border p-4 shadow-sm ${styles[tone]}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p
-            className={`text-[10px] font-black uppercase tracking-[0.16em] ${tone === 'white' ? 'text-slate-500' : 'text-white/60'}`}
-          >
-            {label}
-          </p>
-          <p className="mt-2 text-2xl font-black tracking-tight">{value}</p>
-        </div>
-        <span
-          className={`rounded-xl p-2 ${tone === 'white' ? 'bg-red-50 text-[#8b1e2d]' : 'bg-white/10 text-white'}`}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-      </div>
-      <p
-        className={`mt-2 text-[11px] leading-4 ${tone === 'white' ? 'text-slate-500' : 'text-white/60'}`}
-      >
-        {note}
-      </p>
-    </article>
-  )
 }
 
 const KIND_LABELS: Record<CommissionRateKind, string> = {
@@ -2010,33 +1967,33 @@ export default function AdminCommissionClient({
       )}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <OverviewCard
+        <CommissionOverviewCard
           label="Configured staff"
           value={`${data.employees.filter((item) => item.currentProfileId).length} / ${data.employees.length}`}
           note="Active employees with a current commission plan"
           icon={UserRoundCheck}
           tone="red"
         />
-        <OverviewCard
+        <CommissionOverviewCard
           label="Preview total"
           value={money.format(data.overview.shadowTotalGbp)}
           note={`${data.overview.activeShadowEntries} active calculated entries`}
           icon={CircleDollarSign}
           tone="dark"
         />
-        <OverviewCard
+        <CommissionOverviewCard
           label="Waiting events"
           value={String(data.overview.pendingEvents)}
           note="Source events ready to calculate"
           icon={Clock3}
         />
-        <OverviewCard
+        <CommissionOverviewCard
           label="Held events"
           value={String(data.overview.heldEvents)}
           note="Waiting for data or a valid commission plan"
           icon={FileClock}
         />
-        <OverviewCard
+        <CommissionOverviewCard
           label="Open exceptions"
           value={String(data.overview.openExceptions)}
           note="Items requiring review or retry"

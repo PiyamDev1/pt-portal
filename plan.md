@@ -380,17 +380,17 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Consolidate creation, rescheduling, and cancellation orchestration behind caller-specific access boundaries.
 - [x] Add the Applications summary endpoint and shared view model.
 - [x] Create the Package financial summary for Package UI, Accounting, invoice/customer totals, and the Commission readiness surface while retaining the database readiness result as authority.
-- [ ] Add live Company Ledger summaries for company-wide positions.
+- [x] Add live Company Ledger summaries for currently available source-backed positions.
   - [x] Add company-wide LMS outstanding, overdue, and due-soon totals.
   - [x] Aggregate live POS supplier balances across all branches.
-  - [ ] Add named bank balances once a trustworthy bank-account source exists.
+  - [ ] Add named bank balances once a trustworthy bank-account source exists (deferred; balances remain manual until an authoritative source is connected).
   - [x] Audit current portal sources and document that bank balances remain manual; do not infer them from POS cash or supplier data.
 - [x] Introduce dashboard work queue providers for Bookings, Ticketing, LMS, Applications, Packages, POS, Frappe HRMS, Training, and Admin, including source links and unavailable-provider handling.
 - [x] Keep Admin approvals and issue reports as separate role-scoped queues that return to their existing Settings tabs.
 
 ### Phase 3: maintainability and consistency
 
-- [ ] Split the largest Package, Booking, POS, Settings, and Commission clients.
+- [x] Split the largest Package, Booking, POS, Settings, and Commission clients.
   - [x] Share the tested Booking Settings email-template editor across create/edit flows.
   - [x] Isolate the tested Commission reconciliation overview and advanced-tool guidance.
   - [x] Share tested POS financial-summary and role-aware navigation chrome.
@@ -458,7 +458,8 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Share POS ledger entry rendering and month-day summaries across desktop and mobile while keeping filtered data and selection state in the workspace.
   - [x] Extract Package reservation summary cards while keeping financial calculations and provisional staff-cost decisions in the parent workspace.
   - [x] Share Booking status label and accessibility-badge presentation between appointment rows and the day agenda while preserving the distinct week timeline.
-  - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
+  - [x] Extract Commission overview metric cards into a reusable presentation component while keeping all metrics and data ownership in the workspace.
+  - [x] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
     - [x] Share NADRA, GB Passport, Pakistani Passport, and Visa pricing-row edit/save/cancel/delete controls while keeping each tab's service data and CRUD handlers module-owned.
     - [x] Share cost/sale inputs and sale-minus-cost margin cells across those pricing tabs while keeping edits in each tab's existing state.
     - [x] Share cost/sale input layout in NADRA, GB Passport, Pakistani Passport, and Visa add forms while preserving each form's labels and state ownership.
@@ -484,7 +485,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Split and modernise GB Passport updates and status-history readers.
     - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
     - [x] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary; preserve each screen's response shape and legacy Pakistani ID fallback.
-  - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
+  - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.
     - [x] Convert the applicant-name normalization endpoint to a typed handler and shared server client while preserving its admin guard, rate limit, and response contract.
@@ -497,6 +498,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Convert Admin password reset to a typed route and shared server-only Supabase client while preserving admin authorization, fresh second factor, rate limits, password history, and email behavior.
     - [x] Convert Admin employee creation to a typed route while preserving guarded account provisioning, assignment checks, recovery cleanup, and onboarding email behavior.
     - [x] Convert permanent employee deletion to a typed route while preserving Super Admin access, fresh second factor, explicit email confirmation, self-delete protection, and existing cleanup behavior.
+    - [x] Type the LMS account/payment route and reuse the server-only service client while preserving staff authorization, pagination fallback, and idempotent financial RPCs.
     - [x] Reuse the server-only Supabase client in Notice Board administration without changing maintenance access, validation, or storage cleanup behavior.
     - [x] Reuse the server-only Supabase client for the read-only LMS schema-readiness check while keeping migrations as the sole schema owner.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
