@@ -55,6 +55,7 @@ The first safe financial-reporting slice is implemented in the application layer
 - NADRA, Pakistani Passport, and Visa status mutations now use typed route handlers, bounded Zod request parsing, verified staff identity, and the shared server-only Supabase client instead of ad hoc JavaScript clients.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
 - The two active database migration histories now have documented ownership, independent ordering, a registered exact-copy manifest, and a CI inventory check; existing replay tests remain feature-scoped.
+- POS now renders expanded transaction context through a focused detail panel; the workspace still owns selection, permissions, and refund/correction/receipt actions.
 
 No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata; the repository now documents its two separate migration histories and guards their inventory in CI.
 
@@ -424,6 +425,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Transport Voucher save/release controls and preview presentation while keeping voucher and print-view actions in the operations workspace.
   - [x] Extract the Package Operations audit-history timeline while keeping audit loading and event ownership in the workspace.
   - [x] Reuse a shared family-option type across passenger and payment panels.
+  - [x] Extract the expanded POS transaction details presentation while keeping selection, permissions, and actions in the workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.

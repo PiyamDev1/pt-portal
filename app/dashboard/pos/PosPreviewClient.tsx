@@ -32,7 +32,6 @@ import {
   Filter,
   HelpCircle,
   Landmark,
-  Pencil,
   Plane,
   ReceiptText,
   RotateCcw,
@@ -59,6 +58,7 @@ import type {
 } from '@/lib/pos/contracts'
 import { formatMoney, formatSignedMoney } from '@/lib/pos/format'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
+import PosSelectedTransactionDetails from './PosSelectedTransactionDetails'
 import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
 import {
   PosSummaryStrip,
@@ -2838,122 +2838,26 @@ export default function PosPreviewClient({
           </section>
 
           {selectedTransaction && (
-            <section
-              data-pos-tour="transaction-details"
-              className="overflow-hidden rounded-[1.15rem] border border-slate-200 bg-white shadow-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8b1e2d]">
-                      Expanded transaction
-                    </p>
-                    <h2 className="text-xs font-black text-slate-950">
-                      {selectedTransaction.reference || selectedTransaction.id}
-                    </h2>
-                  </div>
-                  <span className="hidden h-7 w-px bg-slate-200 sm:block" />
-                  <p className="truncate text-xs text-slate-600">
-                    <span className="font-black text-slate-900">{selectedTransaction.name}</span>
-                    {' · '}
-                    {selectedTransaction.category}
-                    {' · '}
-                    {selectedTransaction.method} {formatMoney(selectedTransaction.amount)}
-                    {' · '}
-                    {selectedTransaction.points === 0
-                      ? 'No loyalty'
-                      : `${selectedTransaction.points > 0 ? '+' : ''}${selectedTransaction.points} pts`}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {selectedTransaction.outgoingType === 'EXPENSE' &&
-                    bootstrap.permissions.canManage && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveView('Refunds & corrections')}
-                        className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Correct
-                      </button>
-                    )}
-                  <button
-                    type="button"
-                    onClick={() => setActiveView('Refunds & corrections')}
-                    className="h-8 rounded-lg bg-[#8b1e2d] px-2.5 text-[11px] font-black text-white hover:bg-[#6f1422]"
-                  >
-                    Refund
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      selectedTransaction.isLegacy
-                        ? toast.info('Imported legacy rows retain their original reference only.')
-                        : tutorialOpen
-                          ? toast.info('Tutorial example only', {
-                              description: 'No live receipt is created for tutorial transactions.',
-                            })
-                          : window.open(
-                              `/api/pos/transactions/${selectedTransaction.id}/receipt`,
-                              '_blank',
-                              'noopener,noreferrer',
-                            )
-                    }
-                    className="hidden h-8 rounded-lg border border-slate-200 px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50 sm:block"
-                  >
-                    Receipt
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedTransactionId('')
-                    }}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
-                    aria-label="Close transaction details"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="grid gap-3 border-t border-slate-100 bg-slate-50 px-3 py-2 text-[10px] text-slate-600 sm:grid-cols-4">
-                <div>
-                  <b className="text-slate-900">Tenders</b>
-                  {(selectedTransaction.tenders || []).map((tender) => (
-                    <p key={tender.id || `${tender.method}:${tender.amount}`}>
-                      {tender.method} {formatMoney(tender.amount)} · {tender.reconciliationStatus}
-                      {tender.destination === 'SUPPLIER_DIRECT' ? ' · Provider direct' : ''}
-                    </p>
-                  ))}
-                </div>
-                <div>
-                  <b className="text-slate-900">Source links</b>
-                  {(selectedTransaction.sourceLinks || []).map((source) => (
-                    <p key={source.id}>
-                      {source.sourceType} · {source.displayReference || source.recordId}
-                    </p>
-                  ))}
-                  {!selectedTransaction.sourceLinks?.length && <p>None</p>}
-                </div>
-                <div>
-                  <b className="text-slate-900">Refunds</b>
-                  <p>{formatMoney(selectedTransaction.refundableRemaining || 0)} refundable</p>
-                  {(selectedTransaction.refunds || []).map((refund) => (
-                    <p key={refund.id}>
-                      {refund.reference} · {formatMoney(refund.amount)}
-                    </p>
-                  ))}
-                </div>
-                <div>
-                  <b className="text-slate-900">Audit</b>
-                  {(selectedTransaction.auditEvents || []).slice(0, 3).map((event) => (
-                    <p key={event.id}>
-                      {event.eventType} · {event.actor}
-                    </p>
-                  ))}
-                  {!selectedTransaction.auditEvents?.length && <p>Immutable source row</p>}
-                </div>
-              </div>
-            </section>
+            <PosSelectedTransactionDetails
+              transaction={selectedTransaction}
+              canManage={bootstrap.permissions.canManage}
+              onCorrect={() => setActiveView('Refunds & corrections')}
+              onRefund={() => setActiveView('Refunds & corrections')}
+              onReceipt={() =>
+                selectedTransaction.isLegacy
+                  ? toast.info('Imported legacy rows retain their original reference only.')
+                  : tutorialOpen
+                    ? toast.info('Tutorial example only', {
+                        description: 'No live receipt is created for tutorial transactions.',
+                      })
+                    : window.open(
+                        `/api/pos/transactions/${selectedTransaction.id}/receipt`,
+                        '_blank',
+                        'noopener,noreferrer',
+                      )
+              }
+              onClose={() => setSelectedTransactionId('')}
+            />
           )}
 
           <section
