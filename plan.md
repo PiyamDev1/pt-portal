@@ -450,6 +450,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
     - [x] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary; preserve each screen's response shape and legacy Pakistani ID fallback.
   - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
+    - [x] Bound and validate public receipt-verification credentials before rate limiting or lookup, preserving the existing response contract.
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 
 ## Verification requirements

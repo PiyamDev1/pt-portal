@@ -28,6 +28,26 @@ describe('POST /api/receipts/verify', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 for malformed JSON or non-string credentials', async () => {
+    const malformed = new Request('http://localhost/api/receipts/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{invalid json',
+    })
+    const nonString = makeRequest({ trackingNumber: 12345, receiptPin: '123456' })
+
+    expect((await POST(malformed)).status).toBe(400)
+    expect((await POST(nonString)).status).toBe(400)
+    expect(mocks.verifyPersistedReceiptByPin).not.toHaveBeenCalled()
+  })
+
+  it('rejects oversized credentials before rate limiting or receipt lookup', async () => {
+    const res = await POST(makeRequest({ trackingNumber: 'x'.repeat(201), receiptPin: '123456' }))
+
+    expect(res.status).toBe(400)
+    expect(mocks.verifyPersistedReceiptByPin).not.toHaveBeenCalled()
+  })
+
   it('returns supported=false when storage is unavailable', async () => {
     mocks.verifyPersistedReceiptByPin.mockResolvedValue({
       supported: false,

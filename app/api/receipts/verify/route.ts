@@ -3,19 +3,24 @@
  * Verifies receipt authenticity via tracking number and receipt PIN.
  */
 
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { verifyPersistedReceiptByPin } from '@/lib/services/receiptStore'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
-type RequestBody = {
-  trackingNumber?: string
-  receiptPin?: string
-}
+const verifyReceiptSchema = z.object({
+  trackingNumber: z.string().trim().max(200).optional(),
+  receiptPin: z.string().trim().max(128).optional(),
+})
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as RequestBody
-  const trackingNumber = String(body.trackingNumber || '').trim()
-  const receiptPin = String(body.receiptPin || '').trim()
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, verifyReceiptSchema, {
+    maxBytes: 16 * 1024,
+  })
+  if (bodyError || !body) return apiError('Missing trackingNumber or receiptPin', 400)
+
+  const { trackingNumber = '', receiptPin = '' } = body
 
   if (!trackingNumber || !receiptPin) {
     return apiError('Missing trackingNumber or receiptPin', 400)
