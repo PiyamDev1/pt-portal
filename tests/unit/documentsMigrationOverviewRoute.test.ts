@@ -210,4 +210,17 @@ describe('document migration overview route', () => {
     expect(payload.overview.summary.totalActiveDocuments).toBe(10)
     expect(mocks.migrateFallbackBatch).toHaveBeenCalledWith(20, { trigger: 'manual' })
   })
+
+  it('rejects malformed batch input without starting a migration', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/documents/migration-overview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }) as never,
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.migrateFallbackBatch).not.toHaveBeenCalled()
+  })
 })

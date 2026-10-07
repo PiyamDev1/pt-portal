@@ -6,12 +6,19 @@
 import { NextRequest } from 'next/server'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getDocumentMigrationMetrics } from '@/lib/documentMigrationMetrics'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getPersistentMigrationEvents } from '@/lib/documentMigrationStore'
 import { getDocumentStorageConstants, getDocumentStorageStatus } from '@/lib/documentStorageStatus'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { z } from 'zod'
+
+const migrationBatchBodySchema = z.preprocess(
+  (body) => (body && typeof body === 'object' && !Array.isArray(body) ? body : {}),
+  z.object({ limit: z.any().optional() }).passthrough(),
+)
 
 function calculateConsecutiveFailures(events: Array<{ outcome?: string }>) {
   let count = 0
@@ -158,8 +165,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json().catch(() => ({}))
-    const limit = Math.max(1, Math.min(50, Number(body?.limit) || 20))
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      migrationBatchBodySchema,
+    )
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
+
+    const limit = Math.max(1, Math.min(50, Number(body.limit) || 20))
     const health = await getDocumentStorageStatus({ runMaintenance: false })
 
     if (!health.connected) {
