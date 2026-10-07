@@ -496,6 +496,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Bound manual document-migration batch input before work starts while preserving maintenance authorization and the existing 1–50 batch limit.
   - [x] Bound agent package-selection input while keeping canonical quote pricing, audit writes, and converted-package reconciliation under existing owners.
   - [x] Bound booking updates while preserving stale-write conflicts, idempotency, capacity checks, lifecycle transitions, and customer notification behavior.
+  - [x] Reject malformed booking-resend input before database reads or customer email delivery; keep recipient, kind, idempotency, and audit rules unchanged.
   - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.

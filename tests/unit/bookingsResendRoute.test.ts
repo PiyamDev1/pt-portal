@@ -111,6 +111,20 @@ describe('POST /api/bookings/[id]/resend', () => {
     })
   })
 
+  it('rejects malformed JSON without loading a booking or sending email', async () => {
+    const request = new Request('http://localhost/api/bookings/booking-1/resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    })
+
+    const response = await POST(request as never, { params: Promise.resolve({ id: 'booking-1' }) })
+
+    expect(response.status).toBe(400)
+    expect(mocks.getRouteSupabaseClient).not.toHaveBeenCalled()
+    expect(mocks.sendBookingEmail).not.toHaveBeenCalled()
+  })
+
   it('re-sends a confirmation email for confirmed bookings', async () => {
     const request = new Request('http://localhost/api/bookings/booking-1/resend', {
       method: 'POST',

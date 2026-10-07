@@ -5,7 +5,6 @@
     "app/api/applications/notes-read/route.ts": 2,
     "app/api/auth/security-preferences/route.ts": 1,
     "app/api/bookings/[id]/no-show/route.ts": 1,
-    "app/api/bookings/[id]/resend/route.ts": 1,
     "app/api/bookings/drafts/route.ts": 1,
     "app/api/bookings/preferences/route.ts": 1,
     "app/api/bookings/route.ts": 1,

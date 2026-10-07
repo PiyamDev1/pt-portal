@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { BookingStatus } from '@/app/types/bookings'
 import {
@@ -12,6 +13,15 @@ import {
   recordIdempotentBooking,
   storeBookingEmailAttempt,
 } from '@/lib/bookingPersistence'
+import { z } from 'zod'
+
+const resendBookingBodySchema = z
+  .object({
+    kind: z.any().optional(),
+    reason: z.any().optional(),
+    idempotency_key: z.any().optional(),
+  })
+  .passthrough()
 
 type ResendableEmailKind = 'confirmation' | 'modification' | 'cancellation'
 
@@ -48,11 +58,14 @@ function buildBranchAddress(
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const body = (await request.json().catch(() => ({}))) as {
-      kind?: ResendableEmailKind
-      reason?: string
-      idempotency_key?: string
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      resendBookingBodySchema,
+    )
+    if (bodyError || !body) {
+      return NextResponse.json({ error: bodyError || 'Invalid request body' }, { status: 400 })
     }
+
     const supabase = await getRouteSupabaseClient()
     const idempotencyKey = getIdempotencyKey(request, body)
 
