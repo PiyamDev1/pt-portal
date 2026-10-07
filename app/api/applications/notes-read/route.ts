@@ -3,12 +3,27 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 type NotesContext = 'nadra' | 'pk-passport'
+type NotesMutationBody = {
+  context?: unknown
+  recordId?: unknown
+  noteSignature?: unknown
+}
+
+const notesMutationBodySchema = z
+  .object({
+    context: z.unknown().optional(),
+    recordId: z.unknown().optional(),
+    noteSignature: z.unknown().optional(),
+  })
+  .passthrough()
 
 const parseContext = (value: unknown): NotesContext | null => {
   if (value === 'nadra' || value === 'pk-passport') return value
@@ -35,6 +50,12 @@ const getSessionUserId = async () => {
 }
 
 const getAdminClient = () => createClient(supabaseUrl, serviceKey)
+
+async function parseNotesMutationBody(request: Request) {
+  const { data, error } = await parseBodyWithSchema(request, notesMutationBodySchema)
+  if (error || !data) return { body: null, error: 'Invalid context' }
+  return { body: data as NotesMutationBody, error: null }
+}
 
 export async function GET(request: Request) {
   try {
@@ -99,7 +120,8 @@ export async function POST(request: Request) {
       return apiError('Unauthorized', 401)
     }
 
-    const body = await request.json().catch(() => ({}))
+    const { body, error: bodyError } = await parseNotesMutationBody(request)
+    if (bodyError || !body) return apiError(bodyError || 'Invalid context', 400)
     const context = parseContext(body?.context)
     const recordId = String(body?.recordId || '').trim()
     const noteSignature = String(body?.noteSignature || '').trim()
@@ -160,7 +182,8 @@ export async function DELETE(request: Request) {
       return apiError('Unauthorized', 401)
     }
 
-    const body = await request.json().catch(() => ({}))
+    const { body, error: bodyError } = await parseNotesMutationBody(request)
+    if (bodyError || !body) return apiError(bodyError || 'Invalid context', 400)
     const context = parseContext(body?.context)
     const recordId = String(body?.recordId || '').trim()
 
