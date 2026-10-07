@@ -53,7 +53,7 @@ const deleteEmployeeSchema = z
  * - employeeId: string - ID of employee to delete
  * - confirmEmail: string - Email address to confirm deletion (must match employee email)
  */
-export async function POST(request) {
+export async function POST(request: Request) {
   const access = await requireStaffSession({ roles: ['Master Admin', 'Super Admin'] })
   if (!access.authorized) return access.response
 
