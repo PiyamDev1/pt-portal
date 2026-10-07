@@ -58,6 +58,7 @@ import type {
 } from '@/lib/pos/contracts'
 import { formatMoney, formatSignedMoney } from '@/lib/pos/format'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
+import PosLedgerFilters, { type PosLedgerPaymentFilter } from './PosLedgerFilters'
 import PosSelectedTransactionDetails from './PosSelectedTransactionDetails'
 import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
 import {
@@ -765,7 +766,6 @@ const SUPPLIERS = [
   { name: 'Al Haram Travel', area: 'Packages', balance: 2150 },
 ]
 
-const FILTERS = ['All', 'Cash', 'Card', 'Bank', 'Outgoing'] as const
 const SORTS = ['Supplier', 'Newest'] as const
 const NADRA_SERVICE_IDS = ['nicop-cnic', 'poc', 'frc', 'crc', 'poa']
 const EMPTY_LEDGER_SUMMARY: PosLedgerSummary = {
@@ -889,7 +889,7 @@ export default function PosPreviewClient({
       loadedAt: new Date().toISOString(),
     },
   )
-  const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All')
+  const [activeFilter, setActiveFilter] = useState<PosLedgerPaymentFilter>('All')
   const [filtersOpen, setFiltersOpen] = useState(Boolean(initialStatusFilter))
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
@@ -2440,163 +2440,44 @@ export default function PosPreviewClient({
             )}
 
             {filtersOpen && (
-              <div className="flex flex-wrap gap-2 border-b border-slate-200 bg-white px-4 py-3">
-                {FILTERS.map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    onClick={() => setActiveFilter(filter)}
-                    className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
-                      activeFilter === filter
-                        ? 'bg-slate-950 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
-                <select
-                  aria-label="Category filter"
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All categories</option>
-                  {bootstrap.catalogue.map((item) => (
-                    <option key={item.id} value={item.key}>
-                      {item.label}
-                      {item.optionLabel ? ` · ${item.optionLabel}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Status filter"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All statuses</option>
-                  <option value="POSTED">Posted</option>
-                  <option value="PARTIALLY_REFUNDED">Partially refunded</option>
-                  <option value="REFUNDED">Refunded</option>
-                  <option value="CORRECTED">Corrected</option>
-                  <option value="UNRECONCILED">Unreconciled</option>
-                </select>
-                <select
-                  aria-label="Outgoing type filter"
-                  value={outgoingFilter}
-                  onChange={(event) => setOutgoingFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All outgoing types</option>
-                  <option value="REFUND">Refund</option>
-                  <option value="EXPENSE">Expense</option>
-                  <option value="SUPPLIER_PAYMENT">Supplier payment</option>
-                </select>
-                <select
-                  aria-label="Supplier filter"
-                  value={supplierFilter}
-                  onChange={(event) => setSupplierFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All suppliers</option>
-                  {bootstrap.suppliers.map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Till filter"
-                  value={tillFilter}
-                  onChange={(event) => setTillFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All tills</option>
-                  {bootstrap.tills.map((till) => (
-                    <option key={till.id} value={till.id}>
-                      {till.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Agent filter"
-                  value={agentFilter}
-                  onChange={(event) => setAgentFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All agents</option>
-                  {bootstrap.employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Source filter"
-                  value={sourceFilter}
-                  onChange={(event) => setSourceFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All source states</option>
-                  <option value="LMS">LMS</option>
-                  <option value="TICKETING">Ticketing</option>
-                  <option value="APPLICATIONS">Applications</option>
-                  <option value="PACKAGES">Packages</option>
-                  <option value="POS">POS</option>
-                  <option value="LEGACY">Legacy</option>
-                </select>
-                <select
-                  aria-label="Loyalty filter"
-                  value={loyaltyFilter}
-                  onChange={(event) => setLoyaltyFilter(event.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-bold"
-                >
-                  <option value="">All loyalty states</option>
-                  <option value="ATTACHED">Attached</option>
-                  <option value="AWARDED">Awarded</option>
-                  <option value="REVERSED">Reversed</option>
-                  <option value="NONE">No loyalty</option>
-                </select>
-                <input
-                  aria-label="Minimum amount filter"
-                  value={minAmountFilter}
-                  onChange={(event) => setMinAmountFilter(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="Min £"
-                  className="h-8 w-20 rounded-lg border border-slate-200 px-2 text-[11px]"
-                />
-                <input
-                  aria-label="Maximum amount filter"
-                  value={maxAmountFilter}
-                  onChange={(event) => setMaxAmountFilter(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="Max £"
-                  className="h-8 w-20 rounded-lg border border-slate-200 px-2 text-[11px]"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveFilter('All')
-                    setCategoryFilter('')
-                    setStatusFilter('')
-                    setOutgoingFilter('')
-                    setSupplierFilter('')
-                    setTillFilter('')
-                    setAgentFilter('')
-                    setSourceFilter('')
-                    setLoyaltyFilter('')
-                    setMinAmountFilter('')
-                    setMaxAmountFilter('')
-                  }}
-                  className="rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-black text-rose-700"
-                >
-                  Clear filters
-                </button>
-                <span className="ml-auto self-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Branch scoped
-                </span>
-              </div>
+              <PosLedgerFilters
+                options={bootstrap}
+                activeFilter={activeFilter}
+                categoryFilter={categoryFilter}
+                statusFilter={statusFilter}
+                outgoingFilter={outgoingFilter}
+                supplierFilter={supplierFilter}
+                tillFilter={tillFilter}
+                agentFilter={agentFilter}
+                sourceFilter={sourceFilter}
+                loyaltyFilter={loyaltyFilter}
+                minAmountFilter={minAmountFilter}
+                maxAmountFilter={maxAmountFilter}
+                onActiveFilterChange={setActiveFilter}
+                onCategoryChange={setCategoryFilter}
+                onStatusChange={setStatusFilter}
+                onOutgoingChange={setOutgoingFilter}
+                onSupplierChange={setSupplierFilter}
+                onTillChange={setTillFilter}
+                onAgentChange={setAgentFilter}
+                onSourceChange={setSourceFilter}
+                onLoyaltyChange={setLoyaltyFilter}
+                onMinimumAmountChange={setMinAmountFilter}
+                onMaximumAmountChange={setMaxAmountFilter}
+                onClear={() => {
+                  setActiveFilter('All')
+                  setCategoryFilter('')
+                  setStatusFilter('')
+                  setOutgoingFilter('')
+                  setSupplierFilter('')
+                  setTillFilter('')
+                  setAgentFilter('')
+                  setSourceFilter('')
+                  setLoyaltyFilter('')
+                  setMinAmountFilter('')
+                  setMaxAmountFilter('')
+                }}
+              />
             )}
 
             {ledgerError && !tutorialOpen && (
