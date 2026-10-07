@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PKPassportPricing, PricingEditValues } from '@/app/types/pricing'
 import PricingEntryActions from './PricingEntryActions'
 import PricingEntryPriceCells from './PricingEntryPriceCells'
+import PricingAmountFields from './PricingAmountFields'
 
 interface PKPassportPricingTabProps {
   pricing: PKPassportPricing[]
@@ -177,36 +178,16 @@ function PKPassportPricingTabCore({
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="pk-cost-price" className="block text-sm font-medium mb-1">
-                Cost Price
-              </label>
-              <input
-                id="pk-cost-price"
-                type="number"
-                step="0.01"
-                value={newEntry.cost_price}
-                onChange={(e) => setNewEntry({ ...newEntry, cost_price: Number(e.target.value) })}
-                aria-label="Enter cost price for Pakistani passport service"
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-            <div>
-              <label htmlFor="pk-sale-price" className="block text-sm font-medium mb-1">
-                Sale Price
-              </label>
-              <input
-                id="pk-sale-price"
-                type="number"
-                step="0.01"
-                value={newEntry.sale_price}
-                onChange={(e) => setNewEntry({ ...newEntry, sale_price: Number(e.target.value) })}
-                aria-label="Enter sale price for Pakistani passport service"
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-          </div>
+          <PricingAmountFields
+            costPrice={newEntry.cost_price}
+            salePrice={newEntry.sale_price}
+            costInputId="pk-cost-price"
+            saleInputId="pk-sale-price"
+            costAriaLabel="Enter cost price for Pakistani passport service"
+            saleAriaLabel="Enter sale price for Pakistani passport service"
+            onCostPriceChange={(value) => setNewEntry({ ...newEntry, cost_price: value })}
+            onSalePriceChange={(value) => setNewEntry({ ...newEntry, sale_price: value })}
+          />
           <button
             type="submit"
             aria-label="Add new Pakistani passport service pricing option"

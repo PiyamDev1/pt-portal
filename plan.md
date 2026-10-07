@@ -461,6 +461,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
     - [x] Share NADRA, GB Passport, Pakistani Passport, and Visa pricing-row edit/save/cancel/delete controls while keeping each tab's service data and CRUD handlers module-owned.
     - [x] Share cost/sale inputs and sale-minus-cost margin cells across those pricing tabs while keeping edits in each tab's existing state.
+    - [x] Share cost/sale input layout in NADRA, GB Passport, Pakistani Passport, and Visa add forms while preserving each form's labels and state ownership.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
   - [x] Route NADRA, passport, and passport-draft workspaces through one application DocumentHub entry point and PageHeader return control.
