@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => {
     return {}
   })
 
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     applicantSingle,
@@ -32,11 +32,13 @@ const mocks = vi.hoisted(() => {
     applicantInsert,
     visaInsert,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { POST } from '@/app/api/visas/add-application/route'
 
@@ -65,7 +67,7 @@ describe('POST /api/visas/add-application', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockImplementation((table: string) => {
       if (table === 'applicants')
         return { select: mocks.applicantSelect, insert: mocks.applicantInsert }
@@ -119,5 +121,18 @@ describe('POST /api/visas/add-application', () => {
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.error).toMatch(/visa insert failed/i)
+  })
+
+  it('returns 400 for malformed JSON without creating a database client', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/visas/add-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 })

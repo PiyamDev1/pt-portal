@@ -489,6 +489,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Convert NADRA status-history reader to a typed route and shared server client, including object/array employee joins and the existing history response contract.
   - [x] Convert NADRA agent options to a typed route and shared server client while preserving recursive manager scope and Master Admin visibility, covered by focused tests.
   - [x] Type the Pakistani passport notes reader/updater and reuse the shared server client while preserving legacy ID fallback, migration errors, and staff attribution.
+  - [x] Type Pakistani passport application creation and use bounded shared request parsing plus the shared server client without changing its applicant/application rollback behavior.
   - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.
@@ -497,6 +498,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Bound and validate public receipt-verification credentials before rate limiting or lookup, preserving the existing response contract.
     - [x] Convert the LMS payment-method reader to a typed route and shared service-client boundary while preserving its staff guard and empty-list fallback.
     - [x] Convert visa country and preset seed handlers to typed routes and the shared service-client boundary while preserving existing role guards, rate limits, and response contracts.
+  - [x] Convert visa application creation to a typed route with bounded shared request parsing and the shared server client while preserving applicant lookup, pricing defaults, and response behavior.
     - [x] Convert the employee status handler to a typed route while preserving manager-scope checks and fresh second-factor verification for disabling accounts.
     - [x] Convert the LMS service-category seed endpoint to a typed route and the shared server-only Supabase client while preserving maintenance authorization, rate limits, normalization, and response shape.
     - [x] Convert Admin password reset to a typed route and shared server-only Supabase client while preserving admin authorization, fresh second factor, rate limits, password history, and email behavior.

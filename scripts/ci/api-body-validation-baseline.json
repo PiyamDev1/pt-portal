@@ -30,7 +30,6 @@
     "app/api/packages/[id]/selection/route.ts": 1,
     "app/api/packages/route.ts": 1,
     "app/api/passports/gb/add/route.js": 1,
-    "app/api/passports/pak/add-application/route.js": 1,
     "app/api/passports/pak/drafts/route.ts": 1,
     "app/api/timeclock/events/[eventId]/adjust/route.ts": 1,
     "app/api/timeclock/manual-entry/submit/route.ts": 1,
@@ -65,7 +64,6 @@
     "app/api/travel-packages/[id]/transport-vouchers/route.ts": 1,
     "app/api/travel-packages/backups/reconcile/route.ts": 1,
     "app/api/travel-packages/migration/import/route.ts": 1,
-    "app/api/travel-packages/migration/scan/route.ts": 1,
-    "app/api/visas/add-application/route.js": 1
+    "app/api/travel-packages/migration/scan/route.ts": 1
   }
 }

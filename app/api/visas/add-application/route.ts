@@ -5,22 +5,42 @@
  * @module app/api/visas/add-application
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
-export async function POST(request) {
+const addVisaApplicationBodySchema = z
+  .object({
+    applicantName: z.any().optional(),
+    applicantPassport: z.any().optional(),
+    countryId: z.any().optional(),
+    visaTypeId: z.any().optional(),
+    customerPrice: z.any().optional(),
+    basePrice: z.any().optional(),
+    costCurrency: z.any().optional(),
+    notes: z.any().optional(),
+    internalTrackingNo: z.any().optional(),
+  })
+  .passthrough()
+
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      addVisaApplicationBodySchema,
     )
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
 
-    const body = await request.json()
+    const supabase = getServiceSupabaseClient()
+
     const {
       applicantName,
       applicantPassport,

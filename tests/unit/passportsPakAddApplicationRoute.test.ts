@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => {
     return {}
   })
 
-  const createClient = vi.fn(() => ({ from }))
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
 
   return {
     applicantSingle,
@@ -52,11 +52,13 @@ const mocks = vi.hoisted(() => {
     appDelete,
     pakInsert,
     from,
-    createClient,
+    getServiceSupabaseClient,
   }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { POST } from '@/app/api/passports/pak/add-application/route'
 
@@ -89,7 +91,7 @@ describe('POST /api/passports/pak/add-application', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
 
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.applicantSelect.mockReturnValue({ eq: mocks.applicantEq })
     mocks.applicantEq.mockReturnValue({ single: mocks.applicantSingle })
     mocks.applicantUpdate.mockReturnValue({ eq: mocks.applicantUpdateEq })
@@ -131,6 +133,19 @@ describe('POST /api/passports/pak/add-application', () => {
     expect(body.applicantId).toBe('a-new')
   })
 
+  it('stops when applicant creation returns no applicant', async () => {
+    mocks.applicantSingle.mockResolvedValue({ data: null, error: null })
+    mocks.applicantInsertSingle.mockResolvedValue({
+      data: null,
+      error: { message: 'insert applicant failed' },
+    })
+
+    const res = await POST(makeRequest(baseBody))
+
+    expect(res.status).toBe(500)
+    expect(mocks.appInsert).not.toHaveBeenCalled()
+  })
+
   it('stores no old passport number for first-time applications', async () => {
     mocks.applicantSingle.mockResolvedValue({ data: { id: 'a-1' }, error: null })
     mocks.applicantUpdateEq.mockResolvedValue({ error: null })
@@ -166,5 +181,18 @@ describe('POST /api/passports/pak/add-application', () => {
     const body = await res.json()
     expect(body.error).toBe('insert failed')
     expect(mocks.appDeleteEq).toHaveBeenCalledWith('id', 'app-1')
+  })
+
+  it('returns 400 for malformed JSON without creating a database client', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/passports/pak/add-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 })

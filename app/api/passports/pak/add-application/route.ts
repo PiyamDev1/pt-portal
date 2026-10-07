@@ -13,25 +13,51 @@
  *
  * Authentication: Service role key
  */
-import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function POST(request) {
+const addPassportApplicationBodySchema = z.preprocess(
+  (body) => (body && typeof body === 'object' && !Array.isArray(body) ? body : {}),
+  z
+    .object({
+      applicantCnic: z.any().optional(),
+      applicantName: z.any().optional(),
+      applicantEmail: z.any().optional(),
+      applicantPhone: z.any().optional(),
+      familyHeadEmail: z.any().optional(),
+      applicationType: z.any().optional(),
+      category: z.any().optional(),
+      pageCount: z.any().optional(),
+      speed: z.any().optional(),
+      oldPassportNumber: z.any().optional(),
+      trackingNumber: z.any().optional(),
+      fingerprintsCompleted: z.any().optional(),
+    })
+    .passthrough(),
+)
+
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      addPassportApplicationBodySchema,
     )
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
 
-    const body = await request.json()
+    const supabase = getServiceSupabaseClient()
+
     const {
       applicantCnic,
       applicantName,
@@ -77,6 +103,8 @@ export async function POST(request) {
         .update({ phone_number: applicantPhone })
         .eq('id', applicant.id)
     }
+
+    if (!applicant) throw new Error('Applicant creation failed')
 
     // 2. Create Application Hierarchy
     const { data: appRecord, error: appError } = await supabase
