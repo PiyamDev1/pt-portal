@@ -3,23 +3,14 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
+import {
+  cleanPackagePaymentText,
+  isTravelPackagePaymentMethod,
+  isTravelPackagePaymentStatus,
+  isTravelPackagePaymentType,
+} from '@/lib/packages/paymentRouteContract'
 import type { TravelPackagePayment, TravelPackagePaymentType } from '@/app/types/packages'
 import { selectTravelPackagePaymentColumns } from '../columns'
-
-const TYPES = new Set<TravelPackagePaymentType>([
-  'deposit',
-  'payment',
-  'account_credit',
-  'refund',
-  'chargeback',
-  'commission',
-])
-const STATUSES = new Set(['pending', 'completed', 'failed', 'cancelled', 'refunded'])
-const METHODS = new Set(['cash', 'bank_transfer', 'card', 'other'])
-
-function cleanText(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
-}
 
 function customerRefundContribution(payment: TravelPackagePayment) {
   return payment.reservation_id &&
@@ -93,13 +84,13 @@ export async function PATCH(
     update.amount = Math.round(amount * 100) / 100
   }
   if ('paymentType' in body || 'payment_type' in body) {
-    const paymentType = cleanText(body.paymentType ?? body.payment_type) as TravelPackagePaymentType
-    if (!TYPES.has(paymentType)) return apiError('Invalid payment type', 400)
+    const paymentType = cleanPackagePaymentText(body.paymentType ?? body.payment_type)
+    if (!isTravelPackagePaymentType(paymentType)) return apiError('Invalid payment type', 400)
     update.payment_type = paymentType
   }
   if ('paymentStatus' in body || 'payment_status' in body) {
-    const status = cleanText(body.paymentStatus ?? body.payment_status)
-    if (!STATUSES.has(status)) return apiError('Invalid payment status', 400)
+    const status = cleanPackagePaymentText(body.paymentStatus ?? body.payment_status)
+    if (!isTravelPackagePaymentStatus(status)) return apiError('Invalid payment status', 400)
     update.payment_status = status
     if (status === 'completed' && !current.received_at) {
       update.received_at = new Date().toISOString()
@@ -107,22 +98,23 @@ export async function PATCH(
     }
   }
   if ('paymentMethod' in body || 'payment_method' in body) {
-    const method = cleanText(body.paymentMethod ?? body.payment_method)
-    if (!METHODS.has(method)) return apiError('Invalid payment method', 400)
+    const method = cleanPackagePaymentText(body.paymentMethod ?? body.payment_method)
+    if (!isTravelPackagePaymentMethod(method)) return apiError('Invalid payment method', 400)
     update.payment_method = method
   }
   if ('dueAt' in body || 'due_at' in body)
-    update.due_at = cleanText(body.dueAt ?? body.due_at) || null
+    update.due_at = cleanPackagePaymentText(body.dueAt ?? body.due_at) || null
   if ('receivedAt' in body || 'received_at' in body)
-    update.received_at = cleanText(body.receivedAt ?? body.received_at) || null
+    update.received_at = cleanPackagePaymentText(body.receivedAt ?? body.received_at) || null
   if ('receiptReference' in body || 'receipt_reference' in body)
-    update.receipt_reference = cleanText(body.receiptReference ?? body.receipt_reference) || null
-  if ('notes' in body) update.notes = cleanText(body.notes) || null
+    update.receipt_reference =
+      cleanPackagePaymentText(body.receiptReference ?? body.receipt_reference) || null
+  if ('notes' in body) update.notes = cleanPackagePaymentText(body.notes) || null
 
   const nextPaymentType = (update.payment_type || current.payment_type) as TravelPackagePaymentType
   const nextReceiptReference =
     'receipt_reference' in update ? update.receipt_reference : current.receipt_reference
-  if (nextPaymentType === 'account_credit' && !cleanText(nextReceiptReference)) {
+  if (nextPaymentType === 'account_credit' && !cleanPackagePaymentText(nextReceiptReference)) {
     return apiError('Enter the previous package or refund reference for this account credit', 400)
   }
 

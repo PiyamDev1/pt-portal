@@ -468,6 +468,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
     - [x] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary; preserve each screen's response shape and legacy Pakistani ID fallback.
   - [ ] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
+    - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.
     - [x] Convert the applicant-name normalization endpoint to a typed handler and shared server client while preserving its admin guard, rate limit, and response contract.
     - [x] Route the default pricing seed through the shared server client without changing its seeded values, role guard, or response contract.
