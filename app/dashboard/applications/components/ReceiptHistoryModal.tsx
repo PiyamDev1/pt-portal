@@ -75,7 +75,9 @@ export default function ReceiptHistoryModal({
             <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="min-w-0 space-y-1">
                 <div className="text-xs text-slate-500 uppercase tracking-wide">
-                  {item.receiptType}
+                  {item.serviceType === 'visa' && item.receiptType === 'submission'
+                    ? 'Visa application copy'
+                    : item.receiptType}
                 </div>
                 <div className="text-sm font-semibold text-slate-800 truncate">
                   {item.trackingNumber || 'No tracking number'}

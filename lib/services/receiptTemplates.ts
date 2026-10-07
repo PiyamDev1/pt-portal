@@ -17,21 +17,29 @@ function formatCurrency(amount: number | null | undefined, currency = RECEIPT_DE
 
 export function buildReceiptPlainText(receipt: GeneratedReceipt) {
   const serviceLabel = RECEIPT_SERVICE_LABELS[receipt.serviceType]
-  const typeLabel = RECEIPT_TYPE_LABELS[receipt.receiptType]
   const isNadra = receipt.serviceType === 'nadra'
+  const isVisa = receipt.serviceType === 'visa'
+  const typeLabel =
+    isVisa && receipt.receiptType === 'submission'
+      ? 'Application Record Copy'
+      : RECEIPT_TYPE_LABELS[receipt.receiptType]
   const trackingLabel = receipt.serviceType === 'gb_passport' ? 'PEX REF' : 'Tracking Number'
   const lines = [
     '------------------------------',
-    'Piyam Travel Service Receipt',
+    isVisa ? 'Piyam Travel Visa Application Copy' : 'Piyam Travel Service Receipt',
     '------------------------------',
     `Receipt Number: ${receipt.receiptNumber}`,
     `Service Type: ${serviceLabel}`,
     `Service: ${receipt.serviceName || serviceLabel}`,
-    `Processing speed: ${receipt.processingSpeed || 'Standard'}`,
+    ...(isVisa
+      ? receipt.processingSpeed
+        ? [`Visa validity: ${receipt.processingSpeed}`]
+        : []
+      : [`Processing speed: ${receipt.processingSpeed || 'Standard'}`]),
     `Contact Number: ${receipt.contactNumber || receipt.phone || 'N/A'}`,
     `Applicant Name: ${receipt.applicantName || 'N/A'}`,
     `${trackingLabel}: ${receipt.trackingNumber || 'N/A'}`,
-    `Price: ${formatCurrency(receipt.pricing.salePrice, receipt.pricing.currency)}`,
+    `${isVisa ? 'Recorded agency price' : 'Price'}: ${formatCurrency(receipt.pricing.salePrice, receipt.pricing.currency)}`,
     `Generated at: ${new Date(receipt.generatedAt).toLocaleString('en-GB', {
       day: '2-digit',
       month: '2-digit',
@@ -56,6 +64,10 @@ export function buildReceiptPlainText(receipt: GeneratedReceipt) {
   if (isNadra) {
     lines.splice(7, 0, `Family Head Name: ${receipt.familyHeadName || 'N/A'}`)
     lines.splice(11, 0, `Pin: ${receipt.receiptPin || 'N/A'}`)
+  }
+
+  if (isVisa) {
+    lines.splice(2, 0, 'Visa application details only - not proof of payment')
   }
 
   return lines.join('\n')

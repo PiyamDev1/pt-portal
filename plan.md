@@ -250,7 +250,7 @@ Create:
 - [x] one read-only application summary endpoint for counts, recent records, attention items, and aging;
 - shared UI primitives for applicant identity, status history, notes, documents, receipts, and amount display;
 - [x] service adapters that map each service's own statuses and tables to the shared summary view model;
-- one receipt contract, including Visa, with idempotent generation.
+- [x] one receipt generate/list/view/history contract, including Visa, with idempotent generation by service event.
 
 The shared summary now powers the Applications Hub and its dashboard Attention Centre provider.
 It keeps source records under existing RLS, reports partial-source failures without treating them as
@@ -430,10 +430,11 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 - [ ] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
   - [x] Route NADRA, passport, and passport-draft workspaces through one application DocumentHub entry point and PageHeader return control.
-  - [ ] Consolidate the remaining Package document presentation and add the missing cross-service receipt contract, including Visa.
+  - [x] Consolidate the remaining Package document presentation and add the missing cross-service receipt contract, including Visa.
     - [x] Extract category-based package document uploads while keeping upload requests and document state in PackageOverviewClient.
     - [x] Extract the grouped package document library and linked visa-photo display while keeping document mutations in PackageOverviewClient.
     - [x] Extract third-party package document access form and recent-share presentation while keeping form state and create/revoke actions in PackageOverviewClient.
+    - [x] Add Visa generation, viewing, and history to the shared receipt contract and make retries reuse the stable service-event receipt.
 - [x] Reorganise Settings navigation by Security, People & HR, Operations, Pricing, and Maintenance without changing role access.
 - [x] Centralise shared page context and reusable capability loading.
   - [x] Reuse the shared authenticated server Supabase client across application document pages.

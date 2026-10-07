@@ -68,6 +68,7 @@ export interface VisaApplicationsClientProps {
 
 export interface VisaApplicationRecord {
   id: string
+  applicant_id: string
   status: string
   internal_tracking_number: string | null
   passport_number_used: string | null

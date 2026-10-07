@@ -86,6 +86,30 @@ describe('POST /api/receipts/generate', () => {
     })
   })
 
+  it('accepts Visa receipts through the shared generation contract', async () => {
+    mocks.generateReceipt.mockResolvedValue({
+      id: 'visa-receipt-1',
+      serviceType: 'visa',
+      receiptType: 'submission',
+    })
+
+    const res = await POST(
+      makeRequest({
+        serviceType: 'visa',
+        serviceRecordId: 'visa-1',
+        receiptType: 'submission',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(mocks.generateReceipt).toHaveBeenCalledWith({
+      serviceType: 'visa',
+      serviceRecordId: 'visa-1',
+      receiptType: 'submission',
+      generatedBy: 'employee-server',
+    })
+  })
+
   it('returns 500 when generation throws', async () => {
     mocks.generateReceipt.mockRejectedValue(new Error('boom'))
 

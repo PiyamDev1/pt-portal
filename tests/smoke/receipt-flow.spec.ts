@@ -28,6 +28,18 @@ test.describe('receipt flow smoke', () => {
     expect(generatePayload?.receipt?.trackingNumber).toBeTruthy()
     expect(generatePayload?.receipt?.receiptPin).toBeTruthy()
 
+    const retryResponse = await page.request.post('/api/receipts/generate', {
+      data: {
+        serviceType: 'nadra',
+        serviceRecordId: nadraId,
+        receiptType: 'submission',
+      },
+    })
+    expect(retryResponse.ok()).toBeTruthy()
+    const retryPayload = await retryResponse.json()
+    expect(retryPayload?.receipt?.id).toBe(generatePayload.receipt.id)
+    expect(retryPayload?.receipt?.receiptNumber).toBe(generatePayload.receipt.receiptNumber)
+
     const shareResponse = await page.request.post('/api/receipts/share', {
       data: {
         receiptId: generatePayload.receipt.id,

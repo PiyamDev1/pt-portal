@@ -8,7 +8,7 @@ import { listPersistedReceipts } from '@/lib/services/receiptStore'
 import type { ReceiptServiceType } from '@/lib/services/receiptGenerator'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 
-const ALLOWED_SERVICE_TYPES: ReceiptServiceType[] = ['nadra', 'pk_passport', 'gb_passport']
+const ALLOWED_SERVICE_TYPES: ReceiptServiceType[] = ['nadra', 'pk_passport', 'gb_passport', 'visa']
 
 export async function GET(request: Request) {
   const access = await requireStaffSession()

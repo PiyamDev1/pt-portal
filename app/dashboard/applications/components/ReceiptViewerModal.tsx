@@ -53,6 +53,7 @@ const SERVICE_TYPE_LABELS: Record<GeneratedReceipt['serviceType'], string> = {
   nadra: 'NADRA',
   pk_passport: 'PK Passport',
   gb_passport: 'GB Passport',
+  visa: 'Visa',
 }
 
 function supportsImageClipboard() {
@@ -75,6 +76,7 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
   const addressLine2 =
     process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE2 || 'Serving UK & International Clients'
   const isNadra = receipt?.serviceType === 'nadra'
+  const isVisa = receipt?.serviceType === 'visa'
   const trackingLabel = receipt?.serviceType === 'gb_passport' ? 'PEX REF' : 'Tracking'
 
   const copyReceiptPreview = async () => {
@@ -113,7 +115,11 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
       ])
 
       await markReceiptShared({ receiptId: receipt.id, channel: 'clipboard-image' })
-      toast.success('Receipt screenshot copied to clipboard')
+      toast.success(
+        isVisa
+          ? 'Visa application copy screenshot copied to clipboard'
+          : 'Receipt screenshot copied to clipboard',
+      )
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown clipboard error'
       if (process.env.NODE_ENV !== 'production') {
@@ -128,7 +134,12 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
   }
 
   return (
-    <ModalBase isOpen={isOpen} onClose={onClose} size="sm" title="Receipt Preview">
+    <ModalBase
+      isOpen={isOpen}
+      onClose={onClose}
+      size="sm"
+      title={isVisa ? 'Visa Application Copy' : 'Receipt Preview'}
+    >
       {!receipt ? (
         <p className="text-sm text-slate-500">No receipt selected.</p>
       ) : (
@@ -155,7 +166,7 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
               <p className="text-[10px] text-slate-600">{addressLine1}</p>
               <p className="text-[10px] text-slate-600">{addressLine2}</p>
               <p className="mt-1 border-t border-dashed border-slate-300 pt-1 text-[10px] text-slate-500">
-                RECEIPT COPY
+                {isVisa ? 'APPLICATION COPY' : 'RECEIPT COPY'}
               </p>
             </div>
 
@@ -163,7 +174,11 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
               <p>Receipt No: {receipt.receiptNumber}</p>
               <p>Service Type: {SERVICE_TYPE_LABELS[receipt.serviceType]}</p>
               <p>Service: {receipt.serviceName || 'N/A'}</p>
-              <p>Processing: {receipt.processingSpeed || 'Standard'}</p>
+              {isVisa ? (
+                receipt.processingSpeed && <p>Validity: {receipt.processingSpeed}</p>
+              ) : (
+                <p>Processing: {receipt.processingSpeed || 'Standard'}</p>
+              )}
               {isNadra && <p>Family Head: {receipt.familyHeadName || 'N/A'}</p>}
               <p>Contact: {receipt.contactNumber || receipt.phone || 'N/A'}</p>
               <p>Applicant: {receipt.applicantName || 'N/A'}</p>
@@ -171,8 +186,15 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
                 {trackingLabel}: {receipt.trackingNumber || 'N/A'}
               </p>
               {isNadra && <p>PIN: {receipt.receiptPin || 'N/A'}</p>}
-              <p>Price: {formatSalePrice(receipt)}</p>
+              <p>
+                {isVisa ? 'Recorded agency price' : 'Price'}: {formatSalePrice(receipt)}
+              </p>
               <p>Generated: {formatGeneratedAt(receipt.generatedAt)}</p>
+              {isVisa && (
+                <p className="mt-2 border-t border-dashed border-slate-300 pt-2 text-center text-[10px] font-semibold text-slate-600">
+                  Visa application details only — not proof of payment.
+                </p>
+              )}
             </div>
 
             <div className="mt-3 border-t border-dashed border-slate-300 pt-2 text-center">

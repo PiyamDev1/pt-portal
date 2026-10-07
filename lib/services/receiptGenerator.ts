@@ -1,6 +1,6 @@
 /**
  * Module: lib/services/receiptGenerator.ts
- * Receipt generation engine for NADRA and passport workflows.
+ * Receipt generation engine for application service workflows.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -12,10 +12,11 @@ import {
   RECEIPT_VERIFY_BASE_URL,
 } from '@/lib/constants/receiptConfig'
 import { generateSecureNumericCode } from '@/lib/security/secureRandom.server'
+import { buildReceiptIdempotencyId } from './receiptIdentity'
 import { buildReceiptPlainText } from './receiptTemplates'
 import { persistGeneratedReceipt } from './receiptStore'
 
-export type ReceiptServiceType = 'nadra' | 'pk_passport' | 'gb_passport'
+export type ReceiptServiceType = 'nadra' | 'pk_passport' | 'gb_passport' | 'visa'
 export type ReceiptType = 'submission' | 'biometrics' | 'refund' | 'collection'
 
 type GenerateReceiptParams = {
@@ -40,6 +41,7 @@ type ResolvedSourceData = {
   serviceDescription: string | null
   costPrice: number | null
   salePrice: number | null
+  currency?: string | null
 }
 
 export interface GeneratedReceipt {
@@ -319,10 +321,66 @@ async function resolveGbPassportData(serviceRecordId: string): Promise<ResolvedS
   }
 }
 
+async function resolveVisaData(serviceRecordId: string): Promise<ResolvedSourceData> {
+  const supabase = getSupabaseAdminClient()
+  const { data, error } = await supabase
+    .from('visa_applications')
+    .select(
+      `
+      id,
+      applicant_id,
+      internal_tracking_number,
+      external_application_number,
+      validity,
+      base_price,
+      customer_price,
+      cost_currency,
+      applicants(first_name, last_name, phone_number, email),
+      visa_countries(name),
+      visa_types(name)
+    `,
+    )
+    .eq('id', serviceRecordId)
+    .single()
+
+  if (error || !data) throw new Error('Visa application not found for receipt')
+
+  const applicant = Array.isArray(data.applicants) ? data.applicants[0] : data.applicants
+  const country = Array.isArray(data.visa_countries) ? data.visa_countries[0] : data.visa_countries
+  const visaType = Array.isArray(data.visa_types) ? data.visa_types[0] : data.visa_types
+  const applicantName = `${applicant?.first_name || ''} ${applicant?.last_name || ''}`.trim()
+  const countryName = country?.name || null
+  const visaTypeName = visaType?.name || null
+
+  return {
+    // Visa records are standalone applications rather than children of `applications`.
+    applicationId: data.id,
+    applicantId: data.applicant_id,
+    applicantName,
+    familyHeadName: null,
+    contactNumber: applicant?.phone_number || null,
+    serviceName: countryName
+      ? `${countryName} Visa${visaTypeName ? ` (${visaTypeName})` : ''}`
+      : visaTypeName
+        ? `Visa - ${visaTypeName}`
+        : 'Visa',
+    processingSpeed: data.validity || null,
+    phone: applicant?.phone_number || null,
+    email: applicant?.email || null,
+    trackingNumber: data.internal_tracking_number || data.external_application_number || null,
+    applicationPin: null,
+    serviceDescription: [countryName, visaTypeName].filter(Boolean).join(' / ') || null,
+    costPrice: toNumeric(data.base_price),
+    salePrice: toNumeric(data.customer_price),
+    currency: data.cost_currency || RECEIPT_DEFAULT_CURRENCY,
+  }
+}
+
 async function resolveSourceData(serviceType: ReceiptServiceType, serviceRecordId: string) {
   if (serviceType === 'nadra') return resolveNadraData(serviceRecordId)
   if (serviceType === 'pk_passport') return resolvePkPassportData(serviceRecordId)
-  return resolveGbPassportData(serviceRecordId)
+  if (serviceType === 'gb_passport') return resolveGbPassportData(serviceRecordId)
+  return resolveVisaData(serviceRecordId)
 }
 
 export async function generateReceipt(params: GenerateReceiptParams): Promise<GeneratedReceipt> {
@@ -356,7 +414,11 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
   )
 
   const receipt: GeneratedReceipt = {
-    id: crypto.randomUUID(),
+    id: buildReceiptIdempotencyId({
+      serviceType: params.serviceType,
+      serviceRecordId: params.serviceRecordId,
+      receiptType: params.receiptType,
+    }),
     receiptNumber,
     applicationId: source.applicationId,
     applicantId: source.applicantId,
@@ -376,7 +438,7 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
       serviceDescription: source.serviceDescription,
       costPrice: source.costPrice,
       salePrice: source.salePrice,
-      currency: RECEIPT_DEFAULT_CURRENCY,
+      currency: source.currency || RECEIPT_DEFAULT_CURRENCY,
     },
     generatedAt,
     generatedBy: params.generatedBy || null,
@@ -393,8 +455,12 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
     receipt,
     serviceRecordId: params.serviceRecordId,
   })
+  if (persistResult.receipt) return persistResult.receipt
   if (!persistResult.persisted && persistResult.reason) {
-    console.warn('[Receipt] Persistence skipped:', persistResult.reason)
+    console.warn(
+      '[Receipt] Persistence skipped; retry deduplication is unavailable:',
+      persistResult.reason,
+    )
   }
 
   return receipt

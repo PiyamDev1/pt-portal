@@ -7,7 +7,7 @@
 import { useCallback, useState } from 'react'
 import { API_ENDPOINTS } from '@/lib/constants/api'
 
-export type ReceiptServiceType = 'nadra' | 'pk_passport' | 'gb_passport'
+export type ReceiptServiceType = 'nadra' | 'pk_passport' | 'gb_passport' | 'visa'
 export type ReceiptType = 'submission' | 'biometrics' | 'refund' | 'collection'
 
 export type GeneratedReceipt = {

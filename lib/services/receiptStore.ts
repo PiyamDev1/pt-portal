@@ -9,6 +9,7 @@ import type { GeneratedReceipt, ReceiptServiceType } from './receiptGenerator'
 type PersistResult = {
   persisted: boolean
   reason?: string
+  receipt?: GeneratedReceipt
 }
 
 type PersistParams = {
@@ -56,35 +57,89 @@ function toReason(error: unknown) {
   return 'failed to persist generated receipt'
 }
 
+function readStoredReceiptPayload(payload: unknown): GeneratedReceipt | null {
+  if (!payload || typeof payload !== 'object') return null
+  const receipt = payload as Partial<GeneratedReceipt>
+  if (
+    typeof receipt.id !== 'string' ||
+    typeof receipt.receiptNumber !== 'string' ||
+    typeof receipt.serviceType !== 'string' ||
+    typeof receipt.receiptType !== 'string'
+  ) {
+    return null
+  }
+  return payload as GeneratedReceipt
+}
+
 export async function persistGeneratedReceipt({
   receipt,
   serviceRecordId,
 }: PersistParams): Promise<PersistResult> {
   try {
     const supabase = getSupabaseAdminClient()
-    const { error } = await supabase.from('generated_receipts').insert({
-      id: receipt.id,
-      service_type: receipt.serviceType,
-      receipt_type: receipt.receiptType,
-      service_record_id: serviceRecordId,
-      application_id: receipt.applicationId,
-      applicant_id: receipt.applicantId,
-      tracking_number: receipt.trackingNumber,
-      receipt_pin: receipt.receiptPin,
-      generated_by: receipt.generatedBy,
-      generated_at: receipt.generatedAt,
-      is_shared: false,
-      shared_at: null,
-      shared_via: null,
-      share_count: 0,
-      payload: receipt,
-    })
+    const { data: existing, error: existingError } = await supabase
+      .from('generated_receipts')
+      .select('payload')
+      .eq('service_type', receipt.serviceType)
+      .eq('service_record_id', serviceRecordId)
+      .eq('receipt_type', receipt.receiptType)
+      .order('generated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
 
-    if (error) {
-      return { persisted: false, reason: toReason(error) }
+    if (existingError) {
+      return { persisted: false, reason: toReason(existingError) }
+    }
+    if (existing) {
+      const storedReceipt = readStoredReceiptPayload(existing.payload)
+      return storedReceipt
+        ? { persisted: true, receipt: storedReceipt }
+        : { persisted: false, reason: 'stored receipt payload is invalid' }
     }
 
-    return { persisted: true }
+    const { data: inserted, error: insertError } = await supabase
+      .from('generated_receipts')
+      .upsert(
+        {
+          id: receipt.id,
+          service_type: receipt.serviceType,
+          receipt_type: receipt.receiptType,
+          service_record_id: serviceRecordId,
+          application_id: receipt.applicationId,
+          applicant_id: receipt.applicantId,
+          tracking_number: receipt.trackingNumber,
+          receipt_pin: receipt.receiptPin,
+          generated_by: receipt.generatedBy,
+          generated_at: receipt.generatedAt,
+          is_shared: false,
+          shared_at: null,
+          shared_via: null,
+          share_count: 0,
+          payload: receipt,
+        },
+        { onConflict: 'id', ignoreDuplicates: true },
+      )
+      .select('payload')
+      .maybeSingle()
+
+    if (insertError) {
+      return { persisted: false, reason: toReason(insertError) }
+    }
+    const insertedReceipt = readStoredReceiptPayload(inserted?.payload)
+    if (insertedReceipt) return { persisted: true, receipt: insertedReceipt }
+
+    // A concurrent request may have inserted the same deterministic primary key first.
+    const { data: conflicting, error: conflictError } = await supabase
+      .from('generated_receipts')
+      .select('payload')
+      .eq('id', receipt.id)
+      .maybeSingle()
+    if (conflictError) return { persisted: false, reason: toReason(conflictError) }
+
+    const conflictingReceipt = readStoredReceiptPayload(conflicting?.payload)
+    if (conflictingReceipt) return { persisted: true, receipt: conflictingReceipt }
+
+    return { persisted: false, reason: 'could not retrieve generated receipt after insert' }
   } catch (error) {
     return { persisted: false, reason: toReason(error) }
   }

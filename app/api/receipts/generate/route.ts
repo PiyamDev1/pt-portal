@@ -12,7 +12,7 @@ import { generateReceipt } from '@/lib/services/receiptGenerator'
 
 const generateReceiptSchema = z
   .object({
-    serviceType: z.enum(['nadra', 'pk_passport', 'gb_passport']),
+    serviceType: z.enum(['nadra', 'pk_passport', 'gb_passport', 'visa']),
     serviceRecordId: z.string().trim().min(1).max(200),
     receiptType: z.enum(['submission', 'biometrics', 'refund', 'collection']),
   })

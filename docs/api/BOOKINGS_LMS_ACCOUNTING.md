@@ -1284,15 +1284,15 @@ database/unexpected failure.
 ### POST `/api/receipts/generate`
 
 Builds a customer receipt from a NADRA, Pakistani-passport, or GB-passport
-service record, creates QR/plain-text representations, and best-effort persists
-it for later listing/verification.
+service record, or an application copy from a Visa record. It creates QR/plain-text
+representations and best-effort persists the result for later listing/verification.
 
 **Access:** Active staff session required. The generator uses the Supabase
 service role only after that canonical check; no route-level rate limit or
 fresh 2FA. `generatedBy` is always the server-resolved employee ID.
 
 **Input:** JSON up to 8 KiB with required
-`serviceType: "nadra" | "pk_passport" | "gb_passport"`, trimmed nonblank
+`serviceType: "nadra" | "pk_passport" | "gb_passport" | "visa"`, trimmed nonblank
 `serviceRecordId: string` (max 200), and
 `receiptType: "submission" | "biometrics" | "refund" | "collection"`.
 Unknown fields, including a caller-supplied `generatedBy`, are discarded.
@@ -1319,11 +1319,18 @@ salePrice: number | null, currency: string }`.
   `plainText`.
 
 NADRA receipts generate a six-digit numeric receipt PIN and verification URL when a
-tracking number/base URL exist. PK/GB receipt PIN is an empty string and the QR
+tracking number/base URL exist. PK/GB/Visa receipt PIN is an empty string and the QR
 contains fallback receipt information. QR failure does not fail receipt
-generation. Persistence is also best-effort: the route still returns the
-receipt if `generated_receipts` is missing or incompatible. Every call creates
-a new receipt/number; there is no idempotency key.
+generation. Persistence remains best-effort: the route still returns the
+receipt if `generated_receipts` is missing or incompatible. Receipt IDs are
+deterministic for a service-type, service-record, and receipt-type tuple. When
+persistence is available, retries reuse the earliest stored receipt for that
+tuple; concurrent first attempts use the primary-key conflict path to return the
+winning stored payload without overwriting it. If persistence is unavailable,
+a retry may return a newly generated payload and idempotency cannot be guaranteed
+until storage is restored.
+Visa copies show the recorded agency price and validity, with an explicit notice
+that the application data does not establish payment.
 
 **Errors:** `400` malformed/invalid JSON or fields; `401` unauthenticated;
 `403` missing/inactive employee; `413` body over 8 KiB; `500` missing

@@ -46,7 +46,7 @@ describe('GET /api/receipts/list', () => {
   })
 
   it('returns 400 for invalid serviceType', async () => {
-    const res = await GET(makeRequest('serviceType=visa'))
+    const res = await GET(makeRequest('serviceType=unknown'))
     expect(res.status).toBe(400)
   })
 
@@ -89,6 +89,19 @@ describe('GET /api/receipts/list', () => {
     expect(mocks.listPersistedReceipts).toHaveBeenCalledWith({
       applicantId: 'a-1',
       serviceType: 'nadra',
+      includePayload: false,
+    })
+  })
+
+  it('accepts Visa as a supported receipt service', async () => {
+    mocks.listPersistedReceipts.mockResolvedValue({ supported: true, receipts: [] })
+
+    const res = await GET(makeRequest('serviceType=visa'))
+
+    expect(res.status).toBe(200)
+    expect(mocks.listPersistedReceipts).toHaveBeenCalledWith({
+      applicantId: undefined,
+      serviceType: 'visa',
       includePayload: false,
     })
   })

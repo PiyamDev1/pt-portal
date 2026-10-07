@@ -9,6 +9,7 @@ export const RECEIPT_SERVICE_LABELS = {
   nadra: 'NADRA Application',
   pk_passport: 'Pakistani Passport',
   gb_passport: 'British Passport',
+  visa: 'Visa Application',
 } as const
 
 export const RECEIPT_TYPE_LABELS = {

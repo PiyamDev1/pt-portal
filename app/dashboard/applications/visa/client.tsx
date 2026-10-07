@@ -6,9 +6,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, ChevronDown } from 'lucide-react'
+import { FileText, Plus, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useReceipt, type GeneratedReceipt } from '@/hooks'
+import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import VisaForm from './components/VisaForm'
 import { loadVisaMetadata, saveVisaApplication } from '@/lib/visaApi'
 import { VISA_TABLE_COLUMNS } from '@/lib/visaTableConfig'
@@ -30,6 +32,9 @@ export default function VisaApplicationsClient({
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<VisaApplicationRecord | null>(null)
   const [metadata, setMetadata] = useState<VisaMetadata>({ countries: [], types: [] })
+  const [activeReceipt, setActiveReceipt] = useState<GeneratedReceipt | null>(null)
+  const [generatingReceiptId, setGeneratingReceiptId] = useState<string | null>(null)
+  const { generateReceipt, loading: receiptLoading } = useReceipt()
 
   const loadMetadata = useCallback(async () => {
     try {
@@ -50,6 +55,23 @@ export default function VisaApplicationsClient({
       void Promise.resolve().then(loadMetadata)
     }
   }, [isFormOpen, loadMetadata])
+
+  const handleGenerateReceipt = async (item: VisaApplicationRecord) => {
+    setGeneratingReceiptId(item.id)
+    try {
+      const payload = await generateReceipt({
+        serviceType: 'visa',
+        serviceRecordId: item.id,
+        receiptType: 'submission',
+      })
+      setActiveReceipt(payload.receipt)
+      toast.success('Visa application copy opened')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate visa receipt')
+    } finally {
+      setGeneratingReceiptId(null)
+    }
+  }
 
   const handleSave = async (data: VisaFormState) => {
     try {
@@ -198,16 +220,28 @@ export default function VisaApplicationsClient({
                       })()}
                     </td>
                     {/* Action */}
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => {
-                          setEditingItem(item)
-                          setIsFormOpen(true)
-                        }}
-                        className="text-xs text-purple-600 hover:text-purple-800 font-medium"
-                      >
-                        Edit
-                      </button>
+                    <td className="p-4">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleGenerateReceipt(item)}
+                          disabled={receiptLoading}
+                          aria-label={`Open application copy for ${item.applicants?.first_name || 'visa applicant'}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          {generatingReceiptId === item.id ? 'Opening…' : 'Application copy'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingItem(item)
+                            setIsFormOpen(true)
+                          }}
+                          className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                        >
+                          Edit
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -216,6 +250,11 @@ export default function VisaApplicationsClient({
           </table>
         </div>
       </div>
+      <ReceiptViewerModal
+        isOpen={Boolean(activeReceipt)}
+        onClose={() => setActiveReceipt(null)}
+        receipt={activeReceipt}
+      />
     </div>
   )
 }
