@@ -5,13 +5,40 @@
  * @module app/api/passports/gb/add
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { findGbPricingRow } from '@/lib/passports/gbPricing'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
-async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType }) {
+const addGbPassportBodySchema = z
+  .object({
+    applicantName: z.any().optional(),
+    applicantPassport: z.any().optional(),
+    dateOfBirth: z.any().optional(),
+    phoneNumber: z.any().optional(),
+    pexNumber: z.any().optional(),
+    pricingId: z.any().optional(),
+    ageGroup: z.any().optional(),
+    serviceType: z.any().optional(),
+    pages: z.any().optional(),
+  })
+  .passthrough()
+
+type ServiceSupabaseClient = ReturnType<typeof getServiceSupabaseClient>
+type GbPricingLookup = {
+  pricingId?: string | number
+  ageGroup?: string
+  pages?: string
+  serviceType?: string
+}
+
+async function findGbPassportPricing(
+  supabase: ServiceSupabaseClient,
+  { pricingId, ageGroup, pages, serviceType }: GbPricingLookup,
+) {
   if (pricingId) {
     const { data: pricingById, error: idError } = await supabase
       .from('gb_passport_pricing')
@@ -40,17 +67,21 @@ async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, ser
   return pricing
 }
 
-export async function POST(request) {
+export async function POST(request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      addGbPassportBodySchema,
     )
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
 
-    const body = await request.json()
+    const supabase = getServiceSupabaseClient()
+
     const {
       applicantName,
       applicantPassport,
@@ -94,7 +125,7 @@ export async function POST(request) {
 
     if (existingApp) {
       applicantId = existingApp.id
-      const updateData = {}
+      const updateData: { date_of_birth?: string; phone_number?: string } = {}
       if (dateOfBirth) updateData.date_of_birth = dateOfBirth
       if (phoneNumber) updateData.phone_number = phoneNumber
       if (Object.keys(updateData).length > 0) {
@@ -106,8 +137,8 @@ export async function POST(request) {
         last_name: lastName,
         passport_number: applicantPassport,
         phone_number: phoneNumber,
+        ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
       }
-      if (dateOfBirth) insertData.date_of_birth = dateOfBirth
 
       const { data: newApp, error: aErr } = await supabase
         .from('applicants')
@@ -116,8 +147,11 @@ export async function POST(request) {
         .single()
 
       if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)
+      if (!newApp?.id) throw new Error('Applicant creation failed')
       applicantId = newApp.id
     }
+
+    if (!applicantId) throw new Error('Applicant not found or created')
 
     // 3. Create Parent Application (The "Folder")
     const trackingNo = `GB-${Date.now().toString().slice(-6)}`
@@ -134,6 +168,7 @@ export async function POST(request) {
       .single()
 
     if (pAppErr) throw pAppErr
+    if (!parentApp?.id) throw new Error('Application creation failed')
 
     // 4. Create GB Passport Record (With Linked Pricing)
     const { error: gbErr } = await supabase.from('british_passport_applications').insert({

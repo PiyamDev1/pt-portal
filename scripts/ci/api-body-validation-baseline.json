@@ -28,7 +28,6 @@
     "app/api/packages/[id]/route.ts": 1,
     "app/api/packages/[id]/selection/route.ts": 1,
     "app/api/packages/route.ts": 1,
-    "app/api/passports/gb/add/route.js": 1,
     "app/api/passports/pak/drafts/route.ts": 1,
     "app/api/timeclock/events/[eventId]/adjust/route.ts": 1,
     "app/api/timeclock/manual-entry/submit/route.ts": 1,
