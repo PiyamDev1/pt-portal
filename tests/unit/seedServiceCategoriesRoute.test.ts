@@ -2,12 +2,12 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const from = vi.fn()
-  const createClient = vi.fn(() => ({ from }))
-  return { from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { from, getServiceSupabaseClient }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
 }))
 vi.mock('@/lib/lms/apiAuth', () => ({
   requireLmsMaintenance: vi.fn(async () => ({
@@ -45,7 +45,7 @@ describe('/api/lms/seed-service-categories route', () => {
 
     expect(response.status).toBe(500)
     expect(payload.error).toContain('Supabase not configured')
-    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.getServiceSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 500 when fetching existing categories fails', async () => {
