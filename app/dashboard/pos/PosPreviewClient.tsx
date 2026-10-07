@@ -58,6 +58,7 @@ import { formatMoney, formatSignedMoney } from '@/lib/pos/format'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 import PosLedgerFilters, { type PosLedgerPaymentFilter } from './PosLedgerFilters'
 import PosLedgerToolbar, { type PosLedgerSort } from './PosLedgerToolbar'
+import PosQuickTransactionSummary from './PosQuickTransactionSummary'
 import PosSelectedTransactionDetails from './PosSelectedTransactionDetails'
 import PosGuidedTour, { POS_TOUR_CHAPTERS, posTourStorageKey } from './PosGuidedTour'
 import {
@@ -3452,57 +3453,38 @@ export default function PosPreviewClient({
                 </div>
               )}
 
-              <div
-                data-pos-tour="post-summary"
-                className="flex flex-col gap-2 rounded-xl bg-slate-50 p-2 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-                  {isTransfer ? (
-                    <Coins className="h-4 w-4 text-amber-600" />
-                  ) : isOutgoing ? (
-                    <ArrowDownLeft className="h-4 w-4 text-rose-600" />
-                  ) : (
-                    <ArrowUpRight className="h-4 w-4 text-emerald-600" />
-                  )}
-                  <span>
-                    {isTransfer
-                      ? `${formatMoney(numericAmount)} moves between cash locations`
-                      : `${paymentMethod} impact ${isOutgoing ? '−' : '+'}${formatMoney(
-                          isOutgoing ? numericAmount : numericAmountPaid,
-                        )}`}
-                  </span>
-                  {isRemittance && paymentMethod !== 'Cash' && (
-                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-800">
-                      {nonCashDestination === 'SUPPLIER_DIRECT'
-                        ? `Direct to ${selectedCategory.label}`
-                        : 'Our account'}
-                    </span>
-                  )}
-                  {liveCatalogueItem?.loyaltyEligible && member && !isOutgoing && (
-                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">
-                      +{Math.floor(Math.abs(numericAmount) * liveCatalogueItem.pointsPerGbp)} pts
-                    </span>
-                  )}
-                  {voucherAppliedPence > 0 && (
-                    <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">
-                      Voucher −{formatMoney(voucherAppliedAmount)}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  data-pos-tour="post-button"
-                  onClick={() => void submitTransaction()}
-                  disabled={posting}
-                  title={
-                    bootstrap.schemaReady && !bootstrap.activeShift
-                      ? 'Open a till before posting this transaction'
-                      : 'Post this transaction'
-                  }
-                  className="flex min-h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#7f1d2d] to-[#a52338] px-4 py-2 text-xs font-black text-white shadow-md shadow-red-950/15 transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {isTransfer ? <Coins className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}
-                  {posting
+              <PosQuickTransactionSummary
+                direction={isTransfer ? 'transfer' : isOutgoing ? 'out' : 'in'}
+                impactSummary={
+                  isTransfer
+                    ? `${formatMoney(numericAmount)} moves between cash locations`
+                    : `${paymentMethod} impact ${isOutgoing ? '−' : '+'}${formatMoney(
+                        isOutgoing ? numericAmount : numericAmountPaid,
+                      )}`
+                }
+                destinationLabel={
+                  isRemittance && paymentMethod !== 'Cash'
+                    ? nonCashDestination === 'SUPPLIER_DIRECT'
+                      ? `Direct to ${selectedCategory.label}`
+                      : 'Our account'
+                    : undefined
+                }
+                loyaltyPoints={
+                  liveCatalogueItem?.loyaltyEligible && member && !isOutgoing
+                    ? Math.floor(Math.abs(numericAmount) * liveCatalogueItem.pointsPerGbp)
+                    : undefined
+                }
+                voucherDiscount={
+                  voucherAppliedPence > 0 ? formatMoney(voucherAppliedAmount) : undefined
+                }
+                posting={posting}
+                postButtonTitle={
+                  bootstrap.schemaReady && !bootstrap.activeShift
+                    ? 'Open a till before posting this transaction'
+                    : 'Post this transaction'
+                }
+                postButtonLabel={
+                  posting
                     ? 'Posting…'
                     : isTransfer
                       ? 'Open cash management'
@@ -3510,9 +3492,10 @@ export default function PosPreviewClient({
                         ? bootstrap.activeShift
                           ? 'Post transaction'
                           : 'Open till to post'
-                        : 'POS upgrade pending'}
-                </button>
-              </div>
+                        : 'POS upgrade pending'
+                }
+                onPost={() => void submitTransaction()}
+              />
             </div>
           </section>
 
