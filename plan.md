@@ -445,6 +445,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Booking quick-reschedule controls while keeping slot ranking, time calculations, and appointment state in the workspace.
   - [x] Share Booking settings, add-appointment, refresh, and member-service controls across mobile and desktop while keeping state and actions in BookingsClient.
   - [x] Extract Booking refresh status and visible-count presentation while keeping refresh timing, counts, and retry behavior in BookingsClient.
+  - [x] Extract POS branch, readiness, sync, and tutorial header presentation while keeping bootstrap and sync state in the POS workspace.
   - [x] Extract POS quick-transaction impact and posting presentation while keeping amount, loyalty, destination, availability, and submit decisions in the workspace.
   - [x] Extract the POS configuration overview, health diagnostics, metric cards, and setup sequence while leaving counts and duplicate checks in the parent workspace.
   - [x] Extract Package quote-reconciliation warning presentation while keeping reconciliation state and retries in the Package workspace.
