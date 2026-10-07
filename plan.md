@@ -457,6 +457,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Commission source-coverage presentation while keeping cross-module data loading and financial totals in the parent workspace.
   - [x] Share POS ledger entry rendering and month-day summaries across desktop and mobile while keeping filtered data and selection state in the workspace.
   - [x] Extract Package reservation summary cards while keeping financial calculations and provisional staff-cost decisions in the parent workspace.
+  - [x] Share Booking status label and accessibility-badge presentation between appointment rows and the day agenda while preserving the distinct week timeline.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.

@@ -2,10 +2,9 @@
 
 import { memo, useMemo } from 'react'
 import { BookingStatus } from '@/app/types/bookings'
+import BookingStatusBadge from './BookingStatusBadge'
 import {
   SOURCE_CONFIG,
-  STATUS_ACCESSIBILITY,
-  STATUS_CONFIG,
   formatDateLabel,
   formatLongDateLabel,
   formatMinutesLabel,
@@ -436,7 +435,6 @@ export function DayAgendaModal({
                       )
                     }
 
-                    const status = STATUS_CONFIG[item.booking.status] ?? STATUS_CONFIG.pending
                     return (
                       <button
                         key={item.key}
@@ -461,11 +459,7 @@ export function DayAgendaModal({
                               {item.booking.customer_phone}
                             </p>
                           </div>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}
-                          >
-                            {status.label}
-                          </span>
+                          <BookingStatusBadge status={item.booking.status} variant="label" />
                         </div>
                       </button>
                     )
@@ -591,8 +585,6 @@ export const BookingRow = memo(function BookingRow({
   resendingBookingId: string | null
   updatingId: string | null
 }) {
-  const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending
-  const statusA11y = STATUS_ACCESSIBILITY[booking.status] ?? STATUS_ACCESSIBILITY.pending
   const sourceClass = SOURCE_CONFIG[booking.source] ?? 'bg-slate-100 text-slate-600'
   const isUpdating = updatingId === booking.id
   const isResending = resendingBookingId === booking.id
@@ -658,14 +650,7 @@ export const BookingRow = memo(function BookingRow({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-          <span
-            className={`text-xs font-medium px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}
-          >
-            <span className="mr-1 inline-flex h-4 min-w-4 items-center justify-center rounded border border-current/20 bg-white/60 px-1 text-[10px] font-bold leading-none">
-              {statusA11y.short}
-            </span>
-            {status.label}
-          </span>
+          <BookingStatusBadge status={booking.status} />
           <span
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${sourceClass} capitalize`}
           >
