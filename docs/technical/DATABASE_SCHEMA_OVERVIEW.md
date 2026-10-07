@@ -1,15 +1,16 @@
 # Database Schema Overview
 
-Last verified against the repository and linked Ticketing capability: August 27, 2026.
+Repository migration-source policy verified: October 7, 2026. Linked Ticketing capability snapshot: August 27, 2026.
 
 ## Sources of truth
 
 PT-Portal uses Supabase PostgreSQL. Use these artifacts together:
 
-1. `scripts/migrations/` is the ordered, executable history for repository-owned schema changes.
-2. `types/supabase.generated.ts` is the last checked-in snapshot of the linked public schema; `types/supabase.ts` adds a narrow current overlay for committed migrations not yet present in that snapshot.
-3. Runtime route/service code defines which columns, functions, grants, and version markers a deployed release actually requires.
-4. `scripts/bootstrap/` and `scripts/manual/` contain feature bootstrap or repair utilities; they are not a substitute for applying the ordered migration history.
+1. `scripts/migrations/` is the established feature/direct-deployment migration history.
+2. `supabase/migrations/` is a separate 14-digit Supabase CLI history used by selected deployment and PostgreSQL test workflows. Keep its version IDs stable; exact SQL copies shared with the scripts history are registered in `scripts/ci/migration-tree-mirrors.json` and checked by `npm run migrations:check`.
+3. `types/supabase.generated.ts` is the last checked-in snapshot of the linked public schema; `types/supabase.ts` adds a narrow current overlay for committed migrations not yet present in that snapshot.
+4. Runtime route/service code defines which columns, functions, grants, and version markers a deployed release actually requires.
+5. `scripts/bootstrap/` and `scripts/manual/` contain feature bootstrap or repair utilities; they are not a substitute for applying the appropriate migration history.
 
 Do not create or mutate production schema from an HTTP request. Maintenance endpoints may report readiness or invoke an already-deployed function, but deployment owns DDL.
 
@@ -82,7 +83,8 @@ This is a domain map, not a column-level substitute for generated types or SQL. 
 | `20260830_commission_package_readiness.sql`                     | server-owned Package financial-readiness diagnostics and capability `2026083004`                                                                                                                                                       |
 | `20260830_commission_application_shadow_integration.sql`        | completion/collection-based Application source snapshots, refund/reassignment/deletion reversals, historical backfill, source coverage, and capability `2026083005`                                                                    |
 
-Apply unapplied files in filename order and track which migrations have already run. Every
+Apply unapplied files in filename order within their own migration history and track each history
+independently; there is no global ordering across the two directories. Every
 versioned Ticketing capability migration begins with a forward-version guard: the foundation supports a fresh
 install, follow-ups require their documented predecessor, and an exact same-version rerun is
 allowed. A script older than the installed capability fails before its first schema, grant, policy,
@@ -182,7 +184,7 @@ The legacy `exec_sql(text)` administrative helper is explicitly denied to anonym
 
 ## Change workflow
 
-1. Add an idempotent migration in `scripts/migrations/` with explicit grants and RLS decisions.
+1. Add an idempotent migration with explicit grants and RLS decisions to the history used by the relevant deployment workflow; do not move or rename an already-applied migration.
 2. Add/update a capability marker when runtime code depends on the change.
 3. Apply the migration to the intended Supabase project before deploying dependent code.
 4. Regenerate and review the linked schema types:

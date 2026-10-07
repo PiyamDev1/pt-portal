@@ -15,6 +15,8 @@ on:
       - 'supabase/migrations/**'
       - 'scripts/ci/test-security-migration.sh'
       - 'scripts/ci/test-customer-portal-migrations.sh'
+      - 'scripts/ci/check-migration-inventory.mjs'
+      - 'scripts/ci/migration-tree-mirrors.json'
       - 'tests/integration/**'
       - '.github/workflows/database-integration.yml'
   push:
@@ -30,6 +32,8 @@ on:
       - 'supabase/migrations/**'
       - 'scripts/ci/test-security-migration.sh'
       - 'scripts/ci/test-customer-portal-migrations.sh'
+      - 'scripts/ci/check-migration-inventory.mjs'
+      - 'scripts/ci/migration-tree-mirrors.json'
       - 'tests/integration/**'
       - '.github/workflows/database-integration.yml'
 
@@ -37,6 +41,17 @@ permissions:
   contents: read
 
 jobs:
+  migration-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate migration stream IDs and registered mirrors
+        run: npm run migrations:check
+
   lms-migration:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "description": "Exact SQL copies retained in both migration histories under distinct deployed IDs. Add or remove a pair only after checking each deployment history.",
+  "mirrors": [
+    {
+      "scripts": "20260831_customer_portal_loyalty_lifecycle.sql",
+      "supabase": "20260831001200_customer_portal_loyalty_lifecycle.sql"
+    },
+    {
+      "scripts": "20260902_ticketing_customer_trip_email.sql",
+      "supabase": "20260902000100_ticketing_customer_trip_email.sql"
+    },
+    {
+      "scripts": "20260902_remove_ticket_customer_email.sql",
+      "supabase": "20260902000200_remove_ticket_customer_email.sql"
+    }
+  ]
+}

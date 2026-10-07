@@ -9,7 +9,7 @@ Scope: whole PT Portal repository, including dashboard modules, API routes, shar
 
 This plan is based on a static audit of the current repository. It proposes architecture and implementation work; it does not authorise cross-module writes, a new event bus, or a replacement accounting system.
 
-## Progress update — 28 September 2026
+## Progress update — 7 October 2026
 
 The first safe financial-reporting slice is implemented in the application layer without a database migration:
 
@@ -54,8 +54,9 @@ The first safe financial-reporting slice is implemented in the application layer
 - Dashboard, POS, and API staff-session checks now share one current-employee department-membership adapter; each caller still supplies its correctly scoped client and decides whether lookup failure hides optional features or fails access closed.
 - NADRA, Pakistani Passport, and Visa status mutations now use typed route handlers, bounded Zod request parsing, verified staff identity, and the shared server-only Supabase client instead of ad hoc JavaScript clients.
 - The financial inclusion, exclusion, date-basis, correction, and snapshot rules are documented in `docs/guides/ACCOUNTING_REPORTING_RULES.md`.
+- The two active database migration histories now have documented ownership, independent ordering, a registered exact-copy manifest, and a CI inventory check; existing replay tests remain feature-scoped.
 
-No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata while the repository's canonical migration directory remains undecided.
+No cross-module writes, event bus, copied reporting table, or new close/approval workflow was introduced. A database migration was deliberately avoided because the existing Accounting snapshot can safely carry this versioned metadata; the repository now documents its two separate migration histories and guards their inventory in CI.
 
 ## Desired outcome
 
@@ -319,12 +320,9 @@ The queue should link to existing workflows. It should not perform cross-module 
 
 ### Migration source of truth
 
-The repository currently tracks both `scripts/migrations/` and `supabase/migrations/`. The current live Accounting migration is under `supabase/migrations`, while repository documentation describes `scripts/migrations/` as the durable source.
+The repository intentionally retains two active migration histories: `scripts/migrations/` is the established feature/direct-deployment stream, and `supabase/migrations/` is the separate 14-digit Supabase CLI stream used by selected deployment and PostgreSQL test workflows. Do not merge, move, or rename applied files; Supabase tracks migration version IDs remotely. There is no single global order across the streams.
 
-Choose one of these approaches:
-
-1. Move to one canonical migration directory; or
-2. Explicitly document the split and add CI checks for ordering, replay, and coverage.
+CI runs `npm run migrations:check` when either tree changes. It validates each stream's filename convention, uniqueness of Supabase CLI version IDs, and a manifest of exact SQL copies shared across the trees. Existing PostgreSQL replay/rollback coverage remains feature-scoped; this inventory check does not claim that every migration has a disposable-database replay test.
 
 Every new reporting or Accounting capability should have:
 
@@ -357,7 +355,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
 - [x] Agree the reporting fact fields and metric lenses.
 - [x] Document branch versus company scope.
 - [x] Document inclusion rules for refunds, cancellations, reversals, and expected commission.
-- [ ] Decide the canonical migration source.
+- [x] Decide migration-source policy: retain the two separate deployed histories, document their ownership and ordering, and validate naming, Supabase version IDs, and registered exact mirrors in CI; keep database replay tests feature-scoped.
 
 ### Phase 1: low-risk read-only links
 

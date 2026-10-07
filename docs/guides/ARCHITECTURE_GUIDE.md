@@ -1,6 +1,6 @@
 # Architecture Guide
 
-Last verified against the repository: September 28, 2026.
+Last verified against the repository: October 7, 2026.
 
 ## System shape
 
@@ -30,8 +30,8 @@ The portal normally deploys to Vercel. Supabase and storage are external service
 | `hooks/`               | Live reusable React hooks                                                   |
 | `lib/`                 | Shared domain, auth, security, storage, and integration logic               |
 | `types/`               | Linked Supabase snapshot, pending-migration overlay, and compatibility view |
-| `scripts/migrations/`  | Established ordered database history                                        |
-| `supabase/migrations/` | Newer Supabase CLI migration history; currently a second migration tree     |
+| `scripts/migrations/`  | Established feature/direct-deployment migration history                     |
+| `supabase/migrations/` | Separate 14-digit Supabase CLI migration history used by selected workflows |
 | `scripts/ci/`          | CI ratchets and PostgreSQL integration runners                              |
 | `tests/unit/`          | Vitest route, domain, and component tests                                   |
 | `tests/integration/`   | PostgreSQL fixtures and behavioral assertions                               |
@@ -111,7 +111,7 @@ Return `401` for an invalid session, `403` for a known identity without the requ
 
 Supabase provides Auth and PostgreSQL. RLS remains a defense layer for authenticated clients. Server-only service clients perform privileged work only behind the route authorization boundary.
 
-Migrations are executable source of truth. The repository currently contains both `scripts/migrations/` and `supabase/migrations/`; neither directory should be assumed to contain the complete current history until the migration-source decision in `plan.md` is resolved. Runtime setup endpoints may report whether a schema marker/function is present; they must not create production schema. `portal_schema_versions` identifies capabilities required by newer LMS/security routes.
+Migration-source decision (October 7, 2026): retain two distinct histories rather than moving already-deployed files. `scripts/migrations/` is the established feature/direct-deployment stream; `supabase/migrations/` is the separate 14-digit Supabase CLI stream used by selected deployment and PostgreSQL test workflows. Supabase records migration version IDs remotely, so moving or renaming applied files can cause migrations to be treated as new. There is no single global filename sort across the two streams. The migration-inventory check validates each tree's naming/ID rules and requires exact cross-tree SQL copies to be recorded in `scripts/ci/migration-tree-mirrors.json`; PostgreSQL replay/rollback tests remain feature-scoped and run when either tree changes. Runtime setup endpoints may report whether a schema marker/function is present; they must not create production schema. `portal_schema_versions` identifies capabilities required by newer LMS/security routes.
 
 The checked-in `types/supabase.generated.ts` is the last linked-project schema snapshot. `types/supabase.ts` defines the current `Database` as that snapshot plus a narrow overlay for committed migrations that have not yet appeared in regeneration. `getStrictSupabaseClient()` uses this combined current contract; `getSupabaseClient()` keeps a permissive compatibility payload shape while older callers are migrated. Regenerate types after deploying migrations with `npm run types:supabase`, then remove overlay entries that the new snapshot now contains.
 

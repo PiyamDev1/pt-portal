@@ -24,6 +24,7 @@
     "docs:check": "node scripts/ci/check-doc-links.mjs",
     "docs:check-api": "node scripts/ci/check-api-docs.mjs",
     "api:check-boundaries": "node scripts/ci/check-api-boundaries.mjs",
+    "migrations:check": "node scripts/ci/check-migration-inventory.mjs",
     "api:update-boundary-baseline": "node scripts/ci/check-api-boundaries.mjs --update",
     "types:supabase": "node scripts/dev/generate-supabase-types.mjs",
     "sync:pdf-worker": "node scripts/dev/sync-pdf-worker.mjs",
