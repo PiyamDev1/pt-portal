@@ -459,7 +459,8 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract Package reservation summary cards while keeping financial calculations and provisional staff-cost decisions in the parent workspace.
   - [x] Share Booking status label and accessibility-badge presentation between appointment rows and the day agenda while preserving the distinct week timeline.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
-    - [x] Share NADRA, GB Passport, Pakistani Passport, and Visa pricing-row edit/save/cancel/delete controls while keeping each tab's data and price calculations module-owned.
+    - [x] Share NADRA, GB Passport, Pakistani Passport, and Visa pricing-row edit/save/cancel/delete controls while keeping each tab's service data and CRUD handlers module-owned.
+    - [x] Share cost/sale inputs and sale-minus-cost margin cells across those pricing tabs while keeping edits in each tab's existing state.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
   - [x] Route NADRA, passport, and passport-draft workspaces through one application DocumentHub entry point and PageHeader return control.

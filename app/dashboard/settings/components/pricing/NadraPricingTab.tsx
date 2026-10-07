@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { NadraPricing, PricingEditValues } from '@/app/types/pricing'
 import { PRICING_OPTIONS } from '@/lib/pricingOptions'
 import PricingEntryActions from './PricingEntryActions'
+import PricingEntryPriceCells from './PricingEntryPriceCells'
 
 interface NadraPricingTabProps {
   nadraPricing: NadraPricing[]
@@ -184,31 +185,17 @@ function NadraPricingTabCore({
                   <td className="py-3 px-4">{item.service_option || '-'}</td>
                   {editingId === item.id ? (
                     <>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={editValues.cost_price}
-                          onChange={(e) =>
-                            setEditValues({ ...editValues, cost_price: e.target.value })
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={editValues.sale_price}
-                          onChange={(e) =>
-                            setEditValues({ ...editValues, sale_price: e.target.value })
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-600">
-                        {(Number(editValues.sale_price) - Number(editValues.cost_price)).toFixed(2)}
-                      </td>
+                      <PricingEntryPriceCells
+                        mode="edit"
+                        costPrice={editValues.cost_price}
+                        salePrice={editValues.sale_price}
+                        onCostPriceChange={(value) =>
+                          setEditValues({ ...editValues, cost_price: value })
+                        }
+                        onSalePriceChange={(value) =>
+                          setEditValues({ ...editValues, sale_price: value })
+                        }
+                      />
                       <PricingEntryActions
                         isEditing
                         onSave={onSave}
@@ -219,11 +206,11 @@ function NadraPricingTabCore({
                     </>
                   ) : (
                     <>
-                      <td className="py-3 px-4 text-right">{item.cost_price.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-right">{item.sale_price.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-right font-medium text-green-600">
-                        {(item.sale_price - item.cost_price).toFixed(2)}
-                      </td>
+                      <PricingEntryPriceCells
+                        mode="display"
+                        costPrice={item.cost_price}
+                        salePrice={item.sale_price}
+                      />
                       <PricingEntryActions
                         isEditing={false}
                         onSave={onSave}
