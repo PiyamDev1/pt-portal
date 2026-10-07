@@ -7,22 +7,26 @@
  * If managerId is provided, returns only direct reports (recursive via tree
  * traversal). Otherwise returns all active employees who can act as agents.
  *
- * Authentication: Service role key
- * Response Success (200): { agents: { id, name }[] }
+ * Authentication: Authorized staff session; manager and role scope is enforced per caller.
+ * Response Success (200): { canChangeAgent, agentOptions, role }
  * Response Errors: 500 DB error
  */
-import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export const dynamic = 'force-dynamic'
 
-const createSupabase = () =>
-  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+type AgentEmployee = {
+  id: string
+  full_name: string
+  manager_id: string | null
+  roles: { name: string | null } | Array<{ name: string | null }> | null
+}
 
-const collectReports = (managerId, employees) => {
-  const reports = []
+const collectReports = (managerId: string, employees: AgentEmployee[]) => {
+  const reports: string[] = []
   const stack = [managerId]
   while (stack.length > 0) {
     const current = stack.pop()
@@ -36,21 +40,23 @@ const collectReports = (managerId, employees) => {
   return reports
 }
 
-export async function GET(request) {
+export async function GET(_request: Request) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createSupabase()
+    const supabase = getServiceSupabaseClient()
     const userId = access.user.id
 
-    const { data: employees, error: employeesError } = await supabase
+    const { data: employeeRows, error: employeesError } = await supabase
       .from('employees')
       .select('id, full_name, manager_id, roles ( name )')
 
     if (employeesError) throw employeesError
 
-    const currentUser = employees?.find((emp) => emp.id === userId)
+    const employees = employeeRows as AgentEmployee[] | null
+    const availableEmployees = employees || []
+    const currentUser = availableEmployees.find((emp) => emp.id === userId)
     if (!currentUser) {
       return apiError('User not found', 404)
     }
@@ -61,10 +67,12 @@ export async function GET(request) {
 
     const isMasterAdmin = roleName === 'Master Admin'
 
-    const subtreeIds = collectReports(userId, employees || [])
-    const allowedIds = new Set(isMasterAdmin ? employees.map((e) => e.id) : [userId, ...subtreeIds])
+    const subtreeIds = collectReports(userId, availableEmployees)
+    const allowedIds = new Set(
+      isMasterAdmin ? availableEmployees.map((employee) => employee.id) : [userId, ...subtreeIds],
+    )
 
-    const agentOptions = (employees || [])
+    const agentOptions = availableEmployees
       .filter((emp) => allowedIds.has(emp.id))
       .map((emp) => ({ id: emp.id, name: emp.full_name }))
       .sort((a, b) => a.name.localeCompare(b.name))

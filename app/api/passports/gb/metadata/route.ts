@@ -1,14 +1,16 @@
 /**
  * GET /api/passports/gb/metadata
  * Returns GB passport lookup data and pricing matrix for form dropdowns.
+ * Authentication: Authorized staff session; database access remains server-side.
+ * Response: { ages, pages, services, pricing }
  *
  * @module app/api/passports/gb/metadata
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import {
   mapGbPricingRule,
   normaliseGbPageValue,
@@ -17,8 +19,14 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-function mergeLookupOptions(lookupRows, pricingRows, lookupLabelKey, pricingLabelKey, normalise) {
-  const merged = []
+function mergeLookupOptions(
+  lookupRows: Array<Record<string, unknown>> | null | undefined,
+  pricingRows: Array<Record<string, unknown>> | null | undefined,
+  lookupLabelKey: string,
+  pricingLabelKey: string,
+  normalise: (value: unknown) => string,
+) {
+  const merged: Array<Record<string, unknown>> = []
   const seen = new Set()
 
   for (const row of lookupRows || []) {
@@ -45,10 +53,7 @@ export async function GET() {
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
+    const supabase = getServiceSupabaseClient()
 
     // Fetch all lookup tables and the pricing matrix
     const [ages, pages, services, pricing] = await Promise.all([

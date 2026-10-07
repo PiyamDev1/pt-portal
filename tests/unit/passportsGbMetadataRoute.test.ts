@@ -22,11 +22,13 @@ const mocks = vi.hoisted(() => {
     return {}
   })
 
-  const createClient = vi.fn(() => ({ from }))
-  return { agesOrder, pagesOrder, servicesOrder, pricingSelect, from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { agesOrder, pagesOrder, servicesOrder, pricingSelect, from, getServiceSupabaseClient }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { GET } from '@/app/api/passports/gb/metadata/route'
 

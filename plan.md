@@ -485,6 +485,9 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Split and modernise GB Passport updates and status-history readers.
     - [x] Separate applicant/PEX edits from status transitions; preserve saved pricing snapshots and use the authenticated staff identity for status history.
     - [x] Convert the GB and Pakistani Passport status-history readers to typed handlers with the shared service-client boundary; preserve each screen's response shape and legacy Pakistani ID fallback.
+  - [x] Convert NADRA, Pakistani Passport, GB Passport, and Visa metadata readers to typed routes and the shared server-only client while preserving staff access and response contracts.
+  - [x] Convert NADRA status-history reader to a typed route and shared server client, including object/array employee joins and the existing history response contract.
+  - [x] Convert NADRA agent options to a typed route and shared server client while preserving recursive manager scope and Master Admin visibility, covered by focused tests.
   - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.

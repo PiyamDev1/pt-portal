@@ -5,11 +5,13 @@ const mocks = vi.hoisted(() => {
   const eq = vi.fn(() => ({ order }))
   const select = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ select }))
-  const createClient = vi.fn(() => ({ from }))
-  return { order, eq, select, from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { order, eq, select, from, getServiceSupabaseClient }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { GET } from '@/app/api/nadra/status-history/route'
 
@@ -24,7 +26,7 @@ describe('GET /api/nadra/status-history', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ select: mocks.select })
     mocks.select.mockReturnValue({ eq: mocks.eq })
     mocks.eq.mockReturnValue({ order: mocks.order })
@@ -53,7 +55,7 @@ describe('GET /api/nadra/status-history', () => {
           complaint_number: null,
           details: 'done',
           changed_at: '2025-01-01T00:00:00Z',
-          employees: { full_name: 'Admin User' },
+          employees: [{ full_name: 'Admin User' }],
         },
       ],
       error: null,

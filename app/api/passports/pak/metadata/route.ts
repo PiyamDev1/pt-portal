@@ -5,23 +5,25 @@
  *
  * Returns reference data for the Pakistani passport application form:
  * valid service types, processing categories, and assigned agents.
- * Response is cached for 1 hour (revalidate = 3600).
+ * Response is cached privately for five minutes.
  *
- * Authentication: Service role key
- * Response Success (200): { serviceTypes, categories, agents }
+ * Authentication: Authorized staff session; database access remains server-side.
+ * Response Success (200): { categories, speeds, applicationTypes, pageCounts, pricing }
  * Response Errors: 500 DB error
  */
-import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export const dynamic = 'force-dynamic'
 
 const REQUIRED_APPLICATION_TYPES = ['Lost']
 
-function withRequiredApplicationTypes(rows) {
-  const names = (rows || []).map((item) => item.name).filter(Boolean)
+function withRequiredApplicationTypes(rows: Array<{ name?: string | null }> | null | undefined) {
+  const names = (rows || [])
+    .map((item) => item.name)
+    .filter((name): name is string => Boolean(name))
   for (const type of REQUIRED_APPLICATION_TYPES) {
     if (!names.includes(type)) {
       names.push(type)
@@ -35,10 +37,7 @@ export async function GET() {
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
+    const supabase = getServiceSupabaseClient()
 
     // Fetch all lookup tables and the pricing matrix
     const [categories, speeds, applicationTypes, pages, pricing] = await Promise.all([

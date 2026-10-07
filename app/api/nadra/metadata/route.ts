@@ -7,14 +7,14 @@
  * available service types, application statuses, and the list of agents.
  * Used to populate dropdowns in the Add/Edit Application modals.
  *
- * Authentication: Service role key
- * Response Success (200): { serviceTypes, statuses, agents }
+ * Authentication: Authorized staff session; database access remains server-side.
+ * Response Success (200): { serviceTypes, serviceOptions, pricing }
  * Response Errors: 500 DB error
  */
-import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,10 +23,7 @@ export async function GET() {
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
+    const supabase = getServiceSupabaseClient()
 
     // nadra_pricing is the source of truth for which types/options actually exist.
     // nadra_service_types gives us the full canonical type list (including types
@@ -52,8 +49,8 @@ export async function GET() {
 
     // Build serviceOptions array from pricing rows
     // Use "type||option" as a stable synthetic id
-    const seen = new Set()
-    const serviceOptions = []
+    const seen = new Set<string>()
+    const serviceOptions: Array<{ id: string; name: string; service_type_id: string }> = []
     rows.forEach((r) => {
       if (!r.service_option) return
       const key = r.service_type + '||' + r.service_option

@@ -12,11 +12,13 @@ const mocks = vi.hoisted(() => {
     if (table === 'visa_types') return typesFrom()
     return {}
   })
-  const createClient = vi.fn(() => ({ from }))
-  return { countriesOrder, typesOrder, from, createClient, callCount }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { countriesOrder, typesOrder, from, getServiceSupabaseClient, callCount }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { GET } from '@/app/api/visas/metadata/route'
 
@@ -25,7 +27,7 @@ describe('GET /api/visas/metadata', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockImplementation((table: string) => {
       const order = table === 'visa_countries' ? mocks.countriesOrder : mocks.typesOrder
       return { select: vi.fn(() => ({ order })) }
@@ -54,7 +56,7 @@ describe('GET /api/visas/metadata', () => {
   })
 
   it('returns 500 when a Supabase query throws', async () => {
-    mocks.createClient.mockReturnValue({
+    mocks.getServiceSupabaseClient.mockReturnValue({
       from: vi.fn(() => ({
         select: vi.fn(() => ({
           order: vi.fn(() => {

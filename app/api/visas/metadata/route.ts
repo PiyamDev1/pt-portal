@@ -1,14 +1,16 @@
 /**
  * GET /api/visas/metadata
  * Returns visa countries and visa type metadata for form dropdowns.
+ * Authentication: Authorized staff session; database access remains server-side.
+ * Response: { countries, types }
  *
  * @module app/api/visas/metadata
  */
 
-import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +19,7 @@ export async function GET() {
   if (!access.authorized) return access.response
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
+    const supabase = getServiceSupabaseClient()
 
     const [countries, types] = await Promise.all([
       // Fetch all countries (used for BOTH Nationality list and Destination list)

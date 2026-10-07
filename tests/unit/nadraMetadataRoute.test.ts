@@ -6,11 +6,13 @@ const mocks = vi.hoisted(() => {
   const eqActive = vi.fn(() => ({ order: order1 }))
   const select = vi.fn(() => ({ eq: eqActive }))
   const from = vi.fn(() => ({ select }))
-  const createClient = vi.fn(() => ({ from }))
-  return { order2, order1, eqActive, select, from, createClient }
+  const getServiceSupabaseClient = vi.fn(() => ({ from }))
+  return { order2, order1, eqActive, select, from, getServiceSupabaseClient }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
 
 import { GET } from '@/app/api/nadra/metadata/route'
 
@@ -19,7 +21,7 @@ describe('GET /api/nadra/metadata', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-    mocks.createClient.mockReturnValue({ from: mocks.from })
+    mocks.getServiceSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ select: mocks.select })
     mocks.select.mockReturnValue({ eq: mocks.eqActive })
     mocks.eqActive.mockReturnValue({ order: mocks.order1 })
