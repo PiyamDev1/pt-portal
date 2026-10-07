@@ -147,6 +147,22 @@ describe('travel package reservation routes', () => {
     expect(mocks.listOrder).toHaveBeenCalledWith('created_at', { ascending: false })
   })
 
+  it('rejects malformed reservation input before writing financial records', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/travel-packages/package-1/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }) as never,
+      { params: Promise.resolve({ id: 'package-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.syncPackagePaymentStatus).not.toHaveBeenCalled()
+  })
+
   it('creates a reservation with internal financial fields hidden from customers', async () => {
     const response = await POST(
       makeRequest({
