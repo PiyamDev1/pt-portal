@@ -60,6 +60,7 @@ import { PackageThirdPartyDocumentAccessPanel } from './PackageThirdPartyDocumen
 import PackageInvoiceLinesEditor from './PackageInvoiceLinesEditor'
 import PackageOverviewDialogs from './PackageOverviewDialogs'
 import PackageFinalQuoteSnapshot from './PackageFinalQuoteSnapshot'
+import PackageReservationFinancialSummary from './PackageReservationFinancialSummary'
 import PackageOverviewHeader from './PackageOverviewHeader'
 import PackageQuoteReconciliationNotice, {
   type PackageQuoteSyncState,
@@ -2849,83 +2850,14 @@ Please enter the access code and accept the data handling terms before downloadi
                 </div>
               )}
 
-              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Net booked cost</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatMoney(reservationTotals.booked, reservationCurrency)}
-                  </p>
-                  {reservationTotals.supplierRefund > 0 && (
-                    <p className="mt-1 text-xs font-bold text-emerald-700">
-                      Supplier credits: -
-                      {formatMoney(reservationTotals.supplierRefund, reservationCurrency)}
-                    </p>
-                  )}
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Net sold price</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatMoney(reservationTotals.sold, reservationCurrency)}
-                  </p>
-                  {reservationTotals.customerRefund > 0 && (
-                    <p className="mt-1 text-xs font-bold text-rose-700">
-                      Customer refunds: -
-                      {formatMoney(reservationTotals.customerRefund, reservationCurrency)}
-                    </p>
-                  )}
-                  {reservationTotals.discount > 0 && (
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      Net after discount: {formatMoney(netReservationSold, reservationCurrency)}
-                    </p>
-                  )}
-                  {invoice && (
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      Paid {formatMoney(reservationTotals.paidAmount, reservationCurrency)} · Balance{' '}
-                      {formatMoney(reservationTotals.balance, reservationCurrency)}
-                    </p>
-                  )}
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Discounts</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatMoney(reservationTotals.discount, reservationCurrency)}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">
-                    Expected supplier commission
-                  </p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatMoney(reservationTotals.commission, reservationCurrency)}
-                  </p>
-                  {reservationTotals.receivedCommission > 0 && (
-                    <p className="mt-1 text-xs font-bold text-emerald-700">
-                      Received {formatMoney(reservationTotals.receivedCommission, reservationCurrency)}
-                    </p>
-                  )}
-                </div>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-xs font-bold uppercase text-amber-800">
-                    Provisional staff cost
-                  </p>
-                  <p className="mt-1 text-sm font-black text-amber-950">
-                    -{formatMoney(agentCommissionDeduction, reservationCurrency)}
-                  </p>
-                  <p className="mt-1 text-xs font-bold text-amber-800">
-                    Before deduction:{' '}
-                    {formatMoney(profitBeforeAgentCommission, reservationCurrency)}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Profit estimate</p>
-                  <p className="mt-1 text-sm font-black text-[#8b1e2d]">
-                    {formatMoney(estimatedMargin, reservationCurrency)}
-                  </p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    Sold - discounts - booked + supplier commission - provisional staff cost
-                  </p>
-                </div>
-              </div>
+              <PackageReservationFinancialSummary
+                totals={reservationTotals}
+                currency={reservationCurrency}
+                showPayment={Boolean(invoice)}
+                provisionalStaffCost={agentCommissionDeduction}
+                profitBeforeStaffCost={profitBeforeAgentCommission}
+                estimatedMargin={estimatedMargin}
+              />
 
               <section className="mb-4 overflow-hidden rounded-lg border border-amber-200 bg-white">
                 <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
