@@ -441,6 +441,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract the Packages dashboard header and summary tiles while keeping role checks and count calculations in the dashboard client.
   - [x] Extract Commission profile-rate and compensation-context presentation while keeping profile selection, edits, and persistence in the workspace.
   - [x] Extract Package Sales Mode price and payment-breakdown presentation while keeping quote pricing, totals, selection state, and finalisation in the parent workspace.
+  - [x] Extract Booking appointment detail fields while retaining scheduling rules, validation, autosave, and persistence in the workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
