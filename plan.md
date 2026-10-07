@@ -446,6 +446,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Extract POS quick-transaction impact and posting presentation while keeping amount, loyalty, destination, availability, and submit decisions in the workspace.
   - [x] Extract the POS configuration overview, health diagnostics, metric cards, and setup sequence while leaving counts and duplicate checks in the parent workspace.
   - [x] Extract Package quote-reconciliation warning presentation while keeping reconciliation state and retries in the Package workspace.
+  - [x] Extract Commission source-coverage presentation while keeping cross-module data loading and financial totals in the parent workspace.
   - [ ] Separate the remaining Package, Booking, POS, Settings pricing/booking, and Commission workspace panels.
 - [x] Consolidate document and receipt UI primitives.
   - [x] Reuse the shared receipt viewer and receipt-history modal across supported application services.
