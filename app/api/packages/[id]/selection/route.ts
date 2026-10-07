@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { resolvePackageSelection } from '@/lib/packageQuote'
 import type { PackageSelectionInput, PackageResolvedSelection } from '@/app/types/packages'
@@ -8,6 +9,9 @@ import {
   markPackageQuoteSyncFailed,
   syncConvertedPackageFromQuotes,
 } from '@/lib/packageQuoteSyncServer'
+import { z } from 'zod'
+
+const packageSelectionBodySchema = z.object({ stayOptionIds: z.unknown().optional() }).passthrough()
 
 function isPackageSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
@@ -23,8 +27,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as PackageSelectionInput | null
-  if (!body || !body.stayOptionIds) return apiError('Missing package selection', 400)
+  const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageSelectionBodySchema,
+  )
+  const body = parsedBody as PackageSelectionInput | null
+  if (bodyError || !body || !body.stayOptionIds) {
+    return apiError('Missing package selection', 400)
+  }
 
   const { data: quote, error } = await supabase
     .from('travel_package_quotes')

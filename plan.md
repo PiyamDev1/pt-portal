@@ -494,6 +494,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Type NADRA application creation and use bounded shared request parsing plus the shared server client while preserving duplicate conflicts and family/applicant flow.
   - [x] Type GB Passport application creation and use bounded shared parsing/client access without changing canonical pricing-row selection or saved pricing snapshots.
   - [x] Bound manual document-migration batch input before work starts while preserving maintenance authorization and the existing 1–50 batch limit.
+  - [x] Bound agent package-selection input while keeping canonical quote pricing, audit writes, and converted-package reconciliation under existing owners.
   - [x] Continue with receipt/payment routes and remaining Admin/maintenance handlers in reviewed slices.
     - [x] Share Package payment type, method, status, and text-validation contracts across create and edit endpoints without changing authenticated data access or financial calculations.
     - [x] Share LMS clear authorization, rate limiting, confirmation, second-factor verification, service client, and clear RPC across both maintenance endpoints while preserving each route's response shape.

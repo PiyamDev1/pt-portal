@@ -103,6 +103,20 @@ describe('POST /api/packages/[id]/selection', () => {
     expect(response.status).toBe(401)
   })
 
+  it('rejects malformed selection input before loading a quote', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      }) as never,
+      { params: Promise.resolve({ id: 'quote-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.from).not.toHaveBeenCalled()
+  })
+
   it('finalises a quote selection and stores customer details', async () => {
     const response = await POST(
       makeRequest({
@@ -146,10 +160,9 @@ describe('POST /api/packages/[id]/selection', () => {
       error: null,
     })
 
-    const response = await POST(
-      makeRequest({ stayOptionIds: { makkah: 'hotel-a' } }) as never,
-      { params: Promise.resolve({ id: 'quote-1' }) },
-    )
+    const response = await POST(makeRequest({ stayOptionIds: { makkah: 'hotel-a' } }) as never, {
+      params: Promise.resolve({ id: 'quote-1' }),
+    })
     const body = await response.json()
 
     expect(response.status).toBe(200)
