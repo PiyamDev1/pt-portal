@@ -3,7 +3,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import {
-  Fragment,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -20,7 +19,6 @@ import {
   Banknote,
   Building2,
   Check,
-  ChevronRight,
   Clock3,
   Coins,
   CreditCard,
@@ -53,6 +51,7 @@ import type {
 import { formatMoney, formatSignedMoney } from '@/lib/pos/format'
 import PosOperationsPanel, { type PosWorkspaceView } from './PosOperationsPanel'
 import PosLedgerFilters, { type PosLedgerPaymentFilter } from './PosLedgerFilters'
+import PosLedgerEntries, { formatPosLedgerDate } from './PosLedgerEntries'
 import PosLedgerToolbar, { type PosLedgerSort } from './PosLedgerToolbar'
 import PosQuickTransactionSummary from './PosQuickTransactionSummary'
 import PosSelectedTransactionDetails from './PosSelectedTransactionDetails'
@@ -756,16 +755,6 @@ function isNadraCategory(categoryId: string) {
   return NADRA_SERVICE_IDS.includes(categoryId)
 }
 
-function formatLedgerDate(date: string, includeYear = false) {
-  return new Intl.DateTimeFormat('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: includeYear ? 'numeric' : undefined,
-    timeZone: 'UTC',
-  }).format(new Date(`${date}T12:00:00Z`))
-}
-
 function formatLedgerMonth(date: string) {
   return new Intl.DateTimeFormat('en-GB', {
     month: 'long',
@@ -795,14 +784,6 @@ function shiftLedgerDate(date: string, period: PosLedgerPeriod, offset: number) 
     value.setUTCDate(value.getUTCDate() + offset)
   }
   return value.toISOString().slice(0, 10)
-}
-
-function statusTone(status: string) {
-  if (status === 'Posted') return 'bg-emerald-50 text-emerald-700 ring-emerald-600/10'
-  if (status === 'Pending') return 'bg-amber-50 text-amber-700 ring-amber-600/10'
-  if (status === 'Supplier payment') return 'bg-blue-50 text-blue-700 ring-blue-600/10'
-  if (status === 'Transfer') return 'bg-yellow-50 text-yellow-800 ring-yellow-600/10'
-  return 'bg-slate-100 text-slate-700 ring-slate-600/10'
 }
 
 export default function PosPreviewClient({
@@ -2032,7 +2013,7 @@ export default function PosPreviewClient({
                 <p className="text-[10px] text-slate-500">
                   {ledgerPeriod === 'month'
                     ? `${formatLedgerMonth(ledgerDate)} · grouped by day · `
-                    : `${formatLedgerDate(ledgerDate, true)} · `}
+                    : `${formatPosLedgerDate(ledgerDate, true)} · `}
                   {sortBy === 'Supplier' ? 'suppliers first' : 'newest first'}
                 </p>
               </div>
@@ -2143,172 +2124,13 @@ export default function PosPreviewClient({
               </div>
             )}
 
-            <div
-              data-pos-tour="ledger-rows"
-              className="hidden overflow-auto md:block"
-              style={{ height: ledgerHeight }}
-            >
-              <table className="w-full min-w-[780px] border-collapse text-left">
-                <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
-                  <tr className="border-b border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                    <th className="px-3 py-2">Time / reference</th>
-                    <th className="px-3 py-2">Supplier</th>
-                    <th className="px-3 py-2">Name / category</th>
-                    <th className="px-3 py-2">Method</th>
-                    <th className="px-3 py-2 text-right">In</th>
-                    <th className="px-3 py-2 text-right">Out</th>
-                    <th className="px-3 py-2 text-right">Points</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="w-9 px-2 py-2">
-                      <span className="sr-only">Open</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredTransactions.map((transaction, index) => (
-                    <Fragment key={transaction.id}>
-                      {ledgerPeriod === 'month' &&
-                        (index === 0 ||
-                          filteredTransactions[index - 1].date !== transaction.date) && (
-                          <tr>
-                            <td
-                              colSpan={9}
-                              className="border-y-4 border-white bg-slate-100 px-3 py-2"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="text-[11px] font-black text-slate-800">
-                                  {formatLedgerDate(transaction.date)}
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500">
-                                  {
-                                    filteredTransactions.filter(
-                                      (item) => item.date === transaction.date,
-                                    ).length
-                                  }{' '}
-                                  entries · net{' '}
-                                  {formatSignedMoney(
-                                    filteredTransactions
-                                      .filter((item) => item.date === transaction.date)
-                                      .reduce((total, item) => total + item.amount, 0),
-                                  )}
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      <tr
-                        onClick={() => setSelectedTransactionId(transaction.id)}
-                        className={`cursor-pointer transition hover:bg-slate-50 ${
-                          selectedTransaction?.id === transaction.id ? 'bg-red-50/50' : 'bg-white'
-                        }`}
-                      >
-                        <td className="px-3 py-2">
-                          <p className="text-xs font-black text-slate-900">{transaction.time}</p>
-                          <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                            {transaction.reference || transaction.id}
-                          </p>
-                        </td>
-                        <td className="px-3 py-2">
-                          {transaction.supplier ? (
-                            <span className="inline-flex rounded-md bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-700">
-                              {transaction.supplier}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <p className="text-xs font-bold text-slate-900">{transaction.name}</p>
-                          <p className="mt-0.5 text-[11px] text-slate-500">
-                            {transaction.category}
-                          </p>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                            {transaction.method === 'Cash' ? (
-                              <Banknote className="h-3.5 w-3.5" />
-                            ) : transaction.method === 'Card' ? (
-                              <CreditCard className="h-3.5 w-3.5" />
-                            ) : (
-                              <Landmark className="h-3.5 w-3.5" />
-                            )}
-                            {transaction.method}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-right text-xs font-black text-emerald-700">
-                          {transaction.amount > 0 ? formatMoney(transaction.amount) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right text-xs font-black text-rose-700">
-                          {transaction.amount < 0 ? formatMoney(transaction.amount) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right text-xs font-black text-violet-700">
-                          {transaction.points === 0
-                            ? '—'
-                            : `${transaction.points > 0 ? '+' : ''}${transaction.points}`}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${statusTone(transaction.status)}`}
-                          >
-                            {transaction.status}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 text-slate-400">
-                          <ChevronRight className="h-4 w-4" />
-                        </td>
-                      </tr>
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div
-              className="divide-y divide-slate-100 overflow-y-auto md:hidden"
-              style={{ height: ledgerHeight }}
-            >
-              {filteredTransactions.map((transaction, index) => (
-                <Fragment key={transaction.id}>
-                  {ledgerPeriod === 'month' &&
-                    (index === 0 || filteredTransactions[index - 1].date !== transaction.date) && (
-                      <div className="border-y-4 border-white bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-800">
-                        {formatLedgerDate(transaction.date)}
-                      </div>
-                    )}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTransactionId(transaction.id)}
-                    className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-slate-50"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-black text-slate-900">
-                          {transaction.name}
-                        </p>
-                        <span className="text-[10px] font-semibold text-slate-400">
-                          {transaction.time}
-                        </span>
-                      </div>
-                      <p className="mt-1 truncate text-xs text-slate-500">{transaction.category}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p
-                        className={`text-sm font-black ${transaction.amount < 0 ? 'text-rose-700' : 'text-emerald-700'}`}
-                      >
-                        {transaction.amount < 0 ? '−' : '+'}
-                        {formatMoney(transaction.amount)}
-                      </p>
-                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                        {transaction.method}
-                        {transaction.points !== 0
-                          ? ` · ${transaction.points > 0 ? '+' : ''}${transaction.points} pts`
-                          : ''}
-                      </p>
-                    </div>
-                  </button>
-                </Fragment>
-              ))}
-            </div>
+            <PosLedgerEntries
+              transactions={filteredTransactions}
+              period={ledgerPeriod}
+              selectedTransactionId={selectedTransaction?.id ?? ''}
+              height={ledgerHeight}
+              onSelect={setSelectedTransactionId}
+            />
 
             <div
               role="separator"
