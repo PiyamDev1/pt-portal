@@ -19,6 +19,7 @@ vi.mock('@/lib/packagePaymentsServer', () => ({ syncPackagePaymentFinancials: vi
 
 import { POST } from '@/app/api/travel-packages/[id]/payments/route'
 import { PATCH } from '@/app/api/travel-packages/[id]/payments/[paymentId]/route'
+import { POST as createPlan } from '@/app/api/travel-packages/[id]/payment-plan/route'
 
 const params = { params: Promise.resolve({ id: 'package-1' }) }
 
@@ -76,6 +77,30 @@ describe('travel package payment update request body', () => {
         ...(body === undefined ? {} : { body }),
       }) as never,
       { params: Promise.resolve({ id: 'package-1', paymentId: 'payment-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid JSON body' })
+    expect(mocks.from).not.toHaveBeenCalled()
+  })
+})
+
+describe('travel package payment plan request body', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
+  })
+
+  it.each([
+    ['malformed', '{'],
+    ['empty', undefined],
+  ])('rejects a %s payment plan before financial reads or writes', async (_kind, body) => {
+    const response = await createPlan(
+      new Request('http://localhost/api/travel-packages/package-1/payment-plan', {
+        method: 'POST',
+        ...(body === undefined ? {} : { body }),
+      }) as never,
+      params,
     )
 
     expect(response.status).toBe(400)

@@ -37,7 +37,6 @@
     "app/api/travel-packages/[id]/operations/route.ts": 2,
     "app/api/travel-packages/[id]/passengers/[passengerId]/route.ts": 1,
     "app/api/travel-packages/[id]/passengers/route.ts": 1,
-    "app/api/travel-packages/[id]/payment-plan/route.ts": 1,
     "app/api/travel-packages/[id]/route.ts": 1,
     "app/api/travel-packages/[id]/third-party-document-shares/[shareId]/route.ts": 1,
     "app/api/travel-packages/[id]/third-party-document-shares/route.ts": 1,

@@ -1,9 +1,13 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { createPackageInstallmentSchedule } from '@/lib/packagePaymentPlans'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageInstallment, TravelPackagePaymentPlan } from '@/app/types/packages'
+import { z } from 'zod'
+
+const packagePaymentPlanCreateBodySchema = z.object({}).passthrough()
 
 const FREQUENCIES = new Set(['weekly', 'fortnightly', 'monthly', 'custom'])
 
@@ -52,8 +56,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packagePaymentPlanCreateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const totalAmount = Number(body.totalAmount ?? body.total_amount)
   const depositAmount = Number(body.depositAmount ?? body.deposit_amount ?? 0)
   const installmentCount = Number(body.installmentCount ?? body.installment_count)
