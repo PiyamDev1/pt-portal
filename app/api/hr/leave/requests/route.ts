@@ -9,6 +9,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { enqueueIntegrationEvent } from '@/lib/integrations/frappe/syncEngine'
 
@@ -78,7 +79,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as LeaveRequestPayload
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return apiError(bodyError, 400)
+
+    const body = parsedBody as LeaveRequestPayload
 
     if (!body.leaveTypeId || !body.fromDate || !body.toDate || !body.requestedDays) {
       return apiError('leaveTypeId, fromDate, toDate and requestedDays are required', 400)

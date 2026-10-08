@@ -8,6 +8,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { enqueueIntegrationEvent } from '@/lib/integrations/frappe/syncEngine'
 
@@ -74,7 +75,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   try {
-    const body = (await request.json()) as PatchPayload
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return apiError(bodyError, 400)
+
+    const body = parsedBody as PatchPayload
     if (!body.action) {
       return apiError('action is required', 400)
     }
