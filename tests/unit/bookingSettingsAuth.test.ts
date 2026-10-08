@@ -35,6 +35,26 @@ const request = (method: string) =>
 
 const params = { params: Promise.resolve({ id: 'record-1' }) }
 
+const invalidBodyHandlers: {
+  label: string
+  method: 'PATCH' | 'POST'
+  call: (request: Request) => Promise<Response>
+}[] = [
+  { label: 'PATCH branch settings', method: 'PATCH', call: (req) => patchBranch(req as never) },
+  {
+    label: 'PATCH reminder settings',
+    method: 'PATCH',
+    call: (req) => patchReminders(req as never),
+  },
+  { label: 'POST service', method: 'POST', call: (req) => createService(req as never) },
+  {
+    label: 'PATCH service',
+    method: 'PATCH',
+    call: (req) => patchService(req as never, params),
+  },
+  { label: 'POST override', method: 'POST', call: (req) => createOverride(req as never) },
+]
+
 describe('booking settings mutation authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -59,4 +79,32 @@ describe('booking settings mutation authorization', () => {
     expect(mocks.getSupabaseClient).not.toHaveBeenCalled()
     expect(mocks.getRouteSupabaseClient).not.toHaveBeenCalled()
   })
+})
+
+describe('booking settings mutation JSON boundaries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireAdminSession.mockResolvedValue({ authorized: true })
+  })
+
+  it.each(invalidBodyHandlers)(
+    'rejects malformed and empty JSON for $label before database access',
+    async ({ method, call }) => {
+      for (const body of ['{', '']) {
+        const response = await call(
+          new Request('http://localhost/api/bookings/settings/test', {
+            method,
+            headers: { 'content-type': 'application/json' },
+            body: body || undefined,
+          }),
+        )
+
+        expect(response.status).toBe(400)
+        expect(await response.json()).toEqual({ error: 'Invalid JSON request body' })
+      }
+
+      expect(mocks.getSupabaseClient).not.toHaveBeenCalled()
+      expect(mocks.getRouteSupabaseClient).not.toHaveBeenCalled()
+    },
+  )
 })

@@ -3,6 +3,7 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { type BookingReminderSettings, defaultReminderSettings } from '@/lib/bookingReminders'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/migrations/20260602_add_booking_reminders_and_penalties.sql in Supabase SQL editor.'
@@ -89,7 +90,14 @@ export async function PATCH(request: NextRequest) {
     const access = await requireAdminSession()
     if (!access.authorized) return access.response
 
-    const body = (await request.json()) as {
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
+    const body = parsedBody as {
       location_id?: string
       settings?: Partial<BookingReminderSettings>
     }

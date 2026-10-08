@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import type { Database } from '@/types/supabase'
 import {
   BOOKING_SERVICE_SCHEMA_HINT,
@@ -26,7 +27,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!access.authorized) return access.response
 
     const { id } = await params
-    const body = await request.json()
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
+    const body = parsedBody
     const {
       name,
       duration_minutes,

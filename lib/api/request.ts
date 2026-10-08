@@ -13,6 +13,12 @@ export type BodyParseResult<T> =
 
 export const DEFAULT_JSON_BODY_LIMIT_BYTES = 1024 * 1024
 
+/**
+ * Transitional schema for routes that normalize legacy object payloads locally.
+ * It enforces an object body without rejecting fields the existing handler accepts.
+ */
+export const jsonObjectBodySchema = z.object({}).passthrough()
+
 export type MultipartParseResult =
   | { data: FormData; error: null; status: 200 }
   | { data: null; error: string; status: 400 | 413 }

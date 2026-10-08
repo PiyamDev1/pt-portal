@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import {
   BOOKING_SERVICE_SCHEMA_HINT,
   getBookingServicePortalSettingsError,
@@ -55,7 +56,14 @@ export async function POST(request: NextRequest) {
     const access = await requireAdminSession()
     if (!access.authorized) return access.response
 
-    const body = await request.json()
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
+    const body = parsedBody
     const {
       location_id,
       name,

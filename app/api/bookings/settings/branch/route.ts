@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
@@ -50,7 +51,13 @@ export async function PATCH(request: NextRequest) {
     const access = await requireAdminSession()
     if (!access.authorized) return access.response
 
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
     const { location_id, settings } = body as {
       location_id: string
       settings: {
