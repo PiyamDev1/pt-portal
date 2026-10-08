@@ -1,8 +1,12 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { Database } from '@/types/supabase'
+import { z } from 'zod'
+
+const packageOperationBodySchema = z.object({}).passthrough()
 
 const SCHEMA_HINT =
   'Package operations are not installed yet. Run scripts/migrations/20260711_create_travel_package_folders.sql, scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
@@ -176,8 +180,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageOperationBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const resource = resourceName(body.resource)
   if (!resource) return apiError('Invalid operation resource', 400)
   const titleOrSummary = resource === 'communication' ? body.summary : body.title
@@ -270,8 +278,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageOperationBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const resource = resourceName(body.resource)
   const resourceId = cleanText(body.resourceId || body.resource_id)
   if (!resource || !resourceId) return apiError('Resource and resource ID are required', 400)
