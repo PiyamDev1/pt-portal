@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { incrementBookingContactPenalty } from '@/lib/bookingFlags'
+import { z } from 'zod'
+
+const noShowBodySchema = z.object({}).passthrough()
 
 export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await request.json().catch(() => null)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, noShowBodySchema)
+  if (bodyError || !body) {
+    return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 })
+  }
   const reason =
     typeof body?.reason === 'string'
       ? body.reason.trim() || 'Marked as no-show by staff'
