@@ -2,9 +2,6 @@
   "version": 1,
   "description": "Legacy API routes that still parse incoming JSON without parseBodyWithSchema. Lower this baseline as routes are migrated; do not add entries for new code.",
   "routes": {
-    "app/api/auth/security-preferences/route.ts": 1,
-    "app/api/bookings/drafts/route.ts": 1,
-    "app/api/bookings/preferences/route.ts": 1,
     "app/api/hr/leave/requests/[id]/route.ts": 1,
     "app/api/hr/leave/requests/route.ts": 1,
     "app/api/integrations/frappe/provisioning/me/route.ts": 1,

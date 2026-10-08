@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 
 type SavedView = {
   name: string
@@ -75,7 +76,14 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = (await request.json()) as {
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
+    const body = parsedBody as {
       location_id?: string
       saved_views?: unknown
     }

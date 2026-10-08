@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 
 export const runtime = 'nodejs'
 
@@ -46,7 +47,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = (await request.json()) as {
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
+    const body = parsedBody as {
       backup_codes_downloaded?: boolean
       backup_reminder_dismissed_until?: string | null
     }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 
 export const runtime = 'nodejs'
 
@@ -38,7 +39,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const body = await request.json().catch(() => null)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError) return NextResponse.json({ error: bodyError }, { status: 400 })
+
   const locationId = typeof body?.location_id === 'string' ? body.location_id : ''
   const draftKey =
     typeof body?.draft_key === 'string' && body.draft_key.trim()
