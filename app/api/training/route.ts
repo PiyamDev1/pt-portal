@@ -9,6 +9,7 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { toErrorMessage } from '@/lib/api/error'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 
 export const dynamic = 'force-dynamic'
 
@@ -268,7 +269,14 @@ export async function POST(request: Request) {
 
     const currentEmployee = await getCurrentEmployee(supabase, user.id)
     const admin = isTrainingAdmin(currentEmployee.role_name)
-    const body = (await request.json().catch(() => ({}))) as TrainingRequestBody
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: true },
+    )
+    if (bodyError) return apiError(bodyError, 400)
+
+    const body = parsedBody as TrainingRequestBody
 
     if (!body.action) return apiError('Training action is required', 400)
 
