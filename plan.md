@@ -513,6 +513,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Bound group create/update and family-member inputs before group table access while preserving source links and membership semantics.
   - [x] Bound package-folder updates before financial/lifecycle lookups while preserving commission allocation and status-transition rules.
   - [x] Bound package task/deadline/risk/communication writes before operation-table access without changing their ownership or follow-up automation.
+  - [x] Bound Timeclock correction payloads before attendance reads/writes while retaining maintenance authorization and downstream sync rules.
   - [x] Bound booking updates while preserving stale-write conflicts, idempotency, capacity checks, lifecycle transitions, and customer notification behavior.
   - [x] Reject malformed booking-resend input before database reads or customer email delivery; keep recipient, kind, idempotency, and audit rules unchanged.
   - [x] Bound timeclock scan input while preserving QR signature/nonce validation, punch sequencing, duplicate checks, and attendance sync.
@@ -535,7 +536,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Reuse the server-only Supabase client in Notice Board administration without changing maintenance access, validation, or storage cleanup behavior.
     - [x] Reuse the server-only Supabase client for the read-only LMS schema-readiness check while keeping migrations as the sole schema owner.
 
-API follow-up inventory: the request-body boundary ratchet still tracks 30 routes with direct JSON parsing (31 calls at this snapshot). Those routes are not considered migrated; continue with route-specific tests and review, especially for authentication, booking, timeclock, and financial writes. The CI baseline is in `scripts/ci/api-body-validation-baseline.json`.
+API follow-up inventory: the request-body boundary ratchet still tracks 29 routes with direct JSON parsing (30 calls at this snapshot). Those routes are not considered migrated; continue with route-specific tests and review, especially for authentication, booking, timeclock, and financial writes. The CI baseline is in `scripts/ci/api-body-validation-baseline.json`.
 
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 

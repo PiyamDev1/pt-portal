@@ -21,8 +21,12 @@
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { toErrorMessage } from '@/lib/api/error'
 import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syncEngine'
+import { z } from 'zod'
+
+const timeclockAdjustmentBodySchema = z.object({}).passthrough()
 
 type RouteContext = {
   params: Promise<{
@@ -49,7 +53,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     const { eventId } = await context.params
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      timeclockAdjustmentBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError || !body) return apiError('Invalid JSON request body', 400)
     const adjustedTime = typeof body?.adjustedTime === 'string' ? body.adjustedTime.trim() : ''
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
 

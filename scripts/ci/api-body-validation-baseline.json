@@ -19,7 +19,6 @@
     "app/api/package-portal/access/route.ts": 1,
     "app/api/package-third-party-documents/[token]/route.ts": 1,
     "app/api/packages/route.ts": 1,
-    "app/api/timeclock/events/[eventId]/adjust/route.ts": 1,
     "app/api/training/route.ts": 1,
     "app/api/travel-packages/[id]/documents/[documentId]/route.ts": 1,
     "app/api/travel-packages/[id]/documents/access/route.ts": 1,
