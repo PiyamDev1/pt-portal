@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   isAgentOnlyPackageDocumentCategory,
@@ -76,11 +77,10 @@ async function syncDocumentReleaseStatus(
 }
 
 async function parseBody(request: NextRequest) {
-  try {
-    return (await request.json()) as Record<string, unknown>
-  } catch {
-    return null
-  }
+  const { data, error } = await parseBodyWithSchema(request, jsonObjectBodySchema, {
+    allowEmptyBody: false,
+  })
+  return error || !data ? null : data
 }
 
 export async function PATCH(

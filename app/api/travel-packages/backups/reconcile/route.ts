@@ -1,6 +1,7 @@
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { requireSuperAdminSession } from '@/lib/adminSessionAuth'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { getS3Client } from '@/lib/s3Client'
@@ -42,7 +43,13 @@ export async function POST(request: NextRequest) {
   if (!auth.authorized) return auth.response
   const config = getPackageBackupStorageConfig()
   if (!config) return apiError('R3 package backup storage is not configured', 503)
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: true },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
+
   const limit = Math.max(1, Math.min(100, Number(body.limit || 25)))
   const supabase = getServiceSupabaseClient()
   const { data: documents, error } = await supabase

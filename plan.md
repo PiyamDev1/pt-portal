@@ -522,6 +522,8 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
   - [x] Bound Frappe transfer inputs and outbox dispatch limits while preserving authenticated identity overrides and the empty-body batch default.
   - [x] Bound both public package-access JSON bodies while preserving their error contracts and rate-limit ordering.
   - [x] Bound Training mutation bodies after existing authentication/profile context while preserving empty-body validation and mutation flow.
+  - [x] Bound package document, passenger, third-party share, and transport voucher mutations before domain-table access without changing ownership or lifecycle rules.
+  - [x] Bound package backup reconciliation and legacy migration bodies while preserving super-admin gates, empty-body defaults, and batch limits.
   - [x] Bound booking updates while preserving stale-write conflicts, idempotency, capacity checks, lifecycle transitions, and customer notification behavior.
   - [x] Reject malformed booking-resend input before database reads or customer email delivery; keep recipient, kind, idempotency, and audit rules unchanged.
   - [x] Bound timeclock scan input while preserving QR signature/nonce validation, punch sequencing, duplicate checks, and attendance sync.
@@ -544,7 +546,7 @@ Update `docs/guides/ARCHITECTURE_GUIDE.md`, API references, database overview, a
     - [x] Reuse the server-only Supabase client in Notice Board administration without changing maintenance access, validation, or storage cleanup behavior.
     - [x] Reuse the server-only Supabase client for the read-only LMS schema-readiness check while keeping migrations as the sole schema owner.
 
-API follow-up inventory: the request-body boundary ratchet still tracks 11 routes with direct JSON parsing (11 calls at this snapshot). Those routes are not considered migrated; continue with route-specific tests and review, especially for authentication, booking, timeclock, and financial writes. The CI baseline is in `scripts/ci/api-body-validation-baseline.json`.
+API follow-up inventory: the request-body boundary ratchet now tracks 0 routes with direct JSON parsing (0 calls at this snapshot). The CI baseline remains in `scripts/ci/api-body-validation-baseline.json` so new direct request-body parsing cannot be introduced unnoticed.
 
 - [x] Keep domain migration replay/rollback checks and documentation integrity checks in CI. PostgreSQL 16 jobs rebuild and verify LMS, Security, Ticketing, POS, Commission, and customer-portal migrations; the quality workflow validates Markdown links/anchors and API contracts, including CRLF Markdown headings.
 

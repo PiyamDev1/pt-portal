@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { requireSuperAdminSession } from '@/lib/adminSessionAuth'
 import {
   listLegacyBookingCustomers,
@@ -9,7 +10,13 @@ import {
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdminSession()
   if (!auth.authorized) return auth.response
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: true },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
+
   const action = typeof body.action === 'string' ? body.action : 'scan'
   if (action === 'test') {
     const connections = await testLegacyBookingsConnections()

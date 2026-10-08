@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { requireSuperAdminSession } from '@/lib/adminSessionAuth'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import {
@@ -12,8 +13,12 @@ export const maxDuration = 300
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdminSession()
   if (!auth.authorized) return auth.response
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const dryRun = Boolean(body.dryRun)
   const mode = dryRun ? 'dry_run' : String(body.mode || 'sample')
   if (!['dry_run', 'sample', 'full', 'retry'].includes(mode))

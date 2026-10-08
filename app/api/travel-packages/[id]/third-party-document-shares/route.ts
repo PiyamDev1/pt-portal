@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES,
@@ -75,8 +76,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const expiresAt = normalizeExpiry(body.expiresAt || body.expires_at)
   if (!expiresAt) return apiError('Expiry must be a valid future date and time', 400)

@@ -1,17 +1,5 @@
 {
   "version": 1,
   "description": "Legacy API routes that still parse incoming JSON without parseBodyWithSchema. Lower this baseline as routes are migrated; do not add entries for new code.",
-  "routes": {
-    "app/api/travel-packages/[id]/documents/[documentId]/route.ts": 1,
-    "app/api/travel-packages/[id]/documents/access/route.ts": 1,
-    "app/api/travel-packages/[id]/passengers/[passengerId]/route.ts": 1,
-    "app/api/travel-packages/[id]/passengers/route.ts": 1,
-    "app/api/travel-packages/[id]/third-party-document-shares/[shareId]/route.ts": 1,
-    "app/api/travel-packages/[id]/third-party-document-shares/route.ts": 1,
-    "app/api/travel-packages/[id]/transport-vouchers/[voucherId]/route.ts": 1,
-    "app/api/travel-packages/[id]/transport-vouchers/route.ts": 1,
-    "app/api/travel-packages/backups/reconcile/route.ts": 1,
-    "app/api/travel-packages/migration/import/route.ts": 1,
-    "app/api/travel-packages/migration/scan/route.ts": 1
-  }
+  "routes": {}
 }
