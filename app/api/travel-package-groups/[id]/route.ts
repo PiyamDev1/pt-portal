@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type {
   TravelPackageGroup,
@@ -22,6 +23,9 @@ import {
   TRAVEL_PACKAGE_GROUP_VISIBILITY_MODES,
   type TravelPackageGroupDetail,
 } from '@/lib/packageGroups'
+import { z } from 'zod'
+
+const packageGroupUpdateBodySchema = z.object({}).passthrough()
 
 function cleanMetadata(value: unknown) {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -173,8 +177,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageGroupUpdateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const update: Record<string, unknown> = { updated_by: user.id }
 

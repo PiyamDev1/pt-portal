@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   cleanPackageGroupText,
@@ -7,6 +8,9 @@ import {
   selectTravelPackageGroupMemberColumns,
   TRAVEL_PACKAGE_GROUP_SCHEMA_HINT,
 } from '@/lib/packageGroups'
+import { z } from 'zod'
+
+const packageGroupMemberBodySchema = z.object({}).passthrough()
 
 function cleanSortOrder(value: unknown) {
   const number = Number(value)
@@ -32,8 +36,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageGroupMemberBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const packageId = cleanPackageGroupText(body.packageId || body.package_id)
   const quoteId = cleanPackageGroupText(body.quoteId || body.quote_id)
@@ -123,8 +131,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageGroupMemberBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const memberId = cleanPackageGroupText(body.memberId || body.member_id)
   if (!memberId) return apiError('Member ID is required', 400)

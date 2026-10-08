@@ -37,6 +37,8 @@ const bulkGroupDeleteSchema = z
   })
   .passthrough()
 
+const packageGroupCreateBodySchema = z.object({}).passthrough()
+
 function cleanBoolean(value: unknown) {
   return value === true || value === 'true'
 }
@@ -231,8 +233,12 @@ export async function POST(request: NextRequest) {
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageGroupCreateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const title = cleanPackageGroupText(body.title)
   const leadPackageId = cleanPackageGroupText(body.leadPackageId || body.lead_package_id)
