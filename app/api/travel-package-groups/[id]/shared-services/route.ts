@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type {
   TravelPackageGroupAllocationMode,
@@ -17,6 +18,9 @@ import {
   TRAVEL_PACKAGE_GROUP_SERVICE_STATUSES,
   TRAVEL_PACKAGE_GROUP_SERVICE_TYPES,
 } from '@/lib/packageGroups'
+import { z } from 'zod'
+
+const sharedServiceBodySchema = z.object({}).passthrough()
 
 function getAllocationMode(value: unknown) {
   const mode = cleanPackageGroupText(value) as TravelPackageGroupAllocationMode
@@ -41,8 +45,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    sharedServiceBodySchema,
+    {
+      allowEmptyBody: false,
+    },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const title = cleanPackageGroupText(body.title)
   if (!title) return apiError('Shared service title is required', 400)
@@ -117,8 +127,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    sharedServiceBodySchema,
+    {
+      allowEmptyBody: false,
+    },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const allocationId = cleanPackageGroupText(body.allocationId || body.allocation_id)
   if (allocationId) {
@@ -359,8 +375,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    sharedServiceBodySchema,
+    {
+      allowEmptyBody: false,
+    },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const sharedServiceId = cleanPackageGroupText(
     body.sharedServiceId || body.shared_service_id || body.serviceId || body.service_id,

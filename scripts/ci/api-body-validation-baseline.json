@@ -24,7 +24,6 @@
     "app/api/training/route.ts": 1,
     "app/api/travel-package-groups/[id]/members/route.ts": 2,
     "app/api/travel-package-groups/[id]/route.ts": 1,
-    "app/api/travel-package-groups/[id]/shared-services/route.ts": 3,
     "app/api/travel-package-groups/route.ts": 1,
     "app/api/travel-packages/[id]/documents/[documentId]/route.ts": 1,
     "app/api/travel-packages/[id]/documents/access/route.ts": 1,
