@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { normalizePackageInvoiceLineType, roundPackageInvoiceMoney } from '@/lib/packageInvoices'
 import { recalculatePackageInvoice } from '@/lib/packageInvoiceServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageInvoiceLine } from '@/app/types/packages'
 import { selectTravelPackageInvoiceLineColumns } from '../../columns'
+import { z } from 'zod'
+
+const packageInvoiceLineUpdateBodySchema = z.object({}).passthrough()
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -21,8 +25,12 @@ export async function PATCH(
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageInvoiceLineUpdateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const { data: before } = await supabase
     .from('travel_package_invoice_lines')

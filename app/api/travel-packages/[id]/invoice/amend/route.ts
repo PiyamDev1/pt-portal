@@ -1,9 +1,13 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageInvoice } from '@/app/types/packages'
 import { selectTravelPackageInvoiceColumns } from '../columns'
+import { z } from 'zod'
+
+const packageInvoiceAmendBodySchema = z.object({}).passthrough()
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -12,8 +16,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageInvoiceAmendBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const invoiceId = typeof body.invoiceId === 'string' ? body.invoiceId.trim() : ''
   const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
   if (!invoiceId || !reason) return apiError('Invoice ID and amendment reason are required', 400)

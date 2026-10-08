@@ -1,10 +1,14 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { normalizePackageInvoiceLineType, roundPackageInvoiceMoney } from '@/lib/packageInvoices'
 import { recalculatePackageInvoice } from '@/lib/packageInvoiceServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { selectTravelPackageInvoiceLineColumns } from '../columns'
+import { z } from 'zod'
+
+const packageInvoiceLineCreateBodySchema = z.object({}).passthrough()
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -17,8 +21,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageInvoiceLineCreateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const invoiceId = cleanText(body.invoiceId || body.invoice_id)
   const description = cleanText(body.description)

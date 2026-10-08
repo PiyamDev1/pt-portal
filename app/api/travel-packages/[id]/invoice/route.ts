@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   allocateSharedGroupTransportBookedCost,
@@ -22,6 +23,7 @@ import {
 } from '../reservations/columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { selectTravelPackageInvoiceColumns, selectTravelPackageInvoiceLineColumns } from './columns'
+import { z } from 'zod'
 
 const SCHEMA_HINT =
   'Travel package invoice schema is incomplete. Run scripts/migrations/20260712_create_travel_package_invoices.sql and scripts/migrations/20260827_create_group_customer_files.sql in Supabase SQL editor.'
@@ -39,6 +41,8 @@ const INVOICE_STATUSES = new Set<TravelPackageInvoiceStatus>([
   'closed',
 ])
 
+const packageInvoiceBodySchema = z.object({}).passthrough()
+
 function isInvoiceSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10' || code === '23503'
@@ -54,14 +58,6 @@ function hasBodyKey(body: Record<string, unknown>, key: string) {
 
 function getBodyValue(body: Record<string, unknown>, camelKey: string, snakeKey: string) {
   return body[camelKey] ?? body[snakeKey]
-}
-
-async function parseBody(request: NextRequest) {
-  try {
-    return (await request.json()) as Record<string, unknown>
-  } catch {
-    return {}
-  }
 }
 
 async function loadInvoiceLines(
@@ -182,7 +178,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = await parseBody(request)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageInvoiceBodySchema,
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const regenerate = Boolean(body.regenerate)
 
   const { data: packageData, error: packageError } = await loadPackageFolder(supabase, id)
@@ -378,7 +378,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = await parseBody(request)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageInvoiceBodySchema,
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const invoiceId = cleanText(getBodyValue(body, 'invoiceId', 'invoice_id'))
   if (!invoiceId) return apiError('Invoice ID is required', 400)
 

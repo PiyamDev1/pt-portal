@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { createCustomerInvoiceSnapshot } from '@/lib/packageInvoices'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
@@ -8,6 +9,9 @@ import {
   selectTravelPackageInvoiceColumns,
   selectTravelPackageInvoiceLineColumns,
 } from '../columns'
+import { z } from 'zod'
+
+const packageInvoiceReleaseBodySchema = z.object({}).passthrough()
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -16,7 +20,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageInvoiceReleaseBodySchema,
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
   const invoiceId = typeof body.invoiceId === 'string' ? body.invoiceId.trim() : ''
   if (!invoiceId) return apiError('Invoice ID is required', 400)
 
