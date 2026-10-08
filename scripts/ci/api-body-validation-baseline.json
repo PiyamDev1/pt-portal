@@ -6,7 +6,6 @@
     "app/api/bookings/[id]/no-show/route.ts": 1,
     "app/api/bookings/drafts/route.ts": 1,
     "app/api/bookings/preferences/route.ts": 1,
-    "app/api/bookings/route.ts": 1,
     "app/api/bookings/settings/branch/route.ts": 1,
     "app/api/bookings/settings/overrides/route.ts": 1,
     "app/api/bookings/settings/reminders/route.ts": 1,

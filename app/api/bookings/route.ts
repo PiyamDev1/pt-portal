@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   BookingStatus,
@@ -38,6 +39,9 @@ import {
   overlapsRangeBeyondTolerance,
   timeToMinutes,
 } from '@/lib/bookingRules'
+import { z } from 'zod'
+
+const createBookingBodySchema = z.object({}).passthrough()
 
 function buildBranchAddress(
   location: {
@@ -146,7 +150,18 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CreateBookingRequest
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      createBookingBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError || !parsedBody) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON request body' } as CreateBookingResponse,
+        { status: 400 },
+      )
+    }
+    const body = parsedBody as unknown as CreateBookingRequest
 
     const {
       location_id,
