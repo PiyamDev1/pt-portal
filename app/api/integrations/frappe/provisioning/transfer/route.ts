@@ -6,6 +6,7 @@
 
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
 import {
   FrappeProvisioningSetupError,
@@ -22,8 +23,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json()
-    const result = await transferEmployeeToFrappe(body)
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return apiError(bodyError, 400)
+
+    const result = await transferEmployeeToFrappe(
+      body as Parameters<typeof transferEmployeeToFrappe>[0],
+    )
 
     return apiOk({
       ok: true,

@@ -8,6 +8,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import {
   FRAPPE_DEFAULT_COMPANY,
   FrappeProvisioningSetupError,
@@ -80,13 +81,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: false },
+    )
+    if (bodyError) return apiError(bodyError, 400)
+
     const result = await transferEmployeeToFrappe({
       ...body,
       employee_id: user.id,
       create_user: false,
       send_welcome_email: false,
-    })
+    } as Parameters<typeof transferEmployeeToFrappe>[0])
 
     return apiOk({
       ok: true,

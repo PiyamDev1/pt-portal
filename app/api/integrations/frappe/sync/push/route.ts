@@ -6,6 +6,7 @@
 
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { dispatchOutboxBatch } from '@/lib/integrations/frappe/syncEngine'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 
@@ -18,7 +19,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { limit?: number }
+    const { data: parsedBody, error: bodyError } = await parseBodyWithSchema(
+      request,
+      jsonObjectBodySchema,
+      { allowEmptyBody: true },
+    )
+    if (bodyError) return apiError(bodyError, 400)
+
+    const body = parsedBody as { limit?: number }
     const limit = Math.min(Math.max(body.limit || 25, 1), 250)
 
     const result = await dispatchOutboxBatch(limit)
