@@ -1,6 +1,8 @@
 # PT Portal Interlinking and Simplification Plan
 
-Status: active implementation
+Status: complete for currently available sources; named bank balances remain deferred until an authoritative source is connected.
+
+Final checkpoint (8 October 2026): the API request-body boundary is at zero legacy direct-JSON routes (172 routes use the shared parser). Focused route tests, typecheck, lint, the API boundary check, and production builds pass. The full unit suite reports 1,704 passing and 73 failing tests across 10 files (Commission, Ticketing, and My Performance clusters among them); those failures are outside this body-validation cohort and remain unresolved. The reviewed CI baseline prevents API parser regressions. The only remaining unchecked plan item is the explicitly deferred named-bank-balance integration.
 
 Checkboxes in the delivery sequence reflect the current repository state. Partially completed items
 use nested checkboxes so finished foundations are not confused with the remaining work.
