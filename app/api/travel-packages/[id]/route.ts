@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type { TravelPackageFolder, TravelPackageFolderStatus } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
@@ -14,6 +15,9 @@ import {
   hasPackageReturnDateElapsed,
 } from '@/lib/packageWorkflow'
 import { syncPackagePaymentStatus } from '@/lib/packagePaymentsServer'
+import { z } from 'zod'
+
+const travelPackageUpdateBodySchema = z.object({}).passthrough()
 
 const SCHEMA_HINT =
   'Travel package folder schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_folders.sql in Supabase SQL editor.'
@@ -116,14 +120,6 @@ function cleanOptionalId(value: unknown) {
   return clean
 }
 
-async function parseBody(request: NextRequest) {
-  try {
-    return (await request.json()) as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
@@ -158,8 +154,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = await parseBody(request)
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    travelPackageUpdateBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const { data: existingData, error: existingError } = await supabase
     .from('travel_packages')
