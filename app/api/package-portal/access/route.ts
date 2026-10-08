@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { normalizePackagePortalReference } from '@/lib/packagePortal'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
@@ -23,8 +24,13 @@ function namesMatch(left: string, right: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid request', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid request', 400)
+
   const reference = normalizePackagePortalReference(body.reference)
   const lastName = normalizeLastName(body.lastName || body.last_name)
   if (!reference || !lastName) return apiError('Package reference and surname are required', 400)

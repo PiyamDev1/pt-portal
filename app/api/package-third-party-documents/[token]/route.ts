@@ -3,6 +3,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { jsonObjectBodySchema, parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { createPublicPackageDocument } from '@/lib/packagePortal'
 import { getS3Client } from '@/lib/s3Client'
@@ -178,8 +179,12 @@ export async function POST(
   })
   if (!limit.allowed) return limit.response
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    jsonObjectBodySchema,
+    { allowEmptyBody: false },
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
 
   const accessCode = cleanText(body.accessCode || body.access_code).toUpperCase()
   const recipientName = cleanText(body.recipientName || body.recipient_name)
