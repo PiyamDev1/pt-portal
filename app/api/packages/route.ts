@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   createPackageShareToken,
@@ -8,6 +9,9 @@ import {
   normalizePackageExpiry,
 } from '@/lib/packageQuote'
 import type { TravelPackageQuote } from '@/app/types/packages'
+import { z } from 'zod'
+
+const packageQuoteCreateBodySchema = z.object({}).passthrough()
 
 const SCHEMA_HINT =
   'Package quote schema is not installed yet. Run scripts/migrations/20260708_create_travel_package_quotes.sql in Supabase SQL editor.'
@@ -84,10 +88,14 @@ export async function POST(request: NextRequest) {
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = await request.json().catch(() => null)
-  const payload = normalizePackageQuotePayload((body as { payload?: unknown } | null)?.payload)
-  const shareEnabled = Boolean((body as { shareEnabled?: unknown } | null)?.shareEnabled)
-  const expiresAt = normalizePackageExpiry((body as { expiresAt?: unknown } | null)?.expiresAt)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    packageQuoteCreateBodySchema,
+  )
+  if (bodyError || !body) return apiError('Invalid JSON body', 400)
+  const payload = normalizePackageQuotePayload(body.payload)
+  const shareEnabled = Boolean(body.shareEnabled)
+  const expiresAt = normalizePackageExpiry(body.expiresAt)
 
   if (shareEnabled && isPackageQuoteExpired(expiresAt)) {
     return apiError('Package quote expiry must be in the future', 400)
