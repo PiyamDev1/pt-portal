@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { z } from 'zod'
 
 export const runtime = 'nodejs'
+
+const waitlistBodySchema = z.object({}).passthrough()
+
+function invalidBodyResponse(error: string) {
+  return NextResponse.json({ error }, { status: 400 })
+}
 
 export async function GET(request: NextRequest) {
   const locationId = request.nextUrl.searchParams.get('location_id')
@@ -25,7 +33,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, waitlistBodySchema, {
+    allowEmptyBody: false,
+  })
+  if (bodyError) return invalidBodyResponse(bodyError)
+
   const payload = {
     location_id: typeof body?.location_id === 'string' ? body.location_id : '',
     service_id: typeof body?.service_id === 'string' && body.service_id ? body.service_id : null,
@@ -66,7 +78,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const body = await request.json().catch(() => null)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, waitlistBodySchema, {
+    allowEmptyBody: false,
+  })
+  if (bodyError) return invalidBodyResponse(bodyError)
+
   const entryId = typeof body?.id === 'string' ? body.id : ''
   if (!entryId) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
